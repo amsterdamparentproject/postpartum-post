@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+:root {
+  --cream: #F5EEE6;
+  --coral: #D4614A;
+  --coral-dark: #B84F3A;
+  --dark: #1A1A1A;
+  --muted: #8B7B72;
+  --border: #E8DDD6;
+}
+
+@theme inline {
+  --color-cream: var(--cream);
+  --color-coral: var(--coral);
+  --color-coral-dark: var(--coral-dark);
+  --color-dark: var(--dark);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+}
+
+body {
+  background: var(--cream);
+  color: var(--dark);
+}
