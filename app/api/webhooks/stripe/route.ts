@@ -41,7 +41,6 @@ export async function POST(req: NextRequest) {
     await supabase.from("subscriptions").insert({
       member_id: memberId,
       stripe_subscription_id: session.subscription as string,
-      stripe_customer_id: session.customer as string,
       status: "active",
     });
   }
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     await supabase
       .from("subscriptions")
-      .update({ status: "cancelled" })
+      .update({ status: "canceled" })
       .eq("stripe_subscription_id", subscription.id);
   }
 

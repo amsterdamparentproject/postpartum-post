@@ -14,6 +14,11 @@ const LANGUAGES = [
   { value: "either", label: "Either" },
 ] as const;
 
+const PLANS = [
+  { value: "commitment_6mo", label: "€8/mo — 6-month commitment (billed €48 every 6 months)" },
+  { value: "standard_monthly", label: "€12/mo — monthly, no commitment" },
+] as const;
+
 export default function SignupForm() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +35,7 @@ export default function SignupForm() {
       zipcode: (form.elements.namedItem("zipcode") as HTMLInputElement).value,
       topic: (form.elements.namedItem("topic") as HTMLSelectElement).value as SignupFormData["topic"],
       language: (form.elements.namedItem("language") as HTMLSelectElement).value as SignupFormData["language"],
+      plan: (form.elements.namedItem("plan") as HTMLSelectElement).value as SignupFormData["plan"],
     };
 
     startTransition(async () => {
@@ -129,6 +135,22 @@ export default function SignupForm() {
           className="w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition appearance-none"
         >
           {LANGUAGES.map(({ value, label }) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="plan" className="block text-sm font-medium text-dark mb-1">
+          Plan
+        </label>
+        <select
+          id="plan"
+          name="plan"
+          required
+          className="w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition appearance-none"
+        >
+          {PLANS.map(({ value, label }) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>

@@ -11,6 +11,7 @@ export type SignupFormData = {
   zipcode: string;
   topic: "just-coffee" | "newborn-chats";
   language: "english" | "dutch" | "either";
+  plan: "standard_monthly" | "commitment_6mo";
 };
 
 export async function signup(data: SignupFormData) {
@@ -46,15 +47,21 @@ export async function signup(data: SignupFormData) {
     .update({ stripe_customer_id: customer.id })
     .eq("id", member.id);
 
+  const prices = await stripe.prices.list({
+    lookup_keys: [data.plan],
+    expand: ["data.product"],
+  });
+  const price = prices.data[0];
+  if (!price) throw new Error(`Price not found for plan: ${data.plan}`);
+
+  const taxEnabled = new Date() < new Date("2026-07-01T00:00:00Z");
+
   const session = await stripe.checkout.sessions.create({
     customer: customer.id,
     mode: "subscription",
-    line_items: [
-      {
-        price: process.env.STRIPE_PRICE_ID!,
-        quantity: 1,
-      },
-    ],
+    line_items: [{ price: price.id, quantity: 1 }],
+    allow_promotion_codes: true,
+    automatic_tax: { enabled: taxEnabled },
     metadata: { member_id: member.id },
     success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/?cancelled=true`,
