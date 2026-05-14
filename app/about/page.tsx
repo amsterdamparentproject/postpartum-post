@@ -1,27 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
+import PageLayout from "@/components/PageLayout";
 
 export default function About() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="px-6 py-5 flex items-center justify-between max-w-5xl mx-auto w-full">
-        <Link href="/" className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Postpartum Post" width={40} height={40} />
-          <span
-            className="text-xl font-semibold"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            <span className="text-coral">Postpartum</span>{" "}
-            <span className="text-dark">Post</span>
-          </span>
-        </Link>
-        <nav className="flex gap-6 text-sm font-medium text-muted">
-          <Link href="/about" className="text-dark font-semibold">
-            About
-          </Link>
-        </nav>
-      </header>
-
+    <PageLayout showNav activeRoute="/about">
       <main className="flex-1 max-w-4xl mx-auto px-6 py-16 w-full">
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div className="rounded-2xl overflow-hidden border border-border">
@@ -69,10 +52,6 @@ export default function About() {
           </div>
         </div>
       </main>
-
-      <footer className="py-8 text-center text-sm text-muted border-t border-border">
-        © {new Date().getFullYear()} Postpartum Post. All rights reserved.
-      </footer>
-    </div>
+    </PageLayout>
   );
 }

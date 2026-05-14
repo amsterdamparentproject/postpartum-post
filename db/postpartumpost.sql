@@ -14,10 +14,14 @@ create type postpartumpost.member_status as enum (
 );
 
 create type postpartumpost.rematch_reason as enum (
-  'no_show',
-  'scheduling',
-  'bad_fit',
+  'no_response',
+  'not_a_good_fit',
   'other'
+);
+
+create type postpartumpost.match_type as enum (
+  'in_person',
+  'online'
 );
 
 -- Maps to Stripe statuses
@@ -51,6 +55,7 @@ create table postpartumpost.members (
   stripe_customer_id text unique,
   status postpartumpost.member_status not null default 'pending',
   consecutive_skips integer not null default 0,
+  match_type postpartumpost.match_type, -- null is no preference
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -59,6 +64,7 @@ create table postpartumpost.subscriptions (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references postpartumpost.members(id) on delete cascade,
   stripe_subscription_id text not null unique,
+  stripe_price_id text,
   status postpartumpost.subscription_status not null default 'active',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -69,6 +75,7 @@ create table postpartumpost.matches (
   member_id_1 uuid not null references postpartumpost.members(id) on delete cascade,
   member_id_2 uuid not null references postpartumpost.members(id) on delete cascade,
   matched_on date not null default current_date,
+  match_type postpartumpost.match_type,
   rematch_requested boolean not null default false,
   rematch_reason postpartumpost.rematch_reason,
   rematch_requested_at timestamptz,
