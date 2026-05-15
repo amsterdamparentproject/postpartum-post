@@ -8,7 +8,7 @@ export type SignupFormData = {
   firstName: string;
   lastName: string;
   email: string;
-  plan: "standard_monthly" | "commitment_6mo";
+  plan: "standard_monthly" | "commitment_6mo" | "first20_6mo";
 };
 
 export async function signup(data: SignupFormData) {
@@ -33,6 +33,10 @@ export async function signup(data: SignupFormData) {
     throw new Error(`Failed to create member record: ${error?.message ?? "unknown error"}`);
   }
 
+  // first20_6mo uses the commitment_6mo price with a pre-applied promo code
+  const isFirst20 = data.plan === "first20_6mo";
+  const priceLookupKey = isFirst20 ? "commitment_6mo" : data.plan;
+
   const [customer, prices] = await Promise.all([
     stripe.customers.create({
       email: data.email,
@@ -40,13 +44,13 @@ export async function signup(data: SignupFormData) {
       metadata: { member_id: member.id },
     }),
     stripe.prices.list({
-      lookup_keys: [data.plan],
+      lookup_keys: [priceLookupKey],
       expand: ["data.product"],
     }),
   ]);
 
   const price = prices.data[0];
-  if (!price) throw new Error(`Price not found for plan: ${data.plan}`);
+  if (!price) throw new Error(`Price not found for plan: ${priceLookupKey}`);
 
   await supabase
     .from("members")
@@ -59,7 +63,11 @@ export async function signup(data: SignupFormData) {
     customer: customer.id,
     mode: "subscription",
     line_items: [{ price: price.id, quantity: 1 }],
-    allow_promotion_codes: true,
+    // Pre-apply FIRST20 coupon — can't combine with allow_promotion_codes
+    ...(isFirst20
+      ? { discounts: [{ coupon: process.env.STRIPE_FIRST20_COUPON_ID! }] }
+      : { allow_promotion_codes: true }
+    ),
     automatic_tax: { enabled: taxEnabled },
     customer_update: taxEnabled ? { address: "auto" } : undefined,
     metadata: { member_id: member.id },
