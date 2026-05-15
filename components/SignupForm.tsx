@@ -9,7 +9,7 @@ const PLANS: {
   price: string;
   name: string;
   billing: string;
-  description: string;
+  description?: string;
   badge?: string;
   featured?: boolean;
 }[] = [
@@ -17,10 +17,10 @@ const PLANS: {
     value: "first20_6mo",
     icon: "🎉",
     price: "€5/mo",
-    name: "First 20 — Founder offer",
+    name: "First 20: Our founding members",
     billing: "Billed €30 every 6 months",
-    description: "For our earliest subscribers, we're offering a ",
-    badge: "Limited",
+    description: "For our earliest subscribers, we're offering a special forever price: €5/mo for as long as you're with us!",
+    badge: "Until 1 July",
     featured: true,
   },
   {
@@ -29,7 +29,6 @@ const PLANS: {
     price: "€8/mo",
     name: "6-month commitment",
     billing: "Billed €48 every 6 months",
-    description: "Best value. [Add what's included in this plan.]",
     badge: "Best value",
   },
   {
@@ -38,7 +37,6 @@ const PLANS: {
     price: "€12/mo",
     name: "Monthly",
     billing: "Billed monthly",
-    description: "Full flexibility. [Add what's included in this plan.]",
   },
 ];
 
@@ -159,7 +157,7 @@ export default function SignupForm({ first20SpotsRemaining }: { first20SpotsRema
                 type="button"
                 onClick={() => !isSoldOut && setSelectedPlan(plan.value)}
                 disabled={isSoldOut}
-                className={`relative w-full text-left p-4 rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-coral/40 ${
+                className={`w-full text-left p-4 rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-coral/40 ${
                   isSoldOut
                     ? "border-border bg-gray-50 opacity-60 cursor-not-allowed"
                     : isSelected
@@ -167,39 +165,40 @@ export default function SignupForm({ first20SpotsRemaining }: { first20SpotsRema
                     : "border-border bg-white hover:border-coral/50"
                 }`}
               >
-                <div className="absolute top-3 right-3 flex items-center gap-2">
-                  {plan.value === "first20_6mo" && first20SpotsRemaining != null && (
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      first20SoldOut
-                        ? "bg-gray-100 text-gray-400"
-                        : first20SpotsRemaining <= 5
-                        ? "bg-red-50 text-red-500"
-                        : "bg-coral/10 text-coral"
-                    }`}>
-                      {first20SoldOut ? "Sold out" : `${first20SpotsRemaining} left`}
-                    </span>
-                  )}
-                  {plan.badge && !first20SoldOut && (
-                    <span className="text-xs font-medium text-coral bg-coral/10 px-2 py-0.5 rounded-full">
-                      {plan.badge}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-start gap-3">
+                {/* Icon left, badges right */}
+                <div className="flex items-center justify-between mb-2">
                   <span className="text-xl">{plan.icon}</span>
-                  <div>
-                    <span className="block text-lg font-semibold text-dark leading-tight">{plan.price}</span>
-                    <span className="block text-sm font-medium text-dark mb-0.5">{plan.name}</span>
-                    <span className="block text-xs text-muted mb-2">{plan.billing}</span>
-                    <span className="block text-sm text-muted leading-relaxed">{plan.description}</span>
+                  <div className="flex items-center gap-2">
+                    {plan.value === "first20_6mo" && first20SpotsRemaining != null && (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        first20SoldOut
+                          ? "bg-gray-100 text-gray-400"
+                          : first20SpotsRemaining <= 5
+                          ? "bg-red-50 text-red-500"
+                          : "bg-coral/10 text-coral"
+                      }`}>
+                        {first20SoldOut ? "Sold out" : `${first20SpotsRemaining} left`}
+                      </span>
+                    )}
+                    {plan.badge && !first20SoldOut && (
+                      <span className="text-xs font-medium text-coral bg-coral/10 px-2 py-0.5 rounded-full">
+                        {plan.badge}
+                      </span>
+                    )}
                   </div>
                 </div>
+                <span className="block text-lg font-semibold text-dark leading-tight">{plan.price}</span>
+                <span className="block text-sm font-medium text-dark mt-0.5 mb-1">{plan.name}</span>
+                <span className="block text-xs text-muted mb-2">{plan.billing}</span>
+                {plan.description && (
+                  <span className="block text-sm text-muted leading-relaxed">{plan.description}</span>
+                )}
               </button>
             );
           })}
 
-          {/* Regular plans — 2-col grid */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Regular plans — stack on mobile, 2-col on sm+ */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {PLANS.filter((p) => !p.featured).map((plan) => {
               const isSelected = selectedPlan === plan.value;
               return (
@@ -207,22 +206,27 @@ export default function SignupForm({ first20SpotsRemaining }: { first20SpotsRema
                   key={plan.value}
                   type="button"
                   onClick={() => setSelectedPlan(plan.value)}
-                  className={`relative text-left p-4 rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-coral/40 ${
+                  className={`text-left p-4 rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-coral/40 ${
                     isSelected
                       ? "border-coral bg-coral/5"
                       : "border-border bg-white hover:border-coral/50"
                   }`}
                 >
-                  {plan.badge && (
-                    <span className="absolute top-3 right-3 text-xs font-medium text-coral bg-coral/10 px-2 py-0.5 rounded-full">
-                      {plan.badge}
-                    </span>
-                  )}
-                  <span className="text-xl mb-3 block">{plan.icon}</span>
+                  {/* Icon left, badges right */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xl">{plan.icon}</span>
+                    {plan.badge && (
+                      <span className="text-xs font-medium text-coral bg-coral/10 px-2 py-0.5 rounded-full">
+                        {plan.badge}
+                      </span>
+                    )}
+                  </div>
                   <span className="block text-lg font-semibold text-dark">{plan.price}</span>
-                  <span className="block text-sm font-medium text-dark mb-1">{plan.name}</span>
-                  <span className="block text-xs text-muted mb-3">{plan.billing}</span>
-                  <span className="block text-sm text-muted leading-relaxed">{plan.description}</span>
+                  <span className="block text-sm font-medium text-dark mt-0.5 mb-1">{plan.name}</span>
+                  <span className="block text-xs text-muted">{plan.billing}</span>
+                  {plan.description && (
+                    <span className="block text-sm text-muted leading-relaxed mt-2">{plan.description}</span>
+                  )}
                 </button>
               );
             })}

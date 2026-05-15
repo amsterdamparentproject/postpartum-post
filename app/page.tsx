@@ -32,8 +32,8 @@ export default async function Home() {
             <span className="text-dark">Post</span>
           </h1>
           <p className="text-lg text-muted leading-relaxed max-w-lg mx-auto">
-            A thoughtful subscription pairing new parents with coffee, conversation,
-            and real support — delivered to your door and your schedule.
+            A cozy community service pairing new parents in the neighborhood with coffee, playdates,
+            and real support.
           </p>
         </div>
 
@@ -44,10 +44,10 @@ export default async function Home() {
             className="text-xl font-semibold text-dark mb-1"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            Join the waitlist
+            Receive your monthly Post 💌
           </h2>
           <p className="text-sm text-muted mb-6">
-            Tell us a little about yourself to get started.
+            Once you're subscribed, we'll get started finding you your first match!
           </p>
           <SignupForm first20SpotsRemaining={first20SpotsRemaining} />
         </div>
