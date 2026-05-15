@@ -72,7 +72,7 @@ export async function getSubscriptionDetails(memberId: string): Promise<Subscrip
       sub.stripe_subscription_id,
       { expand: ["items.data.price"] }
     );
-    current_period_end = stripeSub.current_period_end;
+    current_period_end = stripeSub.items.data[0].current_period_end;
     cancel_at_period_end = stripeSub.cancel_at_period_end;
     price_lookup_key = stripeSub.items.data[0].price.lookup_key ?? null;
   } catch (e) {
