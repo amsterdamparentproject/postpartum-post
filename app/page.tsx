@@ -18,6 +18,29 @@ async function getFirst20SpotsRemaining(): Promise<number | null> {
   }
 }
 
+const FAQ = [
+  {
+    q: "Who is Postpartum Post for?",
+    a: "Any new parent in Amsterdam — moms, dads, co-parents, solo parents. Whether your little one is a few weeks old or already toddling, if you're in the postpartum chapter and looking for connection, you're in the right place.",
+  },
+  {
+    q: "How does matching work?",
+    a: "Each month, we read through your profile — your neighbourhood, your little one's age, your availability — and hand-pick one other parent we think you'll click with. We introduce you by email, like a little letter. What happens next is up to you.",
+  },
+  {
+    q: "How much does it cost?",
+    a: "Plans start at €8/month on a 6-month subscription, or €12/month if you'd prefer to go month-to-month. Our first 20 subscribers get a special forever price of €5/month — a thank-you for believing in us early.",
+  },
+  {
+    q: "Can I pause or cancel?",
+    a: "Yes, anytime. If life gets busy, you can skip a month — no questions asked. You can manage your subscription from your account page, and cancellations take effect at the end of your current billing period.",
+  },
+  {
+    q: "Is my information shared with my match?",
+    a: "We share only what you'd expect: your first name and a bit about you and your little one. We never share your address or contact details. Your match gets a warm introduction from us — what comes next is up to both of you.",
+  },
+];
+
 const HOW_IT_WORKS = [
   {
     icon: <SubscribeIcon />,
@@ -97,6 +120,40 @@ export default async function Home() {
           </p>
           <SignupForm first20SpotsRemaining={first20SpotsRemaining} />
         </div>
+
+        {/* FAQ */}
+        <div className="w-full max-w-2xl mt-16 mb-4">
+          <h2
+            className="text-2xl font-semibold text-dark text-center mb-8"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Questions
+          </h2>
+          <div className="space-y-3">
+            {FAQ.map(({ q, a }, i) => (
+              <details key={i} className="group bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm">
+                <summary className="flex items-center justify-between cursor-pointer px-6 py-4 text-sm font-semibold text-dark list-none select-none">
+                  {q}
+                  <span className="ml-4 shrink-0 text-muted transition-transform group-open:rotate-45 text-lg leading-none">+</span>
+                </summary>
+                <p className="px-6 pb-5 text-sm text-muted leading-relaxed">{a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+
+        {/* Attribution */}
+        <p className="text-xs text-muted mt-8 mb-2 text-center">
+          Run by{" "}
+          <a
+            href="https://amsterdamparentproject.nl"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-coral transition-colors"
+          >
+            Alex from Amsterdam Parent Project
+          </a>
+        </p>
 
       </main>
     </PageLayout>
