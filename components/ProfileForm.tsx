@@ -168,11 +168,12 @@ type Props = {
   initialData: Partial<MemberProfile>;
   topics: Topic[];
   mode: "onboarding" | "profile";
-  section?: "personal" | "preferences";
+  section?: "personal" | "details" | "preferences";
 };
 
 const SECTION_TITLES: Record<string, string> = {
   personal: "Personal info",
+  details: "Details",
   preferences: "Preferences",
 };
 
@@ -210,14 +211,13 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         lastName !== snapshot.lastName ||
         email !== snapshot.email ||
         zipcode !== snapshot.zipcode
-      : section === "preferences"
-      ? language !== snapshot.language ||
-        topicId !== snapshot.topicId ||
-        matchType !== snapshot.matchType ||
-        matchPriority !== snapshot.matchPriority ||
-        !arrEq(availabilityDays, snapshot.availabilityDays) ||
+      : section === "details"
+      ? !arrEq(availabilityDays, snapshot.availabilityDays) ||
         !arrEq(availabilityTimes, snapshot.availabilityTimes) ||
         JSON.stringify(children) !== JSON.stringify(snapshot.children)
+      : section === "preferences"
+      ? matchPriority !== snapshot.matchPriority ||
+        matchType !== snapshot.matchType
       : // onboarding — always starts dirty (empty form)
         true;
 
@@ -266,14 +266,15 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
     const updates =
       section === "personal"
         ? { first_name: firstName, last_name: lastName, email, zipcode: zipcode || null }
+        : section === "details"
+        ? {
+            availability,
+            children: children.length > 0 ? children : null,
+          }
         : section === "preferences"
         ? {
-            language: (language as "english" | "dutch") || null,
-            topic_id: topicId || null,
             match_type: (matchType as "in_person" | "online") || null,
-            availability,
             match_priority: (matchPriority as "age" | "proximity") || null,
-            children: children.length > 0 ? children : null,
           }
         : // onboarding: zip + availability + children + match priority
           {
@@ -406,7 +407,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
       {(section === "personal" || mode === "onboarding") && (
         <div>
           <label htmlFor="zipcode" className={labelClass}>
-            Zip code {section === "personal" && <RequiredMark />}
+            Zip code
           </label>
           <input
             id="zipcode"
@@ -426,8 +427,44 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         </div>
       )}
 
-      {/* Availability — preferences section and onboarding */}
-      {(section === "preferences" || mode === "onboarding") && (
+       {/* Children — details section and onboarding */}
+      {(section === "details" || mode === "onboarding") && (
+        <div>
+          <label className={labelClass}>Children</label>
+          <p className="text-xs italic text-muted mb-3">
+            Add your child or children so we can find families at a similar stage.
+          </p>
+          <div className="space-y-2">
+            {children.map((child, i) => (
+              <ChildRow
+                key={i}
+                child={child}
+                onChange={(updated) =>
+                  setChildren((prev) => prev.map((c, idx) => (idx === i ? updated : c)))
+                }
+                onRemove={() => setChildren((prev) => prev.filter((_, idx) => idx !== i))}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setChildren((prev) => [
+                ...prev,
+                { birth_month: new Date().getMonth() + 1, birth_year: new Date().getFullYear(), expected: false },
+              ])
+            }
+            className="mt-3 text-sm text-coral hover:underline font-medium"
+          >
+            + Add a child
+          </button>
+        </div>
+      )}
+
+      {/* Availability — details section and onboarding */}
+      {(section === "details" || mode === "onboarding") && (
+        <>
+        <hr className="border-border" />
         <div>
           <label className={labelClass}>Availability</label>
           <p className="text-xs italic text-muted mb-3">
@@ -470,40 +507,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
             ))}
           </div>
         </div>
-      )}
-
-      {/* Children — preferences section and onboarding */}
-      {(section === "preferences" || mode === "onboarding") && (
-        <div>
-          <label className={labelClass}>Children</label>
-          <p className="text-xs italic text-muted mb-3">
-            Add your child or children so we can find families at a similar stage.
-          </p>
-          <div className="space-y-2">
-            {children.map((child, i) => (
-              <ChildRow
-                key={i}
-                child={child}
-                onChange={(updated) =>
-                  setChildren((prev) => prev.map((c, idx) => (idx === i ? updated : c)))
-                }
-                onRemove={() => setChildren((prev) => prev.filter((_, idx) => idx !== i))}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              setChildren((prev) => [
-                ...prev,
-                { birth_month: new Date().getMonth() + 1, birth_year: new Date().getFullYear(), expected: false },
-              ])
-            }
-            className="mt-3 text-sm text-coral hover:underline font-medium"
-          >
-            + Add a child
-          </button>
-        </div>
+        </>
       )}
 
       {/* Match priority — preferences section and onboarding */}
@@ -511,7 +515,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         <div>
           <label className={labelClass}>What matters more to you in a match?</label>
           <p className="text-xs italic text-muted mb-2">
-            We&apos;ll use this to prioritize when we can&apos;t have it all.
+            We&apos;ll use this to prioritize when finding you the right match.
           </p>
           <div className="flex gap-2">
             <ToggleButton
@@ -530,26 +534,22 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         </div>
       )}
 
-      {/* Language, topic, meetup — preferences section only (after match priority) */}
+      {/* Meetup preference — preferences section only */}
       {section === "preferences" && (
-        <>
-          <hr className="border-border" />
-
-          <div>
-            <label htmlFor="matchType" className={labelClass}>Default meet-up preference</label>
-            <p className="text-xs italic text-muted mb-2">
-              Do you prefer to meet in person or connect online?
-            </p>
-            <div className="relative">
-              <select id="matchType" value={matchType} onChange={(e) => setMatchType(e.target.value)} className={selectClass}>
-                {MATCH_TYPES.map(({ value, label }) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-              <ChevronDown />
-            </div>
+        <div>
+          <label htmlFor="matchType" className={labelClass}>Default meet-up preference</label>
+          <p className="text-xs italic text-muted mb-2">
+            Do you prefer to meet in person or connect online?
+          </p>
+          <div className="relative">
+            <select id="matchType" value={matchType} onChange={(e) => setMatchType(e.target.value)} className={selectClass}>
+              {MATCH_TYPES.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+            <ChevronDown />
           </div>
-        </>
+        </div>
       )}
 
       {/* Bottom submit — onboarding only */}

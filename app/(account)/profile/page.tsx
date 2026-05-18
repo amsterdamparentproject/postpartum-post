@@ -12,23 +12,37 @@ export default function ProfilePage() {
 
   return (
     <div className="grid md:grid-cols-2 gap-6 items-start">
-      <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-        <ProfileForm
-          memberId={member.id}
-          initialData={member}
-          topics={topics}
-          mode="profile"
-          section="personal"
-        />
+      {/* Left column — personal info + match preferences */}
+      <div className="space-y-6">
+        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
+          <ProfileForm
+            memberId={member.id}
+            initialData={member}
+            topics={topics}
+            mode="profile"
+            section="personal"
+          />
+        </div>
+
+        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
+          <ProfileForm
+            memberId={member.id}
+            initialData={member}
+            topics={topics}
+            mode="profile"
+            section="preferences"
+          />
+        </div>
       </div>
 
+      {/* Right column — availability & children */}
       <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
         <ProfileForm
           memberId={member.id}
           initialData={member}
           topics={topics}
           mode="profile"
-          section="preferences"
+          section="details"
         />
       </div>
     </div>
