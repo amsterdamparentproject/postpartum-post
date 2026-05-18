@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (event.type === "checkout.session.completed") {
+    try {
     const session = event.data.object as Stripe.Checkout.Session;
     const memberId = session.metadata?.member_id;
     const email = session.customer_details?.email;
@@ -87,16 +88,29 @@ export async function POST(req: NextRequest) {
       if (process.env.N8N_WEBHOOK_SECRET) {
         n8nHeaders["X-N8N-WEBHOOK-SECRET"] = process.env.N8N_WEBHOOK_SECRET;
       }
-      await fetch(process.env.N8N_WELCOME_WEBHOOK_URL, {
-        method: "POST",
-        headers: n8nHeaders,
-        body: JSON.stringify({
-          email,
-          magic_link: data.properties.action_link,
-        }),
-      });
+      try {
+        const n8nRes = await fetch(process.env.N8N_WELCOME_WEBHOOK_URL, {
+          method: "POST",
+          headers: n8nHeaders,
+          body: JSON.stringify({
+            email,
+            magic_link: data.properties.action_link,
+          }),
+          signal: AbortSignal.timeout(8000), // 8s timeout — don't let n8n hang the whole handler
+        });
+        console.log("[webhook] n8n response", n8nRes.status);
+      } catch (e) {
+        console.error("[webhook] n8n fetch failed (non-fatal):", e);
+        // Don't rethrow — member is active, magic link was generated.
+        // n8n failure should not cause Stripe to retry the whole event.
+      }
     } else {
       console.log(`[webhook] N8N_WELCOME_WEBHOOK_URL not set — magic link for ${email}: ${data.properties.action_link}`);
+    }
+    } catch (e) {
+      console.error("[webhook] unhandled error in checkout.session.completed handler:", e);
+      // Return 200 so Stripe doesn't retry — manual investigation needed.
+      return NextResponse.json({ received: true, error: "handler_error" });
     }
   }
 
