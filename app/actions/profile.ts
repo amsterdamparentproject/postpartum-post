@@ -3,6 +3,11 @@
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 
+export type Availability = {
+  days: string[];
+  times: string[];
+};
+
 export type MemberProfile = {
   id: string;
   first_name: string;
@@ -14,6 +19,8 @@ export type MemberProfile = {
   match_type: "in_person" | "online" | null;
   stripe_customer_id: string | null;
   consecutive_skips: number;
+  availability: Availability | null;
+  match_priority: "age" | "proximity" | null;
 };
 
 export type Topic = {
@@ -34,7 +41,7 @@ export async function getMemberProfile(email: string): Promise<MemberProfile | n
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("members")
-    .select("id, first_name, last_name, email, zipcode, language, topic_id, match_type, stripe_customer_id, consecutive_skips")
+    .select("id, first_name, last_name, email, zipcode, language, topic_id, match_type, stripe_customer_id, consecutive_skips, availability, match_priority")
     .eq("email", email)
     .single();
   return data;
@@ -92,7 +99,7 @@ export async function getSubscriptionDetails(memberId: string): Promise<Subscrip
 export async function updateMemberProfile(
   memberId: string,
   currentEmail: string,
-  updates: {
+  updates: Partial<{
     first_name: string;
     last_name: string;
     email: string;
@@ -100,7 +107,9 @@ export async function updateMemberProfile(
     language: "english" | "dutch" | null;
     topic_id: string | null;
     match_type: "in_person" | "online" | null;
-  }
+    availability: Availability | null;
+    match_priority: "age" | "proximity" | null;
+  }>
 ) {
   const supabase = createAdminClient();
   const emailChanged = updates.email !== currentEmail;

@@ -62,26 +62,11 @@ export async function POST(req: NextRequest) {
     );
     console.log("[webhook] subscription upsert", { error: subError?.message });
 
-    // Generate magic link for profile setup
-    const { data, error } = await supabase.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/profile`,
-      },
-    });
-
-    if (error || !data.properties?.action_link) {
-      console.error(`[webhook] failed to generate magic link for ${email}:`, error);
-      // Return 200 so Stripe doesn't retry — member is active but needs
-      // magic link resent manually via Supabase dashboard or admin tool.
-      return NextResponse.json({ received: true });
-    }
-
-    console.log("[webhook] magic link generated, handing off to n8n");
-
     // Hand off to n8n for welcome email
+    // Payload: email + first name for personalisation. No magic link needed —
+    // /profile handles auth on-demand via signInWithOtp.
     if (process.env.N8N_WELCOME_WEBHOOK_URL) {
+      const firstName = session.customer_details?.name?.split(" ")[0] ?? "";
       const n8nHeaders: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -92,20 +77,15 @@ export async function POST(req: NextRequest) {
         const n8nRes = await fetch(process.env.N8N_WELCOME_WEBHOOK_URL, {
           method: "POST",
           headers: n8nHeaders,
-          body: JSON.stringify({
-            email,
-            magic_link: data.properties.action_link,
-          }),
-          signal: AbortSignal.timeout(8000), // 8s timeout — don't let n8n hang the whole handler
+          body: JSON.stringify({ email, first_name: firstName }),
+          signal: AbortSignal.timeout(8000),
         });
         console.log("[webhook] n8n response", n8nRes.status);
       } catch (e) {
         console.error("[webhook] n8n fetch failed (non-fatal):", e);
-        // Don't rethrow — member is active, magic link was generated.
-        // n8n failure should not cause Stripe to retry the whole event.
       }
     } else {
-      console.log(`[webhook] N8N_WELCOME_WEBHOOK_URL not set — magic link for ${email}: ${data.properties.action_link}`);
+      console.log(`[webhook] N8N_WELCOME_WEBHOOK_URL not set, skipping welcome email for ${email}`);
     }
     } catch (e) {
       console.error("[webhook] unhandled error in checkout.session.completed handler:", e);

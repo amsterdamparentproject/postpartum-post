@@ -58,6 +58,8 @@ create table postpartumpost.members (
   match_type postpartumpost.match_type, -- null is no preference
   created_at timestamptz default now(),
   updated_at timestamptz default now()
+  availability jsonb,
+  match_priority text check (match_priority in ('age', 'proximity'))
 );
 
 create table postpartumpost.subscriptions (
