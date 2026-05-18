@@ -9,7 +9,7 @@ function AccountShell({ children }: { children: React.ReactNode }) {
 
   return (
     <PageLayout>
-      <main className="flex-1 px-6 py-16 max-w-5xl mx-auto w-full">
+      <main className="flex-1 px-6 pt-8 pb-16 max-w-5xl mx-auto w-full">
         {member && <AccountTabNav />}
         {children}
       </main>

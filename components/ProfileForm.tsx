@@ -1,17 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { updateMemberProfile, type MemberProfile, type Topic, type Availability } from "@/app/actions/profile";
+import { useState, useTransition, useEffect } from "react";
+import { updateMemberProfile, type MemberProfile, type Topic, type Availability, type Child } from "@/app/actions/profile";
 import CalloutBox from "@/components/CalloutBox";
 
 const DUTCH_POSTCODE = /^[1-9][0-9]{3}\s?[A-Za-z]{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const LANGUAGES = [
-  { value: "", label: "No preference" },
-  { value: "english", label: "English" },
-  { value: "dutch", label: "Dutch" },
-] as const;
 
 const MATCH_TYPES = [
   { value: "", label: "No preference" },
@@ -33,6 +27,14 @@ const TIMES = [
   { value: "morning", label: "Morning" },
   { value: "afternoon", label: "Afternoon" },
 ];
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+const CHILD_YEARS = Array.from({ length: 8 }, (_, i) => CURRENT_YEAR + 1 - i); // +1 for due dates
 
 const selectClass =
   "w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition appearance-none pr-10";
@@ -95,6 +97,72 @@ function ToggleButton({
   );
 }
 
+function ChildRow({
+  child,
+  onChange,
+  onRemove,
+}: {
+  child: Child;
+  onChange: (updated: Child) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative">
+        <select
+          value={child.expected ? "due" : "born"}
+          onChange={(e) => onChange({ ...child, expected: e.target.value === "due" })}
+          className="px-3 py-2 rounded-lg border border-border bg-white text-dark text-sm focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition appearance-none pr-7"
+        >
+          <option value="born">Born</option>
+          <option value="due">Due</option>
+        </select>
+        <ChevronDown />
+      </div>
+
+      <div className="relative flex-1">
+        <select
+          value={child.birth_month}
+          onChange={(e) => onChange({ ...child, birth_month: Number(e.target.value) })}
+          className="w-full px-3 py-2 rounded-lg border border-border bg-white text-dark text-sm focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition appearance-none pr-7"
+        >
+          {MONTHS.map((name, i) => (
+            <option key={i + 1} value={i + 1}>{name}</option>
+          ))}
+        </select>
+        <ChevronDown />
+      </div>
+
+      <div className="relative">
+        <select
+          value={child.birth_year}
+          onChange={(e) => onChange({ ...child, birth_year: Number(e.target.value) })}
+          className="px-3 py-2 rounded-lg border border-border bg-white text-dark text-sm focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition appearance-none pr-7"
+        >
+          {CHILD_YEARS.map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+        <ChevronDown />
+      </div>
+
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-muted hover:text-coral transition text-lg leading-none px-1"
+        aria-label="Remove child"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+/** Compare two string arrays regardless of insertion order */
+function arrEq(a: string[], b: string[]) {
+  return JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+}
+
 type Props = {
   memberId: string;
   initialData: Partial<MemberProfile>;
@@ -119,6 +187,50 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
   const [availabilityDays, setAvailabilityDays] = useState<string[]>(initialData.availability?.days ?? []);
   const [availabilityTimes, setAvailabilityTimes] = useState<string[]>(initialData.availability?.times ?? []);
   const [matchPriority, setMatchPriority] = useState<"age" | "proximity" | "">(initialData.match_priority ?? "");
+  const [children, setChildren] = useState<Child[]>(initialData.children ?? []);
+
+  // Snapshot of last-saved values — used to compute isDirty
+  const [snapshot, setSnapshot] = useState({
+    firstName: initialData.first_name ?? "",
+    lastName: initialData.last_name ?? "",
+    email: initialData.email ?? "",
+    zipcode: initialData.zipcode ?? "",
+    language: initialData.language ?? "",
+    topicId: initialData.topic_id ?? "",
+    matchType: initialData.match_type ?? "",
+    availabilityDays: initialData.availability?.days ?? [] as string[],
+    availabilityTimes: initialData.availability?.times ?? [] as string[],
+    matchPriority: initialData.match_priority ?? "",
+    children: initialData.children ?? [] as Child[],
+  });
+
+  const isDirty =
+    section === "personal"
+      ? firstName !== snapshot.firstName ||
+        lastName !== snapshot.lastName ||
+        email !== snapshot.email ||
+        zipcode !== snapshot.zipcode
+      : section === "preferences"
+      ? language !== snapshot.language ||
+        topicId !== snapshot.topicId ||
+        matchType !== snapshot.matchType ||
+        matchPriority !== snapshot.matchPriority ||
+        !arrEq(availabilityDays, snapshot.availabilityDays) ||
+        !arrEq(availabilityTimes, snapshot.availabilityTimes) ||
+        JSON.stringify(children) !== JSON.stringify(snapshot.children)
+      : // onboarding — always starts dirty (empty form)
+        true;
+
+  // Warn before closing/navigating away with unsaved profile changes
+  useEffect(() => {
+    if (!isDirty || mode === "onboarding") return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty, mode]);
 
   const [emailError, setEmailError] = useState<string | null>(null);
   const [zipcodeError, setZipcodeError] = useState<string | null>(null);
@@ -161,18 +273,29 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
             match_type: (matchType as "in_person" | "online") || null,
             availability,
             match_priority: (matchPriority as "age" | "proximity") || null,
+            children: children.length > 0 ? children : null,
           }
-        : // onboarding: zip + availability + match priority
+        : // onboarding: zip + availability + children + match priority
           {
             zipcode: zipcode || null,
             availability,
             match_priority: (matchPriority as "age" | "proximity") || null,
+            children: children.length > 0 ? children : null,
           };
 
     startTransition(async () => {
       try {
         await updateMemberProfile(memberId, initialData.email ?? email, updates);
         setSaved(true);
+        // Advance snapshot so isDirty resets
+        setSnapshot({
+          firstName, lastName, email, zipcode,
+          language, topicId, matchType,
+          availabilityDays: [...availabilityDays],
+          availabilityTimes: [...availabilityTimes],
+          matchPriority,
+          children: [...children],
+        });
       } catch {
         setSaveError("Failed to save changes. Please try again.");
       }
@@ -202,12 +325,21 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-dark">{title}</h2>
           <div className="flex items-center gap-3">
-            {saved && <p className="text-xs text-muted">Saved.</p>}
             {saveError && <p className="text-xs text-coral">{saveError}</p>}
+            {isDirty
+              ? <p className="text-xs font-medium text-amber-600">Unsaved changes</p>
+              : saved
+              ? <p className="text-xs text-muted">Saved!</p>
+              : null
+            }
             <button
               type="submit"
               disabled={isPending}
-              className="py-1.5 px-4 bg-coral hover:bg-coral-dark text-white text-sm font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className={`py-1.5 px-4 text-sm font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed ${
+                isDirty
+                  ? "bg-dark hover:bg-coral-dark text-white shadow-sm ring-2 ring-coral/20"
+                  : "bg-white border border-border text-muted cursor-default"
+              }`}
             >
               {isPending ? "Saving…" : "Save"}
             </button>
@@ -294,67 +426,12 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         </div>
       )}
 
-      {/* Preference fields — profile/preferences section only */}
-      {section === "preferences" && (
-        <>
-          <div>
-            <label htmlFor="language" className={labelClass}>Language preference</label>
-            <p className="text-xs italic text-muted mb-2">
-              We&apos;ll try to match you with someone who speaks the same language.
-            </p>
-            <div className="relative">
-              <select id="language" value={language} onChange={(e) => setLanguage(e.target.value)} className={selectClass}>
-                {LANGUAGES.map(({ value, label }) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-              <ChevronDown />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="topic" className={labelClass}>Default topic</label>
-            <p className="text-xs italic text-muted mb-2">
-              What would you like to talk about? We&apos;ll use this to find you a better match.
-            </p>
-            <div className="relative">
-              <select id="topic" value={topicId} onChange={(e) => setTopicId(e.target.value)} className={selectClass}>
-                <option value="">No preference</option>
-                {topics.map(({ id, name }) => (
-                  <option key={id} value={id}>
-                    {name.charAt(0).toUpperCase() + name.slice(1)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="matchType" className={labelClass}>Default meet-up preference</label>
-            <p className="text-xs italic text-muted mb-2">
-              Do you prefer to meet in person or connect online?
-            </p>
-            <div className="relative">
-              <select id="matchType" value={matchType} onChange={(e) => setMatchType(e.target.value)} className={selectClass}>
-                {MATCH_TYPES.map(({ value, label }) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-              <ChevronDown />
-            </div>
-          </div>
-
-          <hr className="border-border" />
-        </>
-      )}
-
       {/* Availability — preferences section and onboarding */}
       {(section === "preferences" || mode === "onboarding") && (
         <div>
           <label className={labelClass}>Availability</label>
           <p className="text-xs italic text-muted mb-3">
-            When are you generally free to connect? Select all that apply.
+            Select all that apply.
           </p>
           <p className="flex items-center gap-1.5 text-xs font-medium text-coral my-2">
             <CalendarIcon />Days
@@ -395,6 +472,40 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         </div>
       )}
 
+      {/* Children — preferences section and onboarding */}
+      {(section === "preferences" || mode === "onboarding") && (
+        <div>
+          <label className={labelClass}>Children</label>
+          <p className="text-xs italic text-muted mb-3">
+            Add your child or children so we can find families at a similar stage.
+          </p>
+          <div className="space-y-2">
+            {children.map((child, i) => (
+              <ChildRow
+                key={i}
+                child={child}
+                onChange={(updated) =>
+                  setChildren((prev) => prev.map((c, idx) => (idx === i ? updated : c)))
+                }
+                onRemove={() => setChildren((prev) => prev.filter((_, idx) => idx !== i))}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setChildren((prev) => [
+                ...prev,
+                { birth_month: new Date().getMonth() + 1, birth_year: new Date().getFullYear(), expected: false },
+              ])
+            }
+            className="mt-3 text-sm text-coral hover:underline font-medium"
+          >
+            + Add a child
+          </button>
+        </div>
+      )}
+
       {/* Match priority — preferences section and onboarding */}
       {(section === "preferences" || mode === "onboarding") && (
         <div>
@@ -417,6 +528,28 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
             </ToggleButton>
           </div>
         </div>
+      )}
+
+      {/* Language, topic, meetup — preferences section only (after match priority) */}
+      {section === "preferences" && (
+        <>
+          <hr className="border-border" />
+
+          <div>
+            <label htmlFor="matchType" className={labelClass}>Default meet-up preference</label>
+            <p className="text-xs italic text-muted mb-2">
+              Do you prefer to meet in person or connect online?
+            </p>
+            <div className="relative">
+              <select id="matchType" value={matchType} onChange={(e) => setMatchType(e.target.value)} className={selectClass}>
+                {MATCH_TYPES.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <ChevronDown />
+            </div>
+          </div>
+        </>
       )}
 
       {/* Bottom submit — onboarding only */}

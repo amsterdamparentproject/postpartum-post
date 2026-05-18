@@ -8,6 +8,12 @@ export type Availability = {
   times: string[];
 };
 
+export type Child = {
+  birth_month: number; // 1–12
+  birth_year: number;
+  expected: boolean;
+};
+
 export type MemberProfile = {
   id: string;
   first_name: string;
@@ -21,6 +27,7 @@ export type MemberProfile = {
   consecutive_skips: number;
   availability: Availability | null;
   match_priority: "age" | "proximity" | null;
+  children: Child[] | null;
 };
 
 export type Topic = {
@@ -41,7 +48,7 @@ export async function getMemberProfile(email: string): Promise<MemberProfile | n
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("members")
-    .select("id, first_name, last_name, email, zipcode, language, topic_id, match_type, stripe_customer_id, consecutive_skips, availability, match_priority")
+    .select("id, first_name, last_name, email, zipcode, language, topic_id, match_type, stripe_customer_id, consecutive_skips, availability, match_priority, children")
     .eq("email", email)
     .single();
   return data;
@@ -109,6 +116,7 @@ export async function updateMemberProfile(
     match_type: "in_person" | "online" | null;
     availability: Availability | null;
     match_priority: "age" | "proximity" | null;
+    children: Child[] | null;
   }>
 ) {
   const supabase = createAdminClient();
