@@ -15,8 +15,38 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Postpartum Post",
-  description: "A thoughtful subscription connecting new parents with support and community.",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.nl"
+  ),
+  title: {
+    default: "Postpartum Post",
+    template: "%s · Postpartum Post",
+  },
+  description:
+    "Postpartum Post matches new parents in Amsterdam with each other — by neighbourhood, by availability, by vibe. Subscribe and receive your first introduction this month.",
+  openGraph: {
+    type: "website",
+    locale: "en_NL",
+    siteName: "Postpartum Post",
+    title: "Postpartum Post — meet a new parent nearby",
+    description:
+      "A monthly matchmaking letter for new parents in Amsterdam. Subscribe and we'll introduce you to someone nearby.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Postpartum Post — meet a new parent nearby",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Postpartum Post — meet a new parent nearby",
+    description:
+      "A monthly matchmaking letter for new parents in Amsterdam. Subscribe and we'll introduce you to someone nearby.",
+    images: ["/og-image.png"],
+  },
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",

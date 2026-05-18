@@ -1,6 +1,18 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
+
+export const metadata: Metadata = {
+  title: "About",
+  description:
+    "Learn about Postpartum Post — who we are, why we started, and how we match new parents in Amsterdam with each other every month.",
+  openGraph: {
+    title: "About Postpartum Post",
+    description:
+      "Learn about Postpartum Post — who we are, why we started, and how we match new parents in Amsterdam with each other every month.",
+  },
+};
 
 export default function About() {
   return (

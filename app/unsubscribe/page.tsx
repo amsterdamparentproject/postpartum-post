@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import PageLayout from "@/components/PageLayout";
 import UnsubscribeForm from "@/components/UnsubscribeForm";
+
+export const metadata: Metadata = {
+  title: "Unsubscribe",
+  robots: { index: false },
+};
 
 export default async function Unsubscribe({
   searchParams,

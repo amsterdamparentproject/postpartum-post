@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import PageLayout from "@/components/PageLayout";
 import ProfileForm from "@/components/ProfileForm";
+
+export const metadata: Metadata = {
+  title: "Welcome",
+  robots: { index: false },
+};
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 import { getTopics } from "@/app/actions/profile";

@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import PageLayout from "@/components/PageLayout";
 import RematchForm from "@/components/RematchForm";
+
+export const metadata: Metadata = {
+  title: "Request a Rematch",
+  robots: { index: false },
+};
 
 export default async function Rematch({
   searchParams,
