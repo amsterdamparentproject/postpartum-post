@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
+import HowMatchingWorks from "@/components/HowMatchingWorks";
+import FAQ from "@/components/FAQ";
 
 export const metadata: Metadata = {
   title: "About",
@@ -39,20 +41,16 @@ export default function About() {
             </h1>
             <div className="space-y-4 text-muted leading-relaxed">
               <p>
-                The postpartum period is one of the most transformative — and often
-                isolating — times in a parent&apos;s life. We created Postpartum Post
-                to change that.
+                The postpartum period is one of the most transformative — and often loneliest — times in a parent's life. 
+                Parent groups are great. But sometimes what you need is one person, not a room full of them.
               </p>
               <p>
-                We match new parents in the same neighborhood for coffee and
-                conversation, so you never have to navigate early parenthood alone.
-                Whether you&apos;re in the thick of newborn nights or looking for a
-                friendly face at the park, we&apos;re here to help you find your people.
+                We match new parents in the same neighborhood for coffee, a playdate,
+                or just a chat. One introduction a month, no commitment beyond showing up.
               </p>
               <p>
-                Our subscriptions are thoughtfully designed to fit around nap
-                schedules, feeding sessions, and everything in between. You choose
-                the topic, the language, and we handle the rest.
+                Subscriptions are flexible by design: skip any month, pause when
+                life gets full, cancel anytime. You pick the topic, we find the match — and deliver the introduction like a little letter in your inbox.
               </p>
             </div>
             <Link
@@ -62,6 +60,15 @@ export default function About() {
               Sign up today
             </Link>
           </div>
+        </div>
+        {/* How matching works */}
+        <div className="mt-20">
+          <HowMatchingWorks />
+        </div>
+
+        {/* FAQ */}
+        <div className="mt-20">
+          <FAQ />
         </div>
       </main>
     </PageLayout>

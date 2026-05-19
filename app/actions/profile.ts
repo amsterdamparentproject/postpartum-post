@@ -20,7 +20,7 @@ export type MemberProfile = {
   last_name: string;
   email: string;
   zipcode: string | null;
-  language: "english" | "dutch" | null;
+  language: string[] | null;
   topic_id: string | null;
   match_type: "in_person" | "online" | null;
   stripe_customer_id: string | null;
@@ -117,7 +117,7 @@ export async function updateMemberProfile(
     last_name: string;
     email: string;
     zipcode: string | null;
-    language: "english" | "dutch" | null;
+    language: string[] | null;
     topic_id: string | null;
     match_type: "in_person" | "online" | null;
     availability: Availability | null;

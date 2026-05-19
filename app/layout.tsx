@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: "%s · Postpartum Post",
   },
   description:
-    "Postpartum Post matches new parents in Amsterdam with each other — by neighbourhood, by availability, by vibe. Subscribe and receive your first introduction this month.",
+    "Postpartum Post matches new parents in Amsterdam with each other — by neighborhood, by availability, by vibe. Subscribe and receive your first introduction this month.",
   openGraph: {
     type: "website",
     locale: "en_NL",

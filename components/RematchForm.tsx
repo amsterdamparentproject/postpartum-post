@@ -46,7 +46,7 @@ export default function RematchForm({ memberId }: { memberId: string }) {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
-            placeholder="e.g. I'd love someone with a baby around the same age, or I'd prefer to practise Dutch this month…"
+            placeholder="e.g. I'd love someone with a baby around the same age, or I'd prefer to practice Dutch this month…"
             className="w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark placeholder-muted text-sm focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition resize-none"
           />
         </div>

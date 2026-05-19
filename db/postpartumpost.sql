@@ -1,10 +1,8 @@
 create schema if not exists postpartumpost;
 
 -- Enums (only for stable, well-defined value sets)
-create type postpartumpost.language as enum (
-  'english',
-  'dutch'
-);
+-- Note: language is intentionally NOT an enum — it is stored as text[]
+-- so members can indicate multiple languages. See migrations/003_language_array.sql.
 
 create type postpartumpost.member_status as enum (
   'pending',
@@ -50,8 +48,10 @@ create table postpartumpost.members (
   last_name text not null,
   email text not null unique,
   zipcode text,
+  lat float8,                        -- geocoded from zipcode (cached, see migrations/002)
+  lng float8,
   topic_id uuid references postpartumpost.topics(id) on delete set null,
-  language postpartumpost.language, -- null is no preference
+  language text[],                   -- languages member is comfortable matching in; null = no preference
   stripe_customer_id text unique,
   status postpartumpost.member_status not null default 'pending',
   consecutive_skips integer not null default 0,
@@ -99,6 +99,7 @@ create table postpartumpost.monthly_skips (
 
 -- Indexes
 create index on postpartumpost.members (topic_id);
+create index on postpartumpost.members (lat, lng) where lat is not null and lng is not null;
 create index on postpartumpost.members (stripe_customer_id);
 create index on postpartumpost.subscriptions (member_id);
 create index on postpartumpost.subscriptions (stripe_subscription_id);

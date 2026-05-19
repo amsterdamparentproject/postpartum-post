@@ -123,7 +123,7 @@ function unsubscribedHtml(firstName: string): string {
   return layout(`
     <p style="margin:0 0 20px;">Hi ${firstName},</p>
     <p style="margin:0 0 20px;">
-      Your Postpartum Post subscription has been cancelled. No more charges will be made, and your current period runs until the end of the billing cycle.
+      Your Postpartum Post subscription has been canceled. No more charges will be made, and your current period runs until the end of the billing cycle.
     </p>
     <p style="margin:0 0 20px;">
       I'm sorry to see you go. I hope Postpartum Post brought you at least one meaningful connection — that was always the goal.

@@ -13,6 +13,11 @@ const MATCH_TYPES = [
   { value: "online", label: "Online" },
 ] as const;
 
+const LANGUAGES = [
+  { value: "english", label: "English" },
+  { value: "dutch", label: "Dutch" },
+];
+
 const DAYS = [
   { value: "monday", label: "Mon" },
   { value: "tuesday", label: "Tue" },
@@ -182,7 +187,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
   const [lastName, setLastName] = useState(initialData.last_name ?? "");
   const [email, setEmail] = useState(initialData.email ?? "");
   const [zipcode, setZipcode] = useState(initialData.zipcode ?? "");
-  const [language, setLanguage] = useState(initialData.language ?? "");
+  const [languages, setLanguages] = useState<string[]>(initialData.language ?? []);
   const [topicId, setTopicId] = useState(initialData.topic_id ?? "");
   const [matchType, setMatchType] = useState(initialData.match_type ?? "");
   const [availabilityDays, setAvailabilityDays] = useState<string[]>(initialData.availability?.days ?? []);
@@ -196,7 +201,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
     lastName: initialData.last_name ?? "",
     email: initialData.email ?? "",
     zipcode: initialData.zipcode ?? "",
-    language: initialData.language ?? "",
+    languages: initialData.language ?? [] as string[],
     topicId: initialData.topic_id ?? "",
     matchType: initialData.match_type ?? "",
     availabilityDays: initialData.availability?.days ?? [] as string[],
@@ -212,7 +217,8 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         email !== snapshot.email ||
         zipcode !== snapshot.zipcode
       : section === "details"
-      ? !arrEq(availabilityDays, snapshot.availabilityDays) ||
+      ? !arrEq(languages, snapshot.languages) ||
+        !arrEq(availabilityDays, snapshot.availabilityDays) ||
         !arrEq(availabilityTimes, snapshot.availabilityTimes) ||
         JSON.stringify(children) !== JSON.stringify(snapshot.children)
       : section === "preferences"
@@ -268,6 +274,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         ? { first_name: firstName, last_name: lastName, email, zipcode: zipcode || null }
         : section === "details"
         ? {
+            language: languages.length > 0 ? languages : null,
             availability,
             children: children.length > 0 ? children : null,
           }
@@ -276,9 +283,10 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
             match_type: (matchType as "in_person" | "online") || null,
             match_priority: (matchPriority as "age" | "proximity") || null,
           }
-        : // onboarding: zip + availability + children + match priority
+        : // onboarding: zip + language + availability + children + match priority
           {
             zipcode: zipcode || null,
+            language: languages.length > 0 ? languages : null,
             availability,
             match_priority: (matchPriority as "age" | "proximity") || null,
             children: children.length > 0 ? children : null,
@@ -291,7 +299,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         // Advance snapshot so isDirty resets
         setSnapshot({
           firstName, lastName, email, zipcode,
-          language, topicId, matchType,
+          languages: [...languages], topicId, matchType,
           availabilityDays: [...availabilityDays],
           availabilityTimes: [...availabilityTimes],
           matchPriority,
@@ -427,12 +435,41 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         </div>
       )}
 
-       {/* Children — details section and onboarding */}
+      {/* Languages — details section and onboarding */}
       {(section === "details" || mode === "onboarding") && (
         <div>
+          <label className={labelClass}>Languages</label>
+          <p className="text-xs italic text-muted mb-2">
+            We&apos;ll only pair you with someone you can talk to
+          </p>
+          <div className="flex gap-2">
+            {LANGUAGES.map(({ value, label }) => (
+              <ToggleButton
+                key={value}
+                selected={languages.includes(value)}
+                onClick={() =>
+                  setLanguages((prev) =>
+                    prev.includes(value)
+                      ? prev.filter((l) => l !== value)
+                      : [...prev, value]
+                  )
+                }
+              >
+                {label}
+              </ToggleButton>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Children — details section and onboarding */}
+      {(section === "details" || mode === "onboarding") && (
+        <>
+        <hr className="border-border" />
+         <div>
           <label className={labelClass}>Children</label>
           <p className="text-xs italic text-muted mb-3">
-            Add your child or children so we can find families at a similar stage.
+            For finding matches with kids of a similar age
           </p>
           <div className="space-y-2">
             {children.map((child, i) => (
@@ -459,54 +496,55 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
             + Add a child
           </button>
         </div>
+        </>
       )}
 
       {/* Availability — details section and onboarding */}
       {(section === "details" || mode === "onboarding") && (
         <>
-        <hr className="border-border" />
-        <div>
-          <label className={labelClass}>Availability</label>
-          <p className="text-xs italic text-muted mb-3">
-            Select all that apply.
-          </p>
-          <p className="flex items-center gap-1.5 text-xs font-medium text-coral my-2">
-            <CalendarIcon />Days
-          </p>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {DAYS.map(({ value, label }) => (
-              <ToggleButton
-                key={value}
-                selected={availabilityDays.includes(value)}
-                onClick={() =>
-                  setAvailabilityDays((prev) =>
-                    prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value]
-                  )
-                }
-              >
-                {label}
-              </ToggleButton>
-            ))}
+          <hr className="border-border" />
+          <div>
+            <label className={labelClass}>Availability</label>
+            <p className="text-xs italic text-muted mb-3">
+              When you're free to meet your match
+            </p>
+            <p className="flex items-center gap-1.5 text-xs font-medium text-muted my-2">
+              <CalendarIcon />Days
+            </p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {DAYS.map(({ value, label }) => (
+                <ToggleButton
+                  key={value}
+                  selected={availabilityDays.includes(value)}
+                  onClick={() =>
+                    setAvailabilityDays((prev) =>
+                      prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value]
+                    )
+                  }
+                >
+                  {label}
+                </ToggleButton>
+              ))}
+            </div>
+            <p className="flex items-center gap-1.5 text-xs font-medium text-muted my-2">
+              <ClockIcon />Time of day
+            </p>
+            <div className="flex gap-2">
+              {TIMES.map(({ value, label }) => (
+                <ToggleButton
+                  key={value}
+                  selected={availabilityTimes.includes(value)}
+                  onClick={() =>
+                    setAvailabilityTimes((prev) =>
+                      prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value]
+                    )
+                  }
+                >
+                  {label}
+                </ToggleButton>
+              ))}
+            </div>
           </div>
-          <p className="flex items-center gap-1.5 text-xs font-medium text-coral my-2">
-            <ClockIcon />Time of day
-          </p>
-          <div className="flex gap-2">
-            {TIMES.map(({ value, label }) => (
-              <ToggleButton
-                key={value}
-                selected={availabilityTimes.includes(value)}
-                onClick={() =>
-                  setAvailabilityTimes((prev) =>
-                    prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value]
-                  )
-                }
-              >
-                {label}
-              </ToggleButton>
-            ))}
-          </div>
-        </div>
         </>
       )}
 
@@ -539,7 +577,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         <div>
           <label htmlFor="matchType" className={labelClass}>Default meet-up preference</label>
           <p className="text-xs italic text-muted mb-2">
-            Do you prefer to meet in person or connect online?
+            Meet up in person, online, or whatever works for your match
           </p>
           <div className="relative">
             <select id="matchType" value={matchType} onChange={(e) => setMatchType(e.target.value)} className={selectClass}>

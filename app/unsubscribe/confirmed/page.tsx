@@ -14,7 +14,7 @@ export default function UnsubscribeConfirmed() {
             You&apos;ve been unsubscribed
           </h1>
           <p className="text-muted leading-relaxed mb-8">
-            Your subscription has been cancelled. You won't be charged again, and you won't receive any more matches.
+            Your subscription has been canceled. You won't be charged again, and you won't receive any more matches.
           </p>
           <p className="text-muted text-sm leading-relaxed mb-10">
             We hope Postpartum Post was useful while it lasted. If you ever want to come back — whether your little one is 3 months or 3 years old — the door is always open.
