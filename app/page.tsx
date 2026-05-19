@@ -32,8 +32,12 @@ const FAQ = [
     a: "Plans start at €8/month on a 6-month subscription, or €12/month if you'd prefer to go month-to-month. Our first 20 subscribers get a special forever price of €5/month — a thank-you for believing in us early.",
   },
   {
+    q: "Can I skip a month?",
+    a: "Yes — every month we'll send you a short email with a one-click skip link. Tap it and we'll skip your match for that month and adjust your billing automatically. No forms, no explanations needed.",
+  },
+  {
     q: "Can I pause or cancel?",
-    a: "Yes, anytime. If life gets busy, you can skip a month — no questions asked. You can manage your subscription from your account page, and cancellations take effect at the end of your current billing period.",
+    a: "Yes, anytime. After three consecutive skips we'll automatically pause your subscription so you're not charged while things are busy. You can also cancel anytime from your account — cancellations take effect at the end of your current billing period.",
   },
   {
     q: "Is my information shared with my match?",

@@ -87,6 +87,16 @@ create table postpartumpost.matches (
   constraint no_self_match check (member_id_1 != member_id_2)
 );
 
+-- Monthly skips: one row per member per calendar month they opted out.
+-- consecutive_skips on members is a cached counter; this table is the source of truth.
+create table postpartumpost.monthly_skips (
+  id          uuid primary key default gen_random_uuid(),
+  member_id   uuid not null references postpartumpost.members(id) on delete cascade,
+  month       date not null,     -- always first of month, e.g. 2026-05-01
+  created_at  timestamptz not null default now(),
+  unique (member_id, month)
+);
+
 -- Indexes
 create index on postpartumpost.members (topic_id);
 create index on postpartumpost.members (stripe_customer_id);
@@ -94,6 +104,8 @@ create index on postpartumpost.subscriptions (member_id);
 create index on postpartumpost.subscriptions (stripe_subscription_id);
 create index on postpartumpost.matches (member_id_1);
 create index on postpartumpost.matches (member_id_2);
+create index on postpartumpost.monthly_skips (member_id);
+create index on postpartumpost.monthly_skips (month);
 
 -- Seed data
 insert into postpartumpost.topics (name) values ('coffee'), ('playdate');

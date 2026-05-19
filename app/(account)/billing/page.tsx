@@ -46,7 +46,9 @@ export default function BillingPage() {
   }
 
   const planLabel =
-    subscription?.price_lookup_key === "commitment_6mo"
+    subscription?.price_lookup_key === "first20_6mo"
+      ? "Founding member (€5/mo)"
+      : subscription?.price_lookup_key === "commitment_6mo"
       ? "6-month commitment (€8/mo)"
       : subscription?.price_lookup_key === "standard_monthly"
       ? "Monthly (€12/mo)"
@@ -68,12 +70,31 @@ export default function BillingPage() {
           <p className="text-sm text-muted">No active subscription found.</p>
         ) : (
           <>
+            {/* Skip this month banner */}
+            {subscription.pause_collection && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+                <span className="font-medium">Skipping this month</span>
+                {subscription.pause_collection.resumes_at && (
+                  <span className="text-amber-700">
+                    {" "}— billing resumes {formatDate(subscription.pause_collection.resumes_at)}
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted">Status</span>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo?.className}`}>
                 {statusInfo?.label}
               </span>
             </div>
+
+            {planLabel && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">Plan</span>
+                <span className="text-dark font-medium">{planLabel}</span>
+              </div>
+            )}
 
             {subscription.current_period_end && (
               <div className="flex items-center justify-between text-sm">
@@ -86,19 +107,20 @@ export default function BillingPage() {
               </div>
             )}
 
-            {planLabel && (
+            {member.consecutive_skips > 0 && (
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted">Plan</span>
-                <span className="text-dark font-medium">{planLabel}</span>
+                <span className="text-muted">Months skipped in a row</span>
+                <span className={`font-medium ${member.consecutive_skips >= 2 ? "text-amber-600" : "text-dark"}`}>
+                  {member.consecutive_skips} / 3
+                </span>
               </div>
             )}
 
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted">Consecutive skips</span>
-              <span className="text-dark font-medium">{member.consecutive_skips}</span>
-            </div>
-
             <hr className="border-border" />
+
+            <p className="text-xs text-muted leading-relaxed">
+              Skip any month from your monthly email and we&apos;ll adjust your billing automatically — no penalty, no questions asked.
+            </p>
 
             <button
               onClick={handleManageBilling}

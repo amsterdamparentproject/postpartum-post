@@ -42,6 +42,7 @@ export type SubscriptionDetails = {
   price_lookup_key: string | null;
   current_period_end: number | null;
   cancel_at_period_end: boolean;
+  pause_collection: { behavior: string; resumes_at: number | null } | null;
 };
 
 export async function getMemberProfile(email: string): Promise<MemberProfile | null> {
@@ -79,6 +80,7 @@ export async function getSubscriptionDetails(memberId: string): Promise<Subscrip
   let current_period_end: number | null = null;
   let cancel_at_period_end = false;
   let price_lookup_key: string | null = null;
+  let pause_collection: { behavior: string; resumes_at: number | null } | null = null;
 
   try {
     const stripe = getStripe();
@@ -89,6 +91,9 @@ export async function getSubscriptionDetails(memberId: string): Promise<Subscrip
     current_period_end = stripeSub.items.data[0].current_period_end;
     cancel_at_period_end = stripeSub.cancel_at_period_end;
     price_lookup_key = stripeSub.items.data[0].price.lookup_key ?? null;
+    pause_collection = stripeSub.pause_collection
+      ? { behavior: stripeSub.pause_collection.behavior, resumes_at: stripeSub.pause_collection.resumes_at ?? null }
+      : null;
   } catch (e) {
     console.error("Failed to fetch subscription from Stripe:", e);
   }
@@ -100,6 +105,7 @@ export async function getSubscriptionDetails(memberId: string): Promise<Subscrip
     price_lookup_key,
     current_period_end,
     cancel_at_period_end,
+    pause_collection,
   };
 }
 

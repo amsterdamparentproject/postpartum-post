@@ -19,7 +19,7 @@ const PLANS: {
     price: "€5/mo",
     name: "First 20: Our founding members",
     billing: "Billed €30 every 6 months",
-    description: "For our earliest subscribers, we're offering a special forever price: €5/mo for as long as you're with us!",
+    description: "A special forever price for our earliest subscribers — €5/mo for as long as you're with us. Skip any month and we'll extend your subscription automatically.",
     badge: "Until 1 July",
     featured: true,
   },
@@ -29,6 +29,7 @@ const PLANS: {
     price: "€8/mo",
     name: "6-month commitment",
     billing: "Billed €48 every 6 months",
+    description: "Skip any month and we'll extend your subscription — no penalty, no questions asked.",
     badge: "Best value",
   },
   {
@@ -37,6 +38,7 @@ const PLANS: {
     price: "€12/mo",
     name: "Monthly",
     billing: "Billed monthly",
+    description: "Skip any month with one tap — your next billing date adjusts automatically.",
   },
 ];
 
