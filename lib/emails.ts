@@ -200,3 +200,46 @@ export async function sendAutoPauseEmail(email: string, firstName: string) {
     throw error;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Waitlist confirmation email
+// ---------------------------------------------------------------------------
+
+function waitlistConfirmationHtml(): string {
+  return layout(`
+    <p style="margin:0 0 20px;">Hi there,</p>
+    <p style="margin:0 0 20px;">
+      You're on the Postpartum Post waitlist — thank you for your interest! 🎉
+    </p>
+    <p style="margin:0 0 20px;">
+      Our founding spots filled up, but general signups open on <strong>1 July</strong>. I'll send you a note as soon as the doors are open.
+    </p>
+    <p style="margin:0 0 20px;">
+      In the meantime, you can read a little more about how it all works at:
+    </p>
+    <p style="margin:0 32px;">
+      <a href="${SITE_URL}/about"
+        style="display:inline-block;background:#e85d3a;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:600;font-family:sans-serif;">
+        About Postpartum Post →
+      </a>
+    </p>
+    <p style="margin:0;">
+      See you on 1 July,<br />
+      <strong>Alex</strong>
+    </p>
+  `);
+}
+
+export async function sendWaitlistConfirmationEmail(email: string) {
+  const resend = getResend();
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: "You're on the Postpartum Post waitlist 💌",
+    html: waitlistConfirmationHtml(),
+  });
+  if (error) {
+    console.error("[resend] sendWaitlistConfirmationEmail error:", error);
+    throw error;
+  }
+}

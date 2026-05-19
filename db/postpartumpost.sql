@@ -97,6 +97,14 @@ create table postpartumpost.monthly_skips (
   unique (member_id, month)
 );
 
+-- Waitlist: lightweight email capture before general signups open.
+-- Intentionally separate from members — no subscription, profile, or billing context.
+create table postpartumpost.waitlist (
+  id         uuid        primary key default gen_random_uuid(),
+  email      text        not null unique,
+  created_at timestamptz not null default now()
+);
+
 -- Indexes
 create index on postpartumpost.members (topic_id);
 create index on postpartumpost.members (lat, lng) where lat is not null and lng is not null;

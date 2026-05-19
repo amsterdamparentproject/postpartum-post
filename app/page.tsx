@@ -38,8 +38,11 @@ const HOW_IT_WORKS = [
   },
 ];
 
+const PILOT_ONLY_UNTIL = new Date("2026-07-01");
+
 export default async function Home() {
   const first20SpotsRemaining = await getFirst20SpotsRemaining();
+  const pilotOnly = new Date() < PILOT_ONLY_UNTIL;
 
   return (
     <PageLayout showNav activeRoute="/">
@@ -97,7 +100,7 @@ export default async function Home() {
           <p className="text-sm text-muted mb-6">
             Once you&apos;re subscribed, we&apos;ll get started finding you your first match!
           </p>
-          <SignupForm first20SpotsRemaining={first20SpotsRemaining} />
+          <SignupForm first20SpotsRemaining={first20SpotsRemaining} pilotOnly={pilotOnly} />
         </div>
 
         {/* FAQ */}

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { signup, type SignupFormData } from "@/app/actions/signup";
+import { joinWaitlist } from "@/app/actions/waitlist";
 
 const PLANS: {
   value: SignupFormData["plan"];
@@ -42,6 +43,82 @@ const PLANS: {
   },
 ];
 
+function WaitlistForm() {
+  const [isPending, startTransition] = useTransition();
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const email = (e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;
+    if (!EMAIL_RE.test(email)) {
+      setEmailError("Enter a valid email address");
+      return;
+    }
+    setEmailError(null);
+    startTransition(async () => {
+      const result = await joinWaitlist(email);
+      if (result.success) {
+        setDone(true);
+      } else {
+        setError("Something went wrong — please try again.");
+      }
+    });
+  }
+
+  if (done) {
+    return (
+      <div className="text-center py-4 space-y-2">
+        <p className="text-2xl">💌</p>
+        <p className="text-sm font-semibold text-dark">You&apos;re on the list!</p>
+        <p className="text-sm text-muted leading-relaxed">
+          We&apos;ll let you know as soon as general signups open on 1 July.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="rounded-xl border-2 border-coral/40 bg-coral/5 px-5 py-4 text-center space-y-1">
+        <p className="text-sm font-semibold text-coral">Our founding spots are full 🎉</p>
+        <p className="text-sm text-muted leading-relaxed">
+          Leave your email and we&apos;ll let you know when general signups open on 1 July.
+        </p>
+      </div>
+      <div>
+        <label htmlFor="waitlist-email" className={labelClass}>
+          Email <span className="text-coral ml-0.5">*</span>
+        </label>
+        <input
+          id="waitlist-email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          onChange={() => setEmailError(null)}
+          onBlur={(e) => {
+            if (e.target.value && !EMAIL_RE.test(e.target.value)) {
+              setEmailError("Enter a valid email address");
+            }
+          }}
+          className={`${inputClass} ${emailError ? "border-coral" : ""}`}
+        />
+        {emailError && <p className="mt-1 text-xs text-coral">{emailError}</p>}
+      </div>
+      {error && <p className="text-sm text-coral">{error}</p>}
+      <button
+        type="submit"
+        disabled={isPending}
+        className="w-full py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {isPending ? "Joining…" : "Notify me"}
+      </button>
+    </form>
+  );
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const inputClass =
@@ -53,11 +130,19 @@ function RequiredMark() {
   return <span className="text-coral ml-0.5">*</span>;
 }
 
-export default function SignupForm({ first20SpotsRemaining }: { first20SpotsRemaining?: number | null }) {
+export default function SignupForm({
+  first20SpotsRemaining,
+  pilotOnly = false,
+}: {
+  first20SpotsRemaining?: number | null;
+  pilotOnly?: boolean;
+}) {
   const first20SoldOut = first20SpotsRemaining === 0;
 
   const [isPending, startTransition] = useTransition();
-  const [selectedPlan, setSelectedPlan] = useState<SignupFormData["plan"]>("commitment_6mo");
+  const [selectedPlan, setSelectedPlan] = useState<SignupFormData["plan"]>(
+    pilotOnly ? "first20_6mo" : "commitment_6mo"
+  );
   const [emailError, setEmailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,6 +175,11 @@ export default function SignupForm({ first20SpotsRemaining }: { first20SpotsRema
         }
       }
     });
+  }
+
+  // Waitlist mode — FIRST20 sold out during pilot period
+  if (pilotOnly && first20SoldOut) {
+    return <WaitlistForm />;
   }
 
   return (
@@ -199,8 +289,8 @@ export default function SignupForm({ first20SpotsRemaining }: { first20SpotsRema
             );
           })}
 
-          {/* Regular plans — stack on mobile, 2-col on sm+ */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Regular plans — hidden during pilot period */}
+          {!pilotOnly && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {PLANS.filter((p) => !p.featured).map((plan) => {
               const isSelected = selectedPlan === plan.value;
               return (
@@ -232,7 +322,7 @@ export default function SignupForm({ first20SpotsRemaining }: { first20SpotsRema
                 </button>
               );
             })}
-          </div>
+          </div>}
         </div>
       </div>
 
