@@ -6,8 +6,8 @@ import CalloutBox from "@/components/CalloutBox";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function MagicLinkRequest() {
-  const [email, setEmail] = useState("");
+export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: string } = {}) {
+  const [email, setEmail] = useState(defaultEmail ?? "");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [isPending, startTransition] = useTransition();

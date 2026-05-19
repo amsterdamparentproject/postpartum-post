@@ -19,13 +19,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/`);
   }
 
-  const result = await recordSkip(memberId, month, token);
+  const { status, email } = await recordSkip(memberId, month, token);
+  const emailParam = email ? `?email=${encodeURIComponent(email)}` : "";
 
-  switch (result) {
+  switch (status) {
     case "ok":
-      return NextResponse.redirect(`${origin}/skip/confirmed`);
+      return NextResponse.redirect(`${origin}/skip/confirmed${emailParam}`);
     case "already_skipped":
-      return NextResponse.redirect(`${origin}/skip/already`);
+      return NextResponse.redirect(`${origin}/skip/already${emailParam}`);
     case "invalid_token":
     case "not_found":
     default:

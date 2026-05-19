@@ -1,39 +1,54 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
+import MagicLinkRequest from "@/components/MagicLinkRequest";
+import SignOutButton from "@/components/SignOutButton";
 
 export const metadata: Metadata = {
   title: "Skipping this month",
   robots: { index: false },
 };
 
-export default function SkipConfirmed() {
+export default async function SkipConfirmed({
+  searchParams,
+}: {
+  searchParams: Promise<{ email?: string }>;
+}) {
+  const { email } = await searchParams;
+
   return (
     <PageLayout showNav>
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-20 text-center">
-        <div className="max-w-md space-y-4">
-          <p className="text-4xl">✉️</p>
-          <h1
-            className="text-3xl font-semibold text-dark leading-tight"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            You&apos;re all set.
-          </h1>
-          <p className="text-base text-muted leading-relaxed">
-            We&apos;ve skipped you for this month — and adjusted your billing
-            automatically. We&apos;ll be back with a new introduction next month.
-          </p>
-          <p className="text-sm text-muted">
-            Take good care of yourself and that little one.
-          </p>
-          <div className="pt-4">
-            <Link
-              href="/billing"
-              className="text-sm text-coral underline underline-offset-2 hover:text-coral-dark transition-colors"
+        <div className="max-w-md w-full space-y-6">
+
+          {/* Confirmation */}
+          <div className="space-y-3">
+            <p className="text-4xl">✉️</p>
+            <h1
+              className="text-3xl font-semibold text-dark leading-tight"
+              style={{ fontFamily: "var(--font-serif)" }}
             >
-              View your billing details →
-            </Link>
+              You&apos;re all set.
+            </h1>
+            <p className="text-base text-muted leading-relaxed">
+              We&apos;ve skipped you for this month and adjusted your billing
+              automatically. We&apos;ll be back with a new introduction next month.
+            </p>
           </div>
+
+          {/* Re-auth section */}
+          <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-4 text-left">
+            <p className="text-sm font-medium text-dark">Sign in to your account</p>
+            <p className="text-xs text-muted leading-relaxed">
+              Want to check your billing or update your details? Sign in below.
+              {" "}If you&apos;re currently signed in as someone else,{" "}
+              <SignOutButton className="text-coral underline underline-offset-2 hover:text-coral-dark transition-colors text-xs">
+                sign out first
+              </SignOutButton>
+              .
+            </p>
+            <MagicLinkRequest defaultEmail={email} />
+          </div>
+
         </div>
       </main>
     </PageLayout>

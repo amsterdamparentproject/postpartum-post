@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { verifySkipToken, monthToDate } from "@/lib/skip-token";
 
-export type SkipResult = "ok" | "already_skipped" | "invalid_token" | "not_found";
+export type SkipStatus = "ok" | "already_skipped" | "invalid_token" | "not_found";
+export type SkipResult = { status: SkipStatus; email?: string };
 
 const SECONDS_PER_DAY = 86_400;
 const AUTO_PAUSE_THRESHOLD = 3;
@@ -15,18 +16,18 @@ export async function recordSkip(
   token: string
 ): Promise<SkipResult> {
   // 1. Verify token — prevents spoofed skip links
-  if (!verifySkipToken(memberId, month, token)) return "invalid_token";
+  if (!verifySkipToken(memberId, month, token)) return { status: "invalid_token" };
 
   const supabase = createAdminClient();
 
-  // 2. Fetch member
+  // 2. Fetch member — include email so we can pass it to the confirmed page for re-auth
   const { data: member } = await supabase
     .from("members")
-    .select("id, status, consecutive_skips, stripe_customer_id")
+    .select("id, email, status, consecutive_skips, stripe_customer_id")
     .eq("id", memberId)
     .single();
 
-  if (!member) return "not_found";
+  if (!member) return { status: "not_found" };
 
   // 3. Idempotency — don't double-record a skip
   const monthDate = monthToDate(month);
@@ -37,7 +38,7 @@ export async function recordSkip(
     .eq("month", monthDate)
     .maybeSingle();
 
-  if (existingSkip) return "already_skipped";
+  if (existingSkip) return { status: "already_skipped", email: member.email };
 
   // 4. Record the skip
   await supabase
@@ -61,7 +62,7 @@ export async function recordSkip(
     await autoPauseMember(memberId, member.stripe_customer_id);
   }
 
-  return "ok";
+  return { status: "ok", email: member.email };
 }
 
 /**

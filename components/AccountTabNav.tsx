@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { createBrowserClient } from "@/lib/supabase";
 
 const TABS = [
   { href: "/profile", label: "Profile" },
@@ -11,9 +13,20 @@ const TABS = [
 
 export default function AccountTabNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function handleSignOut() {
+    startTransition(async () => {
+      const supabase = createBrowserClient();
+      await supabase.auth.signOut();
+      router.push("/");
+      router.refresh();
+    });
+  }
 
   return (
-    <nav className="flex gap-1 border-b border-border mb-8">
+    <nav className="flex items-center gap-1 border-b border-border mb-8">
       {TABS.map(({ href, label }) => {
         const active = pathname === href;
         return (
@@ -30,6 +43,13 @@ export default function AccountTabNav() {
           </Link>
         );
       })}
+      <button
+        onClick={handleSignOut}
+        disabled={isPending}
+        className="ml-auto px-4 py-2.5 text-sm font-medium text-muted hover:text-dark transition disabled:opacity-50"
+      >
+        {isPending ? "Signing out…" : "Sign out"}
+      </button>
     </nav>
   );
 }
