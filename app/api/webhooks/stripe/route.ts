@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
+import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -62,30 +63,14 @@ export async function POST(req: NextRequest) {
     );
     console.log("[webhook] subscription upsert", { error: subError?.message });
 
-    // Hand off to n8n for welcome email
-    // Payload: email + first name for personalisation. No magic link needed —
-    // /profile handles auth on-demand via signInWithOtp.
-    if (process.env.N8N_WELCOME_WEBHOOK_URL) {
-      const firstName = session.customer_details?.name?.split(" ")[0] ?? "";
-      const n8nHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (process.env.N8N_WEBHOOK_SECRET) {
-        n8nHeaders["X-N8N-WEBHOOK-SECRET"] = process.env.N8N_WEBHOOK_SECRET;
-      }
-      try {
-        const n8nRes = await fetch(process.env.N8N_WELCOME_WEBHOOK_URL, {
-          method: "POST",
-          headers: n8nHeaders,
-          body: JSON.stringify({ email, first_name: firstName }),
-          signal: AbortSignal.timeout(8000),
-        });
-        console.log("[webhook] n8n response", n8nRes.status);
-      } catch (e) {
-        console.error("[webhook] n8n fetch failed (non-fatal):", e);
-      }
-    } else {
-      console.log(`[webhook] N8N_WELCOME_WEBHOOK_URL not set, skipping welcome email for ${email}`);
+    // Send welcome email via Resend
+    const firstName = session.customer_details?.name?.split(" ")[0] ?? "there";
+    try {
+      await sendWelcomeEmail(email, firstName);
+      console.log("[webhook] welcome email sent to", email);
+    } catch (e) {
+      // Non-fatal — log and continue. Member is subscribed; email failure shouldn't block.
+      console.error("[webhook] sendWelcomeEmail failed (non-fatal):", e);
     }
     } catch (e) {
       console.error("[webhook] unhandled error in checkout.session.completed handler:", e);
@@ -102,6 +87,25 @@ export async function POST(req: NextRequest) {
       .from("subscriptions")
       .update({ status: "canceled" })
       .eq("stripe_subscription_id", subscription.id);
+
+    // Look up member to send unsubscribed email
+    try {
+      const { data: member } = await supabase
+        .from("members")
+        .select("email, first_name")
+        .eq("stripe_customer_id", subscription.customer as string)
+        .single();
+
+      if (member?.email) {
+        await sendUnsubscribedEmail(
+          member.email,
+          member.first_name ?? "there"
+        );
+        console.log("[webhook] unsubscribed email sent to", member.email);
+      }
+    } catch (e) {
+      console.error("[webhook] sendUnsubscribedEmail failed (non-fatal):", e);
+    }
   }
 
   return NextResponse.json({ received: true });

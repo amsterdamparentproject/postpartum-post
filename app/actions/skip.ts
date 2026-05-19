@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { verifySkipToken, monthToDate } from "@/lib/skip-token";
+import { sendAutoPauseEmail } from "@/lib/emails";
 
 export type SkipStatus = "ok" | "already_skipped" | "invalid_token" | "not_found";
 export type SkipResult = { status: SkipStatus; email?: string };
@@ -23,7 +24,7 @@ export async function recordSkip(
   // 2. Fetch member — include email so we can pass it to the confirmed page for re-auth
   const { data: member } = await supabase
     .from("members")
-    .select("id, email, status, consecutive_skips, stripe_customer_id")
+    .select("id, email, first_name, status, consecutive_skips, stripe_customer_id")
     .eq("id", memberId)
     .single();
 
@@ -62,7 +63,12 @@ export async function recordSkip(
   // 6-month subscribers have already paid upfront; pausing would forfeit their renewal.
   // They can skip freely for the duration of their term.
   if (isMonthlyPlan && newConsecutiveSkips >= AUTO_PAUSE_THRESHOLD) {
-    await autoPauseMember(memberId, member.stripe_customer_id);
+    await autoPauseMember(
+      memberId,
+      member.stripe_customer_id,
+      member.email,
+      member.first_name ?? "there"
+    );
   }
 
   return { status: "ok", email: member.email };
@@ -130,13 +136,14 @@ async function adjustStripeBilling(
 
 /**
  * Called when a member hits the consecutive skip threshold.
- * Sets their status to "paused" and pauses Stripe collection indefinitely.
- * An auto-pause email should be sent from n8n by watching for status = "paused"
- * or by triggering a webhook from here.
+ * Sets their status to "paused", pauses Stripe collection indefinitely,
+ * and sends the auto-pause email via Resend.
  */
 async function autoPauseMember(
   memberId: string,
-  stripeCustomerId: string | null
+  stripeCustomerId: string | null,
+  email: string,
+  firstName: string
 ) {
   const supabase = createAdminClient();
 
@@ -163,5 +170,13 @@ async function autoPauseMember(
     await stripe.subscriptions.update(sub.stripe_subscription_id, {
       pause_collection: { behavior: "void" },
     });
+  }
+
+  // Send auto-pause notification email
+  try {
+    await sendAutoPauseEmail(email, firstName);
+    console.log("[autoPause] auto-pause email sent to", email);
+  } catch (e) {
+    console.error("[autoPause] sendAutoPauseEmail failed (non-fatal):", e);
   }
 }
