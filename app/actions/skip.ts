@@ -52,13 +52,16 @@ export async function recordSkip(
     .update({ consecutive_skips: newConsecutiveSkips })
     .eq("id", memberId);
 
-  // 6. Adjust Stripe billing
+  // 6. Adjust Stripe billing — also returns whether this is a monthly plan
+  let isMonthlyPlan = false;
   if (member.stripe_customer_id) {
-    await adjustStripeBilling(memberId, member.stripe_customer_id, month);
+    isMonthlyPlan = await adjustStripeBilling(memberId, member.stripe_customer_id, month);
   }
 
-  // 7. Auto-pause after threshold
-  if (newConsecutiveSkips >= AUTO_PAUSE_THRESHOLD) {
+  // 7. Auto-pause after threshold — monthly subscribers only.
+  // 6-month subscribers have already paid upfront; pausing would forfeit their renewal.
+  // They can skip freely for the duration of their term.
+  if (isMonthlyPlan && newConsecutiveSkips >= AUTO_PAUSE_THRESHOLD) {
     await autoPauseMember(memberId, member.stripe_customer_id);
   }
 
@@ -71,11 +74,12 @@ export async function recordSkip(
  * - 6-month plans: extend the current period end by 30 days (member has already paid
  *   upfront; this pushes when the next €48 charge fires).
  */
+/** Returns true if the member is on a monthly plan (used to gate auto-pause logic). */
 async function adjustStripeBilling(
   memberId: string,
   stripeCustomerId: string,
   month: string // YYYY-MM — the month being skipped
-) {
+): Promise<boolean> {
   const supabase = createAdminClient();
   const stripe = getStripe();
 
@@ -89,7 +93,7 @@ async function adjustStripeBilling(
     .limit(1)
     .maybeSingle();
 
-  if (!sub?.stripe_subscription_id) return;
+  if (!sub?.stripe_subscription_id) return false;
 
   const stripeSub = await stripe.subscriptions.retrieve(
     sub.stripe_subscription_id,
@@ -120,6 +124,8 @@ async function adjustStripeBilling(
       proration_behavior: "none",
     });
   }
+
+  return isMonthly;
 }
 
 /**

@@ -107,14 +107,24 @@ export default function BillingPage() {
               </div>
             )}
 
-            {member.consecutive_skips > 0 && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted">Months skipped in a row</span>
-                <span className={`font-medium ${member.consecutive_skips >= 2 ? "text-amber-600" : "text-dark"}`}>
-                  {member.consecutive_skips} / 3
-                </span>
-              </div>
-            )}
+            {member.consecutive_skips > 0 && (() => {
+              const isMonthly = subscription.price_lookup_key === "standard_monthly";
+              return (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted">Months skipped in a row</span>
+                    <span className={`font-medium ${isMonthly && member.consecutive_skips >= 2 ? "text-amber-600" : "text-dark"}`}>
+                      {isMonthly ? `${member.consecutive_skips} / 3` : member.consecutive_skips}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted leading-relaxed">
+                    {isMonthly
+                      ? "After 3 consecutive skips, your subscription will be automatically paused so you're not charged while things are busy."
+                      : "On your plan, you can skip as many months as you need — we'll never auto-pause you."}
+                  </p>
+                </div>
+              );
+            })()}
 
             <hr className="border-border" />
 
