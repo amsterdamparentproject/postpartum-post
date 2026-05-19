@@ -13,7 +13,7 @@
 import { getResend } from "@/lib/resend";
 
 const FROM = "Postpartum Post <hello@amsterdamparentproject.nl>";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://postpartumpost.nl";
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.nl";
 
 // ---------------------------------------------------------------------------
 // Shared layout wrapper
