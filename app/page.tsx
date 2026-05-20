@@ -1,7 +1,7 @@
 import SignupForm from "@/components/SignupForm";
 import PageLayout from "@/components/PageLayout";
 import AnimatedMail from "@/components/AnimatedMail";
-import { SubscribeIcon, ChatBubbleIcon, LetterHeartIcon } from "@/components/StepIcons";
+import PersonaCards from "@/components/PersonaCards";
 import FAQ from "@/components/FAQ";
 import { getStripe } from "@/lib/stripe";
 
@@ -19,24 +19,6 @@ async function getFirst20SpotsRemaining(): Promise<number | null> {
   }
 }
 
-
-const HOW_IT_WORKS = [
-  {
-    icon: <SubscribeIcon />,
-    title: "Subscribe",
-    description: "Choose your plan and tell us your name. That's all we need to get started.",
-  },
-  {
-    icon: <ChatBubbleIcon />,
-    title: "Tell us about yourself",
-    description: "A short form about your neighborhood, your little one, and when you're free.",
-  },
-  {
-    icon: <LetterHeartIcon />,
-    title: "Receive your Post",
-    description: "Each month, we'll introduce you to a new parent nearby — by email, like a little letter.",
-  },
-];
 
 const PILOT_ONLY_UNTIL = new Date("2026-07-01");
 
@@ -62,32 +44,24 @@ export default async function Home() {
             <span className="text-coral italic">let us introduce you.</span>
           </p>
           <p className="text-base text-muted leading-relaxed max-w-lg mx-auto">
-            Every month, we match you with another new parent in your neighborhood
-            for coffee, a playdate, or just a chat.
+            Every month, we match you with another parent
+            for coffee, a playdate, or just a chat. You receive a warm introduction, plus places and activities local to you and appropriate for your kids.
           </p>
         </div>
 
-        {/* Animated envelope */}
-        <AnimatedMail />
-
-        {/* How it works */}
-        <div className="w-full max-w-2xl mt-14 mb-12">
+        {/* Persona cards */}
+        <div className="w-full max-w-2xl mt-6 mb-12">
           <h2
             className="text-2xl font-semibold text-dark text-center mb-8"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            How it works
+            The Post was built for you
           </h2>
-          <div className="grid sm:grid-cols-3 gap-6">
-            {HOW_IT_WORKS.map(({ icon, title, description }, i) => (
-              <div key={i} className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 text-center">
-                <div className="flex justify-center mb-3">{icon}</div>
-                <h3 className="text-sm font-semibold text-dark mb-2">{title}</h3>
-                <p className="text-xs text-muted leading-relaxed">{description}</p>
-              </div>
-            ))}
-          </div>
+          <PersonaCards />
         </div>
+
+        {/* Animated envelope */}
+        <AnimatedMail />
 
         {/* Signup form */}
         <div className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
