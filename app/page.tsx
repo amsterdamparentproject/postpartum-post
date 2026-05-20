@@ -2,7 +2,7 @@ import SignupForm from "@/components/SignupForm";
 import PageLayout from "@/components/PageLayout";
 import AnimatedMail from "@/components/AnimatedMail";
 import PersonaCards from "@/components/PersonaCards";
-import FAQ from "@/components/FAQ";
+import Image from "next/image";
 import { getStripe } from "@/lib/stripe";
 
 const FIRST20_TOTAL = 20;
@@ -77,23 +77,53 @@ export default async function Home() {
           <SignupForm first20SpotsRemaining={first20SpotsRemaining} pilotOnly={pilotOnly} />
         </div>
 
-        {/* FAQ */}
-        <div className="w-full max-w-2xl mt-16 mb-4">
-          <FAQ />
+        {/* Alex intro */}
+        <div className="w-full max-w-md mt-12 mb-6 text-center">
+          <h2
+            className="text-2xl font-semibold text-dark"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Made with joy by someone who <span className="text-coral italic">gets it</span>
+          </h2>
         </div>
-
-        {/* Attribution */}
-        <p className="text-xs text-muted mt-8 mb-2 text-center">
-          Run by{" "}
+        <div className="w-full max-w-lg mb-4 flex flex-col sm:flex-row items-center gap-6">
+          <div
+            className="shrink-0 overflow-hidden w-24 h-24"
+            style={{ borderRadius: "62% 38% 46% 54% / 60% 44% 56% 40%" }}
+          >
+            <Image
+              src="/alex.jpg"
+              alt="Alex, founder of Postpartum Post"
+              width={96}
+              height={96}
+              className="object-cover w-24 h-24"
+            />
+          </div>
+          <div>
+            <p className="text-sm text-dark leading-relaxed">
+              Hi, I&apos;m Alex 👋🏻 Local toddler mom, founder of{" "}
+              <a
+                href="https://amsterdamparentproject.nl"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-coral transition-colors"
+              >
+                Amsterdam Parent Project
+              </a>
+              , and someone who knows exactly how isolating and overwhelming these early years can feel. I&apos;ve been running new parent support programs long enough to see that the right connection at the right time changes <i>everything</i>. Postpartum Post is my way of making that easier to find.
+            </p>
+                 {/* FAQ link */}
+        <p className="text-xs text-muted mt-4 mb-2">
+          Have questions?{" "}
           <a
-            href="https://amsterdamparentproject.nl"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="/about"
             className="underline underline-offset-2 hover:text-coral transition-colors"
           >
-            Alex from Amsterdam Parent Project
+            Visit the About page
           </a>
         </p>
+          </div>
+        </div>
 
       </main>
     </PageLayout>
