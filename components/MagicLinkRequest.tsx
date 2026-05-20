@@ -1,16 +1,30 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { createBrowserClient } from "@/lib/supabase";
+import { checkMemberExists } from "@/app/actions/profile";
+import { getSignupMeta, type SignupMeta } from "@/app/actions/signup";
 import CalloutBox from "@/components/CalloutBox";
+import SignupForm from "@/components/SignupForm";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type State = "idle" | "sending" | "sent" | "not_found";
 
 export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: string } = {}) {
   const [email, setEmail] = useState(defaultEmail ?? "");
   const [emailError, setEmailError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
+  const [state, setState] = useState<State>("idle");
+  const [notFoundEmail, setNotFoundEmail] = useState<string>("");
+  const [signupMeta, setSignupMeta] = useState<SignupMeta | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Fetch signup meta lazily when we need to show the subscription form
+  useEffect(() => {
+    if (state === "not_found") {
+      getSignupMeta().then(setSignupMeta);
+    }
+  }, [state]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,16 +34,23 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
     }
     setEmailError(null);
     startTransition(async () => {
+      const exists = await checkMemberExists(email);
+      if (!exists) {
+        setNotFoundEmail(email);
+        setState("not_found");
+        return;
+      }
+      setState("sending");
       const supabase = createBrowserClient();
       await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: `${window.location.origin}/profile` },
       });
-      setSent(true);
+      setState("sent");
     });
   }
 
-  if (sent) {
+  if (state === "sent") {
     return (
       <CalloutBox className="max-w-sm mx-auto">
         <div className="text-4xl mb-4">💌</div>
@@ -46,32 +67,59 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
     );
   }
 
+  const notFound = state === "not_found";
+
   return (
-    <div className="text-center max-w-sm mx-auto">
-      <p className="text-dark font-medium mb-1">Sign in to your profile</p>
-      <p className="text-muted text-sm mb-6">
-        Enter the email address you signed up with and we&apos;ll send you a sign-in link.
-      </p>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => { setEmail(e.target.value); setEmailError(null); }}
-            placeholder="your@email.com"
-            autoComplete="email"
-            className="w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition"
+    <div className="max-w-sm mx-auto space-y-6">
+      <div className="text-center">
+        <p className="text-dark font-medium mb-1">Sign in to your profile</p>
+        <p className="text-muted text-sm mb-6">
+          Enter the email address you signed up with and we&apos;ll send you a sign-in link.
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setEmailError(null); setState("idle"); }}
+              placeholder="your@email.com"
+              autoComplete="email"
+              className={`w-full px-4 py-2.5 rounded-lg border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition ${notFound || emailError ? "border-coral" : "border-border"}`}
+            />
+            {emailError && <p className="mt-1 text-xs text-coral text-left">{emailError}</p>}
+            {notFound && (
+              <p className="mt-1 text-xs text-coral text-left">
+                We don&apos;t have that email on file. Have you subscribed?
+              </p>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="w-full py-2.5 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isPending ? "Checking…" : "Send me a sign-in link"}
+          </button>
+        </form>
+      </div>
+
+      {notFound && (
+        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
+          <h2
+            className="text-xl font-semibold text-dark mb-1"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Receive your monthly Post 💌
+          </h2>
+          <p className="text-sm text-muted mb-6">
+            Subscribe and we&apos;ll introduce you to another new parent in Amsterdam each month.
+          </p>
+          <SignupForm
+            first20SpotsRemaining={signupMeta?.first20SpotsRemaining}
+            pilotOnly={signupMeta?.pilotOnly ?? true}
           />
-          {emailError && <p className="mt-1 text-xs text-coral text-left">{emailError}</p>}
         </div>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="w-full py-2.5 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {isPending ? "Sending…" : "Send me a sign-in link"}
-        </button>
-      </form>
+      )}
     </div>
   );
 }

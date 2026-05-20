@@ -45,6 +45,16 @@ export type SubscriptionDetails = {
   pause_collection: { behavior: string; resumes_at: number | null } | null;
 };
 
+export async function checkMemberExists(email: string): Promise<boolean> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("members")
+    .select("id")
+    .eq("email", email)
+    .single();
+  return data !== null;
+}
+
 export async function getMemberProfile(email: string): Promise<MemberProfile | null> {
   const supabase = createAdminClient();
   const { data } = await supabase
