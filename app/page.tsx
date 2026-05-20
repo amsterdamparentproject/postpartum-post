@@ -45,7 +45,7 @@ export default async function Home() {
           </p>
           <p className="text-base text-muted leading-relaxed max-w-lg mx-auto">
             Every month, we match you with another parent
-            for coffee, a playdate, or just a chat. You receive a warm introduction, plus places and activities local to you and appropriate for your kids.
+            for coffee, a playdate, or a supportive chat. You receive a warm introduction, plus places and activities local to you and appropriate for your kids.
           </p>
         </div>
 

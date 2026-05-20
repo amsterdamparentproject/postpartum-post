@@ -46,7 +46,7 @@ export default function About() {
               </p>
               <p>
                 We match new parents in the same neighborhood for coffee, a playdate,
-                or just a chat. One introduction a month, no commitment beyond showing up.
+                or a supportive chat. One introduction a month, no commitment beyond showing up.
               </p>
               <p>
                 Subscriptions are flexible by design: skip any month, pause when
