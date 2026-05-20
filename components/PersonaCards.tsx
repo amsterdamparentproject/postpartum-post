@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 // ---------------------------------------------------------------------------
 // Icons — reused from HowMatchingWorks (non-animated)
@@ -136,6 +136,13 @@ const BORDER_COLORS = [
   "rgba(120, 170, 150, 0.50)",
 ];
 
+// Full-opacity versions for text highlights — one per border color
+const HIGHLIGHT_COLORS = [
+  "#D4614A", // coral
+  "#C49E5A", // warm gold
+  "#78AA96", // soft sage
+];
+
 const ICON_BG_COLORS = [
   "rgba(212, 97, 74, 0.10)",
   "rgba(196, 158, 90, 0.12)",
@@ -146,24 +153,36 @@ const ICON_BG_COLORS = [
 // Persona data
 // ---------------------------------------------------------------------------
 
-const PERSONAS = [
-  { icon: <ProfileIcon />, text: "For the mom-to-be who's done all the research and still feels unprepared" },
-  { icon: <ChatIcon />,    text: "For the postpartum dad who wants to hang out on his papadag" },
-  { icon: <ChatIcon />,    text: "For the parent who's staring at 150 unread WhatsApp group messages" },
-  { icon: <PlaneIcon />,   text: "For the couple who moved here six months before the baby came" },
-  { icon: <EnvelopeIcon />, text: "For the new mom who hasn't left the house in a week" },
-    { icon: <CoffeeIcon />,   text: "For the parent who knows everyone's birth story but hasn't met anyone for coffee" },
+const PERSONAS: { icon: React.ReactNode; text: (color: string) => React.ReactNode }[] = [
+  { icon: <ProfileIcon />,  text: (c) => <>For the <strong style={{ color: c }}>mom-to-be</strong> who&apos;s done all the research and still feels unprepared</> },
+  { icon: <ChatIcon />,     text: (c) => <>For the postpartum dad who wants to hang out on his <strong style={{ color: c }}>papadag</strong></> },
+  { icon: <ChatIcon />,     text: (c) => <>For the parent who&apos;s staring at <strong style={{ color: c }}>150 unread</strong> WhatsApp group messages</> },
+  { icon: <PlaneIcon />,    text: (c) => <>For the <strong style={{ color: c }}>couple who moved</strong> here six months before the baby came</> },
+  { icon: <EnvelopeIcon />, text: (c) => <>For the <strong style={{ color: c }}>new mom</strong> who hasn&apos;t left the house in a week</> },
+  { icon: <CoffeeIcon />,   text: (c) => <>For the parent who knows everyone&apos;s birth story but <strong style={{ color: c }}>hasn&apos;t met anyone</strong> for coffee</> },
 ];
-
-const PER_PAGE = 2;
-const TOTAL_PAGES = Math.ceil(PERSONAS.length / PER_PAGE);
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function PersonaCards() {
+  const [perPage, setPerPage] = useState(2);
   const [page, setPage] = useState(0);
+
+  // Switch between 1-up (mobile) and 2-up (md+) without a library
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const update = () => {
+      setPerPage(mq.matches ? 2 : 1);
+      setPage(0); // reset so we never land on an out-of-range page
+    };
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  const totalPages = Math.ceil(PERSONAS.length / perPage);
 
   return (
     <div>
@@ -173,16 +192,16 @@ export default function PersonaCards() {
           className="flex transition-transform duration-300 ease-in-out"
           style={{ transform: `translateX(-${page * 100}%)` }}
         >
-          {Array.from({ length: TOTAL_PAGES }).map((_, pageIndex) => (
-            <div key={pageIndex} className="w-full shrink-0 flex gap-4">
-              {PERSONAS.slice(pageIndex * PER_PAGE, (pageIndex + 1) * PER_PAGE).map((persona, cardIndex) => {
-                const global = pageIndex * PER_PAGE + cardIndex;
+          {Array.from({ length: totalPages }).map((_, pageIndex) => (
+            <div key={pageIndex} className="w-full shrink-0 flex gap-4 pr-[2px] pb-[2px]">
+              {PERSONAS.slice(pageIndex * perPage, (pageIndex + 1) * perPage).map((persona, cardIndex) => {
+                const global = pageIndex * perPage + cardIndex;
                 const shapeI = SHAPE_SEQUENCE[global];
                 const colorI = COLOR_SEQUENCE[global];
                 return (
                   <div
                     key={cardIndex}
-                    className="flex-1 bg-white/90 backdrop-blur shadow-sm p-6 flex flex-col items-center gap-4 text-center"
+                    className="flex-1 bg-white/90 backdrop-blur shadow-sm p-6 min-h-[220px] md:min-h-0 flex flex-col items-center justify-center gap-4 text-center"
                     style={{
                       borderRadius: CARD_SHAPES[shapeI],
                       border: `1.5px solid ${BORDER_COLORS[colorI]}`,
@@ -197,7 +216,7 @@ export default function PersonaCards() {
                     >
                       {persona.icon}
                     </div>
-                    <p className="text-sm text-dark leading-relaxed">{persona.text}</p>
+                    <p className="text-sm text-dark leading-relaxed">{persona.text(HIGHLIGHT_COLORS[colorI])}</p>
                   </div>
                 );
               })}
@@ -218,7 +237,7 @@ export default function PersonaCards() {
         </button>
 
         <div className="flex items-center gap-1.5">
-          {Array.from({ length: TOTAL_PAGES }).map((_, i) => (
+          {Array.from({ length: totalPages }).map((_, i) => (
             <button
               key={i}
               onClick={() => setPage(i)}
@@ -234,7 +253,7 @@ export default function PersonaCards() {
 
         <button
           onClick={() => setPage(p => p + 1)}
-          disabled={page === TOTAL_PAGES - 1}
+          disabled={page === totalPages - 1}
           aria-label="Next"
           className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-dark hover:border-coral/40 transition disabled:opacity-25 disabled:cursor-not-allowed"
         >
