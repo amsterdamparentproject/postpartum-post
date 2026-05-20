@@ -6,12 +6,14 @@ import { getMemberProfile, getTopics, type MemberProfile, type Topic } from "@/a
 
 type AccountContextValue = {
   loading: boolean;
+  email: string | null;
   member: MemberProfile | null;
   topics: Topic[];
 };
 
 const AccountContext = createContext<AccountContextValue>({
   loading: true,
+  email: null,
   member: null,
   topics: [],
 });
@@ -22,6 +24,7 @@ export function useAccount() {
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState<string | null>(null);
   const [member, setMember] = useState<MemberProfile | null>(null);
   const [topics, setTopics] = useState<Topic[]>([]);
 
@@ -30,9 +33,11 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        if (session?.user?.email) {
+        const sessionEmail = session?.user?.email ?? null;
+        setEmail(sessionEmail);
+        if (sessionEmail) {
           const [memberData, topicsData] = await Promise.all([
-            getMemberProfile(session.user.email),
+            getMemberProfile(sessionEmail),
             getTopics(),
           ]);
           setMember(memberData);
@@ -49,7 +54,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AccountContext.Provider value={{ loading, member, topics }}>
+    <AccountContext.Provider value={{ loading, email, member, topics }}>
       {children}
     </AccountContext.Provider>
   );

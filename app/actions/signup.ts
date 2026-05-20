@@ -4,6 +4,29 @@ import { redirect } from "next/navigation";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 
+const FIRST20_TOTAL = 20;
+const PILOT_ONLY_UNTIL = new Date("2026-07-01");
+
+export type SignupMeta = {
+  first20SpotsRemaining: number | null;
+  pilotOnly: boolean;
+};
+
+export async function getSignupMeta(): Promise<SignupMeta> {
+  let first20SpotsRemaining: number | null = null;
+  const couponId = process.env.STRIPE_FIRST20_COUPON_ID;
+  if (couponId) {
+    try {
+      const stripe = getStripe();
+      const coupon = await stripe.coupons.retrieve(couponId);
+      first20SpotsRemaining = Math.max(0, FIRST20_TOTAL - (coupon.times_redeemed ?? 0));
+    } catch {
+      // non-fatal — SignupForm handles null gracefully
+    }
+  }
+  return { first20SpotsRemaining, pilotOnly: new Date() < PILOT_ONLY_UNTIL };
+}
+
 export type SignupFormData = {
   firstName: string;
   lastName: string;

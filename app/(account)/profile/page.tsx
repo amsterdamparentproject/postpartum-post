@@ -2,13 +2,19 @@
 
 import ProfileForm from "@/components/ProfileForm";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
+import NotSubscribedView from "@/components/NotSubscribedView";
 import { useAccount } from "@/app/(account)/AccountContext";
 
 export default function ProfilePage() {
-  const { loading, member, topics } = useAccount();
+  const { loading, email, member, topics } = useAccount();
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
-  if (!member) return <MagicLinkRequest />;
+
+  // Not signed in at all — ask them to sign in
+  if (!email) return <MagicLinkRequest />;
+
+  // Signed in but no subscription found for this email
+  if (!member) return <NotSubscribedView email={email} />;
 
   return (
     <div className="grid md:grid-cols-2 gap-6 items-start">
