@@ -71,8 +71,8 @@ export async function signup(data: SignupFormData) {
     automatic_tax: { enabled: taxEnabled },
     customer_update: taxEnabled ? { address: "auto" } : undefined,
     metadata: { member_id: member.id },
-    success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/?canceled=true`,
+    success_url: `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com"}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com"}/?canceled=true`,
   });
 
   redirect(session.url!);

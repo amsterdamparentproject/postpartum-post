@@ -11,7 +11,7 @@
     n8n variables:
       {{ $json.first_name }}   — member's first name
       {{ $json.skip_url }}     — signed one-click skip URL
-                                 format: https://postpartumpost.nl/api/skip?member={id}&month={YYYY-MM}&token={hmac}
+                                 format: https://postpartumpost.com/api/skip?member={id}&month={YYYY-MM}&token={hmac}
                                  generate in a Code node before this Send Email node
 
     Sent: 1st of each month, to all members with status = 'active'
@@ -93,7 +93,7 @@
         <p style="margin:20px 0 0;font-size:12px;color:#8B7B72;text-align:center;">
           You&apos;re receiving this as an active Postpartum Post subscriber.
           ·
-          <a href="https://postpartumpost.nl/unsubscribe" style="color:#8B7B72;">Unsubscribe</a>
+          <a href="https://postpartumpost.com/unsubscribe" style="color:#8B7B72;">Unsubscribe</a>
         </p>
 
       </td>

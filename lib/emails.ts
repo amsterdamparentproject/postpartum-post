@@ -13,7 +13,7 @@
 import { getResend } from "@/lib/resend";
 
 const FROM = "Postpartum Post <hello@amsterdamparentproject.nl>";
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.nl";
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 
 // ---------------------------------------------------------------------------
 // Shared layout wrapper
@@ -56,7 +56,7 @@ function layout(content: string): string {
                 Run by <a href="https://amsterdamparentproject.nl" style="color:#e85d3a;text-decoration:none;">Alex from Amsterdam Parent Project</a>
               </p>
               <p style="margin:0;font-size:12px;color:#9e8c82;">
-                Manage your subscription at <a href="${SITE_URL}/billing" style="color:#e85d3a;text-decoration:none;">postpartumpost.nl/billing</a>
+                Manage your subscription at <a href="${SITE_URL}/billing" style="color:#e85d3a;text-decoration:none;">postpartumpost.com/billing</a>
               </p>
             </td>
           </tr>
@@ -134,7 +134,7 @@ function unsubscribedHtml(firstName: string): string {
     <p style="margin:0 32px;">
       <a href="${SITE_URL}"
         style="display:inline-block;background:#e85d3a;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:600;font-family:sans-serif;">
-        postpartumpost.nl →
+        postpartumpost.com →
       </a>
     </p>
     <p style="margin:0;">

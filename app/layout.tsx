@@ -16,7 +16,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.nl"
+    process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com"
   ),
   title: {
     default: "Postpartum Post",

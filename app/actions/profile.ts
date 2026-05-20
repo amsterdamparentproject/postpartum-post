@@ -162,7 +162,7 @@ export async function getCustomerPortalUrl(stripeCustomerId: string): Promise<st
   const stripe = getStripe();
   const session = await stripe.billingPortal.sessions.create({
     customer: stripeCustomerId,
-    return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/profile`,
+    return_url: `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com"}/profile`,
   });
   return session.url;
 }
