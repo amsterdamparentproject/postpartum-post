@@ -20,7 +20,7 @@ const PLANS: {
     price: "€5/mo",
     name: "First 20: Our founding members",
     billing: "Billed €30 every 6 months",
-    description: "A special forever price for our earliest subscribers — €5/mo for as long as you're with us. Skip any month and we'll extend your subscription automatically.",
+    description: "A special forever price for our earliest subscribers — €5/mo for as long as you're with us.",
     badge: "Until 1 July",
     featured: true,
   },
@@ -133,9 +133,11 @@ function RequiredMark() {
 export default function SignupForm({
   first20SpotsRemaining,
   pilotOnly = false,
+  onSubmitHover,
 }: {
   first20SpotsRemaining?: number | null;
   pilotOnly?: boolean;
+  onSubmitHover?: (hovering: boolean) => void;
 }) {
   const first20SoldOut = first20SpotsRemaining === 0;
 
@@ -333,6 +335,8 @@ export default function SignupForm({
       <button
         type="submit"
         disabled={isPending}
+        onMouseEnter={() => onSubmitHover?.(true)}
+        onMouseLeave={() => onSubmitHover?.(false)}
         className="w-full py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
       >
         {isPending ? "Redirecting to checkout…" : "Subscribe"}

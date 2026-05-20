@@ -23,20 +23,20 @@ export const metadata: Metadata = {
     template: "%s · Postpartum Post",
   },
   description:
-    "Postpartum Post matches new parents in Amsterdam with each other — by neighborhood, by availability, by vibe. Subscribe and receive your first introduction this month.",
+    "Postpartum Post matches parents in Amsterdam with each other — by neighborhood, by availability, by vibe. Subscribe and receive your first introduction this month.",
   openGraph: {
     type: "website",
     locale: "en_NL",
     siteName: "Postpartum Post",
-    title: "Postpartum Post — meet a new parent nearby",
+    title: "Postpartum Post — meet a parent nearby",
     description:
-      "A monthly matchmaking letter for new parents in Amsterdam. Subscribe and we'll introduce you to someone nearby.",
+      "A monthly matchmaking letter for parents in Amsterdam. Subscribe and we'll introduce you to someone nearby.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Postpartum Post — meet a new parent nearby",
+        alt: "Postpartum Post — meet a parent nearby",
       },
     ],
   },

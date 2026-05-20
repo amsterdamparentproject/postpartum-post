@@ -1,7 +1,7 @@
-import SignupForm from "@/components/SignupForm";
 import PageLayout from "@/components/PageLayout";
 import AnimatedMail from "@/components/AnimatedMail";
 import PersonaCards from "@/components/PersonaCards";
+import SubscribeSection from "@/components/SubscribeSection";
 import Image from "next/image";
 import { getStripe } from "@/lib/stripe";
 
@@ -28,19 +28,19 @@ export default async function Home() {
 
   return (
     <PageLayout showNav activeRoute="/">
-      <main className="flex-1 flex flex-col items-center px-6 py-16">
+      <main className="flex-1 flex flex-col items-center px-6 px-6 md:py-16">
 
         {/* Hero */}
         <div className="max-w-2xl w-full text-center mb-10">
           <h1
-            className="text-5xl sm:text-6xl font-semibold leading-tight mb-6"
+            className="text-5xl sm:text-6xl font-semibold hidden md:block leading-tight"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             <span className="text-coral italic">Postpartum</span>{" "}
             <span className="text-dark">Post</span>
           </h1>
-          <p className="text-xl text-dark font-medium leading-relaxed mb-3">
-            Amsterdam is full of new parents just like you —{" "}
+          <p className="text-xl text-dark font-medium leading-relaxed mt-6 mb-3">
+            Amsterdam is full of parents just like you —{" "}
             <span className="text-coral italic">let us introduce you.</span>
           </p>
           <p className="text-base text-muted leading-relaxed max-w-lg mx-auto">
@@ -50,7 +50,7 @@ export default async function Home() {
         </div>
 
         {/* Persona cards */}
-        <div className="w-full max-w-2xl mt-6 mb-12">
+        <div className="w-full max-w-2xl mt-2 md:mt-6 mb-12">
           <h2
             className="text-2xl font-semibold text-dark text-center mb-8"
             style={{ fontFamily: "var(--font-serif)" }}
@@ -64,17 +64,8 @@ export default async function Home() {
         <AnimatedMail />
 
         {/* Signup form */}
-        <div className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-          <h2
-            className="text-xl font-semibold text-dark mb-1"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            Receive your monthly Post 💌
-          </h2>
-          <p className="text-sm text-muted mb-6">
-            Once you&apos;re subscribed, we&apos;ll get started finding you your first match!
-          </p>
-          <SignupForm first20SpotsRemaining={first20SpotsRemaining} pilotOnly={pilotOnly} />
+        <div id="subscribe-form" className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
+          <SubscribeSection first20SpotsRemaining={first20SpotsRemaining} pilotOnly={pilotOnly} />
         </div>
 
         {/* Alex intro */}
@@ -86,7 +77,7 @@ export default async function Home() {
             Made with joy by someone who <span className="text-coral italic">gets it</span>
           </h2>
         </div>
-        <div className="w-full max-w-lg mb-4 flex flex-col sm:flex-row items-center gap-6">
+        <div className="w-full max-w-lg mb-4 px-2 flex flex-col sm:flex-row items-center gap-6">
           <div
             className="shrink-0 overflow-hidden w-24 h-24"
             style={{ borderRadius: "62% 38% 46% 54% / 60% 44% 56% 40%" }}
@@ -110,7 +101,7 @@ export default async function Home() {
               >
                 Amsterdam Parent Project
               </a>
-              , and someone who knows exactly how isolating and overwhelming these early years can feel. I&apos;ve been running new parent support programs long enough to see that the right connection at the right time changes <i>everything</i>. Postpartum Post is my way of making that easier to find.
+              , and someone who knows exactly how isolating and overwhelming parenthood can feel. I&apos;ve been running new parent support programs long enough to see that the right connection at the right time changes <i>everything</i>. Postpartum Post is my way of making that easier to find.
             </p>
                  {/* FAQ link */}
         <p className="text-xs text-muted mt-4 mb-2">

@@ -13,7 +13,7 @@ const FAQS = [
   {
     question: "Who is Postpartum Post for?",
     answer:
-      "Any new parent in Amsterdam — moms, dads, co-parents, solo parents. Whether your little one is a few weeks old or already toddling, if you're in the postpartum chapter and looking for connection, you're in the right place.",
+      "Any parent in Amsterdam — moms, dads, nonbinary parents, co-parents, solo parents. Whether your child is a few weeks old or already at school, if you're looking for connection, you're in the right place. Postpartum just means \"after birth,\" after all 😉",
   },
   {
     question: "Can I subscribe if I'm pregnant or expecting a baby?",
@@ -23,12 +23,12 @@ const FAQS = [
   {
     question: "How does matching work?",
     answer:
-      "Each month, we read through your profile — your neighborhood, your little one's age, your availability — and pick one other parent you share some common ground with. We introduce you by email, like a little letter. What happens next is totally up to you!",
+      "Each month, we read through your profile — your neighborhood, your child's age, your availability — and pick one other parent you share common ground with. We warmly introduce you by email. What happens next is totally up to you!",
   },
   {
     question: "Can I skip a month?",
     answer:
-      "Yes! Our start-of-the-month match email has a one-click skip link. Tap it and we'll skip your match for that month, and adjust your billing automatically. No extra form. We get it — we're busy parents, too.",
+      "Yes! Our start-of-the-month match email has a skip link. One click and we'll skip your match for that month, plus adjust your billing automatically. No extra charge, form, or fuss. We get it — we're busy parents, too.",
   },
   {
     question: "Can I pause or cancel?",
@@ -36,14 +36,14 @@ const FAQS = [
       "Yes, anytime. On a monthly plan, after three consecutive skips we'll automatically pause your subscription so you're not being charged while things are busy. On a 6-month plan, you can skip as many months as you need — you've already committed, so we'll never auto-pause you. You can cancel anytime from your account, and cancellations take effect at the end of your current billing period.",
   },
   {
-    question: "Is my information shared with my match?",
+    question: "What information is shared with my match?",
     answer:
-      "We share only your name and contact email with the parent you've matched with that month via the private intro email. We never share your address or personal profile details.",
+      "We share only your name and contact email with the parent you've matched with that month in our warm introduction. We never share your personal profile details.",
   },
   {
     question: "How is my personal information protected?",
     answer:
-      "We store only what we need to match you. We never sell your data, share it with third parties, or use it for anything other than running the service. You can delete your data via the profile, or your account and all associated data at any time by contacting us. We take privacy really seriously, so please contact us with any details or concerns!",
+      "We store only what we need to match you. We never sell your data, share it with third parties, or use it for anything other than running the service. You can delete your data via the profile, or your account and all associated data at any time by contacting us. We take privacy really seriously, so please reach out with any concerns!",
   },
 ];
 

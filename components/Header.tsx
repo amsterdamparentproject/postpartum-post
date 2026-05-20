@@ -16,14 +16,14 @@ export default function Header({ showNav = true, activeRoute }: HeaderProps) {
     <header className="px-6 py-5 flex items-center justify-between max-w-5xl mx-auto w-full">
       <Link href="/" className="flex items-center gap-3">
         <Image src="/logo.png" alt="Postpartum Post" width={40} height={40} />
-        <span className="text-xl font-semibold" style={{ fontFamily: "var(--font-serif)" }}>
+        <span className="hidden sm:inline text-xl font-semibold" style={{ fontFamily: "var(--font-serif)" }}>
           <span className="text-coral">Postpartum</span>{" "}
           <span className="text-dark">Post</span>
         </span>
       </Link>
 
       {showNav && (
-        <nav className="flex gap-6 text-sm font-medium text-muted">
+        <nav className="flex gap-4 sm:gap-6 text-sm font-medium text-muted">
           {NAV_LINKS.map(({ href, label }) => (
             <Link
               key={href}

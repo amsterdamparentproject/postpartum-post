@@ -153,21 +153,28 @@
   background: radial-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0), rgba(0, 0, 0, 0));
 }
 
-/* Hover states */
-.letterImage:hover .animatedMail {
+/* Scroll-triggered open state */
+.letterImage.open .animatedMail {
   transform: translateY(50px);
 }
 
-.letterImage:hover .topFold {
+.letterImage.open .topFold {
+  /* No delay when opening — flap flips immediately */
   transition: transform .4s, z-index .2s;
   transform: rotateX(180deg);
   z-index: 0;
 }
 
-.letterImage:hover .letter {
+/* When .open is removed the topFold reverts; restore the delay so the
+   flap waits for the letter to sink back down before closing */
+.letterImage:not(.open) .topFold {
+  transition: transform .4s .4s, z-index .2s .4s;
+}
+
+.letterImage.open .letter {
   height: 180px;
 }
 
-.letterImage:hover .shadow {
+.letterImage.open .shadow {
   width: 250px;
 }

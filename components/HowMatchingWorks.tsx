@@ -134,7 +134,7 @@ export default function HowMatchingWorks() {
         How <span className="text-coral italic">matching</span> works
       </h2>
       <p className="text-sm text-muted text-center mb-10 max-w-md mx-auto leading-relaxed">
-        Every match is made by our own purpose-built algorithm (no AI), reviewed with care, and delivered like a little letter.
+        Every match is made by our own purpose-built algorithm (no AI), reviewed with care, and delivered like a little letter. Our goal is to make conversation feel easy between you both.
       </p>
 
       {/* Steps */}
@@ -165,42 +165,6 @@ export default function HowMatchingWorks() {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* What we look for */}
-      <div className="mt-12">
-        <h3
-          className="text-lg font-semibold text-dark text-center mb-2"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          What we look for
-        </h3>
-        <p className="text-xs text-muted text-center mb-6">
-          Criteria are ranked in order of importance. Our goal is to make conversation feel easy: from shared language, to topic, to neighborhood and family structure.
-        </p>
-
-        <div className="space-y-2">
-          {CRITERIA.map((c) => (
-            <div key={c.rank} className="flex items-center gap-3 group">
-              {/* Rank pill */}
-              <div className="shrink-0 w-6 h-6 rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-[10px] font-bold text-muted">
-                {c.rank}
-              </div>
-              {/* Bar */}
-              <div
-                className={`flex-1 rounded-xl px-4 py-3 flex items-center justify-between ${c.color}`}
-                style={{ minWidth: 0 }}
-              >
-                <span className={`text-sm font-semibold ${c.textColor}`}>{c.label}</span>
-                <span className={`text-xs hidden sm:block ml-4 opacity-80 ${c.textColor}`}>{c.detail}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <p className="text-xs text-muted text-center mt-5 leading-relaxed">
-          If you don't want to provide profile details — no problem! We'll still find you a match. Fields you haven&apos;t filled in are skipped, and they never count against you.
-        </p>
       </div>
 
     </section>
