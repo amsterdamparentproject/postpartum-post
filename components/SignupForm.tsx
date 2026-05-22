@@ -13,6 +13,8 @@ const PLANS: {
   description?: string;
   badge?: string;
   featured?: boolean;
+  comingSoon?: boolean;
+  hidden?: boolean;
 }[] = [
   {
     value: "first20_6mo",
@@ -141,6 +143,14 @@ export default function SignupForm({
 }) {
   const first20SoldOut = first20SpotsRemaining === 0;
 
+  const plans = PLANS.map((plan) => ({
+    ...plan,
+    hidden: plan.value === "first20_6mo" ? !pilotOnly
+          : plan.value === "commitment_6mo" ? pilotOnly
+          : false,
+    comingSoon: plan.value === "standard_monthly" && pilotOnly,
+  }));
+
   const [isPending, startTransition] = useTransition();
   const [selectedPlan, setSelectedPlan] = useState<SignupFormData["plan"]>(
     pilotOnly ? "first20_6mo" : "commitment_6mo"
@@ -242,7 +252,7 @@ export default function SignupForm({
         </p>
         <div className="space-y-3">
           {/* Featured plan — full width */}
-          {PLANS.filter((p) => p.featured).map((plan) => {
+          {plans.filter((p) => p.featured && !p.hidden).map((plan) => {
             const isSelected = selectedPlan === plan.value;
             const isSoldOut = plan.value === "first20_6mo" && first20SoldOut;
             return (
@@ -291,25 +301,32 @@ export default function SignupForm({
             );
           })}
 
-          {/* Regular plans — hidden during pilot period */}
-          {!pilotOnly && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {PLANS.filter((p) => !p.featured).map((plan) => {
+          {/* Regular plans */}
+          <div className="grid grid-cols-1 gap-3">
+            {plans.filter((p) => !p.featured && !p.hidden).map((plan) => {
               const isSelected = selectedPlan === plan.value;
+              const disabled = plan.comingSoon;
               return (
                 <button
                   key={plan.value}
                   type="button"
-                  onClick={() => setSelectedPlan(plan.value)}
+                  onClick={() => !disabled && setSelectedPlan(plan.value)}
+                  disabled={disabled}
                   className={`text-left p-4 rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-coral/40 ${
-                    isSelected
+                    disabled
+                      ? "border-border bg-gray-50 opacity-60 cursor-not-allowed"
+                      : isSelected
                       ? "border-coral bg-coral/5"
                       : "border-border bg-white hover:border-coral/50"
                   }`}
                 >
-                  {/* Icon left, badges right */}
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xl">{plan.icon}</span>
-                    {plan.badge && (
+                    {plan.comingSoon ? (
+                      <span className="text-xs font-medium text-muted bg-gray-100 px-2 py-0.5 rounded-full">
+                        Coming soon
+                      </span>
+                    ) : plan.badge && (
                       <span className="text-xs font-medium text-coral bg-coral/10 px-2 py-0.5 rounded-full">
                         {plan.badge}
                       </span>
@@ -324,7 +341,7 @@ export default function SignupForm({
                 </button>
               );
             })}
-          </div>}
+          </div>
         </div>
       </div>
 

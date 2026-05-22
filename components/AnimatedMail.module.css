@@ -26,7 +26,7 @@
   height: 0;
   border-style: solid;
   border-width: 0 0 100px 200px;
-  border-color: transparent transparent #e07060 transparent;
+  border-color: transparent transparent #D4735F transparent;
   z-index: 2;
 }
 
@@ -39,7 +39,7 @@
   border-width: 50px 100px 0 100px;
   transform-origin: 50% 0%;
   transition: transform .4s .4s, z-index .2s .4s;
-  border-color: #c95c4d transparent transparent transparent;
+  border-color: #C56850 transparent transparent transparent;
   z-index: 2;
 }
 
@@ -48,7 +48,7 @@
   bottom: 0;
   width: 200px;
   height: 100px;
-  background: #c95c4d;
+  background: #C56850;
   z-index: 0;
 }
 
@@ -59,7 +59,7 @@
   height: 0;
   border-style: solid;
   border-width: 50px 0 50px 100px;
-  border-color: transparent transparent transparent #d96658;
+  border-color: transparent transparent transparent #CC6052;
   z-index: 2;
 }
 
@@ -80,8 +80,8 @@
   width: 100%;
   background: repeating-linear-gradient(
     -45deg,
-    #c95c4d,
-    #c95c4d 8px,
+    #C56850,
+    #C56850 8px,
     transparent 8px,
     transparent 18px
   );
@@ -93,7 +93,7 @@
   margin-right: 8px;
   font-size: 8px;
   font-weight: 600;
-  color: #c95c4d;
+  color: #C56850;
   line-height: 1.5;
   white-space: nowrap;
   font-style: italic;
@@ -123,7 +123,7 @@
 .letterStamp::after {
   content: '';
   position: absolute;
-  background: #c95c4d;
+  background: #C56850;
   width: 15px;
   height: 24px;
   border-radius: 15px 15px 0 0;

@@ -21,12 +21,12 @@ const STEPS = [
     description:
       "Tell us your language, when you're free, and your child's birth month or due date. The more you share, the better we can match you. (But we'll still match you regardless!)",
     icon: (
-      <StampSVG fill="rgba(212, 97, 74, 0.08)" stroke="#D4614A">
-        <rect x="8" y="6" width="32" height="36" rx="3" fill="#D4614A" opacity="0.15" stroke="#D4614A" strokeWidth="1.5" />
-        <line x1="15" y1="16" x2="33" y2="16" stroke="#D4614A" strokeWidth="2" strokeLinecap="round" />
-        <line x1="15" y1="22" x2="33" y2="22" stroke="#D4614A" strokeWidth="2" strokeLinecap="round" />
-        <line x1="15" y1="28" x2="25" y2="28" stroke="#D4614A" strokeWidth="2" strokeLinecap="round" />
-        <circle cx="35" cy="35" r="7" fill="#D4614A" />
+      <StampSVG fill="rgba(197, 104, 80, 0.08)" stroke="#C56850">
+        <rect x="8" y="6" width="32" height="36" rx="3" fill="#C56850" opacity="0.15" stroke="#C56850" strokeWidth="1.5" />
+        <line x1="15" y1="16" x2="33" y2="16" stroke="#C56850" strokeWidth="2" strokeLinecap="round" />
+        <line x1="15" y1="22" x2="33" y2="22" stroke="#C56850" strokeWidth="2" strokeLinecap="round" />
+        <line x1="15" y1="28" x2="25" y2="28" stroke="#C56850" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="35" cy="35" r="7" fill="#C56850" />
         <path d="M32 35 L34.5 37.5 L38 33" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </StampSVG>
     ),
@@ -37,19 +37,19 @@ const STEPS = [
     description:
       "On the 1st of each month, we ask whether you'd like to participate and what you'd like to connect over — coffee, a playdate, or another topic around parenthood. You can also choose to skip that month, at no cost to you.",
     icon: (
-      <StampSVG fill="rgba(196, 158, 90, 0.10)" stroke="#C49E5A">
+      <StampSVG fill="rgba(175, 153, 255, 0.10)" stroke="#AF99FF">
         <path
           d="M8 10 L28 10 A4 4 0 0 1 32 14 L32 26 A4 4 0 0 1 28 30 L14 30 L6 38 L10 30 L8 30 A4 4 0 0 1 4 26 L4 14 A4 4 0 0 1 8 10 Z"
-          fill="#D4614A" opacity="0.15" stroke="#D4614A" strokeWidth="1.5"
+          fill="#AF99FF" opacity="0.15" stroke="#AF99FF" strokeWidth="1.5"
         />
-        <rect x="10" y="17" width="16" height="2" rx="1" fill="#D4614A" opacity="0.8" />
-        <rect x="10" y="22" width="11" height="2" rx="1" fill="#D4614A" opacity="0.8" />
+        <rect x="10" y="17" width="16" height="2" rx="1" fill="#AF99FF" opacity="0.8" />
+        <rect x="10" y="22" width="11" height="2" rx="1" fill="#AF99FF" opacity="0.8" />
         <path
           d="M26 28 L44 28 A3 3 0 0 1 47 31 L47 40 A3 3 0 0 1 44 43 L40 43 L44 48 L33 43 L26 43 A3 3 0 0 1 23 40 L23 31 A3 3 0 0 1 26 28 Z"
-          fill="#F5EEE6" stroke="#D4614A" strokeWidth="1.5"
+          fill="#F4EDE6" stroke="#AF99FF" strokeWidth="1.5"
         />
-        <rect x="28" y="33" width="14" height="2" rx="1" fill="#D4614A" opacity="0.6" />
-        <rect x="28" y="38" width="9" height="2" rx="1" fill="#D4614A" opacity="0.6" />
+        <rect x="28" y="33" width="14" height="2" rx="1" fill="#AF99FF" opacity="0.6" />
+        <rect x="28" y="38" width="9" height="2" rx="1" fill="#AF99FF" opacity="0.6" />
       </StampSVG>
     ),
   },
@@ -59,22 +59,22 @@ const STEPS = [
     description:
       "We compare your profile with every active member and score compatibility. Language comes first, then shared availability, topic, and — based on your preference — how close you live or how similar your children's ages are.",
     icon: (
-      <StampSVG fill="rgba(120, 170, 150, 0.10)" stroke="#78AA96">
+      <StampSVG fill="rgba(212, 163, 115, 0.10)" stroke="#D4A373">
         <g transform="rotate(-18, 9.5, 22)">
           <path
             d="M 3,14 H 16 V 19 A 3 3 0 0 1 16 25 V 30 H 3 Z"
-            fill="#D4614A" opacity="0.18" stroke="#D4614A" strokeWidth="1.5" strokeLinejoin="round"
+            fill="#D4A373" opacity="0.18" stroke="#D4A373" strokeWidth="1.5" strokeLinejoin="round"
           />
         </g>
         <g transform="rotate(18, 37, 22)">
           <path
             d="M 30,14 H 44 V 30 H 30 V 25 A 3 3 0 0 0 30 19 Z"
-            fill="#D4614A" opacity="0.18" stroke="#D4614A" strokeWidth="1.5" strokeLinejoin="round"
+            fill="#D4A373" opacity="0.18" stroke="#D4A373" strokeWidth="1.5" strokeLinejoin="round"
           />
         </g>
-        <line x1="24" y1="4" x2="24" y2="8.5" stroke="#D4614A" strokeWidth="1.8" strokeLinecap="round"/>
-        <line x1="19" y1="6" x2="21.5" y2="9.5" stroke="#D4614A" strokeWidth="1.5" strokeLinecap="round"/>
-        <line x1="29" y1="6" x2="26.5" y2="9.5" stroke="#D4614A" strokeWidth="1.5" strokeLinecap="round"/>
+        <line x1="24" y1="4" x2="24" y2="8.5" stroke="#D4A373" strokeWidth="1.8" strokeLinecap="round"/>
+        <line x1="19" y1="6" x2="21.5" y2="9.5" stroke="#D4A373" strokeWidth="1.5" strokeLinecap="round"/>
+        <line x1="29" y1="6" x2="26.5" y2="9.5" stroke="#D4A373" strokeWidth="1.5" strokeLinecap="round"/>
       </StampSVG>
     ),
   },
@@ -84,12 +84,12 @@ const STEPS = [
     description:
       "We introduce you both by email: a warm letter with just the name and contact of the match. We don't share your personal details; that's up to you!",
     icon: (
-      <StampSVG fill="rgba(212, 97, 74, 0.08)" stroke="#D4614A">
-        <rect x="4" y="14" width="40" height="26" rx="3" fill="#D4614A" opacity="0.15" stroke="#D4614A" strokeWidth="1.5" />
-        <polyline points="4,14 24,28 44,14" stroke="#D4614A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <StampSVG fill="rgba(197, 104, 80, 0.08)" stroke="#C56850">
+        <rect x="4" y="14" width="40" height="26" rx="3" fill="#C56850" opacity="0.15" stroke="#C56850" strokeWidth="1.5" />
+        <polyline points="4,14 24,28 44,14" stroke="#C56850" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         <path
           d="M24 22 C24 19 20 18 20 21 C20 24 24 27 24 27 C24 27 28 24 28 21 C28 18 24 19 24 22 Z"
-          fill="#D4614A"
+          fill="#C56850"
         />
       </StampSVG>
     ),

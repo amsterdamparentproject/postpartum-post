@@ -17,8 +17,8 @@ export default function Header({ showNav = true, activeRoute }: HeaderProps) {
       <Link href="/" className="flex items-center gap-3">
         <Image src="/logo.png" alt="Postpartum Post" width={40} height={40} />
         <span className="hidden sm:inline text-xl font-semibold" style={{ fontFamily: "var(--font-serif)" }}>
-          <span className="text-coral">Postpartum</span>{" "}
-          <span className="text-dark">Post</span>
+          <span className="text-coral italic">postpartum</span>{" "}
+          <span className="text-dark">post</span>
         </span>
       </Link>
 

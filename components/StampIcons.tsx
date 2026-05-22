@@ -36,15 +36,15 @@ export function StampSVG({ fill, stroke, children }: {
   );
 }
 
-export function EnvelopeStamp({ fill = "rgba(212, 97, 74, 0.08)", stroke = "#D4614A" }: {
+export function EnvelopeStamp({ fill = "rgba(197, 104, 80, 0.08)", stroke = "#C56850" }: {
   fill?: string;
   stroke?: string;
 }) {
   return (
     <StampSVG fill={fill} stroke={stroke}>
-      <rect x="4" y="14" width="40" height="26" rx="3" fill="#D4614A" opacity="0.15" stroke="#D4614A" strokeWidth="1.5" />
-      <polyline points="4,14 24,28 44,14" stroke="#D4614A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M24 22 C24 19 20 18 20 21 C20 24 24 27 24 27 C24 27 28 24 28 21 C28 18 24 19 24 22 Z" fill="#D4614A" />
+      <rect x="4" y="14" width="40" height="26" rx="3" fill={stroke} opacity="0.15" stroke={stroke} strokeWidth="1.5" />
+      <polyline points="4,14 24,28 44,14" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M24 22 C24 19 20 18 20 21 C20 24 24 27 24 27 C24 27 28 24 28 21 C28 18 24 19 24 22 Z" fill={stroke} />
     </StampSVG>
   );
 }

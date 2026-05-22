@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { updateMemberProfile, type MemberProfile, type Topic, type Availability, type Child } from "@/app/actions/profile";
-import CalloutBox from "@/components/CalloutBox";
+
 
 const DUTCH_POSTCODE = /^[1-9][0-9]{3}\s?[A-Za-z]{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -313,7 +313,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
 
   if (saved && mode === "onboarding") {
     return (
-      <CalloutBox>
+      <div className="text-center py-4">
         <div className="text-4xl mb-4">💌</div>
         <h2 className="text-2xl font-semibold text-dark mb-2" style={{ fontFamily: "var(--font-serif)" }}>
           You&apos;re all set!
@@ -321,7 +321,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         <p className="text-muted text-sm leading-relaxed">
           Your welcome email is on its way. It has everything you need to know about what happens next.
         </p>
-      </CalloutBox>
+      </div>
     );
   }
 
@@ -549,7 +549,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
       )}
 
       {/* Match priority — preferences section and onboarding */}
-      {(section === "preferences" || mode === "onboarding") && (
+      {(section === "preferences") && (
         <div>
           <label className={labelClass}>What matters more to you in a match?</label>
           <p className="text-xs italic text-muted mb-2">

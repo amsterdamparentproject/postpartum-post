@@ -57,7 +57,7 @@ export default async function Success({
           </p>
           <h2 className="my-2 text-coral font-semibold">One last step:</h2>
           <p className="text-muted text-sm leading-relaxed">
-            Tell us a bit about yourself so we can find you the best match each month. You can always change these details later!
+            Tell us a bit about yourself so we can find you the best match each month. Fill in as much or as little as you like — we'll work with whatever you share. You can always update these details later!
           </p>
         </div>
 

@@ -70,7 +70,7 @@
     },
     {
       "parameters": {
-        "fromEmail": "hello@amsterdamparentproject.nl",
+        "fromEmail": "post@amsterdamparentproject.nl",
         "fromName": "Alex — Postpartum Post",
         "toEmail": "={{ $json.email }}",
         "subject": "Your next match arrives on the 5th ✉️",

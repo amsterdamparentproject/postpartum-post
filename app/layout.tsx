@@ -1,16 +1,23 @@
 import type { Metadata } from "next";
-import { Playfair_Display, Inter } from "next/font/google";
+import { Nunito_Sans, DM_Sans, Solway } from "next/font/google";
 import "./globals.css";
 
-const playfair = Playfair_Display({
+const solway = Solway({
   subsets: ["latin"],
+  weight: "400",
   variable: "--font-serif",
   display: "swap",
 });
 
-const inter = Inter({
+const nunitoSans = Nunito_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
+  display: "swap",
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans-dm",
   display: "swap",
 });
 
@@ -59,7 +66,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${playfair.variable} ${inter.variable} h-full`}>
+    <html lang="en" className={`${solway.variable} ${nunitoSans.variable} ${dmSans.variable} h-full`}>
       <body className="min-h-full flex flex-col antialiased font-[var(--font-sans)]">{children}</body>
     </html>
   );

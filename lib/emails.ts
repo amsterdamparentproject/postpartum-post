@@ -12,7 +12,7 @@
 
 import { getResend } from "@/lib/resend";
 
-const FROM = "Postpartum Post <hello@amsterdamparentproject.nl>";
+const FROM = "Postpartum Post <post@amsterdamparentproject.nl>";
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 
 // ---------------------------------------------------------------------------

@@ -16,24 +16,43 @@
 }
 
 :root {
-  --cream: #F5EEE6;
-  --coral: #D4614A;
+  --cream: #F4EDE6;
+  --paper: #FFFCF3;
+  --coral: #C56850;
   --coral-dark: #B84F3A;
-  --dark: #1A1A1A;
+  --coral-light: #F19C79;
+  --dark: #242424;
+  --brown: #7D6408;
   --muted: #8B7B72;
   --border: #E8DDD6;
+  --green: #D4E09B;
+  --green-light: #CBDFBD;
+  --purple: #AF99FF;
+  --purple-light: #CAADFF;
+  --tan: #D4A373;
 }
 
 @theme inline {
   --color-cream: var(--cream);
+  --color-paper: var(--paper);
   --color-coral: var(--coral);
   --color-coral-dark: var(--coral-dark);
+  --color-coral-light: var(--coral-light);
   --color-dark: var(--dark);
   --color-muted: var(--muted);
   --color-border: var(--border);
+  --color-green: var(--green);
+  --color-green-light: var(--green-light);
+  --color-purple: var(--purple);
+  --color-purple-light: var(--purple-light);
+  --color-tan: var(--tan);
 }
 
 body {
   background: var(--cream);
   color: var(--dark);
+}
+
+button:not(:disabled) {
+  cursor: pointer;
 }

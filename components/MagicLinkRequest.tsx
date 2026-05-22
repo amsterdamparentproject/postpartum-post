@@ -89,7 +89,7 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
             {emailError && <p className="mt-1 text-xs text-coral text-left">{emailError}</p>}
             {notFound && (
               <p className="mt-1 text-xs text-coral text-left">
-                We don&apos;t have that email on file. Have you subscribed?
+                No profile found. Please try again with a different email.
               </p>
             )}
           </div>
@@ -109,7 +109,7 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
             className="text-xl font-semibold text-dark mb-1"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            Receive your monthly Post 💌
+            Or become a member now:
           </h2>
           <p className="text-sm text-muted mb-6">
             Subscribe and we&apos;ll introduce you to another new parent in Amsterdam each month.

@@ -43,6 +43,9 @@ export default function SubscribeSection({
         pilotOnly={pilotOnly}
         onSubmitHover={handleHover}
       />
+      <p className="text-xs text-muted text-center mt-4 leading-relaxed">
+        Skip a month without guilt — we extend your subscription automatically. Cancel anytime.
+      </p>
     </>
   );
 }

@@ -20,7 +20,7 @@ export default function AccountTabNav() {
     startTransition(async () => {
       const supabase = createBrowserClient();
       await supabase.auth.signOut();
-      router.push("/");
+      router.push("/profile");
       router.refresh();
     });
   }
