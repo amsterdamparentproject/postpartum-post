@@ -20,11 +20,12 @@ async function getFirst20SpotsRemaining(): Promise<number | null> {
 }
 
 
-const PILOT_ONLY_UNTIL = new Date("2026-07-01");
+// Set to false to open general subscriptions (€8/mo and €12/mo plans)
+const PILOT_ONLY = true;
 
 export default async function Home() {
   const first20SpotsRemaining = await getFirst20SpotsRemaining();
-  const pilotOnly = new Date() < PILOT_ONLY_UNTIL;
+  const pilotOnly = PILOT_ONLY;
 
   return (
     <PageLayout showNav activeRoute="/">
@@ -37,7 +38,7 @@ export default async function Home() {
             style={{ fontFamily: "var(--font-serif)" }}
           >
             <p className="text-coral">Amsterdam is full of parents like you.</p>
-            <p className="text-dark italic">Let us introduce you.</p>
+            <p className="text-dark">Let us introduce you.</p>
           </h1>
           <h1
             className="text-2xl mt-3 sm:hidden font-semibold leading-tight"
@@ -46,10 +47,6 @@ export default async function Home() {
             <p className="text-coral">Amsterdam is full of parents like you.</p>
             <p className="text-dark italic">Let us introduce you.</p>
           </h1>
-          {/* <p className="text-xl text-dark font-medium leading-relaxed my-3">
-            Amsterdam is full of parents just like you —{" "}
-            <span className="text-coral italic">let us introduce you.</span>
-          </p> */}
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
             Every month, we match you with someone who's also navigating early parenthood — for coffee, a playdate, or a supportive chat. You receive a warm introduction, plus local activities handpicked for your families.
           </p>
@@ -80,7 +77,7 @@ export default async function Home() {
             className="text-2xl font-semibold text-dark"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            Delivered with joy by someone who<br /><span className="text-coral italic">gets it</span>
+            Delivered with joy by someone who<br /><span className="text-coral">gets it</span>
           </h2>
         </div>
         <div className="w-full max-w-lg mb-4 px-2 flex flex-col sm:flex-row items-center gap-6">

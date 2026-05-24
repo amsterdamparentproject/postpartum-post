@@ -3,47 +3,7 @@
 import { useState, useTransition } from "react";
 import { signup, type SignupFormData } from "@/app/actions/signup";
 import { joinWaitlist } from "@/app/actions/waitlist";
-
-const PLANS: {
-  value: SignupFormData["plan"];
-  icon: string;
-  price: string;
-  name: string;
-  billing: string;
-  description?: string;
-  badge?: string;
-  featured?: boolean;
-  comingSoon?: boolean;
-  hidden?: boolean;
-}[] = [
-  {
-    value: "first20_6mo",
-    icon: "🎉",
-    price: "€5/mo",
-    name: "First 20: Our founding members",
-    billing: "Billed €30 every 6 months",
-    description: "A special forever price for our earliest subscribers — €5/mo for as long as you're with us.",
-    badge: "Until 1 July",
-    featured: true,
-  },
-  {
-    value: "commitment_6mo",
-    icon: "⭐",
-    price: "€8/mo",
-    name: "6-month commitment",
-    billing: "Billed €48 every 6 months",
-    description: "Skip any month and we'll extend your subscription — no penalty, no questions asked.",
-    badge: "Best value",
-  },
-  {
-    value: "standard_monthly",
-    icon: "📅",
-    price: "€12/mo",
-    name: "Monthly",
-    billing: "Billed monthly",
-    description: "Skip any month with one tap — your next billing date adjusts automatically.",
-  },
-];
+import { PLANS, resolvePlans, shouldShowWaitlist, defaultPlan } from "@/lib/plans";
 
 function WaitlistForm() {
   const [isPending, startTransition] = useTransition();
@@ -143,17 +103,11 @@ export default function SignupForm({
 }) {
   const first20SoldOut = first20SpotsRemaining === 0;
 
-  const plans = PLANS.map((plan) => ({
-    ...plan,
-    hidden: plan.value === "first20_6mo" ? !pilotOnly
-          : plan.value === "commitment_6mo" ? pilotOnly
-          : false,
-    comingSoon: plan.value === "standard_monthly" && pilotOnly,
-  }));
+  const plans = resolvePlans(PLANS, pilotOnly);
 
   const [isPending, startTransition] = useTransition();
   const [selectedPlan, setSelectedPlan] = useState<SignupFormData["plan"]>(
-    pilotOnly ? "first20_6mo" : "commitment_6mo"
+    defaultPlan(pilotOnly)
   );
   const [emailError, setEmailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -190,7 +144,7 @@ export default function SignupForm({
   }
 
   // Waitlist mode — FIRST20 sold out during pilot period
-  if (pilotOnly && first20SoldOut) {
+  if (shouldShowWaitlist(pilotOnly, first20SoldOut)) {
     return <WaitlistForm />;
   }
 
