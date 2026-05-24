@@ -63,10 +63,24 @@ export async function POST(req: NextRequest) {
     );
     console.log("[webhook] subscription upsert", { error: subError?.message });
 
-    // Send welcome email via Resend
+    // Generate a magic link so the welcome email signs the user straight into their profile
     const firstName = session.customer_details?.name?.split(" ")[0] ?? "there";
+    const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}/profile`;
+    let profileLink = redirectTo;
     try {
-      await sendWelcomeEmail(email, firstName);
+      const { data: linkData } = await supabase.auth.admin.generateLink({
+        type: "magiclink",
+        email,
+        options: { redirectTo },
+      });
+      profileLink = linkData?.properties?.action_link ?? redirectTo;
+    } catch (e) {
+      console.error("[webhook] generateLink failed, falling back to plain profile URL:", e);
+    }
+
+    // Send welcome email via Resend
+    try {
+      await sendWelcomeEmail(email, firstName, profileLink);
       console.log("[webhook] welcome email sent to", email);
     } catch (e) {
       // Non-fatal — log and continue. Member is subscribed; email failure shouldn't block.
