@@ -48,7 +48,7 @@ export default async function Home() {
             <span className="text-dark">Let us introduce you.</span>
           </h1>
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
-            Making one real friend beats being in ten group chats. Every month, we personally deliver you a friendship starter pack: a match with someone local who's navigating early parenthood like you, plus neighborhood activities handpicked for your families.
+            Making one real parent friend beats being in ten group chats. Every month, we personally deliver you a friendship starter pack: a match with someone local who's navigating early parenthood like you, plus neighborhood activities handpicked for your families.
           </p>
         </div>
 
@@ -90,7 +90,7 @@ export default async function Home() {
           </div>
           <div>
             <p className="text-sm text-dark leading-relaxed">
-              Hi, I&apos;m Alex 👋🏻 Local toddler mom, founder of{" "}
+              Hi, I&apos;m Alex 👋🏻 Local toddler mom and someone who knows exactly how isolating and overwhelming parenthood can feel. Parenting abroad and dealing with burnout led me to start the{" "}
               <a
                 href="https://amsterdamparentproject.nl"
                 target="_blank"
@@ -99,7 +99,7 @@ export default async function Home() {
               >
                 Amsterdam Parent Project
               </a>
-              , and someone who knows exactly how isolating and overwhelming parenthood can feel. I've been running new parent support programs long enough to see that the right connection at the right time changes <i>everything</i>. Postpartum Post is my way of making that easier to find.
+              {" "}— where I&apos;ve been running new parent support programs long enough to see that the right connection at the right time changes <i>everything</i> in parenthood. Postpartum Post is my way of making that easier to find.
             </p>
             {/* FAQ link */}
             <p className="text-xs text-muted mt-4 mb-2">
