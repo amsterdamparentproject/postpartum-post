@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, forwardRef, useImperativeHandle } from "react";
 import { updateMemberProfile, type MemberProfile, type Topic, type Availability, type Child } from "@/app/actions/profile";
 
 
@@ -176,13 +176,22 @@ type Props = {
   section?: "personal" | "details" | "preferences";
 };
 
+export type ProfileFormHandle = {
+  save: () => void;
+  isDirty: boolean;
+  isPending: boolean;
+};
+
 const SECTION_TITLES: Record<string, string> = {
   personal: "Personal info",
   details: "Details",
   preferences: "Preferences",
 };
 
-export default function ProfileForm({ memberId, initialData, topics, mode, section }: Props) {
+const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
+  { memberId, initialData, topics, mode, section }: Props,
+  ref,
+) {
   const [firstName, setFirstName] = useState(initialData.first_name ?? "");
   const [lastName, setLastName] = useState(initialData.last_name ?? "");
   const [email, setEmail] = useState(initialData.email ?? "");
@@ -245,8 +254,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
 
   const [isPending, startTransition] = useTransition();
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function doSave() {
     setSaved(false);
     setSaveError(null);
 
@@ -268,7 +276,6 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
         ? { days: availabilityDays, times: availabilityTimes }
         : null;
 
-    // Each section saves only its own fields
     const updates =
       section === "personal"
         ? { first_name: firstName, last_name: lastName, email, zipcode: zipcode || null }
@@ -283,8 +290,7 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
             match_type: (matchType as "in_person" | "online") || null,
             match_priority: (matchPriority as "age" | "proximity") || null,
           }
-        : // onboarding: zip + language + availability + children + match priority
-          {
+        : {
             zipcode: zipcode || null,
             language: languages.length > 0 ? languages : null,
             availability,
@@ -296,7 +302,6 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
       try {
         await updateMemberProfile(memberId, initialData.email ?? email, updates);
         setSaved(true);
-        // Advance snapshot so isDirty resets
         setSnapshot({
           firstName, lastName, email, zipcode,
           languages: [...languages], topicId, matchType,
@@ -310,6 +315,13 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
       }
     });
   }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    doSave();
+  }
+
+  useImperativeHandle(ref, () => ({ save: doSave, isDirty, isPending }));
 
   if (saved && mode === "onboarding") {
     return (
@@ -335,23 +347,6 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
           <h2 className="text-base font-semibold text-dark">{title}</h2>
           <div className="flex items-center gap-3">
             {saveError && <p className="text-xs text-coral">{saveError}</p>}
-            {isDirty
-              ? <p className="text-xs font-medium text-amber-600">Unsaved changes</p>
-              : saved
-              ? <p className="text-xs text-muted">Saved!</p>
-              : null
-            }
-            <button
-              type="submit"
-              disabled={isPending}
-              className={`py-1.5 px-4 text-sm font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed ${
-                isDirty
-                  ? "bg-dark hover:bg-coral-dark text-white shadow-sm ring-2 ring-coral/20"
-                  : "bg-white border border-border text-muted cursor-default"
-              }`}
-            >
-              {isPending ? "Saving…" : "Save"}
-            </button>
           </div>
         </div>
       )}
@@ -605,4 +600,6 @@ export default function ProfileForm({ memberId, initialData, topics, mode, secti
       )}
     </form>
   );
-}
+});
+
+export default ProfileForm;
