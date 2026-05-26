@@ -41,11 +41,11 @@ export default async function Home() {
             <p className="text-dark">Let us introduce you.</p>
           </h1>
           <h1
-            className="text-2xl mt-3 sm:hidden font-semibold leading-tight"
+            className="text-2xl mt-6 sm:hidden font-semibold leading-tight"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            <p className="text-coral">Amsterdam is full of parents like you.</p>
-            <p className="text-dark italic">Let us introduce you.</p>
+            <span className="text-coral">Amsterdam is full of parents like you.</span>
+            <span className="text-dark">Let us introduce you.</span>
           </h1>
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
             Every month, we match you with someone who's also navigating early parenthood — for coffee, a playdate, or a supportive chat. You receive a warm introduction, plus local activities handpicked for your families.
@@ -58,7 +58,7 @@ export default async function Home() {
             className="text-2xl font-semibold text-dark text-center mb-8"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            We made Postpaturm Post for you
+            We made <span className="text-coral">Postpartum Post</span> for you
           </h2>
           <PersonaCards />
         </div>
@@ -74,10 +74,10 @@ export default async function Home() {
         {/* Alex intro */}
         <div className="w-full max-w-md mt-12 mb-6 text-center">
           <h2
-            className="text-2xl font-semibold text-dark"
+            className="text-2xl font-semibold text-dark max-w-sm"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            Delivered with joy by someone who<br /><span className="text-coral">gets it</span>
+            Delivered with joy by someone who <span className="text-coral">gets it</span>
           </h2>
         </div>
         <div className="w-full max-w-lg mb-4 px-2 flex flex-col sm:flex-row items-center gap-6">

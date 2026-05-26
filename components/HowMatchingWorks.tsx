@@ -236,7 +236,7 @@ export default function HowMatchingWorks() {
         className="text-2xl font-semibold text-dark text-center mb-2"
         style={{ fontFamily: "var(--font-serif)" }}
       >
-        How <span className="text-coral italic">matching</span> works
+        How <span className="text-coral">matching</span> works
       </h2>
       <p className="text-sm text-muted text-center mb-10 max-w-md mx-auto leading-relaxed">
         Every match is made by our own purpose-built algorithm (no AI), reviewed with care, and delivered like a little letter. Our goal is to make conversation feel easy between you both.

@@ -13,17 +13,17 @@ const FAQS = [
   {
     question: "Who is Postpartum Post for?",
     answer:
-      "Any parent in Amsterdam — moms, dads, nonbinary parents, co-parents, solo parents. Whether your child is a few weeks old or already at school, if you're looking for connection, you're in the right place. Postpartum just means \"after birth,\" after all 😉",
+      "Any parent in Amsterdam — moms, dads, parents, co-parents, solo parents. Whether your child is a few weeks old or already at school, if you're looking for connection, you're in the right place. Postpartum means \"after birth,\" after all 😉",
   },
   {
     question: "Can I subscribe if I'm pregnant or expecting a baby?",
     answer:
-      "Absolutely — expectant parents are very welcome. When you set up your profile you can add your due date, and we'll factor it in when matching you. You might be paired with someone who is also pregnant, or with a parent whose baby arrived not long ago. Either way, connecting before your little one arrives can make all the difference when those early weeks begin.",
+      "Absolutely — expectant parents are very welcome. When you set up your profile you can add your due date, and we'll factor it in when matching you. You might be paired with someone who is also pregnant, or with a parent whose baby arrived not long ago. Either way, connecting before your baby arrives can make all the difference when those early weeks begin.",
   },
   {
     question: "How does matching work?",
     answer:
-      "Each month, we read through your profile — your neighborhood, your child's age, your availability — and pick one other parent you share common ground with. We warmly introduce you by email. What happens next is totally up to you!",
+      "Each month, we read through your profile — your neighborhood, your child's age, your availability — and pick one other parent you share common ground with. We warmly introduce you by email, and list some activities nearby that you can enjoy together. What happens next is totally up to you!",
   },
   {
     question: "Can I skip a month?",
@@ -56,10 +56,10 @@ export default function FAQ() {
         className="text-2xl font-semibold text-dark text-center mb-2"
         style={{ fontFamily: "var(--font-serif)" }}
       >
-        Frequently asked <span className="text-coral italic">questions</span>
+        Frequently asked <span className="text-coral">questions</span>
       </h2>
       <p className="text-sm text-muted text-center mb-8 max-w-md mx-auto leading-relaxed">
-        Still wondering? Here are some things people often ask before joining.
+        Still not sure? Here are some things people often ask before joining.
       </p>
 
       <div className="space-y-2">

@@ -98,8 +98,8 @@ const CARD_SHAPES = [
   "64% 36% 34% 66% / 58% 42% 46% 54%",
 ];
 
-const SHAPE_SEQUENCE = [0, 3, 4, 1, 5, 2, 6, 3];
-const COLOR_SEQUENCE = [0, 1, 2, 0, 1, 2, 0, 1];
+const SHAPE_SEQUENCE = [0, 3, 4, 1, 5, 2];
+const COLOR_SEQUENCE = [0, 1, 2, 0, 1, 2];
 
 // Green, purple, tan
 const BORDER_COLORS = [
@@ -128,12 +128,10 @@ const HIGHLIGHT_COLORS = [
 const PERSONAS: { icon: (fill: string, stroke: string) => React.ReactNode; text: (color: string) => React.ReactNode }[] = [
   { icon: (f, s) => <ChatIcon fill={f} stroke={s} />,       text: (c) => <>For the parent who&apos;s staring at <strong style={{ color: c }}>150 unread</strong> WhatsApp group messages</> },
   { icon: (f, s) => <ProfileIcon fill={f} stroke={s} />,    text: (c) => <>For the <strong style={{ color: c }}>mom-to-be</strong> who still has questions only another mom can answer</> },
-  { icon: (f, s) => <ChatIcon fill={f} stroke={s} />,       text: (c) => <>For the postpartum dad who wants to hang out on his <strong style={{ color: c }}>papadag</strong></> },
-  { icon: (f, s) => <TulipIcon fill={f} stroke={s} />,      text: (c) => <>For the <strong style={{ color: c }}>new mom</strong> who's finally ready to leave the house with her newborn</> },
   { icon: (f, s) => <CoffeeIcon fill={f} stroke={s} />,     text: (c) => <>For the <strong style={{ color: c }}>introverted parent</strong> who&apos;s running on empty but still craves connection</> },
+  { icon: (f, s) => <ChatIcon fill={f} stroke={s} />,       text: (c) => <>For the postpartum dad who wants to hang out on his <strong style={{ color: c }}>papadag</strong></> },
   { icon: (f, s) => <PlaneIcon fill={f} stroke={s} />,      text: (c) => <>For the <strong style={{ color: c }}>couple who moved</strong> here six months before the baby came</> },
   { icon: (f, s) => <CoffeeIcon fill={f} stroke={s} />,     text: (c) => <>For the parent who knows everyone&apos;s birth story but <strong style={{ color: c }}>hasn&apos;t met anyone</strong> in real life</> },
-  { icon: (f, s) => <ProfileIcon fill={f} stroke={s} />,   text: (c) => <>For the <strong style={{ color: c }}>dad who&apos;s all in</strong> and could use another dad to figure it out with</> },
 ];
 
 // ---------------------------------------------------------------------------
@@ -187,7 +185,7 @@ export default function PersonaCards() {
           style={{ transform: `translateX(-${page * 100}%)` }}
         >
           {Array.from({ length: totalPages }).map((_, pageIndex) => (
-            <div key={pageIndex} className="w-full shrink-0 flex gap-4 pr-[2px] pb-[2px]">
+            <div key={pageIndex} className="w-full shrink-0 flex gap-4 px-1 pt-1 pb-2">
               {PERSONAS.slice(pageIndex * perPage, (pageIndex + 1) * perPage).map((persona, cardIndex) => {
                 const global = pageIndex * perPage + cardIndex;
                 const shapeI = SHAPE_SEQUENCE[global];
@@ -215,7 +213,7 @@ export default function PersonaCards() {
       <div className="flex items-center justify-center gap-4 mt-5">
         <button
           onClick={() => setPage(p => p - 1)}
-          {...(page === 0 ? { disabled: true } : {})}
+          disabled={page === 0}
           aria-label="Previous"
           className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-dark hover:border-coral/40 transition disabled:opacity-25 disabled:cursor-not-allowed"
         >
@@ -239,7 +237,7 @@ export default function PersonaCards() {
 
         <button
           onClick={() => setPage(p => p + 1)}
-          {...(page >= totalPages - 1 ? { disabled: true } : {})}
+          disabled={page >= totalPages - 1}
           aria-label="Next"
           className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-dark hover:border-coral/40 transition disabled:opacity-25 disabled:cursor-not-allowed"
         >
