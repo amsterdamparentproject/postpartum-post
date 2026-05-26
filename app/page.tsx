@@ -66,11 +66,6 @@ export default async function Home() {
         {/* Animated envelope */}
         <AnimatedMail />
 
-        {/* Signup form */}
-        <div id="subscribe-form" className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-          <SubscribeSection first20SpotsRemaining={first20SpotsRemaining} pilotOnly={pilotOnly} />
-        </div>
-
         {/* Alex intro */}
         <div className="w-full max-w-md mt-12 mb-6 text-center">
           <h2
@@ -80,7 +75,7 @@ export default async function Home() {
             Delivered with joy by someone who <span className="text-coral">gets it</span>
           </h2>
         </div>
-        <div className="w-full max-w-lg mb-4 px-2 flex flex-col sm:flex-row items-center gap-6">
+        <div className="w-full max-w-lg mb-12 px-2 flex flex-col sm:flex-row items-center gap-6">
           <div
             className="shrink-0 overflow-hidden w-24 h-24"
             style={{ borderRadius: "62% 38% 46% 54% / 60% 44% 56% 40%" }}
@@ -106,17 +101,22 @@ export default async function Home() {
               </a>
               , and someone who knows exactly how isolating and overwhelming parenthood can feel. I've been running new parent support programs long enough to see that the right connection at the right time changes <i>everything</i>. Postpartum Post is my way of making that easier to find.
             </p>
-                 {/* FAQ link */}
-        <p className="text-xs text-muted mt-4 mb-2">
-          Have questions?{" "}
-          <a
-            href="/about"
-            className="underline underline-offset-2 hover:text-coral transition-colors"
-          >
-            Visit the About page
-          </a>
-        </p>
+            {/* FAQ link */}
+            <p className="text-xs text-muted mt-4 mb-2">
+              Have questions?{" "}
+              <a
+                href="/about"
+                className="underline underline-offset-2 hover:text-coral transition-colors"
+              >
+                Visit the About page
+              </a>
+            </p>
           </div>
+        </div>
+
+        {/* Signup form */}
+        <div id="subscribe-form" className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
+          <SubscribeSection first20SpotsRemaining={first20SpotsRemaining} pilotOnly={pilotOnly} />
         </div>
 
       </main>
