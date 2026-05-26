@@ -48,7 +48,7 @@ export default async function Home() {
             <span className="text-dark">Let us introduce you.</span>
           </h1>
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
-            Every month, we personally match you with someone who's also navigating early parenthood — for coffee, a playdate, or a supportive chat. You receive a warm introduction, plus local activities handpicked for your families.
+            Making one real friend beats being in ten group chats. Every month, we personally deliver you a friendship starter pack: a match with someone local who's navigating early parenthood like you, plus neighborhood activities handpicked for your families.
           </p>
         </div>
 

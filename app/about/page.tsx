@@ -45,7 +45,7 @@ export default function About() {
               along with local activities handpicked for your families.
             </p>
             <p>
-              Postpartum Post was created for people who want to build connections — but <b>at the busy pace of early parenthood</b>.
+              Postpartum Post was created for people who want to build deep connections — but <b>at the busy pace of early parenthood</b>.
               Subscriptions are flexible by design: skip any month, pause when life gets full, cancel anytime.
               In one click, you pick the topic, we find the match, and deliver the introduction in a delightful little letter to your inbox.
             </p>

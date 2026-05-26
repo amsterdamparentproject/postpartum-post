@@ -239,7 +239,7 @@ export default function HowMatchingWorks() {
         How <span className="text-coral">matching</span> works
       </h2>
       <p className="text-sm text-muted text-center mb-10 max-w-md mx-auto leading-relaxed">
-        Every match is made by our own purpose-built algorithm (no AI), reviewed with care, and delivered like a little letter. Our goal is to make conversation feel easy between you both.
+        Every match is made by our own purpose-built algorithm (no AI), reviewed with care, and delivered right to your inbox. Our goal is to make conversation feel easy between you both.
       </p>
 
       {isMobile ? <MobileCarousel /> : <DesktopList />}
