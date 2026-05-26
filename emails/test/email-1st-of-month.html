@@ -11,7 +11,7 @@
     n8n variables:
       {{ $json.first_name }}   — member's first name
       {{ $json.skip_url }}     — signed one-click skip URL
-                                 format: https://localhost:3000/api/skip?member={id}&month={YYYY-MM}&token={hmac}
+                                 format: http://localhost:3000/api/skip?member={id}&month={YYYY-MM}&token={hmac}
                                  generate in a Code node before this Send Email node
 
     Sent: 1st of each month, to all members with status = 'active'
@@ -79,7 +79,7 @@
           <tr>
             <td style="padding:24px 32px 32px;">
               <p style="margin:0;font-size:15px;line-height:1.6;color:#1A1A1A;">
-                — Alex
+                Cheers,<br>Alex
               </p>
               <p style="margin:4px 0 0;font-size:13px;color:#8B7B72;">
                 <a href="https://amsterdamparentproject.nl" style="color:#D4614A;text-decoration:none;">Amsterdam Parent Project</a>
@@ -93,7 +93,7 @@
         <p style="margin:20px 0 0;font-size:12px;color:#8B7B72;text-align:center;">
           You&apos;re receiving this as an active Postpartum Post subscriber.
           ·
-          <a href="https://localhost:3000/unsubscribe" style="color:#8B7B72;">Unsubscribe</a>
+          <a href="http://localhost:3000/unsubscribe" style="color:#8B7B72;">Unsubscribe</a>
         </p>
 
       </td>

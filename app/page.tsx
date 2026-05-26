@@ -34,26 +34,26 @@ export default async function Home() {
         {/* Hero */}
         <div className="max-w-2xl w-full text-center mb-10">
           <h1
-            className="text-2xl sm:text-5xl hidden sm:block font-semibold leading-tight"
+            className="text-5xl hidden md:block font-semibold leading-tight text-center"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            <p className="text-coral">Amsterdam is full of parents like you.</p>
-            <p className="text-dark">Let us introduce you.</p>
+            <span className="block text-coral">Amsterdam is full of parents like you.</span>
+            <span className="block text-dark">Let us introduce you.</span>
           </h1>
           <h1
-            className="text-2xl mt-6 sm:hidden font-semibold leading-tight"
+            className="text-3xl max-w-lg mt-6 md:hidden font-semibold leading-tight text-center mx-auto"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            <span className="text-coral">Amsterdam is full of parents like you.</span>
+            <span className="text-coral">Amsterdam is full of parents like you.</span>{" "}
             <span className="text-dark">Let us introduce you.</span>
           </h1>
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
-            Every month, we match you with someone who's also navigating early parenthood — for coffee, a playdate, or a supportive chat. You receive a warm introduction, plus local activities handpicked for your families.
+            Every month, we personally match you with someone who's also navigating early parenthood — for coffee, a playdate, or a supportive chat. You receive a warm introduction, plus local activities handpicked for your families.
           </p>
         </div>
 
         {/* Persona cards */}
-        <div className="w-full max-w-2xl mt-2 md:mt-6 mb-12">
+        <div className="w-full max-w-sm md:max-w-xl mt-2 md:mt-6 mb-12">
           <h2
             className="text-2xl font-semibold text-dark text-center mb-8"
             style={{ fontFamily: "var(--font-serif)" }}
@@ -74,7 +74,7 @@ export default async function Home() {
         {/* Alex intro */}
         <div className="w-full max-w-md mt-12 mb-6 text-center">
           <h2
-            className="text-2xl font-semibold text-dark max-w-sm"
+            className="text-2xl font-semibold text-dark text-center mx-auto"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             Delivered with joy by someone who <span className="text-coral">gets it</span>

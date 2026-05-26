@@ -139,11 +139,13 @@ const PERSONAS: { icon: (fill: string, stroke: string) => React.ReactNode; text:
 // ---------------------------------------------------------------------------
 
 export default function PersonaCards() {
+  const [mounted, setMounted] = useState(false);
   const [perPage, setPerPage] = useState(2);
   const [page, setPage] = useState(0);
   const touchStartX = React.useRef<number | null>(null);
 
   useEffect(() => {
+    setMounted(true);
     const mq = window.matchMedia("(min-width: 768px)");
     const update = () => {
       setPerPage(mq.matches ? 2 : 1);
@@ -213,7 +215,7 @@ export default function PersonaCards() {
       <div className="flex items-center justify-center gap-4 mt-5">
         <button
           onClick={() => setPage(p => p - 1)}
-          disabled={page === 0}
+          disabled={mounted && page === 0}
           aria-label="Previous"
           className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-dark hover:border-coral/40 transition disabled:opacity-25 disabled:cursor-not-allowed"
         >
@@ -237,7 +239,7 @@ export default function PersonaCards() {
 
         <button
           onClick={() => setPage(p => p + 1)}
-          disabled={page >= totalPages - 1}
+          disabled={mounted && page >= totalPages - 1}
           aria-label="Next"
           className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-dark hover:border-coral/40 transition disabled:opacity-25 disabled:cursor-not-allowed"
         >

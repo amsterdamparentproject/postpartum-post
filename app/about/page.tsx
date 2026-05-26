@@ -34,7 +34,7 @@ export default function About() {
           >
             About <span className="text-coral">Postpartum Post</span>
           </h1>
-          <div className="space-y-4 text-muted leading-relaxed text-left">
+          <div className="space-y-4 text-dark leading-relaxed text-left">
             <p>
               The postpartum period is one of the most transformative — and often loneliest — times in a parent's life.
               Parent groups can be great for support, but <b>sometimes you need just one person</b>, not a room full of them.
