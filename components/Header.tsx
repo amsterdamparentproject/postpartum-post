@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { EnvelopeStamp } from "@/components/StampIcons";
 
 const NAV_LINKS = [
   { href: "/about", label: "About" },
@@ -15,7 +15,7 @@ export default function Header({ showNav = true, activeRoute }: HeaderProps) {
   return (
     <header className="px-6 py-5 flex items-center justify-between max-w-5xl mx-auto w-full">
       <Link href="/" className="flex items-center gap-3">
-        <Image src="/logo.png" alt="Postpartum Post" width={40} height={40} />
+        <EnvelopeStamp size={40} />
         <span className="hidden sm:inline text-xl font-semibold" style={{ fontFamily: "var(--font-serif)" }}>
           <span className="text-coral">postpartum</span>{" "}
           <span className="text-dark">post</span>

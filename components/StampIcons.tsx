@@ -7,20 +7,22 @@
 
 import React from "react";
 
-export function StampSVG({ fill, stroke, children }: {
+export function StampSVG({ fill, stroke, children, size = 64, background = "#F4EDE6" }: {
   fill: string;
   stroke: string;
   children: React.ReactNode;
+  size?: number;
+  background?: string;
 }) {
   return (
-    <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true" fill="none">
+    <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden="true" fill="none">
       {/* Stamp background */}
       <rect x="4" y="4" width="56" height="56" fill={fill} rx="2" />
-      {/* Perforated border: round dots via dasharray */}
+      {/* Perforated border: round dots via dasharray — color should match page background */}
       <rect
         x="4" y="4" width="56" height="56"
         fill="none"
-        stroke="white"
+        stroke={background}
         strokeWidth="5"
         strokeDasharray="0.1 7.2"
         strokeLinecap="round"
@@ -36,12 +38,14 @@ export function StampSVG({ fill, stroke, children }: {
   );
 }
 
-export function EnvelopeStamp({ fill = "rgba(197, 104, 80, 0.08)", stroke = "#C56850" }: {
+export function EnvelopeStamp({ fill = "rgba(197, 104, 80, 0.08)", stroke = "#C56850", size = 64, background }: {
   fill?: string;
   stroke?: string;
+  size?: number;
+  background?: string;
 }) {
   return (
-    <StampSVG fill={fill} stroke={stroke}>
+    <StampSVG fill={fill} stroke={stroke} size={size} background={background}>
       <rect x="4" y="14" width="40" height="26" rx="3" fill={stroke} opacity="0.15" stroke={stroke} strokeWidth="1.5" />
       <polyline points="4,14 24,28 44,14" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M24 22 C24 19 20 18 20 21 C20 24 24 27 24 27 C24 27 28 24 28 21 C28 18 24 19 24 22 Z" fill={stroke} />

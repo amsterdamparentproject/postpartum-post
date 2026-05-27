@@ -9,7 +9,7 @@ import { StampSVG } from "@/components/StampIcons";
 
 function ProfileIcon({ fill, stroke }: { fill: string; stroke: string }) {
   return (
-    <StampSVG fill={fill} stroke={stroke}>
+    <StampSVG fill={fill} stroke={stroke} background="white">
       <rect x="8" y="6" width="32" height="36" rx="3" fill={stroke} opacity="0.15" stroke={stroke} strokeWidth="1.5" />
       <line x1="15" y1="16" x2="33" y2="16" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
       <line x1="15" y1="22" x2="33" y2="22" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
@@ -22,7 +22,7 @@ function ProfileIcon({ fill, stroke }: { fill: string; stroke: string }) {
 
 function ChatIcon({ fill, stroke }: { fill: string; stroke: string }) {
   return (
-    <StampSVG fill={fill} stroke={stroke}>
+    <StampSVG fill={fill} stroke={stroke} background="white">
       <path
         d="M8 10 L28 10 A4 4 0 0 1 32 14 L32 26 A4 4 0 0 1 28 30 L14 30 L6 38 L10 30 L8 30 A4 4 0 0 1 4 26 L4 14 A4 4 0 0 1 8 10 Z"
         fill={stroke} opacity="0.15" stroke={stroke} strokeWidth="1.5"
@@ -41,7 +41,7 @@ function ChatIcon({ fill, stroke }: { fill: string; stroke: string }) {
 
 function CoffeeIcon({ fill, stroke }: { fill: string; stroke: string }) {
   return (
-    <StampSVG fill={fill} stroke={stroke}>
+    <StampSVG fill={fill} stroke={stroke} background="white">
       <path d="M10 21 L13 37 H33 L36 21 Z" fill={stroke} opacity="0.15" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" />
       <line x1="12" y1="27" x2="34" y2="27" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
       <path d="M36 25 Q44 25 44 30 Q44 36 36 36" fill="none" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" />
@@ -55,7 +55,7 @@ function CoffeeIcon({ fill, stroke }: { fill: string; stroke: string }) {
 
 function PlaneIcon({ fill, stroke }: { fill: string; stroke: string }) {
   return (
-    <StampSVG fill={fill} stroke={stroke}>
+    <StampSVG fill={fill} stroke={stroke} background="white">
       <path d="M6 40 L42 8 L36 38 Z" fill={stroke} opacity="0.15" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" />
       <line x1="6" y1="40" x2="25" y2="25" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
       <path d="M25 25 L36 38 L18 34 Z" fill={stroke} opacity="0.30" stroke={stroke} strokeWidth="0.8" strokeLinejoin="round" />
@@ -65,7 +65,7 @@ function PlaneIcon({ fill, stroke }: { fill: string; stroke: string }) {
 
 function TulipIcon({ fill, stroke }: { fill: string; stroke: string }) {
   return (
-    <StampSVG fill={fill} stroke={stroke}>
+    <StampSVG fill={fill} stroke={stroke} background="white">
       {/* Soil mound */}
       <ellipse cx="24" cy="44" rx="13" ry="2.5" fill={stroke} opacity="0.25" />
       {/* Stem */}

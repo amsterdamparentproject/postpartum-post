@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
+import { EnvelopeStamp } from "@/components/StampIcons";
 import HowMatchingWorks from "@/components/HowMatchingWorks";
 import FAQ from "@/components/FAQ";
 
@@ -21,13 +21,9 @@ export default function About() {
     <PageLayout showNav activeRoute="/about">
       <main className="flex-1 w-full px-6 py-16">
         <div className="max-w-xl mx-auto text-center">
-          <Image
-            src="/logo.png"
-            alt="Postpartum Post logo"
-            width={120}
-            height={120}
-            className="w-24 h-auto mx-auto mb-6"
-          />
+          <div className="flex justify-center mb-6">
+            <EnvelopeStamp size={96} />
+          </div>
           <h1
             className="text-4xl font-semibold text-dark mb-6 leading-tight"
             style={{ fontFamily: "var(--font-serif)" }}

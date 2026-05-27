@@ -26,7 +26,7 @@ export default function SubscribeSection({
     <>
       <div className="flex justify-center mb-4">
         <div className={wiggling ? "wiggle" : undefined}>
-          <EnvelopeStamp />
+          <EnvelopeStamp background="#FCFBFA" />
         </div>
       </div>
       <h2

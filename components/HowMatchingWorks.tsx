@@ -21,7 +21,7 @@ const STEPS = [
     description:
       "Tell us your language, when you're free, and your child's birth month or due date. The more you share, the better we can match you. (But we'll still match you regardless!)",
     icon: (
-      <StampSVG fill="rgba(197, 104, 80, 0.08)" stroke="#C56850">
+      <StampSVG fill="rgba(197, 104, 80, 0.08)" stroke="#C56850" background="white">
         <rect x="8" y="6" width="32" height="36" rx="3" fill="#C56850" opacity="0.15" stroke="#C56850" strokeWidth="1.5" />
         <line x1="15" y1="16" x2="33" y2="16" stroke="#C56850" strokeWidth="2" strokeLinecap="round" />
         <line x1="15" y1="22" x2="33" y2="22" stroke="#C56850" strokeWidth="2" strokeLinecap="round" />
@@ -37,7 +37,7 @@ const STEPS = [
     description:
       "On the 1st of each month, we ask whether you'd like to participate and what you'd like to connect over — coffee, a playdate, or another topic around parenthood. You can also choose to skip that month, at no cost to you.",
     icon: (
-      <StampSVG fill="rgba(175, 153, 255, 0.10)" stroke="#AF99FF">
+      <StampSVG fill="rgba(175, 153, 255, 0.10)" stroke="#AF99FF" background="white">
         <path
           d="M8 10 L28 10 A4 4 0 0 1 32 14 L32 26 A4 4 0 0 1 28 30 L14 30 L6 38 L10 30 L8 30 A4 4 0 0 1 4 26 L4 14 A4 4 0 0 1 8 10 Z"
           fill="#AF99FF" opacity="0.15" stroke="#AF99FF" strokeWidth="1.5"
@@ -59,7 +59,7 @@ const STEPS = [
     description:
       "We compare your profile with every active member and score compatibility. Language comes first, then shared availability, topic, and — based on your preference — how close you live or how similar your children's ages are.",
     icon: (
-      <StampSVG fill="rgba(212, 163, 115, 0.10)" stroke="#D4A373">
+      <StampSVG fill="rgba(212, 163, 115, 0.10)" stroke="#D4A373" background="white">
         <g transform="rotate(-18, 9.5, 22)">
           <path
             d="M 3,14 H 16 V 19 A 3 3 0 0 1 16 25 V 30 H 3 Z"
@@ -84,7 +84,7 @@ const STEPS = [
     description:
       "We introduce you both by email: a warm letter with just the name and contact of the match. We don't share your personal details; that's up to you!",
     icon: (
-      <StampSVG fill="rgba(197, 104, 80, 0.08)" stroke="#C56850">
+      <StampSVG fill="rgba(197, 104, 80, 0.08)" stroke="#C56850" background="white">
         <rect x="4" y="14" width="40" height="26" rx="3" fill="#C56850" opacity="0.15" stroke="#C56850" strokeWidth="1.5" />
         <polyline points="4,14 24,28 44,14" stroke="#C56850" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         <path
