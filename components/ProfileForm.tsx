@@ -457,43 +457,6 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         </div>
       )}
 
-      {/* Children — details section and onboarding */}
-      {(section === "details" || mode === "onboarding") && (
-        <>
-        <hr className="border-border" />
-         <div>
-          <label className={labelClass}>Children</label>
-          <p className="text-xs italic text-muted mb-3">
-            For finding matches with kids of a similar age
-          </p>
-          <div className="space-y-2">
-            {children.map((child, i) => (
-              <ChildRow
-                key={i}
-                child={child}
-                onChange={(updated) =>
-                  setChildren((prev) => prev.map((c, idx) => (idx === i ? updated : c)))
-                }
-                onRemove={() => setChildren((prev) => prev.filter((_, idx) => idx !== i))}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              setChildren((prev) => [
-                ...prev,
-                { birth_month: new Date().getMonth() + 1, birth_year: new Date().getFullYear(), expected: false },
-              ])
-            }
-            className="mt-3 text-sm text-coral hover:underline font-medium"
-          >
-            + Add a child
-          </button>
-        </div>
-        </>
-      )}
-
       {/* Availability — details section and onboarding */}
       {(section === "details" || mode === "onboarding") && (
         <>
@@ -540,6 +503,43 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
               ))}
             </div>
           </div>
+        </>
+      )}
+
+      {/* Children — details section and onboarding */}
+      {(section === "details" || mode === "onboarding") && (
+        <>
+        <hr className="border-border" />
+         <div>
+          <label className={labelClass}>Children</label>
+          <p className="text-xs italic text-muted mb-3">
+            For finding matches with kids of a similar age
+          </p>
+          <div className="space-y-2">
+            {children.map((child, i) => (
+              <ChildRow
+                key={i}
+                child={child}
+                onChange={(updated) =>
+                  setChildren((prev) => prev.map((c, idx) => (idx === i ? updated : c)))
+                }
+                onRemove={() => setChildren((prev) => prev.filter((_, idx) => idx !== i))}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setChildren((prev) => [
+                ...prev,
+                { birth_month: new Date().getMonth() + 1, birth_year: new Date().getFullYear(), expected: false },
+              ])
+            }
+            className="mt-3 text-sm text-coral hover:underline font-medium"
+          >
+            + Add a child
+          </button>
+        </div>
         </>
       )}
 

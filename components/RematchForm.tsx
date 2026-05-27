@@ -58,6 +58,7 @@ export default function RematchForm({ memberId }: { memberId: string }) {
         <button
           type="submit"
           disabled={isPending}
+          data-umami-event="Rematch: Request New Match"
           className="w-full py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isPending ? "Submitting…" : "Request a new match"}

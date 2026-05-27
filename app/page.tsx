@@ -95,6 +95,7 @@ export default async function Home() {
                 href="https://amsterdamparentproject.nl"
                 target="_blank"
                 rel="noopener noreferrer"
+                data-umami-event="Bio: Amsterdam Parent Project"
                 className="underline underline-offset-2 hover:text-coral transition-colors"
               >
                 Amsterdam Parent Project

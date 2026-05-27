@@ -96,6 +96,7 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
           <button
             type="submit"
             disabled={isPending}
+            data-umami-event="Sign In: Request Link"
             className="w-full py-2.5 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isPending ? "Checking…" : "Send me a sign-in link"}

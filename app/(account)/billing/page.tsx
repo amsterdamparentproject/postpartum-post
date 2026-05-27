@@ -8,6 +8,7 @@ import {
   getCustomerPortalUrl,
   type SubscriptionDetails,
 } from "@/app/actions/profile";
+import { unsubscribe } from "@/app/actions/unsubscribe";
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   active: { label: "Active", className: "bg-green-100 text-green-700" },
@@ -29,11 +30,18 @@ function formatDate(unixTimestamp: number) {
 export default function BillingPage() {
   const { loading, member } = useAccount();
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [isPortalPending, startPortalTransition] = useTransition();
+  const [isCancelPending, startCancelTransition] = useTransition();
 
   useEffect(() => {
     if (member) {
-      getSubscriptionDetails(member.id).then(setSubscription);
+      setSubscriptionLoading(true);
+      getSubscriptionDetails(member.id).then((data) => {
+        setSubscription(data);
+        setSubscriptionLoading(false);
+      });
     }
   }, [member]);
 
@@ -66,7 +74,9 @@ export default function BillingPage() {
       <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8 space-y-4">
         <h2 className="text-base font-semibold text-dark">Plan & billing</h2>
 
-        {!subscription ? (
+        {subscriptionLoading ? (
+          <p className="text-sm text-muted">Fetching your plan…</p>
+        ) : !subscription ? (
           <p className="text-sm text-muted">No active subscription found.</p>
         ) : (
           <>
@@ -139,6 +149,41 @@ export default function BillingPage() {
             >
               {isPortalPending ? "Redirecting…" : "Manage billing →"}
             </button>
+
+            {!subscription.cancel_at_period_end && (
+              <div className="text-center">
+                {!confirmCancel ? (
+                  <button
+                    onClick={() => setConfirmCancel(true)}
+                    className="text-xs text-muted hover:text-dark transition"
+                  >
+                    Cancel subscription
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted">Cancel at the end of your billing period?</p>
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => {
+                          if (!member) return;
+                          startCancelTransition(() => unsubscribe(member.id));
+                        }}
+                        disabled={isCancelPending}
+                        className="text-xs px-3 py-1.5 bg-dark text-white rounded-lg hover:bg-dark/80 transition disabled:opacity-60"
+                      >
+                        {isCancelPending ? "Cancelling…" : "Yes, cancel"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmCancel(false)}
+                        className="text-xs px-3 py-1.5 border border-border rounded-lg text-muted hover:text-dark transition"
+                      >
+                        Never mind
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

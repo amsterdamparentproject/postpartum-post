@@ -18,6 +18,7 @@ export default function PageLayout({ children, showNav, activeRoute }: PageLayou
             href="https://amsterdamparentproject.nl"
             target="_blank"
             rel="noopener noreferrer"
+            data-umami-event="Footer: Amsterdam Parent Project"
             className="underline underline-offset-2 hover:text-coral transition-colors"
           >
             Amsterdam Parent Project

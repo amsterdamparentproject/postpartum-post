@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Nunito_Sans, DM_Sans, Solway } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const solway = Solway({
@@ -68,6 +69,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${solway.variable} ${nunitoSans.variable} ${dmSans.variable} h-full`}>
       <body className="min-h-full flex flex-col antialiased font-[var(--font-sans)]">{children}</body>
+      {process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (
+        <Script
+          src="https://cloud.umami.is/script.js"
+          data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
+          strategy="afterInteractive"
+        />
+      )}
     </html>
   );
 }

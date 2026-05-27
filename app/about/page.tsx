@@ -48,6 +48,7 @@ export default function About() {
           </div>
           <Link
             href="/"
+            data-umami-event="About: Sign Up Today"
             className="inline-block mt-8 py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition"
           >
             Sign up today

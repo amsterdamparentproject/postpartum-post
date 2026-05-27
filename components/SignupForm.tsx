@@ -2,84 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { signup, type SignupFormData } from "@/app/actions/signup";
-import { joinWaitlist } from "@/app/actions/waitlist";
-import { PLANS, resolvePlans, shouldShowWaitlist, defaultPlan } from "@/lib/plans";
-
-function WaitlistForm() {
-  const [isPending, startTransition] = useTransition();
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const email = (e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;
-    if (!EMAIL_RE.test(email)) {
-      setEmailError("Enter a valid email address");
-      return;
-    }
-    setEmailError(null);
-    startTransition(async () => {
-      const result = await joinWaitlist(email);
-      if (result.success) {
-        setDone(true);
-      } else {
-        setError("Something went wrong — please try again.");
-      }
-    });
-  }
-
-  if (done) {
-    return (
-      <div className="text-center py-4 space-y-2">
-        <p className="text-2xl">💌</p>
-        <p className="text-sm font-semibold text-dark">You&apos;re on the list!</p>
-        <p className="text-sm text-muted leading-relaxed">
-          We&apos;ll let you know as soon as general signups open on 1 July.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="rounded-xl border-2 border-coral/40 bg-coral/5 px-5 py-4 text-center space-y-1">
-        <p className="text-sm font-semibold text-coral">Our founding spots are full 🎉</p>
-        <p className="text-sm text-muted leading-relaxed">
-          Leave your email and we&apos;ll let you know when general signups open on 1 July.
-        </p>
-      </div>
-      <div>
-        <label htmlFor="waitlist-email" className={labelClass}>
-          Email <span className="text-coral ml-0.5">*</span>
-        </label>
-        <input
-          id="waitlist-email"
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          onChange={() => setEmailError(null)}
-          onBlur={(e) => {
-            if (e.target.value && !EMAIL_RE.test(e.target.value)) {
-              setEmailError("Enter a valid email address");
-            }
-          }}
-          className={`${inputClass} ${emailError ? "border-coral" : ""}`}
-        />
-        {emailError && <p className="mt-1 text-xs text-coral">{emailError}</p>}
-      </div>
-      {error && <p className="text-sm text-coral">{error}</p>}
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        {isPending ? "Joining…" : "Notify me"}
-      </button>
-    </form>
-  );
-}
+import { PLANS, resolvePlans, defaultPlan } from "@/lib/plans";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -141,11 +64,6 @@ export default function SignupForm({
         }
       }
     });
-  }
-
-  // Waitlist mode — FIRST20 sold out during pilot period
-  if (shouldShowWaitlist(pilotOnly, first20SoldOut)) {
-    return <WaitlistForm />;
   }
 
   return (
@@ -215,6 +133,8 @@ export default function SignupForm({
                 type="button"
                 onClick={() => !isSoldOut && setSelectedPlan(plan.value)}
                 disabled={isSoldOut}
+                data-umami-event="Home: Select Plan"
+                data-umami-event-plan={plan.value}
                 className={`w-full text-left p-4 rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-coral/40 ${
                   isSoldOut
                     ? "border-border bg-gray-50 opacity-60 cursor-not-allowed"
@@ -266,6 +186,8 @@ export default function SignupForm({
                   type="button"
                   onClick={() => !disabled && setSelectedPlan(plan.value)}
                   disabled={disabled}
+                  data-umami-event="Home: Select Plan"
+                  data-umami-event-plan={plan.value}
                   className={`text-left p-4 rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-coral/40 ${
                     disabled
                       ? "border-border bg-gray-50 opacity-60 cursor-not-allowed"
@@ -308,6 +230,8 @@ export default function SignupForm({
         disabled={isPending}
         onMouseEnter={() => onSubmitHover?.(true)}
         onMouseLeave={() => onSubmitHover?.(false)}
+        data-umami-event="Home: Subscribe"
+        data-umami-event-plan={selectedPlan}
         className="w-full py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
       >
         {isPending ? "Redirecting to checkout…" : "Subscribe"}

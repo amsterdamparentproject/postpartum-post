@@ -15,10 +15,11 @@ import { getResend } from "@/lib/resend";
 
 const FROM = "Postpartum Post <post@amsterdamparentproject.nl>";
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
+// Email image assets must always point to production — localhost URLs are unreachable by email clients.
+const ASSETS_URL = "https://postpartumpost.com";
 
-// SVG data URIs — inline icons, no external hosting needed
-const INSTAGRAM_ICON = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj4KICA8cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHJ4PSI1IiByeT0iNSIvPgogIDxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjQuNSIvPgogIDxjaXJjbGUgY3g9IjE3LjUiIGN5PSI2LjUiIHI9IjEiIGZpbGw9IiMwMDAwMDAiIHN0cm9rZT0ibm9uZSIvPgo8L3N2Zz4=";
-const EMAIL_ICON = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIxOCIgdmlld0JveD0iMCAwIDI0IDE4IiBmaWxsPSJub25lIiBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj4KICA8cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iMjIiIGhlaWdodD0iMTYiIHJ4PSIyIi8+CiAgPHBvbHlsaW5lIHBvaW50cz0iMSwxIDEyLDEwIDIzLDEiLz4KPC9zdmc+";
+const INSTAGRAM_ICON = `${ASSETS_URL}/email-images/instagram.png`;
+const EMAIL_ICON = `${ASSETS_URL}/email-images/email.png`;
 
 // ---------------------------------------------------------------------------
 // Base template helpers
@@ -150,7 +151,7 @@ function emailFooter(): string {
                   <tr><td dir="ltr" style="font-size:13.3px;text-align:center;padding:0 24px 24px;line-height:18.2px;mso-line-height-alt:18.2px">
                     &copy; 2026 Postpartum Post. All rights reserved.
                     You're receiving this email because you subscribed to Postpartum Post.
-                    &middot; <a href="${SITE_URL}/unsubscribe" style="color:#000000;">Unsubscribe</a>
+                    &middot; <a href="${SITE_URL}/billing?utm_source=email&utm_campaign=transactional&utm_content=manage-subscription" style="color:#000000;">Manage subscription</a>
                   </td></tr>`;
 }
 
@@ -282,7 +283,7 @@ function welcomeHtml(firstName: string, profileLink: string): string {
                         <!--[if mso]><table cellpadding="0" cellspacing="0" border="0" width="408" style="width:408px"><tbody><tr><td><![endif]-->
                         <table cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:408px"><tbody><tr>
                           <td style="width:100%">
-                            <img src="${SITE_URL}/email-images/welcome-header.png" width="408" height="409"
+                            <img src="${ASSETS_URL}/email-images/welcome-header.png" width="408" height="409"
                               alt="Welcome to Postpartum Post"
                               style="display:block;width:100%;height:auto;max-width:100%">
                           </td>
@@ -340,7 +341,7 @@ function welcomeHtml(firstName: string, profileLink: string): string {
 
   return baseEmail(
     headerImage + welcomeCopy + ctaButton("Go to your profile", profileLink) + schedule,
-    `<link rel="preload" as="image" href="${SITE_URL}/email-images/welcome-header.png">`
+    `<link rel="preload" as="image" href="${ASSETS_URL}/email-images/welcome-header.png">`
   );
 }
 
@@ -432,39 +433,3 @@ export async function sendAutoPauseEmail(email: string, firstName: string) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Waitlist confirmation email
-// ---------------------------------------------------------------------------
-
-function waitlistConfirmationHtml(): string {
-  const content =
-    bodySection(`
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Hi there,
-                                    </td></tr>
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      You're on the Postpartum Post waitlist — thank you for your interest! 🎉
-                                    </td></tr>
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Our founding spots filled up, but general signups open on <strong>1 July</strong>. I'll send you a note as soon as the doors are open.
-                                    </td></tr>
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;line-height:1.4;mso-line-height-alt:22.4px">
-                                      In the meantime, you can read a little more about how it all works below.
-                                    </td></tr>`) +
-    ctaButton("About Postpartum Post →", `${SITE_URL}/about`);
-  return baseEmail(content);
-}
-
-export async function sendWaitlistConfirmationEmail(email: string) {
-  const resend = getResend();
-  const { error } = await resend.emails.send({
-    from: FROM,
-    to: email,
-    subject: "You're on the Postpartum Post waitlist 💌",
-    html: waitlistConfirmationHtml(),
-  });
-  if (error) {
-    console.error("[resend] sendWaitlistConfirmationEmail error:", error);
-    throw error;
-  }
-}

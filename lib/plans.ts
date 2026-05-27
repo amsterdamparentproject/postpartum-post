@@ -42,13 +42,6 @@ export const PLANS: Plan[] = [
   },
 ];
 
-export function shouldShowWaitlist(
-  pilotOnly: boolean,
-  first20SoldOut: boolean
-): boolean {
-  return pilotOnly && first20SoldOut;
-}
-
 export function resolvePlans(plans: Plan[], pilotOnly: boolean): Plan[] {
   return plans.map((plan) => ({
     ...plan,
