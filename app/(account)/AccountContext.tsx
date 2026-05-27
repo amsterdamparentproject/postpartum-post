@@ -40,6 +40,15 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
             getMemberProfile(sessionEmail),
             getTopics(),
           ]);
+
+          if (!memberData) {
+            // Authenticated in Supabase but not in the members table.
+            // Sign out so the stale session doesn't persist across refreshes —
+            // the resulting SIGNED_OUT event will clear state and show MagicLinkRequest.
+            await supabase.auth.signOut();
+            return;
+          }
+
           setMember(memberData);
           setTopics(topicsData);
         } else {

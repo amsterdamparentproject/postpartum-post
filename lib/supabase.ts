@@ -8,9 +8,17 @@ export function createAdminClient() {
   );
 }
 
+// Singleton — all browser-side callers must share one instance so that
+// auth events (signIn, signOut) fired by any component are received by
+// every onAuthStateChange subscriber in the same tab.
+let _browserClient: ReturnType<typeof createClient> | null = null;
+
 export function createBrowserClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  if (!_browserClient) {
+    _browserClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return _browserClient;
 }

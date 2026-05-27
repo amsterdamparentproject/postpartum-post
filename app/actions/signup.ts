@@ -43,7 +43,7 @@ export async function signup(data: SignupFormData) {
     .insert({
       first_name: data.firstName,
       last_name: data.lastName,
-      email: data.email,
+      email: data.email.toLowerCase(),
       status: "pending",
     })
     .select("id")

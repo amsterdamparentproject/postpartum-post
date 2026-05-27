@@ -19,7 +19,7 @@ export default function NotSubscribedView({ email }: { email: string }) {
       <div className="rounded-xl border border-coral/30 bg-coral/5 px-5 py-4 text-center space-y-1">
         <p className="text-sm font-semibold text-coral">We couldn&apos;t find that email</p>
         <p className="text-sm text-muted leading-relaxed">
-          <strong className="text-dark">{email}</strong> isn&apos;t associated with a subscription.
+          <strong className="text-dark">{email}</strong>{" "}isn&apos;t associated with a subscription.
           Try a different address, or sign up below.
         </p>
       </div>

@@ -34,16 +34,17 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
     }
     setEmailError(null);
     startTransition(async () => {
-      const exists = await checkMemberExists(email);
+      const normalizedEmail = email.toLowerCase();
+      const exists = await checkMemberExists(normalizedEmail);
       if (!exists) {
-        setNotFoundEmail(email);
+        setNotFoundEmail(normalizedEmail);
         setState("not_found");
         return;
       }
       setState("sending");
       const supabase = createBrowserClient();
       await supabase.auth.signInWithOtp({
-        email,
+        email: normalizedEmail,
         options: { emailRedirectTo: `${window.location.origin}/profile` },
       });
       setState("sent");

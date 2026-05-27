@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 import { createBrowserClient } from "@/lib/supabase";
 import { useProfileSave } from "@/app/(account)/ProfileSaveContext";
@@ -14,7 +14,6 @@ const TABS = [
 
 export default function AccountTabNav() {
   const pathname = usePathname();
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const { triggerSave, saveState, hasSaveHandler } = useProfileSave();
 
@@ -22,8 +21,8 @@ export default function AccountTabNav() {
     startTransition(async () => {
       const supabase = createBrowserClient();
       await supabase.auth.signOut();
-      router.push("/profile");
-      router.refresh();
+      // onAuthStateChange in AccountContext handles the reactive teardown —
+      // no router.push/refresh needed, which would re-render with stale state.
     });
   }
 

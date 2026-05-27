@@ -50,7 +50,7 @@ export async function checkMemberExists(email: string): Promise<boolean> {
   const { data } = await supabase
     .from("members")
     .select("id")
-    .eq("email", email)
+    .eq("email", email.toLowerCase())
     .single();
   return data !== null;
 }
@@ -60,7 +60,7 @@ export async function getMemberProfile(email: string): Promise<MemberProfile | n
   const { data } = await supabase
     .from("members")
     .select("id, first_name, last_name, email, zipcode, language, topic_id, match_type, stripe_customer_id, consecutive_skips, availability, match_priority, children")
-    .eq("email", email)
+    .eq("email", email.toLowerCase())
     .single();
   return data;
 }
