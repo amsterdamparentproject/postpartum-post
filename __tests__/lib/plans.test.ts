@@ -1,23 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PLANS, resolvePlans, shouldShowWaitlist, defaultPlan } from "@/lib/plans";
-
-describe("shouldShowWaitlist", () => {
-  it("returns true when pilot is active and FIRST20 is sold out", () => {
-    expect(shouldShowWaitlist(true, true)).toBe(true);
-  });
-
-  it("returns false when pilot is active but FIRST20 still has spots", () => {
-    expect(shouldShowWaitlist(true, false)).toBe(false);
-  });
-
-  it("returns false when general signups are open, even if FIRST20 count is exhausted", () => {
-    expect(shouldShowWaitlist(false, true)).toBe(false);
-  });
-
-  it("returns false when general signups are open and FIRST20 has spots", () => {
-    expect(shouldShowWaitlist(false, false)).toBe(false);
-  });
-});
+import { PLANS, resolvePlans, defaultPlan } from "@/lib/plans";
 
 describe("resolvePlans — pilot mode (PILOT_ONLY = true)", () => {
   const plans = resolvePlans(PLANS, true);

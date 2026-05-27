@@ -8,7 +8,6 @@
  *   - Welcome (on checkout complete)
  *   - Unsubscribed (on subscription deleted)
  *   - Auto-pause (on 3 consecutive skips, monthly plan only)
- *   - Waitlist confirmation
  */
 
 import { getResend } from "@/lib/resend";

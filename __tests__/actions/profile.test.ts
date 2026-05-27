@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { seedMember, cleanupMember, createTestSupabase } from "@tests/helpers";
-import { updateMemberProfile, getMemberProfile } from "@/app/actions/profile";
+import { updateMemberProfile, getMemberProfile, checkMemberExists } from "@/app/actions/profile";
 import type { Availability, Child } from "@/app/actions/profile";
 
 vi.mock("@/lib/stripe", () => ({
@@ -8,6 +8,31 @@ vi.mock("@/lib/stripe", () => ({
     customers: { update: vi.fn().mockResolvedValue({}) },
   }),
 }));
+
+describe("email case-insensitivity", () => {
+  let memberId: string;
+
+  afterEach(async () => {
+    if (memberId) await cleanupMember(memberId);
+  });
+
+  it("getMemberProfile finds a member regardless of input casing", async () => {
+    const member = await seedMember({ email: "test-case@example.com" });
+    memberId = member.id;
+
+    const result = await getMemberProfile("TEST-CASE@EXAMPLE.COM");
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe(memberId);
+  });
+
+  it("checkMemberExists returns true regardless of input casing", async () => {
+    const member = await seedMember({ email: "test-exists@example.com" });
+    memberId = member.id;
+
+    expect(await checkMemberExists("TEST-EXISTS@EXAMPLE.COM")).toBe(true);
+    expect(await checkMemberExists("Test-Exists@Example.com")).toBe(true);
+  });
+});
 
 describe("profile — matching fields", () => {
   let memberId: string;
