@@ -136,7 +136,26 @@ export async function updateMemberProfile(
   }>
 ) {
   const supabase = createAdminClient();
-  const emailChanged = updates.email !== currentEmail;
+
+  // Normalize incoming email to lowercase
+  if (updates.email) {
+    updates = { ...updates, email: updates.email.toLowerCase() };
+  }
+
+  const emailChanged =
+    updates.email !== undefined && updates.email !== currentEmail.toLowerCase();
+
+  // Proactively reject duplicate emails before touching the DB
+  if (emailChanged && updates.email) {
+    const { data: existing } = await supabase
+      .from("members")
+      .select("id")
+      .eq("email", updates.email)
+      .single();
+    if (existing) {
+      throw new Error("That email is already associated with another account.");
+    }
+  }
 
   const { error } = await supabase
     .from("members")

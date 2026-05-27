@@ -310,8 +310,13 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
           matchPriority,
           children: [...children],
         });
-      } catch {
-        setSaveError("Failed to save changes. Please try again.");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("already associated")) {
+          setEmailError(msg);
+        } else {
+          setSaveError("Failed to save changes. Please try again.");
+        }
       }
     });
   }
