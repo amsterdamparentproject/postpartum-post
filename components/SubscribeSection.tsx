@@ -36,7 +36,7 @@ export default function SubscribeSection({
         Receive your monthly Post
       </h2>
       <p className="text-sm text-muted mb-6">
-        Once you&apos;re subscribed, check your inbox for your first letter!
+        Your first match arrives within the month. Once you&apos;re subscribed, check your inbox for your first letter!
       </p>
       <SignupForm
         first20SpotsRemaining={first20SpotsRemaining}

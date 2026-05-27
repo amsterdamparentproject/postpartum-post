@@ -10,7 +10,7 @@ export default function AnimatedMail() {
   useEffect(() => {
     // Trigger off the subscribe form so the animation fires when the user
     // is about to see the signup CTA, not when the envelope itself appears.
-    const target = document.getElementById("subscribe-form") ?? ref.current;
+    const target = document.getElementById("alex-intro") ?? ref.current;
     if (!target) return;
 
     let openTimer: ReturnType<typeof setTimeout>;

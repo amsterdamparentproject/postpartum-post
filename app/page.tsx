@@ -48,7 +48,7 @@ export default async function Home() {
             <span className="text-dark">Let us introduce you.</span>
           </h1>
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
-            Making one real parent friend beats being in ten group chats. Every month, we personally deliver you a friendship starter pack: a match with someone local who's navigating early parenthood like you, plus neighborhood activities handpicked for your families.
+            Making one real parent friend beats being in ten group chats. Every month, we deliver you a curated friendship starter pack: a match with someone local who's navigating early parenthood like you, plus neighborhood activities handpicked for your families.
           </p>
         </div>
 
@@ -67,7 +67,7 @@ export default async function Home() {
         <AnimatedMail />
 
         {/* Alex intro */}
-        <div className="w-full max-w-md mt-12 mb-6 text-center">
+        <div id="alex-intro" className="w-full max-w-md mt-12 mb-6 text-center">
           <h2
             className="text-2xl font-semibold text-dark text-center mx-auto"
             style={{ fontFamily: "var(--font-serif)" }}
@@ -90,7 +90,7 @@ export default async function Home() {
           </div>
           <div>
             <p className="text-sm text-dark leading-relaxed">
-              Hi, I&apos;m Alex 👋🏻 Local toddler mom and someone who knows exactly how isolating and overwhelming parenthood can feel. Parenting abroad and dealing with burnout led me to start the{" "}
+              Hi, I&apos;m Alex 👋🏻 I'm a local toddler mom and someone who knows exactly how isolating and overwhelming parenthood can feel. Becoming a mom abroad and dealing with burnout led me to start the{" "}
               <a
                 href="https://amsterdamparentproject.nl"
                 target="_blank"
