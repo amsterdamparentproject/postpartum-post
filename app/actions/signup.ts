@@ -31,7 +31,7 @@ export type SignupFormData = {
   firstName: string;
   lastName: string;
   email: string;
-  plan: "standard_monthly" | "commitment_6mo" | "first20_6mo";
+  plan: "standard_monthly" | "commitment_3mo" | "first20_3mo";
 };
 
 export async function signup(data: SignupFormData) {
@@ -56,9 +56,9 @@ export async function signup(data: SignupFormData) {
     throw new Error(`Failed to create member record: ${error?.message ?? "unknown error"}`);
   }
 
-  // first20_6mo uses the commitment_6mo price with a pre-applied promo code
-  const isFirst20 = data.plan === "first20_6mo";
-  const priceLookupKey = isFirst20 ? "commitment_6mo" : data.plan;
+  // first20_3mo uses the commitment_3mo price with a pre-applied promo code
+  const isFirst20 = data.plan === "first20_3mo";
+  const priceLookupKey = isFirst20 ? "commitment_3mo" : data.plan;
 
   const [customer, prices] = await Promise.all([
     stripe.customers.create({

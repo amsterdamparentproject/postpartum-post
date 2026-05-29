@@ -33,7 +33,7 @@ const FAQS = [
   {
     question: "Can I pause or cancel?",
     answer:
-      "Yes, anytime. On a monthly plan, after three consecutive skips we'll automatically pause your subscription so you're not being charged while things are busy. On a 6-month plan, you can skip as many months as you need — you've already committed, so we'll never auto-pause you. You can cancel anytime from your account, and cancellations take effect at the end of your current billing period.",
+      "Yes, anytime. On a monthly plan, after three consecutive skips we'll automatically pause your subscription so you're not being charged while things are busy. On a 3-month plan, you can skip as many months as you need — you've already committed, so we'll never auto-pause you. You can cancel anytime from your account, and cancellations take effect at the end of your current billing period.",
   },
   {
     question: "What information is shared with my match?",

@@ -58,7 +58,7 @@ export default function TermsOfService() {
               </p>
               <ul className="list-disc list-inside space-y-2 mb-4">
                 <li><strong>Founding members rate</strong> — €5/month, locked in for as long as you stay subscribed</li>
-                <li><strong>6-month subscription</strong> — €8/month, billed every 6 months</li>
+                <li><strong>3-month subscription</strong> — €8/month, billed every 3 months</li>
                 <li><strong>Monthly subscription</strong> — €12/month, billed monthly</li>
               </ul>
               <p>

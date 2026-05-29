@@ -5,12 +5,12 @@ describe("resolvePlans — pilot mode (PILOT_ONLY = true)", () => {
   const plans = resolvePlans(PLANS, true);
 
   it("shows FIRST20 plan", () => {
-    const first20 = plans.find((p) => p.value === "first20_6mo");
+    const first20 = plans.find((p) => p.value === "first20_3mo");
     expect(first20?.hidden).toBe(false);
   });
 
-  it("shows the 6-month commitment plan as coming soon", () => {
-    const commitment = plans.find((p) => p.value === "commitment_6mo");
+  it("shows the 3-month commitment plan as coming soon", () => {
+    const commitment = plans.find((p) => p.value === "commitment_3mo");
     expect(commitment?.hidden).toBe(false);
     expect(commitment?.comingSoon).toBe(true);
   });
@@ -26,12 +26,12 @@ describe("resolvePlans — general mode (PILOT_ONLY = false)", () => {
   const plans = resolvePlans(PLANS, false);
 
   it("hides the FIRST20 plan", () => {
-    const first20 = plans.find((p) => p.value === "first20_6mo");
+    const first20 = plans.find((p) => p.value === "first20_3mo");
     expect(first20?.hidden).toBe(true);
   });
 
-  it("shows the 6-month commitment plan", () => {
-    const commitment = plans.find((p) => p.value === "commitment_6mo");
+  it("shows the 3-month commitment plan", () => {
+    const commitment = plans.find((p) => p.value === "commitment_3mo");
     expect(commitment?.hidden).toBe(false);
   });
 
@@ -43,11 +43,11 @@ describe("resolvePlans — general mode (PILOT_ONLY = false)", () => {
 });
 
 describe("defaultPlan", () => {
-  it("defaults to first20_6mo in pilot mode", () => {
-    expect(defaultPlan(true)).toBe("first20_6mo");
+  it("defaults to first20_3mo in pilot mode", () => {
+    expect(defaultPlan(true)).toBe("first20_3mo");
   });
 
-  it("defaults to commitment_6mo in general mode", () => {
-    expect(defaultPlan(false)).toBe("commitment_6mo");
+  it("defaults to commitment_3mo in general mode", () => {
+    expect(defaultPlan(false)).toBe("commitment_3mo");
   });
 });

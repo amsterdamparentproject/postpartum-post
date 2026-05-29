@@ -57,11 +57,15 @@ export async function checkMemberExists(email: string): Promise<boolean> {
 
 export async function getMemberProfile(email: string): Promise<MemberProfile | null> {
   const supabase = createAdminClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("members")
     .select("id, first_name, last_name, email, zipcode, language, topic_id, match_type, stripe_customer_id, consecutive_skips, availability, match_priority, children")
     .eq("email", email.toLowerCase())
     .single();
+  if (error && error.code !== "PGRST116") {
+    // PGRST116 = "no rows returned" — expected for non-members. Anything else is a real error.
+    console.error("[getMemberProfile] query error:", error.code, error.message);
+  }
   return data;
 }
 

@@ -60,7 +60,7 @@ export async function recordSkip(
   }
 
   // 7. Auto-pause after threshold — monthly subscribers only.
-  // 6-month subscribers have already paid upfront; pausing would forfeit their renewal.
+  // 3-month subscribers have already paid upfront; pausing would forfeit their renewal.
   // They can skip freely for the duration of their term.
   if (isMonthlyPlan && newConsecutiveSkips >= AUTO_PAUSE_THRESHOLD) {
     await autoPauseMember(
@@ -77,8 +77,8 @@ export async function recordSkip(
 /**
  * Adjusts billing for a skipped month:
  * - Monthly plans: pause Stripe collection for the skip month (no invoice generated).
- * - 6-month plans: extend the current period end by 30 days (member has already paid
- *   upfront; this pushes when the next €48 charge fires).
+ * - 3-month plans: extend the current period end by 30 days (member has already paid
+ *   upfront; this pushes when the next charge fires).
  */
 /** Returns true if the member is on a monthly plan (used to gate auto-pause logic). */
 async function adjustStripeBilling(
@@ -119,7 +119,7 @@ async function adjustStripeBilling(
       pause_collection: { behavior: "void", resumes_at: resumesAt },
     });
   } else {
-    // 6-month or first20 prepaid plan — push the next billing date forward by 30 days.
+    // 3-month or first20 prepaid plan — push the next billing date forward by 30 days.
     // trial_end on an active subscription delays the next invoice without affecting
     // the already-paid current period.
     const currentPeriodEnd = stripeSub.items.data[0].current_period_end;

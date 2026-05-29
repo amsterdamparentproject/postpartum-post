@@ -54,10 +54,10 @@ export default function BillingPage() {
   }
 
   const planLabel =
-    subscription?.price_lookup_key === "first20_6mo"
+    subscription?.price_lookup_key === "first20_3mo"
       ? "Founding member (€5/mo)"
-      : subscription?.price_lookup_key === "commitment_6mo"
-      ? "6-month commitment (€8/mo)"
+      : subscription?.price_lookup_key === "commitment_3mo"
+      ? "3-month commitment (€8/mo)"
       : subscription?.price_lookup_key === "standard_monthly"
       ? "Monthly (€12/mo)"
       : null;

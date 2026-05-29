@@ -41,7 +41,7 @@ function stripeSixMonthSubResponse() {
     items: {
       data: [
         {
-          price: { lookup_key: "commitment_6mo" },
+          price: { lookup_key: "commitment_3mo" },
           current_period_end: Math.floor(Date.now() / 1000) + 150 * 86400,
         },
       ],
@@ -109,7 +109,7 @@ describe("recordSkip", () => {
     );
   });
 
-  it("calls Stripe trial_end extension for a 6-month plan", async () => {
+  it("calls Stripe trial_end extension for a 3-month plan", async () => {
     const member = await seedMember();
     memberId = member.id;
     await seedSubscription(memberId, { stripe_price_id: "price_6mo" });
@@ -166,7 +166,7 @@ describe("recordSkip", () => {
     expect(updated?.status).toBe("paused");
   });
 
-  it("does not auto-pause a 6-month member after 3 consecutive skips", async () => {
+  it("does not auto-pause a 3-month member after 3 consecutive skips", async () => {
     const member = await seedMember({ consecutive_skips: 2 });
     memberId = member.id;
     await seedSubscription(memberId, { stripe_price_id: "price_6mo" });

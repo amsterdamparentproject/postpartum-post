@@ -126,7 +126,7 @@ export default function SignupForm({
           {/* Featured plan — full width */}
           {plans.filter((p) => p.featured && !p.hidden).map((plan) => {
             const isSelected = selectedPlan === plan.value;
-            const isSoldOut = plan.value === "first20_6mo" && first20SoldOut;
+            const isSoldOut = plan.value === "first20_3mo" && first20SoldOut;
             return (
               <button
                 key={plan.value}
@@ -147,7 +147,7 @@ export default function SignupForm({
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xl">{plan.icon}</span>
                   <div className="flex items-center gap-2">
-                    {plan.value === "first20_6mo" && first20SpotsRemaining != null && (
+                    {plan.value === "first20_3mo" && first20SpotsRemaining != null && (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         first20SoldOut
                           ? "bg-gray-100 text-gray-400"
