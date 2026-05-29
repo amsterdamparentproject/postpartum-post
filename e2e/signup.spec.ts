@@ -50,23 +50,34 @@ test("full sign-up flow: form → Stripe checkout → success → profile", asyn
   expect(page.url()).toContain("checkout.stripe.com");
 
   // ── Step 3: Complete payment with Stripe test card ─────────────────────
-  // Card may start collapsed — click to expand the inline card form.
-  // force:true bypasses Playwright's stability check, which fails due to
-  // Stripe's Link integration causing continuous layout shifts on the page.
-  await page.getByRole("radio", { name: "Card" }).click({ force: true });
+  // Wait for the accordion button to be in the DOM — present once Stripe's form
+  // renders, but CSS-hidden in the collapsed state (use 'attached', not 'visible').
+  await expect(page.locator('[data-testid="card-accordion-item-button"]')).toBeAttached({ timeout: 15_000 });
+
+  // Card is pre-selected on some sessions (accordion already open); on others
+  // it's collapsed. When open, the accordion button intercepts pointer events on
+  // the radio — clicking it would close the form. Only click to expand.
+  const cardNumberInput = page.getByPlaceholder("1234 1234 1234 1234");
+  if (!(await cardNumberInput.isVisible())) {
+    // The accordion button is inside an overflow:hidden container so
+    // scrollIntoViewIfNeeded() doesn't work — dispatch via evaluate() instead.
+    await page.evaluate(() => {
+      (document.querySelector('[data-testid="card-accordion-item-button"]') as HTMLElement)?.click();
+    });
+  }
 
   // Stripe's hosted checkout (checkout.stripe.com) renders card fields as
   // native inputs — no sub-iframes needed since the whole page is on Stripe's
   // own domain.
-  await expect(page.getByPlaceholder("1234 1234 1234 1234")).toBeVisible({ timeout: 15_000 });
+  await expect(cardNumberInput).toBeVisible({ timeout: 15_000 });
 
   await page.getByPlaceholder("1234 1234 1234 1234").fill("4242 4242 4242 4242");
   await page.getByPlaceholder("MM / YY").fill("12 / 26");
   await page.getByPlaceholder("CVC").fill("123");
   await page.getByPlaceholder("Full name on card").fill("Jane Doe");
 
-  // Scroll the button into view so Stripe's click handler receives it correctly,
-  // then click normally (the layout has stabilized after filling the card fields).
+  // Scroll the submit button into view — it sits below the fold after the
+  // card form expands.
   const payButton = page.getByRole("button", { name: /pay and subscribe/i });
   await payButton.scrollIntoViewIfNeeded();
   await payButton.click();

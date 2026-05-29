@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useRouter } from "next/navigation";
+import { generateMagicLink } from "@/app/actions/auth";
 import { updateMemberProfile, type MemberProfile, type Topic, type Availability, type Child } from "@/app/actions/profile";
 
 
@@ -251,6 +253,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
   const [zipcodeError, setZipcodeError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const router = useRouter();
 
   const [isPending, startTransition] = useTransition();
 
@@ -302,6 +305,13 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
       try {
         await updateMemberProfile(memberId, initialData.email ?? email, updates);
         setSaved(true);
+        if (mode === "onboarding") {
+          // Generate a magic link so the new member is signed in as themselves,
+          // regardless of who (if anyone) is currently authenticated in this browser.
+          const link = await generateMagicLink(initialData.email ?? email);
+          router.push(link);
+          return;
+        }
         setSnapshot({
           firstName, lastName, email, zipcode,
           languages: [...languages], topicId, matchType,
@@ -328,19 +338,6 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
 
   useImperativeHandle(ref, () => ({ save: doSave, isDirty, isPending }));
 
-  if (saved && mode === "onboarding") {
-    return (
-      <div className="text-center py-4">
-        <div className="text-4xl mb-4">💌</div>
-        <h2 className="text-2xl font-semibold text-dark mb-2" style={{ fontFamily: "var(--font-serif)" }}>
-          You&apos;re all set!
-        </h2>
-        <p className="text-muted text-sm leading-relaxed">
-          Your welcome email is on its way. It has everything you need to know about what happens next.
-        </p>
-      </div>
-    );
-  }
 
   const title = section ? SECTION_TITLES[section] : null;
 

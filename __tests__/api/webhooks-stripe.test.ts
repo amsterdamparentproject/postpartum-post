@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { seedMember, cleanupMember, createTestSupabase } from "@tests/helpers";
 import { POST } from "@/app/api/webhooks/stripe/route";
+import { sendWelcomeEmail } from "@/lib/emails";
 
 // --- Mocks ---
 
@@ -77,6 +78,90 @@ describe("Stripe webhook", () => {
     expect(sub?.status).toBe("active");
     expect(sub?.stripe_price_id).toBe("price_test_monthly");
   });
+
+  // ── Plan label tests ────────────────────────────────────────────────────
+
+  function makeCheckoutEvent(
+    memberId: string,
+    email: string,
+    lookupKey: string,
+    sessionDiscounts: { coupon: string }[] = []
+  ) {
+    mockRetrieve.mockResolvedValue({
+      items: { data: [{ price: { id: "price_test", lookup_key: lookupKey } }] },
+      discount: null,
+      discounts: [],
+      latest_invoice: { period_end: 1780000000 },
+      billing_cycle_anchor: 1780000000,
+    });
+    mockConstructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          metadata: { member_id: memberId },
+          customer_details: { email, name: "Test Member" },
+          subscription: `sub_test_${memberId.slice(0, 8)}`,
+          discounts: sessionDiscounts,
+        },
+      },
+    });
+  }
+
+  it("sends welcome email with 'Founding Member (€5/mo)' label for FIRST20 subscribers", async () => {
+    const member = await seedMember({ status: "pending" });
+    memberId = member.id;
+
+    makeCheckoutEvent(memberId, member.email, "commitment_3mo", [{ coupon: "founding_20" }]);
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    expect(sendWelcomeEmail).toHaveBeenCalledWith(
+      member.email,
+      expect.any(String),
+      expect.any(String),
+      "Founding Member (€5/mo)",
+      expect.any(String)
+    );
+  });
+
+  it("sends welcome email with '3-month commitment (€8/mo)' label for regular 3-month subscribers", async () => {
+    const member = await seedMember({ status: "pending" });
+    memberId = member.id;
+
+    makeCheckoutEvent(memberId, member.email, "commitment_3mo");
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    expect(sendWelcomeEmail).toHaveBeenCalledWith(
+      member.email,
+      expect.any(String),
+      expect.any(String),
+      "3-month commitment (€8/mo)",
+      expect.any(String)
+    );
+  });
+
+  it("sends welcome email with 'Monthly (€12/mo)' label for monthly subscribers", async () => {
+    const member = await seedMember({ status: "pending" });
+    memberId = member.id;
+
+    makeCheckoutEvent(memberId, member.email, "standard_monthly");
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    expect(sendWelcomeEmail).toHaveBeenCalledWith(
+      member.email,
+      expect.any(String),
+      expect.any(String),
+      "Monthly (€12/mo)",
+      expect.any(String)
+    );
+  });
+
+  // ── Cancellation test ────────────────────────────────────────────────────
 
   it("sets subscription status to canceled on customer.subscription.deleted", async () => {
     const member = await seedMember();

@@ -50,14 +50,14 @@ export default async function Success({
             className="text-3xl font-semibold text-dark mb-2"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            {member ? `Welcome, ${member.first_name}!` : "You're in!"}
+            {member ? `Welcome, ${member.first_name.trim()}!` : "You're in!"}
           </h1>
           <p className="text-muted text-md leading-relaxed mt-2 mb-6">
-            You&apos;re now a Postpartum Post member! 🎉 Welcome to our cozy, joyful, local community of parents showing up and building the village together.
+            You&apos;re now a Postpartum Post member! 🎉 Welcome to our cozy, joyful, local community of parents showing up and building the village one by one, together.
           </p>
           <h2 className="my-2 text-coral font-semibold">One last step:</h2>
           <p className="text-muted text-sm leading-relaxed">
-            Tell us a bit about yourself so we can find you the best match each month. Fill in as much or as little as you like — we'll work with whatever you share. You can always update these details later!
+            Tell us a bit about yourself so we can find you the best match each month. Fill in as much or as little as you like — we'll work with whatever you share. You can always update these details later.
           </p>
         </div>
 
