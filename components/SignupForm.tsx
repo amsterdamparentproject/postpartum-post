@@ -26,7 +26,7 @@ export default function SignupForm({
 }) {
   const first20SoldOut = first20SpotsRemaining === 0;
 
-  const plans = resolvePlans(PLANS, pilotOnly);
+  const plans = resolvePlans(PLANS, pilotOnly, first20SoldOut);
 
   const [isPending, startTransition] = useTransition();
   const [selectedPlan, setSelectedPlan] = useState<SignupFormData["plan"]>(

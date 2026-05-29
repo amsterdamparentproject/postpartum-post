@@ -46,7 +46,6 @@ export async function POST(req: NextRequest) {
     const priceId = stripeSubscription.items.data[0].price.id;
     console.log("[webhook] retrieved stripe subscription", {
       priceId,
-      discount: stripeSubscription.discount,
       discounts: stripeSubscription.discounts,
       sessionDiscounts: session.discounts,
     });

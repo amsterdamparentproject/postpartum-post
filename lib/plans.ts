@@ -43,10 +43,19 @@ export const PLANS: Plan[] = [
   },
 ];
 
-export function resolvePlans(plans: Plan[], pilotOnly: boolean): Plan[] {
+const FIRST20_END_DATE = new Date("2026-07-01");
+
+export function resolvePlans(
+  plans: Plan[],
+  pilotOnly: boolean,
+  first20SoldOut = false
+): Plan[] {
+  const showSoldOutFirst20 = first20SoldOut && new Date() < FIRST20_END_DATE;
   return plans.map((plan) => ({
     ...plan,
-    hidden: plan.value === "first20_3mo" ? !pilotOnly : false,
+    // Hide FIRST20 only when pilot is off AND we're not showing the sold-out block
+    hidden:
+      plan.value === "first20_3mo" ? !pilotOnly && !showSoldOutFirst20 : false,
     comingSoon:
       (plan.value === "commitment_3mo" || plan.value === "standard_monthly") &&
       pilotOnly,

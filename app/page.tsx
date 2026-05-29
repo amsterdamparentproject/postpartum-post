@@ -20,12 +20,15 @@ async function getFirst20SpotsRemaining(): Promise<number | null> {
 }
 
 
-// Set to false to open general subscriptions (€8/mo and €12/mo plans)
+// Set to false to open general subscriptions (€8/mo and €12/mo plans).
+// Also flips to false automatically when FIRST20 sells out.
 const PILOT_ONLY = true;
 
 export default async function Home() {
   const first20SpotsRemaining = await getFirst20SpotsRemaining();
-  const pilotOnly = PILOT_ONLY;
+  // Release general plans as soon as FIRST20 sells out (spots === 0).
+  // If Stripe is unreachable (null), fall back to the hard-coded flag.
+  const pilotOnly = first20SpotsRemaining === 0 ? false : PILOT_ONLY;
 
   return (
     <PageLayout showNav activeRoute="/">
