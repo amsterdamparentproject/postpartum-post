@@ -1,0 +1,166 @@
+/**
+ * DB + Stripe helpers for Playwright test setup/teardown.
+ *
+ * These run outside the browser — they talk directly to Supabase and Stripe
+ * to seed data before a test and clean it up after.
+ */
+
+import { createClient } from "@supabase/supabase-js";
+import Stripe from "stripe";
+
+// ---------------------------------------------------------------------------
+// Clients
+// ---------------------------------------------------------------------------
+
+function supabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env vars");
+  return createClient(url, key, { db: { schema: "postpartumpost" } });
+}
+
+function stripe() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("Missing STRIPE_SECRET_KEY in .env.local");
+  return new Stripe(key);
+}
+
+// ---------------------------------------------------------------------------
+// Member helpers
+// ---------------------------------------------------------------------------
+
+export interface SeededMember {
+  id: string;
+  email: string;
+  stripeCustomerId: string;
+}
+
+/**
+ * Insert an active member directly into the DB.
+ * Used by sign-in and cancel tests that need a pre-existing subscriber.
+ */
+export async function seedMember(
+  overrides: { email?: string; firstName?: string; lastName?: string } = {}
+): Promise<SeededMember> {
+  const db = supabase();
+  const id = crypto.randomUUID();
+  const email = overrides.email ?? `e2e-${id.slice(0, 8)}@example.com`;
+  const stripeCustomerId = `cus_e2e_${id.slice(0, 8)}`;
+
+  const { error } = await db.from("members").insert({
+    id,
+    email,
+    first_name: overrides.firstName ?? "Test",
+    last_name: overrides.lastName ?? "Member",
+    status: "active",
+    stripe_customer_id: stripeCustomerId,
+    consecutive_skips: 0,
+  });
+
+  if (error) throw new Error(`seedMember failed: ${error.message}`);
+  return { id, email, stripeCustomerId };
+}
+
+/**
+ * Create a real Stripe test subscription for the given customer.
+ * Uses the commitment_3mo price (looked up by lookup key).
+ * Returns the Stripe subscription ID.
+ */
+export async function seedStripeSubscription(stripeCustomerId: string): Promise<string> {
+  const s = stripe();
+
+  const prices = await s.prices.list({ lookup_keys: ["commitment_3mo"] });
+  const price = prices.data[0];
+  if (!price) throw new Error("commitment_3mo price not found in Stripe — has it been created?");
+
+  // Create customer in Stripe if it doesn't exist (we use a fake cus_ ID in seedMember)
+  // For E2E we create a real Stripe customer instead
+  const customer = await s.customers.create({ email: `${stripeCustomerId}@test.postpartumpost.com` });
+
+  const sub = await s.subscriptions.create({
+    customer: customer.id,
+    items: [{ price: price.id }],
+    trial_end: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30, // 30-day trial
+  });
+
+  return sub.id;
+}
+
+/**
+ * Seed a member with a matching Stripe subscription — ready for the cancel test.
+ * Returns member details + the real Stripe subscription ID.
+ */
+export async function seedMemberWithSubscription(
+  overrides: Parameters<typeof seedMember>[0] = {}
+): Promise<SeededMember & { stripeSubscriptionId: string }> {
+  const db = supabase();
+  const s = stripe();
+
+  // Create a real Stripe customer so cancellation works end-to-end
+  const id = crypto.randomUUID();
+  const email = overrides.email ?? `e2e-cancel-${id.slice(0, 8)}@example.com`;
+
+  const customer = await s.customers.create({
+    email,
+    name: `${overrides.firstName ?? "Test"} ${overrides.lastName ?? "Member"}`,
+  });
+
+  // Create a real Stripe subscription on a trial so no money is charged
+  const prices = await s.prices.list({ lookup_keys: ["commitment_3mo"] });
+  const price = prices.data[0];
+  if (!price) throw new Error("commitment_3mo price not found in Stripe");
+
+  const sub = await s.subscriptions.create({
+    customer: customer.id,
+    items: [{ price: price.id }],
+    trial_end: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30,
+  });
+
+  // Insert member into DB pointing at the real Stripe customer
+  const { error: memberError } = await db.from("members").insert({
+    id,
+    email,
+    first_name: overrides.firstName ?? "Test",
+    last_name: overrides.lastName ?? "Member",
+    status: "active",
+    stripe_customer_id: customer.id,
+    consecutive_skips: 0,
+  });
+  if (memberError) throw new Error(`seedMemberWithSubscription member insert failed: ${memberError.message}`);
+
+  // Insert subscription row in DB
+  const { error: subError } = await db.from("subscriptions").insert({
+    member_id: id,
+    stripe_subscription_id: sub.id,
+    stripe_price_id: price.id,
+    status: "active",
+  });
+  if (subError) throw new Error(`seedMemberWithSubscription subscription insert failed: ${subError.message}`);
+
+  return { id, email, stripeCustomerId: customer.id, stripeSubscriptionId: sub.id };
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup helpers
+// ---------------------------------------------------------------------------
+
+export async function cleanupMember(memberId: string): Promise<void> {
+  const db = supabase();
+  await db.from("monthly_skips").delete().eq("member_id", memberId);
+  await db.from("subscriptions").delete().eq("member_id", memberId);
+  await db.from("members").delete().eq("id", memberId);
+}
+
+export async function cleanupMemberByEmail(email: string): Promise<void> {
+  const db = supabase();
+  const { data } = await db.from("members").select("id").eq("email", email.toLowerCase()).maybeSingle();
+  if (data?.id) await cleanupMember(data.id);
+}
+
+export async function cancelStripeSubscription(subscriptionId: string): Promise<void> {
+  try {
+    await stripe().subscriptions.cancel(subscriptionId);
+  } catch {
+    // Already canceled — ignore
+  }
+}

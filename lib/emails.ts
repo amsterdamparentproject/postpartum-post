@@ -273,7 +273,7 @@ ${emailHead(extraPreloads)}
 // Welcome email
 // ---------------------------------------------------------------------------
 
-function welcomeHtml(firstName: string, profileLink: string): string {
+function welcomeHtml(firstName: string, profileLink: string, planLabel: string, nextBillingDate: string): string {
   const headerImage = `
                   <!-- Header image -->
                   <tr><td style="padding:0 24px 16px">
@@ -296,6 +296,9 @@ function welcomeHtml(firstName: string, profileLink: string): string {
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <span style="font-weight:700">Welcome, ${firstName}!</span>
                                       <span> We're really excited to have you in the community.</span>
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      <span>You're subscribed to the </span><span style="font-weight:700">${planLabel}</span><span> plan. Your first billing date is </span><span style="font-weight:700">${nextBillingDate}</span><span>. You can manage or cancel your subscription any time from your billing page.</span>
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <span>Each month, we'll introduce you to another new or expecting parent nearby. Think of it as a</span>
@@ -344,13 +347,19 @@ function welcomeHtml(firstName: string, profileLink: string): string {
   );
 }
 
-export async function sendWelcomeEmail(email: string, firstName: string, profileLink: string) {
+export async function sendWelcomeEmail(
+  email: string,
+  firstName: string,
+  profileLink: string,
+  planLabel: string,
+  nextBillingDate: string,
+) {
   const resend = getResend();
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
     subject: "Welcome to Postpartum Post 💌",
-    html: welcomeHtml(firstName, profileLink),
+    html: welcomeHtml(firstName, profileLink, planLabel, nextBillingDate),
   });
   if (error) {
     console.error("[resend] sendWelcomeEmail error:", error);

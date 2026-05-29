@@ -31,7 +31,8 @@ export const PLANS: Plan[] = [
     price: "€8/mo",
     name: "3-month commitment",
     billing: "Billed €24 every 3 months",
-    badge: "Best value",
+    description:
+      "Commit to 3 matches and you get the 3rd one free!",
   },
   {
     value: "standard_monthly",

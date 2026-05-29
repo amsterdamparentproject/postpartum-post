@@ -78,9 +78,21 @@ export async function POST(req: NextRequest) {
       console.error("[webhook] generateLink failed, falling back to plain profile URL:", e);
     }
 
+    // Derive human-readable plan label and next billing date for the welcome email
+    const lookupKey = stripeSubscription.items.data[0].price.lookup_key ?? "";
+    const planLabel =
+      lookupKey === "first20_3mo" ? "Founding Member (€5/mo)" :
+      lookupKey === "commitment_3mo" ? "3-month commitment (€8/mo)" :
+      lookupKey === "standard_monthly" ? "Monthly (€12/mo)" :
+      "Postpartum Post";
+    const periodEndTs = stripeSubscription.current_period_end; // Unix seconds
+    const nextBillingDate = new Date(periodEndTs * 1000).toLocaleDateString("en-NL", {
+      day: "numeric", month: "long", year: "numeric",
+    });
+
     // Send welcome email via Resend
     try {
-      await sendWelcomeEmail(email, firstName, profileLink);
+      await sendWelcomeEmail(email, firstName, profileLink, planLabel, nextBillingDate);
       console.log("[webhook] welcome email sent to", email);
     } catch (e) {
       // Non-fatal — log and continue. Member is subscribed; email failure shouldn't block.
