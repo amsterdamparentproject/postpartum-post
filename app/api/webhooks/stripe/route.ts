@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
+import { needsBillingExtension, nextMatchDate } from "@/lib/billing";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -41,14 +42,10 @@ export async function POST(req: NextRequest) {
     // latest_invoice.period_end replaces the removed current_period_end field.
     const stripeSubscription = await stripe.subscriptions.retrieve(
       session.subscription as string,
-      { expand: ["latest_invoice", "discounts"] }
+      { expand: ["latest_invoice"] }
     );
     const priceId = stripeSubscription.items.data[0].price.id;
-    console.log("[webhook] retrieved stripe subscription", {
-      priceId,
-      discounts: stripeSubscription.discounts,
-      sessionDiscounts: session.discounts,
-    });
+    console.log("[webhook] retrieved stripe subscription", { priceId });
 
     const supabase = createAdminClient();
 
@@ -69,6 +66,20 @@ export async function POST(req: NextRequest) {
     );
     console.log("[webhook] subscription upsert", { error: subError?.message });
 
+    // Extend billing to the next match date when the member signs up mid-cycle,
+    // so they're never charged before receiving their first match.
+    if (needsBillingExtension()) {
+      try {
+        await stripe.subscriptions.update(session.subscription as string, {
+          trial_end: nextMatchDate(),
+          proration_behavior: "none",
+        });
+        console.log("[webhook] billing extended to next match date");
+      } catch (e) {
+        console.error("[webhook] billing extension failed (non-fatal):", e);
+      }
+    }
+
     // Generate a magic link so the welcome email signs the user straight into their profile
     const firstName = session.customer_details?.name?.split(" ")[0] ?? "there";
     const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}/profile`;
@@ -85,17 +96,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Derive human-readable plan label and next billing date for the welcome email.
-    // FIRST20 members use the commitment_3mo price + the "founding_20" coupon (37.5% off forever).
-    // The coupon is on the checkout session's discounts array.
     const lookupKey = stripeSubscription.items.data[0].price.lookup_key ?? "";
-    const isFirst20 =
-      lookupKey === "commitment_3mo" &&
-      (session.discounts ?? []).some(
-        (d) => (d as { coupon?: string }).coupon === "founding_20"
-      );
-    console.log("[webhook] plan detection", { lookupKey, isFirst20 });
+    console.log("[webhook] plan detection", { lookupKey });
     const planLabel =
-      isFirst20 ? "Founding Member (€5/mo)" :
+      lookupKey === "founding_member" ? "Founding Member (€5/mo)" :
       lookupKey === "commitment_3mo" ? "3-month commitment (€8/mo)" :
       lookupKey === "standard_monthly" ? "Monthly (€12/mo)" :
       "Postpartum Post";

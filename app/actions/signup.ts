@@ -14,12 +14,16 @@ export type SignupMeta = {
 
 export async function getSignupMeta(): Promise<SignupMeta> {
   let first20SpotsRemaining: number | null = null;
-  const couponId = process.env.STRIPE_FIRST20_COUPON_ID;
-  if (couponId) {
+  const priceId = process.env.STRIPE_FOUNDING_MEMBER_PRICE_ID;
+  if (priceId) {
     try {
-      const stripe = getStripe();
-      const coupon = await stripe.coupons.retrieve(couponId);
-      first20SpotsRemaining = Math.max(0, FIRST20_TOTAL - (coupon.times_redeemed ?? 0));
+      const supabase = createAdminClient();
+      const { count } = await supabase
+        .from("subscriptions")
+        .select("*", { count: "exact", head: true })
+        .eq("stripe_price_id", priceId)
+        .neq("status", "canceled");
+      first20SpotsRemaining = Math.max(0, FIRST20_TOTAL - (count ?? 0));
     } catch {
       // non-fatal — SignupForm handles null gracefully
     }
@@ -58,9 +62,8 @@ export async function signup(data: SignupFormData): Promise<SignupError | void> 
     return { error: `Something went wrong. Please try again.` };
   }
 
-  // first20_3mo uses the commitment_3mo price with a pre-applied promo code
   const isFirst20 = data.plan === "first20_3mo";
-  const priceLookupKey = isFirst20 ? "commitment_3mo" : data.plan;
+  const priceLookupKey = isFirst20 ? "founding_member" : data.plan;
 
   const [customer, prices] = await Promise.all([
     stripe.customers.create({
@@ -88,11 +91,7 @@ export async function signup(data: SignupFormData): Promise<SignupError | void> 
     customer: customer.id,
     mode: "subscription",
     line_items: [{ price: price.id, quantity: 1 }],
-    // Pre-apply FIRST20 coupon — can't combine with allow_promotion_codes
-    ...(isFirst20
-      ? { discounts: [{ coupon: process.env.STRIPE_FIRST20_COUPON_ID! }] }
-      : { allow_promotion_codes: true }
-    ),
+    ...(!isFirst20 ? { allow_promotion_codes: true } : {}),
     automatic_tax: { enabled: taxEnabled },
     customer_update: taxEnabled ? { address: "auto" } : undefined,
     metadata: { member_id: member.id },

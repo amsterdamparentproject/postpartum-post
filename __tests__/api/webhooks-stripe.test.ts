@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { seedMember, cleanupMember, createTestSupabase } from "@tests/helpers";
 import { POST } from "@/app/api/webhooks/stripe/route";
@@ -6,15 +6,16 @@ import { sendWelcomeEmail } from "@/lib/emails";
 
 // --- Mocks ---
 
-const { mockConstructEvent, mockRetrieve } = vi.hoisted(() => ({
+const { mockConstructEvent, mockRetrieve, mockUpdate } = vi.hoisted(() => ({
   mockConstructEvent: vi.fn(),
   mockRetrieve: vi.fn(),
+  mockUpdate: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({
     webhooks: { constructEvent: mockConstructEvent },
-    subscriptions: { retrieve: mockRetrieve },
+    subscriptions: { retrieve: mockRetrieve, update: mockUpdate },
   }),
 }));
 
@@ -35,8 +36,14 @@ function makeRequest(body: string) {
 describe("Stripe webhook", () => {
   let memberId: string;
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdate.mockResolvedValue({});
+  });
+
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
+    memberId = "";
   });
 
   it("sets member status to active and creates a subscription row on checkout.session.completed", async () => {
@@ -81,16 +88,9 @@ describe("Stripe webhook", () => {
 
   // ── Plan label tests ────────────────────────────────────────────────────
 
-  function makeCheckoutEvent(
-    memberId: string,
-    email: string,
-    lookupKey: string,
-    sessionDiscounts: { coupon: string }[] = []
-  ) {
+  function makeCheckoutEvent(memberId: string, email: string, lookupKey: string) {
     mockRetrieve.mockResolvedValue({
       items: { data: [{ price: { id: "price_test", lookup_key: lookupKey } }] },
-      discount: null,
-      discounts: [],
       latest_invoice: { period_end: 1780000000 },
       billing_cycle_anchor: 1780000000,
     });
@@ -101,17 +101,16 @@ describe("Stripe webhook", () => {
           metadata: { member_id: memberId },
           customer_details: { email, name: "Test Member" },
           subscription: `sub_test_${memberId.slice(0, 8)}`,
-          discounts: sessionDiscounts,
         },
       },
     });
   }
 
-  it("sends welcome email with 'Founding Member (€5/mo)' label for FIRST20 subscribers", async () => {
+  it("sends welcome email with 'Founding Member (€5/mo)' label for founding member subscribers", async () => {
     const member = await seedMember({ status: "pending" });
     memberId = member.id;
 
-    makeCheckoutEvent(memberId, member.email, "commitment_3mo", [{ coupon: "founding_20" }]);
+    makeCheckoutEvent(memberId, member.email, "founding_member");
 
     const res = await POST(makeRequest("{}"));
     expect(res.status).toBe(200);
@@ -160,6 +159,47 @@ describe("Stripe webhook", () => {
       expect.any(String)
     );
   });
+
+  // ── Billing extension tests ──────────────────────────────────────────────
+
+  it.each([
+    // June 1: next match July 5 (different month) → extend
+    ["June 1",    "2026-06-01T00:00:00Z", "2026-07-05T00:00:00Z", true],
+    // August 4: next match August 5 (same month) → no extension
+    ["August 4",  "2026-08-04T00:00:00Z", null, false],
+    // August 20: next match September 5 (different month) → extend
+    ["August 20", "2026-08-20T00:00:00Z", "2026-09-05T00:00:00Z", true],
+  ])(
+    "billing extension on %s signup: extends=%s",
+    async (_label, signupDate, expectedTrialEnd, shouldExtend) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(signupDate));
+
+      try {
+        const member = await seedMember({ status: "pending" });
+        memberId = member.id;
+        makeCheckoutEvent(memberId, member.email, "commitment_3mo");
+
+        const res = await POST(makeRequest("{}"));
+        expect(res.status).toBe(200);
+
+        if (shouldExtend) {
+          const expected = Math.floor(new Date(expectedTrialEnd!).getTime() / 1000);
+          expect(mockUpdate).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.objectContaining({
+              trial_end: expected,
+              proration_behavior: "none",
+            })
+          );
+        } else {
+          expect(mockUpdate).not.toHaveBeenCalled();
+        }
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
 
   // ── Cancellation test ────────────────────────────────────────────────────
 

@@ -53,8 +53,9 @@ export default function BillingPage() {
     });
   }
 
+  const isFoundingMember = subscription?.price_lookup_key === "founding_member";
   const planLabel =
-    subscription?.price_lookup_key === "first20_3mo"
+    isFoundingMember
       ? "Founding member (€5/mo)"
       : subscription?.price_lookup_key === "commitment_3mo"
       ? "3-month commitment (€8/mo)"

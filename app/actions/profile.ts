@@ -102,12 +102,34 @@ export async function getSubscriptionDetails(memberId: string): Promise<Subscrip
       sub.stripe_subscription_id,
       { expand: ["items.data.price"] }
     );
-    current_period_end = stripeSub.items.data[0].current_period_end;
+    const item = stripeSub.items.data[0];
     cancel_at_period_end = stripeSub.cancel_at_period_end;
-    price_lookup_key = stripeSub.items.data[0].price.lookup_key ?? null;
+    price_lookup_key = item.price.lookup_key ?? null;
     pause_collection = stripeSub.pause_collection
       ? { behavior: stripeSub.pause_collection.behavior, resumes_at: stripeSub.pause_collection.resumes_at ?? null }
       : null;
+
+    // During a trial, current_period_end = trial_end (the first charge date).
+    // For the renewal case, show trial_end + interval so "Next billing date"
+    // reflects when the subscription auto-renews, not when the first payment hits.
+    // Exception: if cancel_at_period_end, the subscription cancels at trial_end —
+    // keep that as-is so "Cancels on" shows the actual end date.
+    if (
+      stripeSub.status === "trialing" &&
+      stripeSub.trial_end &&
+      !stripeSub.cancel_at_period_end
+    ) {
+      const recurring = item.price.recurring;
+      if (recurring?.interval === "month") {
+        const renewal = new Date(stripeSub.trial_end * 1000);
+        renewal.setUTCMonth(renewal.getUTCMonth() + (recurring.interval_count ?? 1));
+        current_period_end = Math.floor(renewal.getTime() / 1000);
+      } else {
+        current_period_end = item.current_period_end;
+      }
+    } else {
+      current_period_end = item.current_period_end;
+    }
   } catch (e) {
     console.error("Failed to fetch subscription from Stripe:", e);
   }

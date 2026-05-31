@@ -27,7 +27,7 @@ vi.mock("@/lib/stripe", () => ({
     customers: { create: mockCustomerCreate },
     prices: { list: mockPricesList },
     checkout: { sessions: { create: mockSessionCreate } },
-    subscriptions: { retrieve: mockSubscriptionRetrieve },
+    subscriptions: { retrieve: mockSubscriptionRetrieve, update: vi.fn().mockResolvedValue({}) },
     webhooks: { constructEvent: mockConstructEvent },
   }),
 }));
@@ -143,17 +143,15 @@ describe("signup action", () => {
     );
   });
 
-  it("uses commitment_3mo price and applies the FIRST20 coupon for first20_3mo plan", async () => {
+  it("uses the founding_member price for first20_3mo plan, with no promo codes or discounts", async () => {
     await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "first20_3mo" });
 
-    // Same base price as commitment_3mo
     expect(mockPricesList).toHaveBeenCalledWith(
-      expect.objectContaining({ lookup_keys: ["commitment_3mo"] })
+      expect.objectContaining({ lookup_keys: ["founding_member"] })
     );
 
-    // Coupon applied via discounts, NOT allow_promotion_codes
     const sessionArgs = mockSessionCreate.mock.calls[0][0];
-    expect(sessionArgs.discounts).toEqual([{ coupon: "coupon_test_first20" }]);
+    expect(sessionArgs).not.toHaveProperty("discounts");
     expect(sessionArgs).not.toHaveProperty("allow_promotion_codes");
   });
 
@@ -165,6 +163,13 @@ describe("signup action", () => {
     expect(sessionArgs).not.toHaveProperty("discounts");
   });
 
+  it("does not set trial_end in the checkout session (extension is applied post-checkout by the webhook)", async () => {
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+
+    const sessionArgs = mockSessionCreate.mock.calls[0][0];
+    expect(sessionArgs.subscription_data?.trial_end).toBeUndefined();
+  });
+
   it("redirects to the Stripe checkout URL", async () => {
     await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
 
@@ -172,16 +177,15 @@ describe("signup action", () => {
     expect(redirect).toHaveBeenCalledWith(MOCK_CHECKOUT_URL);
   });
 
-  it("throws 'already signed up' error on duplicate email without calling Stripe", async () => {
+  it("returns 'already signed up' error on duplicate email without calling Stripe", async () => {
     // First signup succeeds
     await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
     vi.clearAllMocks();
     setupStripeMocks();
 
     // Second attempt with same email
-    await expect(
-      signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" })
-    ).rejects.toThrow("You're already signed up!");
+    const result = await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    expect(result).toEqual({ error: expect.stringContaining("You're already signed up!") });
 
     expect(mockCustomerCreate).not.toHaveBeenCalled();
   });
@@ -192,6 +196,14 @@ describe("signup action", () => {
     await expect(
       signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" })
     ).rejects.toThrow("Price not found for plan: commitment_3mo");
+  });
+
+  it("throws 'Price not found' with founding_member key for first20_3mo plan", async () => {
+    mockPricesList.mockResolvedValue({ data: [] });
+
+    await expect(
+      signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "first20_3mo" })
+    ).rejects.toThrow("Price not found for plan: founding_member");
   });
 });
 
