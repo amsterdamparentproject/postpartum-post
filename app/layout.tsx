@@ -31,28 +31,28 @@ export const metadata: Metadata = {
     template: "%s · Postpartum Post",
   },
   description:
-    "Sometimes you don't need a parent group. You just need one person who gets it. Postpartum Post introduces you to a new parent in your Amsterdam neighborhood, every month.",
+    "Friendship starter packs for new and expecting Amsterdam parents: one curated match and a handpicked list of things to do with your families each month.",
   openGraph: {
     type: "website",
     locale: "en_NL",
     siteName: "Postpartum Post",
-    title: "Postpartum Post — meet a parent nearby",
+    title: "Postpartum Post",
     description:
-      "Sometimes you don't need a parent group. You just need one person who gets it. Postpartum Post introduces you to a new parent in your Amsterdam neighborhood, every month.",
+      "Friendship starter packs for new and expecting Amsterdam parents: one curated match and a handpicked list of things to do with your families each month.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Postpartum Post — meet a parent nearby",
+        alt: "Postpartum Post",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Postpartum Post — meet a parent nearby",
+    title: "Postpartum Post",
     description:
-      "Sometimes you don't need a parent group. You just need one person who gets it. Postpartum Post introduces you to a new parent in your Amsterdam neighborhood, every month.",
+      "Friendship starter packs for new and expecting Amsterdam parents: one curated match and a handpicked list of things to do with your families each month.",
     images: ["/og-image.png"],
   },
   icons: {
