@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { PLANS, resolvePlans, defaultPlan } from "@/lib/plans";
 
 describe("resolvePlans — pilot mode (PILOT_ONLY = true)", () => {
@@ -36,6 +36,50 @@ describe("resolvePlans — general mode (PILOT_ONLY = false)", () => {
   });
 
   it("shows the monthly plan and does not mark it coming soon", () => {
+    const monthly = plans.find((p) => p.value === "standard_monthly");
+    expect(monthly?.hidden).toBe(false);
+    expect(monthly?.comingSoon).toBe(false);
+  });
+});
+
+describe("resolvePlans — FIRST20 sold out before July 1", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("keeps FIRST20 visible (as sold out) and releases other plans", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-15"));
+
+    const plans = resolvePlans(PLANS, false, true);
+
+    const first20 = plans.find((p) => p.value === "first20_3mo");
+    expect(first20?.hidden).toBe(false);
+
+    const commitment = plans.find((p) => p.value === "commitment_3mo");
+    expect(commitment?.hidden).toBe(false);
+    expect(commitment?.comingSoon).toBe(false);
+
+    const monthly = plans.find((p) => p.value === "standard_monthly");
+    expect(monthly?.hidden).toBe(false);
+    expect(monthly?.comingSoon).toBe(false);
+  });
+});
+
+describe("resolvePlans — FIRST20 sold out after July 1", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("hides FIRST20 and shows other plans normally", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-02"));
+
+    const plans = resolvePlans(PLANS, false, true);
+
+    const first20 = plans.find((p) => p.value === "first20_3mo");
+    expect(first20?.hidden).toBe(true);
+
+    const commitment = plans.find((p) => p.value === "commitment_3mo");
+    expect(commitment?.hidden).toBe(false);
+    expect(commitment?.comingSoon).toBe(false);
+
     const monthly = plans.find((p) => p.value === "standard_monthly");
     expect(monthly?.hidden).toBe(false);
     expect(monthly?.comingSoon).toBe(false);

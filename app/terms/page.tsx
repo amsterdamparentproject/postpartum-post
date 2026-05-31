@@ -29,7 +29,7 @@ export default function TermsOfService() {
             <section>
               <h2 className="text-xl font-semibold mb-3">About Postpartum Post</h2>
               <p>
-                Postpartum Post is a monthly matchmaking service for new parents in Amsterdam,
+                Postpartum Post is a monthly matchmaking service for new and expecting parents in Amsterdam,
                 operated by Amsterdam Parent Project. Each month, we introduce you to one other
                 parent nearby.
               </p>

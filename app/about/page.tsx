@@ -8,11 +8,11 @@ import FAQ from "@/components/FAQ";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Learn about Postpartum Post — who we are, why we started, and how we match new parents in Amsterdam with each other every month.",
+    "Learn about Postpartum Post: Who we are, why we started, and how we match new and expecting parents in Amsterdam with each other every month.",
   openGraph: {
     title: "About Postpartum Post",
     description:
-      "Learn about Postpartum Post — who we are, why we started, and how we match new parents in Amsterdam with each other every month.",
+      "Learn about Postpartum Post: Who we are, why we started, and how we match new and expecting parents in Amsterdam with each other every month.",
   },
 };
 
@@ -36,7 +36,7 @@ export default function About() {
               Parent groups can be great for support, but <b>sometimes you need just one person</b>, not a room full of them.
             </p>
             <p>
-              We're here to <b>connect new parents in the neighborhood</b> for coffee, a playdate,
+              We're here to <b>connect new and expecting parents in the neighborhood</b> for coffee, a playdate,
               or an understanding chat. We'll warmly introduce you to one person each month, sharing their name and contact
               along with local activities handpicked for your families.
             </p>

@@ -93,7 +93,7 @@ export default async function Home() {
           </div>
           <div>
             <p className="text-sm text-dark leading-relaxed">
-              Hi, I&apos;m Alex 👋🏻 I'm a local toddler mom and someone who knows exactly how isolating and overwhelming parenthood can feel. Becoming a mom abroad and dealing with burnout led me to start the{" "}
+              Hi, I&apos;m Alex 👋🏻 I'm a local toddler mom and someone who knows exactly how isolating and overwhelming parenthood can feel. Becoming a mom abroad and dealing with burnout led me to start the nonprofit {" "}
               <a
                 href="https://amsterdamparentproject.nl"
                 target="_blank"
@@ -103,7 +103,7 @@ export default async function Home() {
               >
                 Amsterdam Parent Project
               </a>
-              {" "}— where I&apos;ve been running new parent support programs long enough to see that the right connection at the right time changes <i>everything</i> in parenthood. Postpartum Post is my way of making that easier to find.
+              {" "}— where I&apos;ve been running new parent support programs long enough to see that <b>the right connection at the right time changes <i>everything</i></b> in parenthood. Postpartum Post is my way of making that easier to find.
             </p>
             {/* FAQ link */}
             <p className="text-xs text-muted mt-4 mb-2">
