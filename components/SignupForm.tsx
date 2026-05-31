@@ -56,12 +56,9 @@ export default function SignupForm({
     };
 
     startTransition(async () => {
-      try {
-        await signup(data);
-      } catch (err) {
-        if (err instanceof Error && err.message !== "NEXT_REDIRECT") {
-          setError(err.message);
-        }
+      const result = await signup(data);
+      if (result?.error) {
+        setError(result.error);
       }
     });
   }

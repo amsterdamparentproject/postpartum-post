@@ -34,7 +34,9 @@ export type SignupFormData = {
   plan: "standard_monthly" | "commitment_3mo" | "first20_3mo";
 };
 
-export async function signup(data: SignupFormData) {
+export type SignupError = { error: string };
+
+export async function signup(data: SignupFormData): Promise<SignupError | void> {
   const supabase = createAdminClient();
   const stripe = getStripe();
 
@@ -51,9 +53,9 @@ export async function signup(data: SignupFormData) {
 
   if (error || !member) {
     if (error?.code === "23505") {
-      throw new Error("You're already signed up! Check your email for your magic link, or contact us if you need help.");
+      return { error: "You're already signed up! Check your email for your sign-in link, or contact us if you need help." };
     }
-    throw new Error(`Failed to create member record: ${error?.message ?? "unknown error"}`);
+    return { error: `Something went wrong. Please try again.` };
   }
 
   // first20_3mo uses the commitment_3mo price with a pre-applied promo code
