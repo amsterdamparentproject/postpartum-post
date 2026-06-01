@@ -83,6 +83,7 @@ export async function seedSubscription(
 export async function cleanupMember(memberId: string) {
   const supabase = createTestSupabase();
   // Delete in dependency order
+  await supabase.from("matches").delete().or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`);
   await supabase.from("monthly_participation").delete().eq("member_id", memberId);
   await supabase.from("monthly_skips").delete().eq("member_id", memberId);
   await supabase.from("subscriptions").delete().eq("member_id", memberId);
