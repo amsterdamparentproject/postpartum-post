@@ -420,6 +420,56 @@ function autoPauseHtml(firstName: string): string {
   return baseEmail(content);
 }
 
+// ---------------------------------------------------------------------------
+// Monthly opt-in email
+// ---------------------------------------------------------------------------
+
+function optinHtml(
+  firstName: string,
+  coffeeUrl: string,
+  playdateUrl: string,
+  skipUrl: string
+): string {
+  const content = bodySection(`
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      Hi ${firstName}!
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      It's matching time. Let us know how you'd like to meet this month — we'll take care of the rest.
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      You have until the <span style="font-weight:700">5th of the month</span> to respond.
+                                    </td></tr>`) +
+    ctaButton("☕ Meet for coffee", coffeeUrl) +
+    ctaButton("🧸 Meet for a playdate", playdateUrl) +
+    bodySection(`
+                                    <tr><td dir="ltr" style="font-size:13px;text-align:center;color:#666666;line-height:1.4;mso-line-height-alt:18.2px">
+                                      Need a break this month? <a href="${skipUrl}" style="color:#666666;">Skip this month</a> — your subscription will be extended automatically.
+                                    </td></tr>`);
+
+  return baseEmail(content);
+}
+
+export async function sendOptinEmail(
+  email: string,
+  firstName: string,
+  coffeeUrl: string,
+  playdateUrl: string,
+  skipUrl: string
+) {
+  const resend = getResend();
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: "Who would you like to meet this month? 💌",
+    html: optinHtml(firstName, coffeeUrl, playdateUrl, skipUrl),
+  });
+  if (error) {
+    console.error("[resend] sendOptinEmail error:", error);
+    throw error;
+  }
+}
+
 export async function sendAutoPauseEmail(email: string, firstName: string) {
   const resend = getResend();
   const { error } = await resend.emails.send({
