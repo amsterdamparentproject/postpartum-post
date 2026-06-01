@@ -41,7 +41,8 @@ const MONTHS = [
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
-const CHILD_YEARS = Array.from({ length: 8 }, (_, i) => CURRENT_YEAR + 1 - i); // +1 for due dates
+const CHILD_YEARS = Array.from({ length: 12 }, (_, i) => CURRENT_YEAR + 1 - i); // +1 for due dates
+const CHILD_YEAR_BEFORE = CURRENT_YEAR - 10; // sentinel label: "Before [this year]"
 
 const selectClass =
   "w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition appearance-none pr-10";
@@ -149,6 +150,7 @@ function ChildRow({
           {CHILD_YEARS.map((y) => (
             <option key={y} value={y}>{y}</option>
           ))}
+          <option value={CHILD_YEAR_BEFORE - 1}>Before {CHILD_YEAR_BEFORE}</option>
         </select>
         <ChevronDown />
       </div>
