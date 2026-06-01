@@ -14,6 +14,8 @@ create type postpartumpost.member_status as enum (
 create type postpartumpost.rematch_reason as enum (
   'no_response',
   'not_a_good_fit',
+  'safety_concern',  -- routes to safety report flow, not normal rematch pool
+  'harassment',      -- routes to safety report flow, not normal rematch pool
   'other'
 );
 
@@ -55,6 +57,7 @@ create table postpartumpost.members (
   stripe_customer_id text unique,
   status postpartumpost.member_status not null default 'pending',
   consecutive_skips integer not null default 0,
+  open_to_second_match boolean not null default true, -- willing to match twice in a month (tiebreaker + rematch pool)
   match_type postpartumpost.match_type, -- null is no preference
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
@@ -82,9 +85,23 @@ create table postpartumpost.matches (
   rematch_requested boolean not null default false,
   rematch_reason postpartumpost.rematch_reason,
   rematch_requested_at timestamptz,
+  flagged_for_review boolean not null default false, -- set when rematch_reason is safety_concern or harassment
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   constraint no_self_match check (member_id_1 != member_id_2)
+);
+
+-- Monthly participation: one row per member per calendar month they opted in.
+-- Only members with a row here are included in the match run on the 5th.
+-- Members who neither skip nor participate are silently excluded (no subscription extension).
+-- match_type here is the per-month preference and overrides the standing match_type on members.
+create table postpartumpost.monthly_participation (
+  id          uuid primary key default gen_random_uuid(),
+  member_id   uuid not null references postpartumpost.members(id) on delete cascade,
+  month       date not null,        -- always first of month, e.g. 2026-07-01
+  topic_id    uuid not null references postpartumpost.topics(id),  -- coffee or playdate
+  opted_in_at timestamptz not null default now(),
+  unique (member_id, month)
 );
 
 -- Monthly skips: one row per member per calendar month they opted out.
@@ -97,6 +114,36 @@ create table postpartumpost.monthly_skips (
   unique (member_id, month)
 );
 
+-- Match rounds: one row per monthly matching cycle.
+-- status: draft → committed (EOD 6th, n8n) → locked (morning 7th, n8n)
+create table postpartumpost.match_rounds (
+  id           uuid primary key default gen_random_uuid(),
+  month        date not null unique,
+  status       text not null default 'draft'
+                 check (status in ('draft', 'committed', 'locked')),
+  round_score  float8,
+  committed_at timestamptz,
+  locked_at    timestamptz,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+-- Match drafts: proposed pairs for a round. Alex can reassign before EOD 6th.
+-- On commit, promoted to postpartumpost.matches. Never deleted — permanent record
+-- of what was proposed vs. committed.
+create table postpartumpost.match_drafts (
+  id              uuid primary key default gen_random_uuid(),
+  round_id        uuid not null references postpartumpost.match_rounds(id) on delete cascade,
+  member_id_1     uuid not null references postpartumpost.members(id),
+  member_id_2     uuid not null references postpartumpost.members(id),
+  score           float8 not null,
+  breakdown       jsonb not null,      -- { language, availability, topic, proximity, children }
+  match_type      postpartumpost.match_type,
+  quality_tier    text check (quality_tier in ('great', 'good', 'needs_work')),
+  created_at      timestamptz not null default now(),
+  constraint no_self_draft check (member_id_1 != member_id_2)
+);
+
 -- Indexes
 create index on postpartumpost.members (topic_id);
 create index on postpartumpost.members (lat, lng) where lat is not null and lng is not null;
@@ -107,6 +154,14 @@ create index on postpartumpost.matches (member_id_1);
 create index on postpartumpost.matches (member_id_2);
 create index on postpartumpost.monthly_skips (member_id);
 create index on postpartumpost.monthly_skips (month);
+create index on postpartumpost.monthly_participation (member_id);
+create index on postpartumpost.monthly_participation (month);
+create index on postpartumpost.monthly_participation (topic_id);
+create index on postpartumpost.match_rounds (month);
+create index on postpartumpost.match_drafts (round_id);
+create index on postpartumpost.match_drafts (member_id_1);
+create index on postpartumpost.match_drafts (member_id_2);
+create index on postpartumpost.matches (flagged_for_review) where flagged_for_review = true;
 
 -- Seed data
 insert into postpartumpost.topics (name) values ('coffee'), ('playdate');
@@ -134,4 +189,8 @@ create trigger set_updated_at_matches
 
 create trigger set_updated_at_topics
   before update on postpartumpost.topics
+  for each row execute function postpartumpost.handle_updated_at();
+
+create trigger set_updated_at_match_rounds
+  before update on postpartumpost.match_rounds
   for each row execute function postpartumpost.handle_updated_at();
