@@ -8,6 +8,14 @@ export function createAdminClient() {
   );
 }
 
+export function createActivitiesClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { db: { schema: "activities" } }
+  );
+}
+
 // Singleton — all browser-side callers must share one instance so that
 // auth events (signIn, signOut) fired by any component are received by
 // every onAuthStateChange subscriber in the same tab.

@@ -484,3 +484,73 @@ export async function sendAutoPauseEmail(email: string, firstName: string) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Match reveal email
+// ---------------------------------------------------------------------------
+
+function matchRevealHtml(
+  recipientFirstName: string,
+  matchFirstName: string,
+  matchLastName: string,
+  matchEmail: string,
+  matchType: string | null,
+  matchPageUrl: string,
+): string {
+  const meetingContext = matchType === "in_person"
+    ? "meeting up in person"
+    : matchType === "online"
+    ? "connecting online"
+    : "connecting";
+
+  const content =
+    bodySection(`
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      Hi ${recipientFirstName},
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      Your match for this month is <span style="font-weight:700">${matchFirstName} ${matchLastName}</span>. We think you two will get along well — enjoy ${meetingContext}!
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      Your match page has both of your contact details, plus some local activities and resources to inspire you. The link below is shared between you and ${matchFirstName} — no login needed.
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      <span style="font-weight:700">${matchFirstName}&apos;s email:</span> <a href="mailto:${matchEmail}" style="color:#000000;text-decoration:underline;">${matchEmail}</a>
+                                    </td></tr>`) +
+    ctaButton("See your match page", matchPageUrl) +
+    bodySection(`
+                                    <tr><td dir="ltr" style="font-size:14px;color:#666666;text-align:left;padding:0 0 8px;line-height:1.4;mso-line-height-alt:19.6px">
+                                      If this match isn&apos;t working out, you can request a rematch from your profile page before the 14th of the month.
+                                    </td></tr>`);
+
+  return baseEmail(content);
+}
+
+export async function sendMatchRevealEmail(
+  recipientEmail: string,
+  recipientFirstName: string,
+  matchFirstName: string,
+  matchLastName: string,
+  matchEmail: string,
+  matchType: string | null,
+  matchPageUrl: string,
+): Promise<void> {
+  const resend = getResend();
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to: recipientEmail,
+    subject: `Your Postpartum Post match for ${new Date().toLocaleString("en-US", { month: "long" })} is here 💌`,
+    html: matchRevealHtml(
+      recipientFirstName,
+      matchFirstName,
+      matchLastName,
+      matchEmail,
+      matchType,
+      matchPageUrl,
+    ),
+  });
+  if (error) {
+    console.error("[resend] sendMatchRevealEmail error:", error);
+    throw error;
+  }
+}
+
