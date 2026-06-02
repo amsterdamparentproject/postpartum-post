@@ -35,6 +35,8 @@ export interface MatchCandidate {
   availability: { days: string[]; times: string[] } | null;
   match_priority: "age" | "proximity" | null;
   children: { birth_month: number; birth_year: number; expected: boolean }[] | null;
+  /** When true, this member can be paired twice in a month (odd-pool tiebreaker or rematch). */
+  open_to_second_match?: boolean;
 }
 
 export interface ScoreBreakdown {
@@ -58,6 +60,8 @@ export interface ScoredPair {
 export interface MatcherResult {
   matched: ScoredPair[];
   unmatched: MatchCandidate[];
+  /** Member paired twice to absorb an odd-pool leftover. Undefined when pool is even. */
+  doubleMatchedId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -447,5 +451,35 @@ export async function runMatcher(
     }
   }
 
-  return greedyPair(scoredPairs, recentPairs);
+  const result = greedyPair(scoredPairs, recentPairs);
+
+  // ---------------------------------------------------------------------------
+  // Odd-pool resolution: if exactly one member is unmatched, find the best
+  // open_to_second_match = true candidate from the matched pool and pair them
+  // twice. Pick the willing member whose score against the leftover is highest.
+  // ---------------------------------------------------------------------------
+  if (result.unmatched.length === 1) {
+    const leftover = result.unmatched[0];
+
+    // Gather all matched members willing to take a second match
+    const willing = result.matched
+      .flatMap((p) => [p.a, p.b])
+      .filter((m) => m.open_to_second_match === true);
+
+    if (willing.length > 0) {
+      // Score each willing member against the leftover; pick the highest
+      const best = willing
+        .map((m) => ({ member: m, pair: scorePair(m, leftover, coordMap) }))
+        .filter(({ pair }) => matchTypeCompatible(pair.a, pair.b))
+        .sort((x, y) => y.pair.score - x.pair.score)[0];
+
+      if (best) {
+        result.matched.push(best.pair);
+        result.unmatched = [];
+        result.doubleMatchedId = best.member.id;
+      }
+    }
+  }
+
+  return result;
 }

@@ -40,6 +40,7 @@ function member(
     availability: null,
     match_priority: null,
     children: null,
+    open_to_second_match: false,
     ...overrides,
   };
 }
@@ -457,6 +458,8 @@ describe("Scenario 9: 6-month window excludes recently matched pairs", () => {
 // Scenario 10 — Greedy algorithm picks highest-score pair first
 // ---------------------------------------------------------------------------
 
+// (Scenarios 11–12 are below Scenario 10)
+
 describe("Scenario 10: Greedy algorithm assigns highest-score pair first", () => {
   it("picks the best scoring pair, leaving the third member unmatched", async () => {
     // score(A, B) = 1000 — shared language
@@ -523,6 +526,128 @@ describe("Scenario 10: Greedy algorithm assigns highest-score pair first", () =>
     )!;
 
     expect([pairA.a.id, pairA.b.id]).toContain("b");
+    expect([pairC.a.id, pairC.b.id]).toContain("d");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 11 — Odd-pool: open_to_second_match absorbs the leftover
+// ---------------------------------------------------------------------------
+
+describe("Scenario 11: Odd-pool resolution via open_to_second_match", () => {
+  it("pairs the leftover with the best willing candidate when pool is odd", async () => {
+    // A↔B matched (both English). C is the leftover.
+    // B is open_to_second_match; A is not.
+    // B scores higher with C (shared language) than A does, so B gets the second match.
+    const a = member({ id: "a", language: ["english"], open_to_second_match: false });
+    const b = member({ id: "b", language: ["english", "dutch"], open_to_second_match: true });
+    const c = member({ id: "c", language: ["dutch"] });
+
+    const { matched, unmatched, doubleMatchedId } = await runMatcher(
+      [a, b, c],
+      mockSupabase(),
+      NO_COORDS
+    );
+
+    // All three are matched — no one left out
+    expect(unmatched).toHaveLength(0);
+    // Three pairs total: A↔B (original) + B↔C (second match)
+    expect(matched).toHaveLength(2);
+    // B is the double-matched member
+    expect(doubleMatchedId).toBe("b");
+    // C appears in one of the pairs
+    const cPair = matched.find((p) => p.a.id === "c" || p.b.id === "c");
+    expect(cPair).toBeDefined();
+  });
+
+  it("leaves the leftover unmatched when no willing candidate exists", async () => {
+    const a = member({ id: "a", language: ["english"], open_to_second_match: false });
+    const b = member({ id: "b", language: ["english"], open_to_second_match: false });
+    const c = member({ id: "c", language: ["dutch"] });
+
+    const { matched, unmatched, doubleMatchedId } = await runMatcher(
+      [a, b, c],
+      mockSupabase(),
+      NO_COORDS
+    );
+
+    expect(matched).toHaveLength(1);
+    expect(unmatched).toHaveLength(1);
+    expect(unmatched[0].id).toBe("c");
+    expect(doubleMatchedId).toBeUndefined();
+  });
+
+  it("does not attempt odd-pool resolution when pool is even", async () => {
+    const a = member({ id: "a", language: ["english"], open_to_second_match: true });
+    const b = member({ id: "b", language: ["english"] });
+    const c = member({ id: "c", language: ["dutch"] });
+    const d = member({ id: "d", language: ["dutch"] });
+
+    const { matched, unmatched, doubleMatchedId } = await runMatcher(
+      [a, b, c, d],
+      mockSupabase(),
+      NO_COORDS
+    );
+
+    expect(matched).toHaveLength(2);
+    expect(unmatched).toHaveLength(0);
+    expect(doubleMatchedId).toBeUndefined();
+  });
+
+  it("picks the willing candidate with the highest score against the leftover", async () => {
+    // A↔B matched. C is the leftover. B shares a language with C; A does not.
+    // B should be picked over A even if A is also willing.
+    const a = member({ id: "a", language: ["english"], open_to_second_match: true });
+    const b = member({ id: "b", language: ["english", "dutch"], open_to_second_match: true });
+    const c = member({ id: "c", language: ["dutch"] });
+
+    const { doubleMatchedId } = await runMatcher(
+      [a, b, c],
+      mockSupabase(),
+      NO_COORDS
+    );
+
+    // B scores 1000 with C (shared dutch); A scores 0 with C — B must be chosen
+    expect(doubleMatchedId).toBe("b");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 12 — Monthly participation: topic_id flows through to scoring
+// ---------------------------------------------------------------------------
+
+describe("Scenario 12: Per-month topic_id from monthly_participation is used for scoring", () => {
+  const COFFEE_ID = "topic-uuid-coffee";
+  const PLAYDATE_ID = "topic-uuid-playdate";
+
+  it("scores 250pts when members' per-month topic choices match", () => {
+    // Simulates run-matcher merging monthly_participation.topic_id into the candidate
+    const a = member({ id: "a", topic_id: COFFEE_ID });
+    const b = member({ id: "b", topic_id: COFFEE_ID });
+    expect(scorePair(a, b, NO_COORDS).breakdown.topic).toBe(250);
+  });
+
+  it("scores 0pts when members chose different topics this month", () => {
+    const a = member({ id: "a", topic_id: COFFEE_ID });
+    const b = member({ id: "b", topic_id: PLAYDATE_ID });
+    expect(scorePair(a, b, NO_COORDS).breakdown.topic).toBe(0);
+  });
+
+  it("prefers a same-topic pair over a cross-topic pair at equal language score", async () => {
+    // All four share English, so language is equal across all pairs.
+    // A and B both chose coffee; C and D both chose playdate.
+    // Matcher should produce A↔B and C↔D (same topic) over A↔C or A↔D.
+    const a = member({ id: "a", language: ["english"], topic_id: COFFEE_ID });
+    const b = member({ id: "b", language: ["english"], topic_id: COFFEE_ID });
+    const c = member({ id: "c", language: ["english"], topic_id: PLAYDATE_ID });
+    const d = member({ id: "d", language: ["english"], topic_id: PLAYDATE_ID });
+
+    const { matched } = await runMatcher([a, b, c, d], mockSupabase(), NO_COORDS);
+
+    expect(matched).toHaveLength(2);
+    const pairA = matched.find((p) => p.a.id === "a" || p.b.id === "a")!;
+    expect([pairA.a.id, pairA.b.id]).toContain("b");
+    const pairC = matched.find((p) => p.a.id === "c" || p.b.id === "c")!;
     expect([pairC.a.id, pairC.b.id]).toContain("d");
   });
 });
