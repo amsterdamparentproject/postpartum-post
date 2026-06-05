@@ -40,6 +40,7 @@ import {
   getStripeTrialEnd,
   hasMemberParticipation,
   hasMemberSkip,
+  getMemberMatchCount,
 } from "./helpers/db";
 import { currentMonth, buildOptinUrl, buildMatchPagePath } from "./helpers/tokens";
 
@@ -301,6 +302,72 @@ test(
       await cleanupMember(member.id);
       await cleanupMember(pool1.id);
       await cleanupMember(pool2.id);
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Test 4 — Double match
+// ---------------------------------------------------------------------------
+
+test(
+  "double match: 2 active cards on /matches, both reveal pages correct, email note triggered",
+  async ({ page }) => {
+    const month = currentMonth();
+    const monthDate = `${month}-01`;
+
+    // Member A is double-matched (appears in two pairs).
+    // Members B and C are each matched with A once.
+    const memberA = await seedMember({ firstName: "Alex", lastName: "Double" });
+    const memberB = await seedMember({ firstName: "Beth", lastName: "First" });
+    const memberC = await seedMember({ firstName: "Chris", lastName: "Second" });
+
+    try {
+      // Seed two match rows for member A — simulates the odd-pool resolution
+      // where a member with open_to_second_match=true is paired twice.
+      const matchId1 = await seedMatchDirect(memberA.id, memberB.id, "coffee", monthDate);
+      const matchId2 = await seedMatchDirect(memberA.id, memberC.id, "coffee", monthDate);
+
+      // ── Step 1: Sign in as the double-matched member ──────────────────────
+      await signInAs(page, memberA.email);
+      await page.goto("/matches");
+
+      // ── Step 2: Two active "Matched" cards visible ────────────────────────
+      // Wait for the async fetch to complete
+      await expect(page.getByText("Matched", { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("Matched", { exact: true })).toHaveCount(2);
+
+      // Both partner names appear in the card headings
+      await expect(page.getByText("Coffee with Beth")).toBeVisible();
+      await expect(page.getByText("Coffee with Chris")).toBeVisible();
+
+      // ── Step 3: First match reveal page shows correct pair ────────────────
+      await page.goto(buildMatchPagePath(matchId1));
+      await expect(page.getByText("Alex Double")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("Beth First")).toBeVisible();
+      await expect(page.getByText(memberA.email)).toBeVisible();
+      await expect(page.getByText(memberB.email)).toBeVisible();
+
+      // ── Step 4: Second match reveal page shows correct pair ───────────────
+      await page.goto(buildMatchPagePath(matchId2));
+      await expect(page.getByText("Alex Double")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("Chris Second")).toBeVisible();
+      await expect(page.getByText(memberA.email)).toBeVisible();
+      await expect(page.getByText(memberC.email)).toBeVisible();
+
+      // ── Step 5: Email double-match note trigger condition verified ─────────
+      // send-match-emails builds matchCountById across all pairs for the month.
+      // Member A appears in 2 pairs → isDoubleMatch=true → extra paragraph
+      // "A quick note: we matched you twice…" is included in their emails.
+      // Members B and C each appear in 1 pair → isDoubleMatch=false (no note).
+      expect(await getMemberMatchCount(memberA.id, month)).toBe(2);
+      expect(await getMemberMatchCount(memberB.id, month)).toBe(1);
+      expect(await getMemberMatchCount(memberC.id, month)).toBe(1);
+
+    } finally {
+      await cleanupMember(memberA.id);
+      await cleanupMember(memberB.id);
+      await cleanupMember(memberC.id);
     }
   },
 );

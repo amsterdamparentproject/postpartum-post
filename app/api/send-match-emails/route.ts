@@ -110,13 +110,25 @@ export async function POST(req: NextRequest) {
   }
 
   // -------------------------------------------------------------------------
+  // Detect double-matched member (appears in 2 pairs due to odd pool)
+  // -------------------------------------------------------------------------
+  type MemberRow = { id: string; first_name: string; last_name: string; email: string };
+
+  const matchCountById = new Map<string, number>();
+  for (const m of matches) {
+    const id1 = ((Array.isArray(m.member1) ? m.member1[0] : m.member1) as MemberRow | null)?.id;
+    const id2 = ((Array.isArray(m.member2) ? m.member2[0] : m.member2) as MemberRow | null)?.id;
+    if (id1) matchCountById.set(id1, (matchCountById.get(id1) ?? 0) + 1);
+    if (id2) matchCountById.set(id2, (matchCountById.get(id2) ?? 0) + 1);
+  }
+
+  // -------------------------------------------------------------------------
   // Send emails
   // -------------------------------------------------------------------------
   let sentCount = 0;
   const errors: string[] = [];
 
   for (const match of matches) {
-    type MemberRow = { id: string; first_name: string; last_name: string; email: string };
     const m1 = (Array.isArray(match.member1) ? match.member1[0] : match.member1) as MemberRow | null;
     const m2 = (Array.isArray(match.member2) ? match.member2[0] : match.member2) as MemberRow | null;
 
@@ -153,6 +165,9 @@ export async function POST(req: NextRequest) {
         matchesMagicLink(m2.email),
       ]);
 
+      const isM1Double = (matchCountById.get(m1.id) ?? 0) > 1;
+      const isM2Double = (matchCountById.get(m2.id) ?? 0) > 1;
+
       if (!testMode || m1.email === TEST_EMAIL) {
         await sendMatchRevealEmail(
           m1.email,
@@ -162,6 +177,7 @@ export async function POST(req: NextRequest) {
           match.match_type,
           matchPageUrl,
           m1MatchesLink,
+          isM1Double,
         );
         sentCount++;
       }
@@ -175,6 +191,7 @@ export async function POST(req: NextRequest) {
           match.match_type,
           matchPageUrl,
           m2MatchesLink,
+          isM2Double,
         );
         sentCount++;
       }

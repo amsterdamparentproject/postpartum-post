@@ -307,6 +307,23 @@ export default async function MatchPage({ params, searchParams }: Props) {
             </section>
           )}
 
+          {/* About matching */}
+          <div className="pt-4 pb-2" id="about-matching">
+            <h2
+              className="text-xl font-semibold text-dark"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              About the matching process
+            </h2>
+            <p className="my-3">
+              We find your connection each month through an algorithm specifically created for Postpartum Post (no AI!). It scores profiles across the entire pool of parents who want to meet. 
+              It’s looking for the <span className="font-semibold text-coral">best outcomes for the whole community</span> — which means that not every individual match may be perfect ❤️ 
+            </p>
+            <p className="mb-3">
+              Language, mom/dad preferences, and availability rank most highly. When creating every match, we can only account for the profile information that we have. If something is really not working out, you can always request a rematch.
+            </p>
+          </div>
+
           {/* Rematch */}
           <div className="text-center pt-4 border-t border-border">
             <p className="text-muted text-sm mb-3">

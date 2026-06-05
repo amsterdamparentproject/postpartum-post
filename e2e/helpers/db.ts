@@ -282,3 +282,17 @@ export async function hasMemberSkip(memberId: string, month: string): Promise<bo
     .maybeSingle();
   return !!data;
 }
+
+/**
+ * Count how many match rows the member appears in for the given month.
+ * A count > 1 means they were double-matched (odd pool resolution), and
+ * the send-match-emails route will set isDoubleMatch=true for their emails.
+ */
+export async function getMemberMatchCount(memberId: string, month: string): Promise<number> {
+  const { count } = await supabase()
+    .from("matches")
+    .select("id", { count: "exact", head: true })
+    .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`)
+    .eq("matched_on", `${month}-01`);
+  return count ?? 0;
+}
