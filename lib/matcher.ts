@@ -94,7 +94,7 @@ interface GeoCoord {
 }
 
 /** Geocode a Dutch postal code via Nominatim. Returns null on failure. */
-async function geocodeZipcode(zipcode: string): Promise<GeoCoord | null> {
+export async function geocodeZipcode(zipcode: string): Promise<GeoCoord | null> {
   // Normalise: strip spaces, take first 6 chars ("1234AB" or "1234 AB")
   const normalised = zipcode.replace(/\s+/g, "").slice(0, 6);
   const url = new URL("https://nominatim.openstreetmap.org/search");

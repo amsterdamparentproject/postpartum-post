@@ -155,7 +155,7 @@ async function createCheckoutSession(
     customer_update: taxEnabled ? { address: "auto" } : undefined,
     metadata: { member_id: memberId },
     success_url: `${BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${BASE_URL}/?canceled={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${BASE_URL}/canceled?session_id={CHECKOUT_SESSION_ID}`,
   });
 
   redirect(session.url!);

@@ -54,7 +54,9 @@ test("abandoned checkout: member can re-subscribe after navigating away from Str
 
   // ── Step 3: Simulate Stripe's cancel_url redirect (user navigates back) ───
   // Stripe replaces {CHECKOUT_SESSION_ID} in cancel_url with the real session ID.
-  await page.goto(`/?canceled=${sessionId}`);
+  // The /canceled route handler marks the member abandoned, then redirects to /.
+  await page.goto(`/canceled?session_id=${sessionId}`);
+  await page.waitForURL(/\/$/, { timeout: 15_000 });
 
   // ── Step 4: Member should now be abandoned ────────────────────────────────
   expect(await getMemberStatusByEmail(TEST_EMAIL)).toBe("abandoned");

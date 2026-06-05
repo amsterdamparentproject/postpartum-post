@@ -4,9 +4,14 @@ import PersonaCards from "@/components/PersonaCards";
 import SubscribeSection from "@/components/SubscribeSection";
 import Image from "next/image";
 import { getStripe } from "@/lib/stripe";
-import { abandonCheckout } from "@/app/actions/signup";
 
 const FIRST20_TOTAL = 20;
+
+// Statically prerender the homepage and regenerate at most every 5 minutes,
+// so the FIRST20 spots-remaining count refreshes without a per-request Stripe
+// call. Avoid reading Request-time APIs (searchParams, cookies, headers) here —
+// they would opt the route into per-request dynamic rendering.
+export const revalidate = 300;
 
 async function getFirst20SpotsRemaining(): Promise<number | null> {
   const couponId = process.env.STRIPE_FIRST20_COUPON_ID;
@@ -25,21 +30,8 @@ async function getFirst20SpotsRemaining(): Promise<number | null> {
 // Also flips to false automatically when FIRST20 sells out.
 const PILOT_ONLY = true;
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ canceled?: string }>;
-}) {
-  const [{ canceled }, first20SpotsRemaining] = await Promise.all([
-    searchParams,
-    getFirst20SpotsRemaining(),
-  ]);
-
-  // Stripe's cancel_url passes back {CHECKOUT_SESSION_ID}; mark the member abandoned
-  // so they can re-subscribe freely without hitting the duplicate-email error.
-  if (canceled?.startsWith("cs_")) {
-    await abandonCheckout(canceled);
-  }
+export default async function Home() {
+  const first20SpotsRemaining = await getFirst20SpotsRemaining();
 
   const pilotOnly = first20SpotsRemaining === 0 ? false : PILOT_ONLY;
 
