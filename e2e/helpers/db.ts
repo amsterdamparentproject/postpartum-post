@@ -191,6 +191,15 @@ export async function purgeTestMembers(emailPattern: string): Promise<number> {
   return members.length;
 }
 
+export async function getMemberStatusByEmail(email: string): Promise<string | null> {
+  const { data } = await supabase()
+    .from("members")
+    .select("status")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  return data?.status ?? null;
+}
+
 export async function cancelStripeSubscription(subscriptionId: string): Promise<void> {
   try {
     await stripe().subscriptions.cancel(subscriptionId);

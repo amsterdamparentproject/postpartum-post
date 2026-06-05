@@ -4,6 +4,7 @@ import PersonaCards from "@/components/PersonaCards";
 import SubscribeSection from "@/components/SubscribeSection";
 import Image from "next/image";
 import { getStripe } from "@/lib/stripe";
+import { abandonCheckout } from "@/app/actions/signup";
 
 const FIRST20_TOTAL = 20;
 
@@ -24,10 +25,22 @@ async function getFirst20SpotsRemaining(): Promise<number | null> {
 // Also flips to false automatically when FIRST20 sells out.
 const PILOT_ONLY = true;
 
-export default async function Home() {
-  const first20SpotsRemaining = await getFirst20SpotsRemaining();
-  // Release general plans as soon as FIRST20 sells out (spots === 0).
-  // If Stripe is unreachable (null), fall back to the hard-coded flag.
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ canceled?: string }>;
+}) {
+  const [{ canceled }, first20SpotsRemaining] = await Promise.all([
+    searchParams,
+    getFirst20SpotsRemaining(),
+  ]);
+
+  // Stripe's cancel_url passes back {CHECKOUT_SESSION_ID}; mark the member abandoned
+  // so they can re-subscribe freely without hitting the duplicate-email error.
+  if (canceled?.startsWith("cs_")) {
+    await abandonCheckout(canceled);
+  }
+
   const pilotOnly = first20SpotsRemaining === 0 ? false : PILOT_ONLY;
 
   return (

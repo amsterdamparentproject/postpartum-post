@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import { signup, type SignupFormData } from "@/app/actions/signup";
+import { signup, abandonCheckout, type SignupFormData } from "@/app/actions/signup";
 import { cleanupMember, createTestSupabase } from "@tests/helpers";
 import { POST as webhookPost } from "@/app/api/webhooks/stripe/route";
 
@@ -12,12 +12,14 @@ const {
   mockCustomerCreate,
   mockPricesList,
   mockSessionCreate,
+  mockSessionRetrieve,
   mockSubscriptionRetrieve,
   mockConstructEvent,
 } = vi.hoisted(() => ({
   mockCustomerCreate: vi.fn(),
   mockPricesList: vi.fn(),
   mockSessionCreate: vi.fn(),
+  mockSessionRetrieve: vi.fn(),
   mockSubscriptionRetrieve: vi.fn(),
   mockConstructEvent: vi.fn(),
 }));
@@ -26,7 +28,7 @@ vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({
     customers: { create: mockCustomerCreate },
     prices: { list: mockPricesList },
-    checkout: { sessions: { create: mockSessionCreate } },
+    checkout: { sessions: { create: mockSessionCreate, retrieve: mockSessionRetrieve } },
     subscriptions: { retrieve: mockSubscriptionRetrieve, update: vi.fn().mockResolvedValue({}) },
     webhooks: { constructEvent: mockConstructEvent },
   }),
@@ -177,16 +179,14 @@ describe("signup action", () => {
     expect(redirect).toHaveBeenCalledWith(MOCK_CHECKOUT_URL);
   });
 
-  it("returns 'already signed up' error on duplicate email without calling Stripe", async () => {
-    // First signup succeeds
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
-    vi.clearAllMocks();
-    setupStripeMocks();
+  it("returns 'already signed up' error for active members", async () => {
+    const supabase = createTestSupabase();
+    await supabase
+      .from("members")
+      .insert({ first_name: "Jane", last_name: "Doe", email: testEmail, status: "active" });
 
-    // Second attempt with same email
     const result = await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
     expect(result).toEqual({ error: expect.stringContaining("You're already signed up!") });
-
     expect(mockCustomerCreate).not.toHaveBeenCalled();
   });
 
@@ -204,6 +204,160 @@ describe("signup action", () => {
     await expect(
       signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "first20_3mo" })
     ).rejects.toThrow("Price not found for plan: founding_member");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Abandoned checkout — re-signup flow
+// ---------------------------------------------------------------------------
+
+describe("abandoned checkout re-signup", () => {
+  let testEmail: string;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupStripeMocks();
+    testEmail = `abandon-test-${crypto.randomUUID()}@example.com`;
+  });
+
+  afterEach(async () => {
+    await cleanupByEmail(testEmail);
+  });
+
+  it("allows a pending member to restart checkout without creating a new Stripe customer", async () => {
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    vi.clearAllMocks();
+    setupStripeMocks();
+
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+
+    expect(mockSessionCreate).toHaveBeenCalledTimes(1);
+    expect(mockCustomerCreate).not.toHaveBeenCalled();
+  });
+
+  it("allows an abandoned member to re-subscribe without creating a new Stripe customer", async () => {
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    const supabase = createTestSupabase();
+    const { data: member } = await supabase
+      .from("members")
+      .select("id")
+      .eq("email", testEmail)
+      .single();
+    await supabase.from("members").update({ status: "abandoned" }).eq("id", member!.id);
+
+    vi.clearAllMocks();
+    setupStripeMocks();
+
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+
+    expect(mockSessionCreate).toHaveBeenCalledTimes(1);
+    expect(mockCustomerCreate).not.toHaveBeenCalled();
+  });
+
+  it("resets member status to pending when restarting checkout", async () => {
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    const supabase = createTestSupabase();
+    await supabase
+      .from("members")
+      .update({ status: "abandoned" })
+      .eq("email", testEmail);
+
+    vi.clearAllMocks();
+    setupStripeMocks();
+
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+
+    const { data: member } = await supabase
+      .from("members")
+      .select("status")
+      .eq("email", testEmail)
+      .single();
+    expect(member?.status).toBe("pending");
+  });
+
+  it("creates a new Stripe customer if the member record has no customer ID", async () => {
+    const supabase = createTestSupabase();
+    await supabase.from("members").insert({
+      first_name: "Jane",
+      last_name: "Doe",
+      email: testEmail,
+      status: "abandoned",
+      stripe_customer_id: null,
+    });
+
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+
+    expect(mockCustomerCreate).toHaveBeenCalledTimes(1);
+    expect(mockSessionCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// abandonCheckout action
+// ---------------------------------------------------------------------------
+
+describe("abandonCheckout", () => {
+  let testEmail: string;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupStripeMocks();
+    testEmail = `abandon-action-${crypto.randomUUID()}@example.com`;
+  });
+
+  afterEach(async () => {
+    await cleanupByEmail(testEmail);
+  });
+
+  it("marks a pending member as abandoned", async () => {
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    const supabase = createTestSupabase();
+    const { data: member } = await supabase
+      .from("members")
+      .select("id")
+      .eq("email", testEmail)
+      .single();
+
+    mockSessionRetrieve.mockResolvedValue({ metadata: { member_id: member!.id } });
+
+    await abandonCheckout("cs_test_fake_session_id");
+
+    const { data: updated } = await supabase
+      .from("members")
+      .select("status")
+      .eq("id", member!.id)
+      .single();
+    expect(updated?.status).toBe("abandoned");
+  });
+
+  it("does not affect non-pending members", async () => {
+    const supabase = createTestSupabase();
+    const { data: member } = await supabase
+      .from("members")
+      .insert({ first_name: "Jane", last_name: "Doe", email: testEmail, status: "active" })
+      .select("id")
+      .single();
+
+    mockSessionRetrieve.mockResolvedValue({ metadata: { member_id: member!.id } });
+
+    await abandonCheckout("cs_test_fake_session_id");
+
+    const { data: updated } = await supabase
+      .from("members")
+      .select("status")
+      .eq("id", member!.id)
+      .single();
+    expect(updated?.status).toBe("active");
+  });
+
+  it("is a no-op when the session has no member_id metadata", async () => {
+    mockSessionRetrieve.mockResolvedValue({ metadata: {} });
+    await expect(abandonCheckout("cs_test_no_metadata")).resolves.toBeUndefined();
+  });
+
+  it("is a no-op when Stripe throws", async () => {
+    mockSessionRetrieve.mockRejectedValue(new Error("Stripe error"));
+    await expect(abandonCheckout("cs_test_stripe_error")).resolves.toBeUndefined();
   });
 });
 
