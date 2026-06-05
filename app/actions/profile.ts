@@ -227,8 +227,7 @@ export async function updateMemberProfile(
         .from("members")
         .update({ lat: null, lng: null })
         .eq("id", memberId)
-        .then(() => {})
-        .catch((e) => console.error("Failed to clear geocoords:", e));
+        .then(() => {}, (e) => console.error("Failed to clear geocoords:", e));
     }
   }
 }
