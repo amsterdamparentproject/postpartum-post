@@ -8,7 +8,6 @@ export const metadata: Metadata = {
 };
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
-import { getTopics } from "@/app/actions/profile";
 
 async function getMemberFromSession(sessionId: string) {
   try {
@@ -36,10 +35,7 @@ export default async function Success({
   searchParams: Promise<{ session_id?: string }>;
 }) {
   const { session_id } = await searchParams;
-  const [member, topics] = await Promise.all([
-    session_id ? getMemberFromSession(session_id) : Promise.resolve(null),
-    getTopics(),
-  ]);
+  const member = await (session_id ? getMemberFromSession(session_id) : Promise.resolve(null));
 
   return (
     <PageLayout showNav>
@@ -66,8 +62,7 @@ export default async function Success({
             <ProfileForm
               memberId={member.id}
               initialData={member}
-              topics={topics}
-              mode="onboarding"
+mode="onboarding"
             />
           </div>
         ) : (

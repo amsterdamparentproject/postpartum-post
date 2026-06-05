@@ -108,12 +108,12 @@ async function fetchActivities(center: Coords | null, matchedOn: string): Promis
 
     const featuredEvents = (featuredResult.data ?? [])
       .filter((row) => row.event_id != null)
-      .map((row) => row.events as ActivityEvent | null)
+      .map((row) => (Array.isArray(row.events) ? row.events[0] : row.events) as ActivityEvent | null)
       .filter((e): e is ActivityEvent => e !== null && inMonth(e));
 
     const featuredResources = (featuredResult.data ?? [])
       .filter((row) => row.resource_id != null)
-      .map((row) => row.resources as ActivityResource | null)
+      .map((row) => (Array.isArray(row.resources) ? row.resources[0] : row.resources) as ActivityResource | null)
       .filter((r): r is ActivityResource => r !== null);
 
     // Nearby upcoming events — only when coordinates are available
@@ -166,8 +166,9 @@ export default async function MatchPage({ params, searchParams }: Props) {
 
   if (error || !match) notFound();
 
-  const m1 = match.member1 as { first_name: string; last_name: string; email: string; lat: number | null; lng: number | null } | null;
-  const m2 = match.member2 as { first_name: string; last_name: string; email: string; lat: number | null; lng: number | null } | null;
+  type MatchMember = { first_name: string; last_name: string; email: string; lat: number | null; lng: number | null };
+  const m1 = (Array.isArray(match.member1) ? match.member1[0] : match.member1) as MatchMember | null;
+  const m2 = (Array.isArray(match.member2) ? match.member2[0] : match.member2) as MatchMember | null;
 
   if (!m1 || !m2) notFound();
 

@@ -319,7 +319,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         }
         setSnapshot({
           firstName, lastName, email, zipcode,
-          languages: [...languages], parentType,
+          languages: [...languages], parentType: (parentType || "anyone") as "mom" | "dad" | "anyone",
           availabilityDays: [...availabilityDays],
           availabilityTimes: [...availabilityTimes],
           matchPriority,

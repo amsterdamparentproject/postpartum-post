@@ -116,8 +116,9 @@ export async function POST(req: NextRequest) {
   const errors: string[] = [];
 
   for (const match of matches) {
-    const m1 = match.member1 as { id: string; first_name: string; last_name: string; email: string } | null;
-    const m2 = match.member2 as { id: string; first_name: string; last_name: string; email: string } | null;
+    type MemberRow = { id: string; first_name: string; last_name: string; email: string };
+    const m1 = (Array.isArray(match.member1) ? match.member1[0] : match.member1) as MemberRow | null;
+    const m2 = (Array.isArray(match.member2) ? match.member2[0] : match.member2) as MemberRow | null;
 
     if (!m1 || !m2) {
       errors.push(`Match ${match.id}: missing member data`);
