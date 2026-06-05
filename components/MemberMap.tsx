@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
+import type { Map as LeafletMap } from "leaflet";
 import type { MemberLocation } from "@/app/admin/stats/actions";
 
 interface Props {
@@ -11,7 +12,7 @@ interface Props {
 // Loaded dynamically to avoid SSR — Leaflet requires window
 export default function MemberMap({ locations }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<unknown>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
