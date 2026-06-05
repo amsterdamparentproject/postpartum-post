@@ -5,7 +5,7 @@ import { currentMonth, monthToDate } from "@/lib/skip-token";
 
 export type MatchStatus =
   | { type: "pending"; topic: "coffee" | "playdate" }
-  | { type: "matched"; matchId: string; topic: "coffee" | "playdate" }
+  | { type: "matched"; matchId: string; topic: "coffee" | "playdate"; matchFirstName: string }
   | { type: "none" };
 
 /**
@@ -21,7 +21,14 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
   // Check for an existing match this month
   const { data: match } = await supabase
     .from("matches")
-    .select("id, match_type")
+    .select(`
+      id,
+      match_type,
+      member_id_1,
+      member_id_2,
+      member1:member_id_1 ( first_name ),
+      member2:member_id_2 ( first_name )
+    `)
     .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`)
     .gte("matched_on", monthDate)
     .order("created_at", { ascending: false })
@@ -29,10 +36,15 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
     .maybeSingle();
 
   if (match) {
+    const isM1 = match.member_id_1 === memberId;
+    const partnerRaw = isM1 ? match.member2 : match.member1;
+    const partnerData = Array.isArray(partnerRaw) ? partnerRaw[0] : partnerRaw;
+
     return {
       type: "matched",
       matchId: match.id,
       topic: (match.match_type ?? "coffee") as "coffee" | "playdate",
+      matchFirstName: (partnerData as { first_name: string } | null)?.first_name ?? "",
     };
   }
 
