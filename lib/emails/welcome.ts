@@ -44,7 +44,7 @@ function welcomeHtml(firstName: string, profileLink: string, planLabel: string, 
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.43;mso-line-height-alt:22.9px">
                                       <span style="font-weight:700">Opt into matching</span>
-                                      <span> by choosing a topic and how you want to meet — online or offline. You can always skip a month at no charge and get your subscription extended automatically.</span>
+                                      <span> by choosing a topic. You can always skip a month at no charge and get your subscription extended automatically.</span>
                                     </td></tr>
                                     <tr><td dir="ltr" style="color:#c56850;font-size:16px;font-weight:700;text-decoration:underline;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       7th of the month:
