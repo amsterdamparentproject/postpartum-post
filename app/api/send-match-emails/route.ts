@@ -31,6 +31,7 @@ import { generateMatchToken } from "@/lib/match-token";
 import { sendMatchRevealEmail } from "@/lib/emails";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
+const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
 
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
@@ -50,9 +51,11 @@ export async function POST(req: NextRequest) {
   // Parse body
   // -------------------------------------------------------------------------
   let month = currentMonth();
+  let testMode = false;
   try {
     const body = await req.json();
     if (body?.month && typeof body.month === "string") month = body.month;
+    testMode = body?.testMode === true;
   } catch {
     // Empty body is fine
   }
@@ -123,29 +126,59 @@ export async function POST(req: NextRequest) {
 
     const token = generateMatchToken(match.id);
     const matchPageUrl = `${SITE_URL}/matches/${match.id}?token=${token}`;
+    const matchesUrl = `${SITE_URL}/matches`;
+
+    // Generate a magic link to /matches for each recipient so clicking
+    // "matches page" in the email signs them straight in without a prompt.
+    async function matchesMagicLink(email: string): Promise<string> {
+      try {
+        const { data, error } = await supabase.auth.admin.generateLink({
+          type: "magiclink",
+          email,
+          options: { redirectTo: matchesUrl },
+        });
+        if (!error && data?.properties?.action_link) {
+          return data.properties.action_link;
+        }
+      } catch (err) {
+        console.error("[send-match-emails] generateLink failed for", email, err);
+      }
+      return matchesUrl;
+    }
 
     try {
-      await sendMatchRevealEmail(
-        m1.email,
-        m1.first_name,
-        m2.first_name,
-        m2.last_name,
-        m2.email,
-        match.match_type ?? null,
-        matchPageUrl,
-      );
-      sentCount++;
+      const [m1MatchesLink, m2MatchesLink] = await Promise.all([
+        matchesMagicLink(m1.email),
+        matchesMagicLink(m2.email),
+      ]);
 
-      await sendMatchRevealEmail(
-        m2.email,
-        m2.first_name,
-        m1.first_name,
-        m1.last_name,
-        m1.email,
-        match.match_type ?? null,
-        matchPageUrl,
-      );
-      sentCount++;
+      if (!testMode || m1.email === TEST_EMAIL) {
+        await sendMatchRevealEmail(
+          m1.email,
+          m1.first_name,
+          m2.first_name,
+          m2.last_name,
+          m2.email,
+          match.match_type ?? null,
+          matchPageUrl,
+          m1MatchesLink,
+        );
+        sentCount++;
+      }
+
+      if (!testMode || m2.email === TEST_EMAIL) {
+        await sendMatchRevealEmail(
+          m2.email,
+          m2.first_name,
+          m1.first_name,
+          m1.last_name,
+          m1.email,
+          match.match_type ?? null,
+          matchPageUrl,
+          m2MatchesLink,
+        );
+        sentCount++;
+      }
     } catch (err) {
       errors.push(`Match ${match.id}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -160,5 +193,5 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ sentCount, month });
+  return NextResponse.json({ sentCount, month, testMode });
 }

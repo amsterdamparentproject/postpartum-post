@@ -17,6 +17,7 @@ import { currentMonth } from "@/lib/skip-token";
 import { sendOptinEmail } from "@/lib/emails";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
+const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
 
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
@@ -34,6 +35,17 @@ export async function POST(req: NextRequest) {
   }
 
   // -------------------------------------------------------------------------
+  // Parse body
+  // -------------------------------------------------------------------------
+  let testMode = false;
+  try {
+    const body = await req.json();
+    testMode = body?.testMode === true;
+  } catch {
+    // Empty body is fine
+  }
+
+  // -------------------------------------------------------------------------
   // Fetch active members
   // -------------------------------------------------------------------------
   const supabase = createAdminClient();
@@ -48,18 +60,22 @@ export async function POST(req: NextRequest) {
   }
 
   if (!members?.length) {
-    return NextResponse.json({ sent: 0, failed: 0, errors: [] });
+    return NextResponse.json({ sent: 0, failed: 0, errors: [], testMode });
   }
 
   // -------------------------------------------------------------------------
   // Send emails
+  // In test mode, send only to the TEST_EMAIL account using that member's
+  // own tokens so the links are valid and the email renders realistically.
   // -------------------------------------------------------------------------
   const month = currentMonth(); // YYYY-MM
   let sent = 0;
   let failed = 0;
   const errors: { email: string; error: string }[] = [];
 
-  for (const member of members) {
+  const targets = testMode ? members.filter(m => m.email === TEST_EMAIL) : members;
+
+  for (const member of targets) {
     const buildUrl = (action: "coffee" | "playdate" | "skip") => {
       const token = generateOptinToken(member.id, month, action);
       return `${SITE_URL}/api/optin?member=${member.id}&month=${month}&action=${action}&token=${token}`;
@@ -84,5 +100,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ sent, failed, errors });
+  return NextResponse.json({ sent, failed, errors, testMode });
 }

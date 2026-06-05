@@ -3,16 +3,17 @@
 import { useState, useTransition, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useRouter } from "next/navigation";
 import { generateMagicLink } from "@/app/actions/auth";
-import { updateMemberProfile, type MemberProfile, type Topic, type Availability, type Child } from "@/app/actions/profile";
+import { updateMemberProfile, type MemberProfile, type Availability, type Child } from "@/app/actions/profile";
+import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 
 const DUTCH_POSTCODE = /^[1-9][0-9]{3}\s?[A-Za-z]{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const MATCH_TYPES = [
-  { value: "", label: "No preference" },
-  { value: "in_person", label: "In person" },
-  { value: "online", label: "Online" },
+const PARENT_TYPES = [
+  { value: "mom", label: "Moms" },
+  { value: "dad", label: "Dads" },
+  { value: "anyone", label: "Anyone" },
 ] as const;
 
 const LANGUAGES = [
@@ -175,7 +176,7 @@ function arrEq(a: string[], b: string[]) {
 type Props = {
   memberId: string;
   initialData: Partial<MemberProfile>;
-  topics: Topic[];
+
   mode: "onboarding" | "profile";
   section?: "personal" | "details" | "preferences";
 };
@@ -193,7 +194,7 @@ const SECTION_TITLES: Record<string, string> = {
 };
 
 const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
-  { memberId, initialData, topics, mode, section }: Props,
+  { memberId, initialData, mode, section }: Props,
   ref,
 ) {
   const [firstName, setFirstName] = useState(initialData.first_name ?? "");
@@ -201,8 +202,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
   const [email, setEmail] = useState(initialData.email ?? "");
   const [zipcode, setZipcode] = useState(initialData.zipcode ?? "");
   const [languages, setLanguages] = useState<string[]>(initialData.language ?? []);
-  const [topicId, setTopicId] = useState(initialData.topic_id ?? "");
-  const [matchType, setMatchType] = useState(initialData.match_type ?? "");
+  const [parentType, setParentType] = useState<"mom" | "dad" | "anyone" | "">(initialData.parent_type ?? "anyone");
   const [availabilityDays, setAvailabilityDays] = useState<string[]>(initialData.availability?.days ?? []);
   const [availabilityTimes, setAvailabilityTimes] = useState<string[]>(initialData.availability?.times ?? []);
   const [matchPriority, setMatchPriority] = useState<"age" | "proximity" | "">(initialData.match_priority ?? "");
@@ -215,8 +215,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
     email: initialData.email ?? "",
     zipcode: initialData.zipcode ?? "",
     languages: initialData.language ?? [] as string[],
-    topicId: initialData.topic_id ?? "",
-    matchType: initialData.match_type ?? "",
+    parentType: initialData.parent_type ?? "anyone",
     availabilityDays: initialData.availability?.days ?? [] as string[],
     availabilityTimes: initialData.availability?.times ?? [] as string[],
     matchPriority: initialData.match_priority ?? "",
@@ -236,7 +235,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         JSON.stringify(children) !== JSON.stringify(snapshot.children)
       : section === "preferences"
       ? matchPriority !== snapshot.matchPriority ||
-        matchType !== snapshot.matchType
+        parentType !== snapshot.parentType
       : // onboarding — always starts dirty (empty form)
         true;
 
@@ -292,7 +291,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
           }
         : section === "preferences"
         ? {
-            match_type: (matchType as "in_person" | "online") || null,
+            parent_type: (parentType as "mom" | "dad" | "anyone") || "anyone",
             match_priority: (matchPriority as "age" | "proximity") || null,
           }
         : {
@@ -316,7 +315,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         }
         setSnapshot({
           firstName, lastName, email, zipcode,
-          languages: [...languages], topicId, matchType,
+          languages: [...languages], parentType,
           availabilityDays: [...availabilityDays],
           availabilityTimes: [...availabilityTimes],
           matchPriority,
@@ -488,6 +487,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
                 </ToggleButton>
               ))}
             </div>
+            {ENABLE_TIME_OF_DAY && (<>
             <p className="flex items-center gap-1.5 text-xs font-medium text-muted my-2">
               <ClockIcon />Time of day
             </p>
@@ -506,6 +506,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
                 </ToggleButton>
               ))}
             </div>
+            </>)}
           </div>
         </>
       )}
@@ -547,6 +548,30 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         </>
       )}
 
+      {/* Parent type — preferences section only */}
+      {(section === "preferences" || mode === "onboarding") && (
+        <>
+        {mode === "onboarding" && <hr className="border-border" />}
+        <div>
+          <label className={labelClass}>Who would you like to meet?</label>
+          <p className="text-xs italic text-muted mb-2">
+            Let us know if you'd prefer to meet with moms or dads — or anyone in our community.
+          </p>
+          <div className="flex gap-2">
+            {PARENT_TYPES.map(({ value, label }) => (
+              <ToggleButton
+                key={value}
+                selected={parentType === value}
+                onClick={() => setParentType(parentType === value ? "" : value)}
+              >
+                {label}
+              </ToggleButton>
+            ))}
+          </div>
+        </div>
+        </>
+      )}
+
       {/* Match priority — preferences section and onboarding */}
       {(section === "preferences") && (
         <div>
@@ -567,24 +592,6 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
             >
               Someone close by
             </ToggleButton>
-          </div>
-        </div>
-      )}
-
-      {/* Meetup preference — preferences section only */}
-      {section === "preferences" && (
-        <div>
-          <label htmlFor="matchType" className={labelClass}>Default meet-up preference</label>
-          <p className="text-xs italic text-muted mb-2">
-            Meet up in person, online, or whatever works for your match
-          </p>
-          <div className="relative">
-            <select id="matchType" value={matchType} onChange={(e) => setMatchType(e.target.value)} className={selectClass}>
-              {MATCH_TYPES.map(({ value, label }) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <ChevronDown />
           </div>
         </div>
       )}

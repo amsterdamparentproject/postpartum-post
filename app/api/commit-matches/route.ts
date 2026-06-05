@@ -51,9 +51,7 @@ export async function POST(req: NextRequest) {
   let month = currentMonth();
   try {
     const body = await req.json();
-    if (body?.month && typeof body.month === "string") {
-      month = body.month;
-    }
+    if (body?.month && typeof body.month === "string") month = body.month;
   } catch {
     // Empty body is fine
   }

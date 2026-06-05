@@ -311,7 +311,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
             <p className="text-muted text-sm mb-3">
               Not feeling the connection? You can request a rematch before the 14th.
             </p>
-            <Link href="/account/matches" className="text-sm text-coral hover:underline">
+            <Link href="/matches" className="text-sm text-coral hover:underline">
               Go to your profile to request a rematch
             </Link>
           </div>

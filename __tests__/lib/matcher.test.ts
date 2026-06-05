@@ -1,19 +1,19 @@
 /**
  * Matcher test suite — 10 scenarios
  *
- * Tests are organized around the exported pure functions (matchTypeCompatible,
+ * Tests are organized around the exported pure functions (parentTypeCompatible,
  * scorePair) and the async orchestrator (runMatcher).  No network calls are
  * made — proximity is exercised by injecting a pre-computed coordMap, and the
  * Supabase client is replaced with a lightweight inline stub.
  *
  * Weight constants mirror the private W object in lib/matcher.ts:
- *   LANGUAGE: 1000  |  AVAILABILITY: 500  |  TOPIC: 250
+ *   LANGUAGE: 1000  |  PARENT_TYPE: 1000  |  AVAILABILITY: 500  |  TOPIC: 250
  *   PRIORITY_HIGH: 100  |  PRIORITY_LOW: 50  |  MID: 75
  */
 
 import { describe, it, expect } from "vitest";
 import {
-  matchTypeCompatible,
+  parentTypeCompatible,
   scorePair,
   runMatcher,
   type MatchCandidate,
@@ -36,7 +36,7 @@ function member(
     lng: null,
     topic_id: null,
     language: null as string[] | null,
-    match_type: null,
+    parent_type: null,
     availability: null,
     match_priority: null,
     children: null,
@@ -96,54 +96,72 @@ describe("Scenario 1: Language scoring", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 2 — match_type conflict → hard exclusion
+// Scenario 2 — parent_type is a preference, not a hard exclusion
 // ---------------------------------------------------------------------------
 
-describe("Scenario 2: match_type conflict is a hard exclusion", () => {
-  it("matchTypeCompatible returns false when both preferences are set but conflict", () => {
-    const inPerson = member({ id: "a", match_type: "in_person" });
-    const online = member({ id: "b", match_type: "online" });
-    expect(matchTypeCompatible(inPerson, online)).toBe(false);
+describe("Scenario 2: parent_type mismatches are penalised but not excluded", () => {
+  it("parentTypeCompatible always returns true", () => {
+    const mom = member({ id: "a", parent_type: "mom" });
+    const dad = member({ id: "b", parent_type: "dad" });
+    expect(parentTypeCompatible(mom, dad)).toBe(true);
   });
 
-  it("runMatcher never pairs members with conflicting match_type", async () => {
-    const a = member({ id: "a", language: ["english"], match_type: "in_person" });
-    const b = member({ id: "b", language: ["english"], match_type: "online" });
-    const { matched, unmatched } = await runMatcher([a, b], mockSupabase(), NO_COORDS);
-    expect(matched).toHaveLength(0);
-    expect(unmatched).toHaveLength(2);
+  it("mom + dad can be matched but scores 0 for parent_type", () => {
+    const a = member({ id: "a", language: ["english"], parent_type: "mom" });
+    const b = member({ id: "b", language: ["english"], parent_type: "dad" });
+    const pair = scorePair(a, b, NO_COORDS);
+    expect(pair.breakdown.parent_type).toBe(0);
+  });
+
+  it("runMatcher can pair a mom and a dad when no better option exists", async () => {
+    const a = member({ id: "a", language: ["english"], parent_type: "mom" });
+    const b = member({ id: "b", language: ["english"], parent_type: "dad" });
+    const { matched } = await runMatcher([a, b], mockSupabase(), NO_COORDS);
+    expect(matched).toHaveLength(1);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 3 — match_type null → compatible with any preference
+// Scenario 3 — parent_type null / anyone → compatible with everything
 // ---------------------------------------------------------------------------
 
-describe("Scenario 3: null match_type is compatible with anything", () => {
-  it("is compatible when one has a preference and the other has null", () => {
-    const inPerson = member({ id: "a", match_type: "in_person" });
-    const noPreference = member({ id: "b", match_type: null });
-    expect(matchTypeCompatible(inPerson, noPreference)).toBe(true);
-    expect(matchTypeCompatible(noPreference, inPerson)).toBe(true);
+describe("Scenario 3: null and 'anyone' parent_type is compatible with anything", () => {
+  it("is compatible when one is null", () => {
+    const mom = member({ id: "a", parent_type: "mom" });
+    const noPreference = member({ id: "b", parent_type: null });
+    expect(parentTypeCompatible(mom, noPreference)).toBe(true);
+    expect(parentTypeCompatible(noPreference, mom)).toBe(true);
   });
 
-  it("is compatible when both have null", () => {
-    const a = member({ id: "a", match_type: null });
-    const b = member({ id: "b", match_type: null });
-    expect(matchTypeCompatible(a, b)).toBe(true);
+  it("is compatible when both are null", () => {
+    const a = member({ id: "a", parent_type: null });
+    const b = member({ id: "b", parent_type: null });
+    expect(parentTypeCompatible(a, b)).toBe(true);
   });
 
-  it("resolves matchType on the pair to the shared value when both agree", () => {
-    const a = member({ id: "a", match_type: "online" });
-    const b = member({ id: "b", match_type: "online" });
-    const pair = scorePair(a, b, NO_COORDS);
-    expect(pair.matchType).toBe("online");
+  it("is compatible when either is 'anyone'", () => {
+    const anyone = member({ id: "a", parent_type: "anyone" });
+    const dad = member({ id: "b", parent_type: "dad" });
+    expect(parentTypeCompatible(anyone, dad)).toBe(true);
+    expect(parentTypeCompatible(dad, anyone)).toBe(true);
   });
 
-  it("resolves matchType to null when preferences differ or either is null", () => {
-    const a = member({ id: "a", match_type: "in_person" });
-    const b = member({ id: "b", match_type: null });
-    expect(scorePair(a, b, NO_COORDS).matchType).toBeNull();
+  it("awards 1000pts when both share the same non-anyone parent_type", () => {
+    const a = member({ id: "a", parent_type: "mom" });
+    const b = member({ id: "b", parent_type: "mom" });
+    expect(scorePair(a, b, NO_COORDS).breakdown.parent_type).toBe(1000);
+  });
+
+  it("awards 1000pts when both are 'anyone'", () => {
+    const a = member({ id: "a", parent_type: "anyone" });
+    const b = member({ id: "b", parent_type: "anyone" });
+    expect(scorePair(a, b, NO_COORDS).breakdown.parent_type).toBe(1000);
+  });
+
+  it("awards 0pts when only one is 'anyone' (compatible but not a shared preference)", () => {
+    const anyone = member({ id: "a", parent_type: "anyone" });
+    const mom = member({ id: "b", parent_type: "mom" });
+    expect(scorePair(anyone, mom, NO_COORDS).breakdown.parent_type).toBe(0);
   });
 });
 

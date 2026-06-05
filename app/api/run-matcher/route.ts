@@ -28,20 +28,12 @@ import { createAdminClient } from "@/lib/supabase";
 import {
   geocodeMembers,
   runMatcher,
+  scorePair,
+  maxAchievableScore,
+  qualityTier,
   type MatchCandidate,
 } from "@/lib/matcher";
 import { currentMonth, monthToDate } from "@/lib/skip-token";
-
-const QUALITY_THRESHOLDS = {
-  GREAT: 1500,
-  GOOD: 500,
-} as const;
-
-function qualityTier(score: number): "great" | "good" | "needs_work" {
-  if (score >= QUALITY_THRESHOLDS.GREAT) return "great";
-  if (score >= QUALITY_THRESHOLDS.GOOD) return "good";
-  return "needs_work";
-}
 
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
@@ -101,7 +93,7 @@ export async function POST(req: NextRequest) {
       topic_id,
       members (
         id, first_name, last_name, email, zipcode, lat, lng,
-        topic_id, language, match_type, availability, match_priority, children
+        language, parent_type, availability, match_priority, children
       )
     `)
     .eq("month", monthDate);
@@ -111,12 +103,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch opted-in members" }, { status: 500 });
   }
 
-  // Merge the per-month topic choice into the member candidate
+  // Set topic_id from monthly_participation (members table no longer has topic_id)
   const activeMembers = (participations ?? [])
     .map((p) => {
       const member = p.members as unknown as MatchCandidate;
       if (!member) return null;
-      // Override topic_id with the per-month choice from monthly_participation
       return { ...member, topic_id: p.topic_id };
     })
     .filter((m): m is MatchCandidate => m !== null);
@@ -180,8 +171,7 @@ export async function POST(req: NextRequest) {
       member_id_2: pair.b.id,
       score: pair.score,
       breakdown: pair.breakdown,
-      match_type: pair.matchType ?? null,
-      quality_tier: qualityTier(pair.score),
+      quality_tier: qualityTier(pair.score, maxAchievableScore(pair.a, pair.b, coordMap)),
     }));
 
     const { error: draftsError, count } = await supabase
@@ -223,8 +213,7 @@ export async function POST(req: NextRequest) {
       proximity: Math.round(pair.breakdown.proximity),
       children: Math.round(pair.breakdown.children),
     },
-    matchType: pair.matchType,
-    qualityTier: qualityTier(pair.score),
+    qualityTier: qualityTier(pair.score, maxAchievableScore(pair.a, pair.b, coordMap)),
   }));
 
   const responseUnmatched = unmatched.map((m) => ({

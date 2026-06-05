@@ -7,11 +7,11 @@ import { monthToDate } from "@/lib/skip-token";
  * GET /api/optin?member={memberId}&month={YYYY-MM}&action={coffee|playdate|skip}&token={hmac}
  *
  * One-click opt-in link included in the 1st-of-month email.
- * Validates the HMAC token, then:
- *   - coffee / playdate → records participation in monthly_participation
- *   - skip              → records skip, extends subscription, increments consecutive_skips
+ * Validates the HMAC token, records the member's choice, then generates a
+ * Supabase magic link so the member is signed in automatically when they land
+ * on /profile — no separate sign-in step required.
  *
- * Redirects to a confirmation page. No login required.
+ * Falls back to a plain /profile redirect if magic link generation fails.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -36,8 +36,22 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
+  // Fetch member email (needed for magic link generation)
+  const { data: memberRow } = await supabase
+    .from("members")
+    .select("email, consecutive_skips")
+    .eq("id", memberId)
+    .single();
+
+  if (!memberRow) {
+    return NextResponse.redirect(`${origin}/`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Record the action
+  // -------------------------------------------------------------------------
+
   if (action === "skip") {
-    // Insert a monthly_skip row and extend the subscription
     const monthDate = monthToDate(month);
 
     const { data: existing } = await supabase
@@ -48,7 +62,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (existing) {
-      return NextResponse.redirect(`${origin}/optin/already?action=skip`);
+      return signInAndRedirect(supabase, memberRow.email, `${origin}/billing?optin=already_skip`, origin);
     }
 
     const { error: skipError } = await supabase
@@ -60,7 +74,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/`);
     }
 
-    // Extend subscription by one month
     const { data: sub } = await supabase
       .from("subscriptions")
       .select("stripe_subscription_id")
@@ -73,24 +86,15 @@ export async function GET(request: NextRequest) {
       await extendSubscriptionByOneMonth(sub.stripe_subscription_id);
     }
 
-    // Increment consecutive_skips
-    const { data: member } = await supabase
+    await supabase
       .from("members")
-      .select("consecutive_skips")
-      .eq("id", memberId)
-      .single();
+      .update({ consecutive_skips: memberRow.consecutive_skips + 1 })
+      .eq("id", memberId);
 
-    if (member) {
-      await supabase
-        .from("members")
-        .update({ consecutive_skips: member.consecutive_skips + 1 })
-        .eq("id", memberId);
-    }
-
-    return NextResponse.redirect(`${origin}/optin/confirmed?action=skip`);
+    return signInAndRedirect(supabase, memberRow.email, `${origin}/billing?optin=skip`, origin);
   }
 
-  // coffee or playdate — look up the topic and record participation
+  // coffee or playdate
   const { data: topic, error: topicError } = await supabase
     .from("topics")
     .select("id")
@@ -104,7 +108,6 @@ export async function GET(request: NextRequest) {
 
   const monthDate = monthToDate(month);
 
-  // Upsert — if they already opted in this month, update their topic choice
   const { error: participationError } = await supabase
     .from("monthly_participation")
     .upsert(
@@ -117,11 +120,35 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/`);
   }
 
-  // Reset consecutive_skips since they're actively participating
   await supabase
     .from("members")
     .update({ consecutive_skips: 0 })
     .eq("id", memberId);
 
-  return NextResponse.redirect(`${origin}/optin/confirmed?action=${action}`);
+  return signInAndRedirect(supabase, memberRow.email, `${origin}/profile?optin=${action}`, origin);
+}
+
+// ---------------------------------------------------------------------------
+// Helper: generate a Supabase magic link and redirect to it.
+// Falls back to a plain redirect if generation fails.
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function signInAndRedirect(supabase: any, email: string, redirectTo: string, origin: string) {
+  try {
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+      options: { redirectTo },
+    });
+
+    if (!error && data?.properties?.action_link) {
+      return NextResponse.redirect(data.properties.action_link);
+    }
+  } catch (err) {
+    console.error("[optin] Failed to generate magic link:", err);
+  }
+
+  // Fallback — member lands on profile but may need to sign in manually
+  return NextResponse.redirect(redirectTo);
 }

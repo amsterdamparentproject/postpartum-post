@@ -20,7 +20,7 @@ async function getMemberFromSession(sessionId: string) {
     const supabase = createAdminClient();
     const { data } = await supabase
       .from("members")
-      .select("id, first_name, last_name, email, zipcode, language, topic_id, match_type, availability, match_priority, stripe_customer_id, consecutive_skips")
+      .select("id, first_name, last_name, email, zipcode, language, parent_type, availability, match_priority, stripe_customer_id, consecutive_skips")
       .eq("id", memberId)
       .single();
 

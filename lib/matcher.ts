@@ -7,12 +7,14 @@
  * Scoring rules:
  *   - A field is only scored when BOTH members have a preference set.
  *   - null / unset means "no preference" → no bonus, no penalty.
- *   - match_type conflict (both set, different values) is a hard exclusion.
+ *   - parent_type is a preference: mismatches score 0 but are never excluded.
  *   - No re-match within 6 months.
  *
  * Matching strategy: greedy O(n²) — sort all valid scored pairs by score
  * descending, then assign each member to their highest-scoring available partner.
  */
+
+import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySupabaseClient = import("@supabase/supabase-js").SupabaseClient<any, any, any>;
@@ -31,7 +33,7 @@ export interface MatchCandidate {
   lng: number | null;
   topic_id: string | null;
   language: string[] | null;
-  match_type: "in_person" | "online" | null;
+  parent_type: "mom" | "dad" | "anyone" | null;
   availability: { days: string[]; times: string[] } | null;
   match_priority: "age" | "proximity" | null;
   children: { birth_month: number; birth_year: number; expected: boolean }[] | null;
@@ -41,6 +43,7 @@ export interface MatchCandidate {
 
 export interface ScoreBreakdown {
   language: number;
+  parent_type: number;
   availability: number;
   topic: number;
   proximity: number;
@@ -53,8 +56,6 @@ export interface ScoredPair {
   b: MatchCandidate;
   score: number;
   breakdown: ScoreBreakdown;
-  /** Resolved match_type to store on the matches row (null = at least one had no preference) */
-  matchType: "in_person" | "online" | null;
 }
 
 export interface MatcherResult {
@@ -72,6 +73,7 @@ export interface MatcherResult {
 
 const W = {
   LANGUAGE: 1_000,
+  PARENT_TYPE: 1_000,
   AVAILABILITY: 500,
   TOPIC: 250,
   // proximity + children combined = 150; split depends on match_priority
@@ -198,13 +200,30 @@ export async function geocodeMembers(
 // Individual field scorers (return raw 0–1 unless otherwise noted)
 // ---------------------------------------------------------------------------
 
-/** Hard-filter: returns false when both preferences are set and conflict. */
-export function matchTypeCompatible(
-  a: MatchCandidate,
-  b: MatchCandidate
+/**
+ * parent_type is a preference, not a hard constraint — all combinations are
+ * compatible for matching. Mismatches are reflected in the score (0 pts) and
+ * shown as red in the admin UI, but never excluded.
+ */
+export function parentTypeCompatible(
+  _a: MatchCandidate,
+  _b: MatchCandidate
 ): boolean {
-  if (!a.match_type || !b.match_type) return true;
-  return a.match_type === b.match_type;
+  return true;
+}
+
+/**
+ * Returns W.PARENT_TYPE or 0.
+ * Scores 1000 when both members share the same non-anyone parent_type.
+ * null / 'anyone' = no preference → no bonus, no penalty.
+ */
+function scoreParentType(a: MatchCandidate, b: MatchCandidate): number {
+  if (!a.parent_type || !b.parent_type) return 0;
+  // "anyone" is an explicit preference, not "no preference" —
+  // award the bonus when both preferences match (including both "anyone").
+  // One-sided "anyone" gets no bonus (compatible, but not a shared preference).
+  if (a.parent_type === b.parent_type) return W.PARENT_TYPE;
+  return 0;
 }
 
 /** Returns WEIGHTS.LANGUAGE or 0.
@@ -230,6 +249,7 @@ function jaccardSimilarity(a: string[], b: string[]): number {
 function scoreAvailability(a: MatchCandidate, b: MatchCandidate): number {
   if (!a.availability || !b.availability) return 0;
   const dayScore = jaccardSimilarity(a.availability.days, b.availability.days);
+  if (!ENABLE_TIME_OF_DAY) return dayScore * W.AVAILABILITY;
   const timeScore = jaccardSimilarity(
     a.availability.times,
     b.availability.times
@@ -317,12 +337,53 @@ function priorityWeights(
   return { proximityW: mid, childrenW: mid };
 }
 
+/**
+ * Returns the maximum score this specific pair could achieve, counting only
+ * fields where both members have data. Used to normalise quality tier so a
+ * pair that matches on everything they provided is never penalised for fields
+ * they left blank.
+ */
+export function maxAchievableScore(
+  a: MatchCandidate,
+  b: MatchCandidate,
+  coordMap: Map<string, GeoCoord>
+): number {
+  let max = 0;
+  if (a.language?.length && b.language?.length) max += W.LANGUAGE;
+  // Only count parent_type toward max when both share the same value.
+  // A specific preference (mom/dad) against "anyone" is unconfirmed — not a bonus.
+  if (a.parent_type && b.parent_type && a.parent_type === b.parent_type) max += W.PARENT_TYPE;
+  if (a.availability && b.availability) max += W.AVAILABILITY;
+  if (a.topic_id && b.topic_id) max += W.TOPIC;
+  const { proximityW, childrenW } = priorityWeights(a, b);
+  if (coordMap.get(a.id) && coordMap.get(b.id)) max += proximityW;
+  if (a.children?.length && b.children?.length) max += childrenW;
+  return max;
+}
+
+/**
+ * Quality tier based on percentage of max achievable score:
+ *   ≥ 80% → great  |  ≥ 40% → good  |  < 40% → needs_work
+ * Falls back to needs_work when neither member has filled in any scoreable field.
+ */
+export function qualityTier(
+  score: number,
+  maxScore: number
+): "great" | "good" | "needs_work" {
+  if (maxScore === 0) return "needs_work";
+  const pct = score / maxScore;
+  if (pct >= 0.8) return "great";
+  if (pct >= 0.4) return "good";
+  return "needs_work";
+}
+
 export function scorePair(
   a: MatchCandidate,
   b: MatchCandidate,
   coordMap: Map<string, GeoCoord>
 ): ScoredPair {
   const language = scoreLanguage(a, b);
+  const parent_type = scoreParentType(a, b);
   const availability = scoreAvailability(a, b);
   const topic = scoreTopic(a, b);
 
@@ -330,17 +391,13 @@ export function scorePair(
   const proximity = rawProximityScore(a, b, coordMap) * proximityW;
   const children = rawChildrenScore(a, b) * childrenW;
 
-  const total = language + availability + topic + proximity + children;
-
-  const matchType: "in_person" | "online" | null =
-    a.match_type === b.match_type ? a.match_type : null;
+  const total = language + parent_type + availability + topic + proximity + children;
 
   return {
     a,
     b,
     score: total,
-    breakdown: { language, availability, topic, proximity, children, total },
-    matchType,
+    breakdown: { language, parent_type, availability, topic, proximity, children, total },
   };
 }
 
@@ -391,7 +448,7 @@ function greedyPair(
   // Filter out incompatible or recently-matched pairs
   const valid = scoredPairs.filter(
     (p) =>
-      matchTypeCompatible(p.a, p.b) && !recentPairs.has(pairKey(p.a, p.b))
+      parentTypeCompatible(p.a, p.b) && !recentPairs.has(pairKey(p.a, p.b))
   );
 
   // Sort descending by score
@@ -451,7 +508,7 @@ export async function runMatcher(
     }
   }
 
-  const result = greedyPair(scoredPairs, recentPairs);
+  const result: MatcherResult = greedyPair(scoredPairs, recentPairs);
 
   // ---------------------------------------------------------------------------
   // Odd-pool resolution: if exactly one member is unmatched, find the best
@@ -470,7 +527,7 @@ export async function runMatcher(
       // Score each willing member against the leftover; pick the highest
       const best = willing
         .map((m) => ({ member: m, pair: scorePair(m, leftover, coordMap) }))
-        .filter(({ pair }) => matchTypeCompatible(pair.a, pair.b))
+        .filter(({ pair }) => parentTypeCompatible(pair.a, pair.b))
         .sort((x, y) => y.pair.score - x.pair.score)[0];
 
       if (best) {

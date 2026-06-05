@@ -21,8 +21,7 @@ export type MemberProfile = {
   email: string;
   zipcode: string | null;
   language: string[] | null;
-  topic_id: string | null;
-  match_type: "in_person" | "online" | null;
+  parent_type: "mom" | "dad" | "anyone";
   stripe_customer_id: string | null;
   consecutive_skips: number;
   availability: Availability | null;
@@ -59,7 +58,7 @@ export async function getMemberProfile(email: string): Promise<MemberProfile | n
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("members")
-    .select("id, first_name, last_name, email, zipcode, language, topic_id, match_type, stripe_customer_id, consecutive_skips, availability, match_priority, children")
+    .select("id, first_name, last_name, email, zipcode, language, parent_type, stripe_customer_id, consecutive_skips, availability, match_priority, children")
     .eq("email", email.toLowerCase())
     .single();
   if (error && error.code !== "PGRST116") {
@@ -154,8 +153,7 @@ export async function updateMemberProfile(
     email: string;
     zipcode: string | null;
     language: string[] | null;
-    topic_id: string | null;
-    match_type: "in_person" | "online" | null;
+    parent_type: "mom" | "dad" | "anyone";
     availability: Availability | null;
     match_priority: "age" | "proximity" | null;
     children: Child[] | null;

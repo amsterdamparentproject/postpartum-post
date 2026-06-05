@@ -20,9 +20,21 @@ vi.mock("@/lib/stripe", () => ({
   }),
 }));
 
-const MONTH = "2026-06";
-const MONTH_DATE = "2026-06-01";
+const MONTH = "2024-03";
+const MONTH_DATE = "2024-03-01";
 const BASE_URL = "http://localhost";
+
+// The optin route now redirects through a Supabase magic link. Extract the
+// final destination from the redirect_to query param when present.
+function getRedirectTarget(location: string | null): string {
+  if (!location) return "";
+  try {
+    const redirectTo = new URL(location).searchParams.get("redirect_to");
+    return redirectTo ?? location;
+  } catch {
+    return location;
+  }
+}
 
 function makeRequest(memberId: string, month: string, action: string, token: string) {
   const url = `${BASE_URL}/api/optin?member=${memberId}&month=${month}&action=${action}&token=${token}`;
@@ -58,30 +70,38 @@ describe("GET /api/optin", () => {
     }
   });
 
-  it("opt in — records a monthly_participation row and resets consecutive_skips", async () => {
+  // ---------------------------------------------------------------------------
+  // Coffee opt-in
+  // ---------------------------------------------------------------------------
+
+  it("coffee — records a monthly_participation row with coffee topic and resets consecutive_skips", async () => {
     const member = await seedMember({ consecutive_skips: 1 });
     memberId = member.id;
 
     const token = generateOptinToken(memberId, MONTH, "coffee");
-    const req = makeRequest(memberId, MONTH, "coffee", token);
-    const res = await GET(req);
+    const res = await GET(makeRequest(memberId, MONTH, "coffee", token));
 
-    // Redirects to confirmation page
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/optin/confirmed?action=coffee");
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/profile?optin=coffee");
 
     const supabase = createTestSupabase();
 
-    // monthly_participation row written
     const { data: participation } = await supabase
       .from("monthly_participation")
-      .select("member_id, month")
+      .select("member_id, month, topic_id")
       .eq("member_id", memberId)
       .eq("month", MONTH_DATE)
       .maybeSingle();
     expect(participation).not.toBeNull();
 
-    // consecutive_skips reset to 0
+    // Confirm topic is coffee
+    const { data: topic } = await supabase
+      .from("topics")
+      .select("name")
+      .eq("id", participation!.topic_id)
+      .single();
+    expect(topic?.name).toBe("coffee");
+
     const { data: updated } = await supabase
       .from("members")
       .select("consecutive_skips")
@@ -90,19 +110,96 @@ describe("GET /api/optin", () => {
     expect(updated?.consecutive_skips).toBe(0);
   });
 
-  it("opt out (skip) — records a monthly_skip row and increments consecutive_skips", async () => {
+  // ---------------------------------------------------------------------------
+  // Playdate opt-in
+  // ---------------------------------------------------------------------------
+
+  it("playdate — records a monthly_participation row with playdate topic and resets consecutive_skips", async () => {
+    const member = await seedMember({ consecutive_skips: 2 });
+    memberId = member.id;
+
+    const token = generateOptinToken(memberId, MONTH, "playdate");
+    const res = await GET(makeRequest(memberId, MONTH, "playdate", token));
+
+    expect(res.status).toBe(307);
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/profile?optin=playdate");
+
+    const supabase = createTestSupabase();
+
+    const { data: participation } = await supabase
+      .from("monthly_participation")
+      .select("topic_id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(participation).not.toBeNull();
+
+    const { data: topic } = await supabase
+      .from("topics")
+      .select("name")
+      .eq("id", participation!.topic_id)
+      .single();
+    expect(topic?.name).toBe("playdate");
+
+    const { data: updated } = await supabase
+      .from("members")
+      .select("consecutive_skips")
+      .eq("id", memberId)
+      .single();
+    expect(updated?.consecutive_skips).toBe(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Upsert — changing topic choice
+  // ---------------------------------------------------------------------------
+
+  it("upsert — clicking playdate after coffee updates the topic, does not create a duplicate row", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+
+    // First click: coffee
+    const coffeeToken = generateOptinToken(memberId, MONTH, "coffee");
+    await GET(makeRequest(memberId, MONTH, "coffee", coffeeToken));
+
+    // Second click: playdate
+    const playdateToken = generateOptinToken(memberId, MONTH, "playdate");
+    await GET(makeRequest(memberId, MONTH, "playdate", playdateToken));
+
+    const supabase = createTestSupabase();
+
+    const { data: rows } = await supabase
+      .from("monthly_participation")
+      .select("topic_id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE);
+
+    // Exactly one row
+    expect(rows).toHaveLength(1);
+
+    // Topic updated to playdate
+    const { data: topic } = await supabase
+      .from("topics")
+      .select("name")
+      .eq("id", rows![0].topic_id)
+      .single();
+    expect(topic?.name).toBe("playdate");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Skip
+  // ---------------------------------------------------------------------------
+
+  it("skip — records a monthly_skip row, increments consecutive_skips, and calls Stripe to extend subscription", async () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
     mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     const token = generateOptinToken(memberId, MONTH, "skip");
-    const req = makeRequest(memberId, MONTH, "skip", token);
-    const res = await GET(req);
+    const res = await GET(makeRequest(memberId, MONTH, "skip", token));
 
-    // Redirects to confirmation page
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toContain("/optin/confirmed?action=skip");
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/profile?optin=skip");
 
     const supabase = createTestSupabase();
 
@@ -122,11 +219,52 @@ describe("GET /api/optin", () => {
       .eq("id", memberId)
       .single();
     expect(updated?.consecutive_skips).toBe(1);
+
+    // Stripe subscription extended by one month via trial_end
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        trial_end: expect.any(Number),
+        proration_behavior: "none",
+      })
+    );
   });
 
-  it("no response — member has no participation or skip row and is excluded from the opt-in pool", async () => {
-    const member = await seedMember();
+  it("skip (already skipped) — redirects to /optin/already and does not double-write or re-extend Stripe", async () => {
+    const member = await seedMember({ consecutive_skips: 1 });
     memberId = member.id;
+    await seedSubscription(memberId);
+    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
+
+    const token = generateOptinToken(memberId, MONTH, "skip");
+    await GET(makeRequest(memberId, MONTH, "skip", token));
+    mockUpdate.mockClear();
+
+    // Second skip attempt
+    const res = await GET(makeRequest(memberId, MONTH, "skip", token));
+
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/profile?optin=already_skip");
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    const supabase = createTestSupabase();
+    const { data: rows } = await supabase
+      .from("monthly_skips")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE);
+    expect(rows).toHaveLength(1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // No response
+  // ---------------------------------------------------------------------------
+
+  it("no response — member has no participation or skip row, is excluded from the match pool, and subscription is unchanged", async () => {
+    const member = await seedMember({ consecutive_skips: 0 });
+    memberId = member.id;
+    await seedSubscription(memberId);
+
+    // No action taken — member simply doesn't click anything
 
     const supabase = createTestSupabase();
 
@@ -148,12 +286,67 @@ describe("GET /api/optin", () => {
       .maybeSingle();
     expect(skip).toBeNull();
 
-    // Querying the opt-in pool (as run-matcher does) excludes this member
+    // Excluded from the match pool (as run-matcher queries it)
     const { data: pool } = await supabase
       .from("monthly_participation")
       .select("member_id")
       .eq("month", MONTH_DATE)
       .eq("member_id", memberId);
     expect(pool).toHaveLength(0);
+
+    // Stripe never touched
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    // consecutive_skips unchanged
+    const { data: updated } = await supabase
+      .from("members")
+      .select("consecutive_skips")
+      .eq("id", memberId)
+      .single();
+    expect(updated?.consecutive_skips).toBe(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Invalid / tampered token
+  // ---------------------------------------------------------------------------
+
+  it("invalid token — redirects to home and makes no DB writes", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+
+    const res = await GET(makeRequest(memberId, MONTH, "coffee", "not-a-valid-token"));
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe(`${BASE_URL}/`);
+
+    const supabase = createTestSupabase();
+    const { data: participation } = await supabase
+      .from("monthly_participation")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(participation).toBeNull();
+  });
+
+  it("token for wrong action — coffee token cannot be used to trigger playdate", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+
+    // Generate a coffee token but use it for playdate
+    const coffeeToken = generateOptinToken(memberId, MONTH, "coffee");
+    const res = await GET(makeRequest(memberId, MONTH, "playdate", coffeeToken));
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe(`${BASE_URL}/`);
+
+    const supabase = createTestSupabase();
+    const { data: participation } = await supabase
+      .from("monthly_participation")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(participation).toBeNull();
   });
 });

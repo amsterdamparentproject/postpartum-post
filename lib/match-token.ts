@@ -3,18 +3,18 @@ import { createHmac, timingSafeEqual } from "crypto";
 /**
  * HMAC-signed match tokens for private match reveal pages.
  *
- * Token = HMAC-SHA256( matchId, MATCH_TOKEN_SECRET )
+ * Token = HMAC-SHA256( matchId, MATCHER_API_SECRET )
  *
  * One token per match — the page belongs to the match, not the individual.
  * Both members receive the same link. Token encodes matchId only.
  *
- * Required env var: MATCH_TOKEN_SECRET (any long random string)
+ * Required env var: MATCHER_API_SECRET (any long random string)
  * Generate one with: openssl rand -hex 32
  */
 
 function getSecret(): string {
-  const secret = process.env.MATCH_TOKEN_SECRET;
-  if (!secret) throw new Error("MATCH_TOKEN_SECRET env var is not set");
+  const secret = process.env.MATCHER_API_SECRET;
+  if (!secret) throw new Error("MATCHER_API_SECRET env var is not set");
   return secret;
 }
 

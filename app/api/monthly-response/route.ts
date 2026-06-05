@@ -5,7 +5,7 @@ import { extendSubscriptionByOneMonth, cancelSubscription } from "@/lib/subscrip
 const MAX_CONSECUTIVE_SKIPS = 3;
 
 export async function POST(req: NextRequest) {
-  const { memberId, action, topicId } = await req.json();
+  const { memberId, action } = await req.json();
 
   if (!memberId || !action) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -60,12 +60,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "participate") {
-    const updates: Record<string, unknown> = { consecutive_skips: 0 };
-    if (topicId) updates.topic_id = topicId;
-
     await supabase
       .from("members")
-      .update(updates)
+      .update({ consecutive_skips: 0 })
       .eq("id", memberId);
 
     return NextResponse.json({ result: "participating" });

@@ -49,9 +49,9 @@ export default function SignupForm({
     setEmailError(null);
 
     const data: SignupFormData = {
-      firstName: (form.elements.namedItem("firstName") as HTMLInputElement).value,
-      lastName: (form.elements.namedItem("lastName") as HTMLInputElement).value,
-      email: emailValue,
+      firstName: (form.elements.namedItem("firstName") as HTMLInputElement).value.trim(),
+      lastName: (form.elements.namedItem("lastName") as HTMLInputElement).value.trim(),
+      email: emailValue.trim(),
       plan: selectedPlan,
     };
 

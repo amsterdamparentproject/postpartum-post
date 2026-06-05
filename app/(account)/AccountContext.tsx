@@ -2,20 +2,18 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { getMemberProfile, getTopics, type MemberProfile, type Topic } from "@/app/actions/profile";
+import { getMemberProfile, type MemberProfile } from "@/app/actions/profile";
 
 type AccountContextValue = {
   loading: boolean;
   email: string | null;
   member: MemberProfile | null;
-  topics: Topic[];
 };
 
 const AccountContext = createContext<AccountContextValue>({
   loading: true,
   email: null,
   member: null,
-  topics: [],
 });
 
 export function useAccount() {
@@ -26,36 +24,37 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
   const [member, setMember] = useState<MemberProfile | null>(null);
-  const [topics, setTopics] = useState<Topic[]>([]);
 
   useEffect(() => {
     const supabase = createBrowserClient();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        const sessionEmail = session?.user?.email ?? null;
-        setEmail(sessionEmail);
-        if (sessionEmail) {
-          const [memberData, topicsData] = await Promise.all([
-            getMemberProfile(sessionEmail),
-            getTopics(),
-          ]);
+        try {
+          const sessionEmail = session?.user?.email ?? null;
+          setEmail(sessionEmail);
+          if (sessionEmail) {
+            const memberData = await getMemberProfile(sessionEmail);
 
-          if (!memberData) {
-            // Authenticated in Supabase but not in the members table.
-            // Sign out so the stale session doesn't persist across refreshes —
-            // the resulting SIGNED_OUT event will clear state and show MagicLinkRequest.
-            await supabase.auth.signOut();
-            return;
+            if (!memberData) {
+              // Authenticated in Supabase but not in the members table.
+              // Sign out so the stale session doesn't persist across refreshes —
+              // the resulting SIGNED_OUT event will clear state and show MagicLinkRequest.
+              await supabase.auth.signOut();
+              // Don't return early — fall through to setLoading(false) so the
+              // page is never left in a permanent loading state.
+            } else {
+              setMember(memberData);
+            }
+          } else {
+            setMember(null);
           }
-
-          setMember(memberData);
-          setTopics(topicsData);
-        } else {
+        } catch (err) {
+          console.error("[AccountContext] auth state change error:", err);
           setMember(null);
-          setTopics([]);
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
@@ -63,7 +62,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AccountContext.Provider value={{ loading, email, member, topics }}>
+    <AccountContext.Provider value={{ loading, email, member }}>
       {children}
     </AccountContext.Provider>
   );

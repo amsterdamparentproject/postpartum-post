@@ -94,8 +94,13 @@ const THIS_MONTH_DATE = new Date().toISOString().slice(0, 7) + "-01"; // YYYY-MM
 describe("POST /api/run-matcher", () => {
   let memberIds: string[] = [];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     memberIds = [];
+    // Purge any stale data for the current month left by previous runs or
+    // concurrent test files, so each test starts with a clean pool.
+    const supabase = createTestSupabase();
+    await supabase.from("match_rounds").delete().eq("month", THIS_MONTH_DATE);
+    await supabase.from("monthly_participation").delete().eq("month", THIS_MONTH_DATE);
   });
 
   afterEach(async () => {

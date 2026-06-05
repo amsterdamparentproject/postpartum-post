@@ -24,6 +24,12 @@ create type postpartumpost.match_type as enum (
   'online'
 );
 
+create type postpartumpost.parent_type as enum (
+  'mom',   -- open to meeting moms
+  'dad',   -- open to meeting dads
+  'anyone' -- no preference
+);
+
 -- Maps to Stripe statuses
 create type postpartumpost.subscription_status as enum (
   'active',
@@ -52,13 +58,12 @@ create table postpartumpost.members (
   zipcode text,
   lat float8,                        -- geocoded from zipcode (cached, see migrations/002)
   lng float8,
-  topic_id uuid references postpartumpost.topics(id) on delete set null,
   language text[],                   -- languages member is comfortable matching in; null = no preference
   stripe_customer_id text unique,
   status postpartumpost.member_status not null default 'pending',
   consecutive_skips integer not null default 0,
   open_to_second_match boolean not null default true, -- willing to match twice in a month (tiebreaker + rematch pool)
-  match_type postpartumpost.match_type, -- null is no preference
+  parent_type postpartumpost.parent_type not null default 'anyone', -- who you're open to meeting
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   availability jsonb,
@@ -145,7 +150,6 @@ create table postpartumpost.match_drafts (
 );
 
 -- Indexes
-create index on postpartumpost.members (topic_id);
 create index on postpartumpost.members (lat, lng) where lat is not null and lng is not null;
 create index on postpartumpost.members (stripe_customer_id);
 create index on postpartumpost.subscriptions (member_id);

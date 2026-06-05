@@ -146,15 +146,38 @@ export async function seedMemberWithSubscription(
 
 export async function cleanupMember(memberId: string): Promise<void> {
   const db = supabase();
+  await db.from("monthly_participation").delete().eq("member_id", memberId);
   await db.from("monthly_skips").delete().eq("member_id", memberId);
   await db.from("subscriptions").delete().eq("member_id", memberId);
   await db.from("members").delete().eq("id", memberId);
+  // Delete the Supabase Auth user so test runs don't accumulate orphaned accounts
+  try {
+    await db.auth.admin.deleteUser(memberId);
+  } catch {
+    // Auth user may not exist (seedMember doesn't create one) — ignore
+  }
 }
 
 export async function cleanupMemberByEmail(email: string): Promise<void> {
   const db = supabase();
   const { data } = await db.from("members").select("id").eq("email", email.toLowerCase()).maybeSingle();
   if (data?.id) await cleanupMember(data.id);
+}
+
+/**
+ * Purge all leftover e2e test members matching a given email pattern.
+ * Run this once to clear accumulated stragglers from old or failed test runs.
+ * Usage: import and call directly from a script or the Playwright global setup.
+ */
+export async function purgeTestMembers(emailPattern: string): Promise<number> {
+  const db = supabase();
+  const { data: members } = await db
+    .from("members")
+    .select("id")
+    .like("email", emailPattern);
+  if (!members?.length) return 0;
+  await Promise.all(members.map(m => cleanupMember(m.id)));
+  return members.length;
 }
 
 export async function cancelStripeSubscription(subscriptionId: string): Promise<void> {

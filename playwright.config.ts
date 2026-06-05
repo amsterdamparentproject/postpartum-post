@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, ".env.local") });
 
 export default defineConfig({
   testDir: "./e2e",
+  globalTeardown: "./e2e/global-teardown.ts",
   timeout: 60_000,         // Stripe checkout can be slow
   expect: { timeout: 10_000 },
   fullyParallel: false,    // Sequential — avoids DB/Stripe collisions between tests
