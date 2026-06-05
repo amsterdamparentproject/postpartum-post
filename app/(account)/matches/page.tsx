@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import { useAccount } from "@/app/(account)/AccountContext";
-import { getMatchStatus, type MatchStatus } from "./actions";
+import { getMatchStatus, type MatchStatus, type MatchEntry } from "./actions";
 
 export default function MatchesPage() {
   const { loading, member } = useAccount();
@@ -19,51 +19,61 @@ export default function MatchesPage() {
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!member) return <MagicLinkRequest />;
 
+  const pastMatches = status?.pastMatches ?? [];
+
   return (
     <div className="space-y-4">
-      {status?.type === "matched" && (
-        <MatchedCard matchId={status.matchId} topic={status.topic} matchFirstName={status.matchFirstName} />
-      )}
+      {status?.type === "matched" && status.matches.map((m) => (
+        <MatchedCard key={m.matchId} match={m} />
+      ))}
       {status?.type === "pending" && <PendingCard topic={status.topic} />}
-      {status?.type === "none" && <EmptyCard />}
+      {status?.type === "none" && pastMatches.length === 0 && <EmptyCard />}
+
+      {pastMatches.length > 0 && (
+        <div className="space-y-3 pt-2">
+          {(status?.type === "none" || status?.type === "pending") && (
+            <p className="text-xs text-muted uppercase tracking-wide">Previous matches</p>
+          )}
+          {status?.type === "matched" && (
+            <p className="text-xs text-muted uppercase tracking-wide pt-2">Previous matches</p>
+          )}
+          {pastMatches.map((m) => (
+            <MatchedCard key={m.matchId} match={m} disabled />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function MatchedCard({
-  matchId,
-  topic,
-  matchFirstName,
-}: {
-  matchId: string;
-  topic: "coffee" | "playdate";
-  matchFirstName: string;
-}) {
-  const monthYear = new Date().toLocaleString("en-NL", { month: "long", year: "numeric" });
+function MatchedCard({ match, disabled = false }: { match: MatchEntry; disabled?: boolean }) {
+  const { matchId, token, topic, matchFirstName, matchedOn } = match;
+  const monthYear = new Date(matchedOn + "T00:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
+
+  const card = (
+    <div className={`bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-2 transition-shadow ${disabled ? "opacity-50" : "hover:shadow-md"}`}>
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">{topic === "coffee" ? "☕" : "🛝"}</span>
+        <div>
+          <p className="font-semibold text-dark text-sm">
+            {topic === "coffee"
+              ? `Coffee with ${matchFirstName}`
+              : `Playdate with ${matchFirstName}`}
+          </p>
+          <p className="text-xs text-muted mt-0.5">{monthYear}</p>
+        </div>
+        <span className={`ml-auto text-xs rounded-full px-2.5 py-1 shrink-0 ${disabled ? "text-muted bg-gray-100" : "text-green-700 bg-green-50"}`}>
+          {disabled ? "Past" : "Matched"}
+        </span>
+      </div>
+    </div>
+  );
+
+  if (disabled) return card;
 
   return (
-    <Link href={`/matches/${matchId}`} className="block">
-      <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-2 hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">{topic === "coffee" ? "☕" : "🛝"}</span>
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-dark text-sm">
-                {topic === "coffee"
-                  ? `Coffee with ${matchFirstName}`
-                  : `Playdate with ${matchFirstName}`}
-              </p>
-              {/* <span className="text-xs text-muted bg-gray-100 rounded-full px-2.5 py-0.5">
-                {monthYear}
-              </span> */}
-            </div>
-            <p className="text-xs text-muted mt-0.5">{monthYear}</p>
-          </div>
-          <span className="ml-auto text-xs text-green-700 bg-green-50 rounded-full px-2.5 py-1 shrink-0">
-            Matched
-          </span>
-        </div>
-      </div>
+    <Link href={`/matches/${matchId}?token=${token}`} className="block">
+      {card}
     </Link>
   );
 }

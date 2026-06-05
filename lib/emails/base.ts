@@ -160,6 +160,23 @@ export function emailFooter(): string {
                   </td></tr>`;
 }
 
+/** Coral brand header bar — shared by all non-welcome transactional emails. */
+export function emailHeader(): string {
+  return `
+                  <!-- Brand header -->
+                  <tr><td style="padding:0 0 16px">
+                    <table border="0" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed">
+                      <tbody><tr>
+                        <td style="background-color:#c56850;padding:20px 36px;border-radius:0">
+                          <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:600;color:#ffffff;letter-spacing:-0.3px">
+                            Postpartum Post
+                          </p>
+                        </td>
+                      </tr></tbody>
+                    </table>
+                  </td></tr>`;
+}
+
 /**
  * Purple pill CTA button — consistent styling across all emails.
  * Returns a full <tr> ready to drop into the email body.

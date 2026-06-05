@@ -1,20 +1,15 @@
-import { FROM, getResend, bodySection, ctaButton, baseEmail, subjectPrefix } from "./base";
+import { FROM, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
 
 function matchRevealHtml(
   recipientFirstName: string,
   matchFirstName: string,
   matchLastName: string,
-  matchType: string | null,
+  topic: string | null,
   matchPageUrl: string,
   matchesLink: string,
 ): string {
-  const meetingContext = matchType === "in_person"
-    ? "meeting up in person"
-    : matchType === "online"
-    ? "connecting online"
-    : "connecting";
-
   const content =
+    emailHeader() +
     bodySection(`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       Hi ${recipientFirstName},
@@ -23,7 +18,7 @@ function matchRevealHtml(
                                       Hurrah, your Post has arrived! 🎉📬 Your match for this month is <span style="font-weight:700">${matchFirstName} ${matchLastName}</span>, another parent in Amsterdam who is excited to connect.
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Your match page has both of your contact details, plus some local activities and resources to inspire your meetup. Enjoy your ${meetingContext}!
+                                      Your match page has both of your contact details, plus some local activities and resources to inspire your meetup. Enjoy your ${topic || "hang"}!
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       The link below is shared just between you and ${matchFirstName} — unique to you both, no login needed.
@@ -41,7 +36,7 @@ export async function sendMatchRevealEmail(
   recipientFirstName: string,
   matchFirstName: string,
   matchLastName: string,
-  matchType: string | null,
+  topic: string | null,
   matchPageUrl: string,
   matchesLink: string,
 ): Promise<void> {
@@ -54,7 +49,7 @@ export async function sendMatchRevealEmail(
       recipientFirstName,
       matchFirstName,
       matchLastName,
-      matchType,
+      topic,
       matchPageUrl,
       matchesLink,
     ),

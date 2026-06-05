@@ -86,12 +86,18 @@ describe("Scenario 1: Language scoring", () => {
     expect(scorePair(a, b, NO_COORDS).breakdown.language).toBe(0);
   });
 
-  it("awards 0pts when either member has no language preference (null or empty)", () => {
+  it("awards 500pts (half) when one member has no language preference (null or empty)", () => {
     const a = member({ id: "a", language: ["english"] });
     const noLang = member({ id: "b", language: null });
     const emptyLang = member({ id: "c", language: [] });
-    expect(scorePair(a, noLang, NO_COORDS).breakdown.language).toBe(0);
-    expect(scorePair(a, emptyLang, NO_COORDS).breakdown.language).toBe(0);
+    expect(scorePair(a, noLang, NO_COORDS).breakdown.language).toBe(500);
+    expect(scorePair(a, emptyLang, NO_COORDS).breakdown.language).toBe(500);
+  });
+
+  it("awards 0pts when both members have no language preference", () => {
+    const a = member({ id: "a", language: null });
+    const b = member({ id: "b", language: [] });
+    expect(scorePair(a, b, NO_COORDS).breakdown.language).toBe(0);
   });
 });
 
@@ -175,9 +181,9 @@ describe("Scenario 4: Availability Jaccard similarity scales score", () => {
     times: ["morning", "afternoon"],
   };
 
-  it("scores high overlap pair at 400pts (Jaccard days=0.6, times=1.0)", () => {
+  it("scores high overlap pair at 300pts (Jaccard days=0.6, times ignored)", () => {
     // Shares mon/tue/wed (3) but not thu; B adds fri. Union=5. J=3/5=0.6
-    // Times fully identical. J=1.0. Score = (0.6+1.0)/2 * 500 = 400
+    // ENABLE_TIME_OF_DAY=false → days only. Score = 0.6 * 500 = 300
     const a = member({ id: "a", availability: baseAvailability });
     const b = member({
       id: "b",
@@ -186,7 +192,7 @@ describe("Scenario 4: Availability Jaccard similarity scales score", () => {
         times: ["morning", "afternoon"],
       },
     });
-    expect(scorePair(a, b, NO_COORDS).breakdown.availability).toBe(400);
+    expect(scorePair(a, b, NO_COORDS).breakdown.availability).toBe(300);
   });
 
   it("scores zero overlap pair at 0pts", () => {
@@ -216,8 +222,14 @@ describe("Scenario 4: Availability Jaccard similarity scales score", () => {
     );
   });
 
-  it("awards 0pts when either member has no availability set", () => {
+  it("awards 250pts (half) when one member has no availability set", () => {
     const a = member({ id: "a", availability: baseAvailability });
+    const b = member({ id: "b", availability: null });
+    expect(scorePair(a, b, NO_COORDS).breakdown.availability).toBe(250);
+  });
+
+  it("awards 0pts when both members have no availability set", () => {
+    const a = member({ id: "a", availability: null });
     const b = member({ id: "b", availability: null });
     expect(scorePair(a, b, NO_COORDS).breakdown.availability).toBe(0);
   });
@@ -243,8 +255,14 @@ describe("Scenario 5: Topic scoring", () => {
     expect(scorePair(a, b, NO_COORDS).breakdown.topic).toBe(0);
   });
 
-  it("awards 0pts when either topic is null (no preference)", () => {
+  it("awards 125pts (half) when one member has no topic", () => {
     const a = member({ id: "a", topic_id: TOPIC_A });
+    const b = member({ id: "b", topic_id: null });
+    expect(scorePair(a, b, NO_COORDS).breakdown.topic).toBe(125);
+  });
+
+  it("awards 0pts when both members have no topic", () => {
+    const a = member({ id: "a", topic_id: null });
     const b = member({ id: "b", topic_id: null });
     expect(scorePair(a, b, NO_COORDS).breakdown.topic).toBe(0);
   });
@@ -374,11 +392,18 @@ describe("Scenario 8: Children age gap scoring", () => {
     expect(scorePair(a, b, NO_COORDS).breakdown.children).toBe(0);
   });
 
-  it("scores 0 when either member has no children set", () => {
+  it("scores half weight (37.5) when one member has no children set", () => {
     const a = member({
       id: "a",
       children: [{ birth_month: curMonth, birth_year: curYear, expected: false }],
     });
+    const b = member({ id: "b", children: null });
+    // rawScore=0.5 × mid weight 75 = 37.5
+    expect(scorePair(a, b, NO_COORDS).breakdown.children).toBe(37.5);
+  });
+
+  it("scores 0 when both members have no children set", () => {
+    const a = member({ id: "a", children: null });
     const b = member({ id: "b", children: null });
     expect(scorePair(a, b, NO_COORDS).breakdown.children).toBe(0);
   });

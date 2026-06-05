@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
           m1.first_name,
           m2.first_name,
           m2.last_name,
-          match.match_type ?? null,
+          match.match_type,
           matchPageUrl,
           m1MatchesLink,
         );
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
           m2.first_name,
           m1.first_name,
           m1.last_name,
-          match.match_type ?? null,
+          match.match_type,
           matchPageUrl,
           m2MatchesLink,
         );

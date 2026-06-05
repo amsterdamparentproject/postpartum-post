@@ -55,9 +55,9 @@ interface ActivityResource {
   area: string | null;
 }
 
-const MATCH_TYPE_LABEL: Record<string, string> = {
-  in_person: "in person",
-  online: "online",
+const TOPIC_LABEL: Record<string, string> = {
+  coffee: "grabbing a coffee ☕",
+  playdate: "arranging a playdate 🛝",
 };
 
 function locationText(item: { location: string | null; neighborhood: string | null; area: string | null }): string | null {
@@ -183,7 +183,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
 
   const matchedOn = new Date(match.matched_on);
   const monthLabel = matchedOn.toLocaleString("en-US", { month: "long", year: "numeric" });
-  const meetingLabel = match.match_type ? MATCH_TYPE_LABEL[match.match_type] ?? match.match_type : null;
+  const meetingLabel = match.match_type ? TOPIC_LABEL[match.match_type] ?? null : null;
 
   const hasActivities = nearbyEvents.length > 0 || featured.events.length > 0 || featured.resources.length > 0;
 

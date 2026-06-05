@@ -218,7 +218,8 @@ export function parentTypeCompatible(
  * null / 'anyone' = no preference → no bonus, no penalty.
  */
 function scoreParentType(a: MatchCandidate, b: MatchCandidate): number {
-  if (!a.parent_type || !b.parent_type) return 0;
+  if (!a.parent_type && !b.parent_type) return 0;
+  if (!a.parent_type || !b.parent_type) return W.PARENT_TYPE / 2;
   // "anyone" is an explicit preference, not "no preference" —
   // award the bonus when both preferences match (including both "anyone").
   // One-sided "anyone" gets no bonus (compatible, but not a shared preference).
@@ -228,12 +229,16 @@ function scoreParentType(a: MatchCandidate, b: MatchCandidate): number {
 
 /** Returns WEIGHTS.LANGUAGE or 0.
  *  Scores 1000 when the two members share at least one language in common.
- *  An empty array or null counts as "no preference" — no bonus, no penalty.
+ *  One member with no language → half points (benefit of the doubt).
+ *  Both without language → 0.
  */
 function scoreLanguage(a: MatchCandidate, b: MatchCandidate): number {
-  if (!a.language?.length || !b.language?.length) return 0;
+  const aHas = (a.language?.length ?? 0) > 0;
+  const bHas = (b.language?.length ?? 0) > 0;
+  if (!aHas && !bHas) return 0;
+  if (!aHas || !bHas) return W.LANGUAGE / 2;
   const setB = new Set(b.language);
-  return a.language.some((lang) => setB.has(lang)) ? W.LANGUAGE : 0;
+  return a.language!.some((lang) => setB.has(lang)) ? W.LANGUAGE : 0;
 }
 
 function jaccardSimilarity(a: string[], b: string[]): number {
@@ -245,9 +250,10 @@ function jaccardSimilarity(a: string[], b: string[]): number {
   return union === 0 ? 1 : intersect / union;
 }
 
-/** Returns 0–WEIGHTS.AVAILABILITY. */
+/** Returns 0–WEIGHTS.AVAILABILITY. One member without availability → half points. */
 function scoreAvailability(a: MatchCandidate, b: MatchCandidate): number {
-  if (!a.availability || !b.availability) return 0;
+  if (!a.availability && !b.availability) return 0;
+  if (!a.availability || !b.availability) return W.AVAILABILITY / 2;
   const dayScore = jaccardSimilarity(a.availability.days, b.availability.days);
   if (!ENABLE_TIME_OF_DAY) return dayScore * W.AVAILABILITY;
   const timeScore = jaccardSimilarity(
@@ -257,29 +263,33 @@ function scoreAvailability(a: MatchCandidate, b: MatchCandidate): number {
   return ((dayScore + timeScore) / 2) * W.AVAILABILITY;
 }
 
-/** Returns WEIGHTS.TOPIC or 0. */
+/** Returns WEIGHTS.TOPIC or 0. One member without a topic → half points. */
 function scoreTopic(a: MatchCandidate, b: MatchCandidate): number {
-  if (!a.topic_id || !b.topic_id) return 0;
+  if (!a.topic_id && !b.topic_id) return 0;
+  if (!a.topic_id || !b.topic_id) return W.TOPIC / 2;
   return a.topic_id === b.topic_id ? W.TOPIC : 0;
 }
 
-/** Returns 0–1. */
+/** Returns 0–1. One member without coords → 0.5 (half points). */
 function rawProximityScore(
   a: MatchCandidate,
   b: MatchCandidate,
   coordMap: Map<string, GeoCoord>
 ): number {
-  if (!a.zipcode || !b.zipcode) return 0;
   const geoA = coordMap.get(a.id);
   const geoB = coordMap.get(b.id);
-  if (!geoA || !geoB) return 0;
+  if (!geoA && !geoB) return 0;
+  if (!geoA || !geoB) return 0.5;
   const dist = haversineKm(geoA, geoB);
   return Math.max(0, 1 - dist / MAX_PROXIMITY_KM);
 }
 
-/** Returns 0–1. Finds the closest age-matched child across all child pairs. */
+/** Returns 0–1. One member without children → 0.5 (half points). */
 function rawChildrenScore(a: MatchCandidate, b: MatchCandidate): number {
-  if (!a.children?.length || !b.children?.length) return 0;
+  const aHas = (a.children?.length ?? 0) > 0;
+  const bHas = (b.children?.length ?? 0) > 0;
+  if (!aHas && !bHas) return 0;
+  if (!aHas || !bHas) return 0.5;
 
   const now = new Date();
 
@@ -296,8 +306,8 @@ function rawChildrenScore(a: MatchCandidate, b: MatchCandidate): number {
     return Math.floor(diffMs / (1_000 * 60 * 60 * 24 * 30.44));
   }
 
-  const agesA = a.children.map(ageInMonths);
-  const agesB = b.children.map(ageInMonths);
+  const agesA = a.children!.map(ageInMonths);
+  const agesB = b.children!.map(ageInMonths);
 
   let minGap = Infinity;
   for (const aa of agesA) {
@@ -349,15 +359,38 @@ export function maxAchievableScore(
   coordMap: Map<string, GeoCoord>
 ): number {
   let max = 0;
-  if (a.language?.length && b.language?.length) max += W.LANGUAGE;
-  // Only count parent_type toward max when both share the same value.
-  // A specific preference (mom/dad) against "anyone" is unconfirmed — not a bonus.
+
+  // Language: full if both set, half if one-sided
+  const aHasLang = (a.language?.length ?? 0) > 0;
+  const bHasLang = (b.language?.length ?? 0) > 0;
+  if (aHasLang && bHasLang) max += W.LANGUAGE;
+  else if (aHasLang || bHasLang) max += W.LANGUAGE / 2;
+
+  // Parent type: full only when both share the same value; half if one is null.
+  // A specific preference against "anyone" is unconfirmed — not a bonus.
   if (a.parent_type && b.parent_type && a.parent_type === b.parent_type) max += W.PARENT_TYPE;
+  else if (!a.parent_type !== !b.parent_type) max += W.PARENT_TYPE / 2;
+
+  // Availability: full if both set, half if one-sided
   if (a.availability && b.availability) max += W.AVAILABILITY;
-  if (a.topic_id && b.topic_id) max += W.TOPIC;
+  else if (a.availability || b.availability) max += W.AVAILABILITY / 2;
+
+  // Topic: full only when both share the same topic; half if one is null
+  if (a.topic_id && b.topic_id && a.topic_id === b.topic_id) max += W.TOPIC;
+  else if (!a.topic_id !== !b.topic_id) max += W.TOPIC / 2;
+
+  // Proximity + children: full if both have data, half if one-sided
   const { proximityW, childrenW } = priorityWeights(a, b);
-  if (coordMap.get(a.id) && coordMap.get(b.id)) max += proximityW;
-  if (a.children?.length && b.children?.length) max += childrenW;
+  const geoA = coordMap.get(a.id);
+  const geoB = coordMap.get(b.id);
+  if (geoA && geoB) max += proximityW;
+  else if (geoA || geoB) max += proximityW / 2;
+
+  const aHasChildren = (a.children?.length ?? 0) > 0;
+  const bHasChildren = (b.children?.length ?? 0) > 0;
+  if (aHasChildren && bHasChildren) max += childrenW;
+  else if (aHasChildren || bHasChildren) max += childrenW / 2;
+
   return max;
 }
 

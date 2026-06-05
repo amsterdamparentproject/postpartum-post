@@ -146,6 +146,8 @@ export async function seedMemberWithSubscription(
 
 export async function cleanupMember(memberId: string): Promise<void> {
   const db = supabase();
+  // Delete matches first (references members via foreign key)
+  await db.from("matches").delete().or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`);
   await db.from("monthly_participation").delete().eq("member_id", memberId);
   await db.from("monthly_skips").delete().eq("member_id", memberId);
   await db.from("subscriptions").delete().eq("member_id", memberId);
@@ -156,6 +158,15 @@ export async function cleanupMember(memberId: string): Promise<void> {
   } catch {
     // Auth user may not exist (seedMember doesn't create one) — ignore
   }
+}
+
+/**
+ * Delete a specific match row by ID.
+ * Useful when cleaning up a match that was seeded directly via seedMatchDirect.
+ * Not needed if cleanupMember is called for both matched members.
+ */
+export async function cleanupMatch(matchId: string): Promise<void> {
+  await supabase().from("matches").delete().eq("id", matchId);
 }
 
 export async function cleanupMemberByEmail(email: string): Promise<void> {
@@ -186,4 +197,88 @@ export async function cancelStripeSubscription(subscriptionId: string): Promise<
   } catch {
     // Already canceled — ignore
   }
+}
+
+// ---------------------------------------------------------------------------
+// Matching-flow helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Directly insert a monthly_participation row — simulates a member opting in
+ * without going through the browser. Looks up the topic ID by name.
+ */
+export async function seedParticipation(
+  memberId: string,
+  month: string,        // "YYYY-MM"
+  topicName: "coffee" | "playdate",
+): Promise<void> {
+  const db = supabase();
+  const { data: topic } = await db
+    .from("topics")
+    .select("id")
+    .eq("name", topicName)
+    .maybeSingle();
+  if (!topic) throw new Error(`Topic "${topicName}" not found in topics table`);
+
+  const { error } = await db.from("monthly_participation").insert({
+    member_id: memberId,
+    month: `${month}-01`,
+    topic_id: topic.id,
+  });
+  if (error) throw new Error(`seedParticipation failed: ${error.message}`);
+}
+
+/**
+ * Insert a match row directly, bypassing run-matcher + commit-matches.
+ * Used to test the match reveal page without running a full commit round.
+ * Returns the generated match ID.
+ */
+export async function seedMatchDirect(
+  member1Id: string,
+  member2Id: string,
+  topic: "coffee" | "playdate",
+  matchedOn: string,    // "YYYY-MM-01"
+): Promise<string> {
+  const db = supabase();
+  const matchId = crypto.randomUUID();
+  const { error } = await db.from("matches").insert({
+    id: matchId,
+    member_id_1: member1Id,
+    member_id_2: member2Id,
+    match_type: topic,
+    matched_on: matchedOn,
+  });
+  if (error) throw new Error(`seedMatchDirect failed: ${error.message}`);
+  return matchId;
+}
+
+/**
+ * Fetch the trial_end timestamp (Unix seconds) from a Stripe subscription.
+ * Returns null if the subscription is not in a trial period.
+ */
+export async function getStripeTrialEnd(subscriptionId: string): Promise<number | null> {
+  const sub = await stripe().subscriptions.retrieve(subscriptionId, { expand: ["items"] });
+  return sub.trial_end;
+}
+
+/** Returns true if a monthly_participation row exists for the member this month. */
+export async function hasMemberParticipation(memberId: string, month: string): Promise<boolean> {
+  const { data } = await supabase()
+    .from("monthly_participation")
+    .select("id")
+    .eq("member_id", memberId)
+    .eq("month", `${month}-01`)
+    .maybeSingle();
+  return !!data;
+}
+
+/** Returns true if a monthly_skips row exists for the member this month. */
+export async function hasMemberSkip(memberId: string, month: string): Promise<boolean> {
+  const { data } = await supabase()
+    .from("monthly_skips")
+    .select("id")
+    .eq("member_id", memberId)
+    .eq("month", `${month}-01`)
+    .maybeSingle();
+  return !!data;
 }

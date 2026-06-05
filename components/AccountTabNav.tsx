@@ -8,8 +8,8 @@ import { useProfileSave } from "@/app/(account)/ProfileSaveContext";
 
 const TABS = [
   { href: "/profile", label: "Profile" },
-  { href: "/billing", label: "Billing" },
   { href: "/matches", label: "Matches" },
+  { href: "/billing", label: "Billing" },
 ];
 
 export default function AccountTabNav() {

@@ -1,7 +1,8 @@
-import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, subjectPrefix } from "./base";
+import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
 
 function autoPauseHtml(firstName: string): string {
   const content =
+    emailHeader() +
     bodySection(`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       Hi ${firstName},
