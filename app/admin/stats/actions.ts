@@ -10,6 +10,19 @@ import { currentMonth, monthToDate } from "@/lib/skip-token";
 
 export type PlanBreakdown = { label: string; count: number }[];
 
+export type MemberLocation = { lat: number; lng: number };
+
+export type AgeBucket = { label: string; count: number; expected?: true };
+
+export type AvailabilityCount = { label: string; count: number };
+
+export type DemographicStats = {
+  locations: MemberLocation[];
+  ageBuckets: AgeBucket[];
+  availabilityDays: AvailabilityCount[];
+  parentTypes: AvailabilityCount[];
+};
+
 export type BaseStats = {
   totalActive: number;
   newThisMonth: number;
@@ -196,5 +209,80 @@ export async function getMatchRoundStats(): Promise<MatchRoundStats> {
   const noResponse = Math.max(0, active - optedIn - skippedN);
 
   return { month: monthStr, totalActive: active, optedIn, coffee, playdate, skipped: skippedN, noResponse };
+}
+
+// ---------------------------------------------------------------------------
+// getDemographicStats
+// ---------------------------------------------------------------------------
+
+type ChildEntry = { birth_month?: number; birth_year?: number; expected?: boolean };
+type Availability = { days?: string[]; times?: string[] };
+
+const PARENT_TYPE_ORDER = ["mom", "dad", "anyone"];
+const PARENT_TYPE_LABELS: Record<string, string> = { mom: "Moms", dad: "Dads", anyone: "Anyone" };
+
+const DAY_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const DAY_LABELS: Record<string, string> = {
+  monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
+  friday: "Fri", saturday: "Sat", sunday: "Sun",
+};
+
+const AGE_BUCKETS: { label: string; minMonths: number; maxMonths: number }[] = [
+  { label: "0–3 mo",  minMonths: 0,   maxMonths: 3   },
+  { label: "3–6 mo",  minMonths: 3,   maxMonths: 6   },
+  { label: "6–12 mo", minMonths: 6,   maxMonths: 12  },
+  { label: "1–2 yr",  minMonths: 12,  maxMonths: 24  },
+  { label: "2–3 yr",  minMonths: 24,  maxMonths: 36  },
+  { label: "3–4 yr",  minMonths: 36,  maxMonths: 48  },
+  { label: "4–5 yr",  minMonths: 48,  maxMonths: 60  },
+  { label: "5+ yr",   minMonths: 60,  maxMonths: Infinity },
+];
+
+export async function getDemographicStats(): Promise<DemographicStats> {
+  const supabase = createAdminClient();
+
+  const { data: members } = await supabase
+    .from("members")
+    .select("lat, lng, children, availability, parent_type")
+    .eq("status", "active");
+
+  const locations: MemberLocation[] = [];
+  const ageCounts = new Array<number>(AGE_BUCKETS.length).fill(0);
+  let expectedCount = 0;
+  const dayCounts: Record<string, number> = Object.fromEntries(DAY_ORDER.map((d) => [d, 0]));
+  const parentTypeCounts: Record<string, number> = Object.fromEntries(PARENT_TYPE_ORDER.map((t) => [t, 0]));
+
+  const now = new Date();
+  const nowYear = now.getFullYear();
+  const nowMonth = now.getMonth() + 1; // 1-indexed
+
+  for (const member of members ?? []) {
+    if (member.lat != null && member.lng != null) {
+      locations.push({ lat: member.lat, lng: member.lng });
+    }
+
+    const children: ChildEntry[] = Array.isArray(member.children) ? member.children : [];
+    for (const child of children) {
+      if (child.expected) { expectedCount++; continue; }
+      if (child.birth_year == null || child.birth_month == null) continue;
+      const ageMonths = (nowYear - child.birth_year) * 12 + (nowMonth - child.birth_month);
+      const idx = AGE_BUCKETS.findIndex((b) => ageMonths >= b.minMonths && ageMonths < b.maxMonths);
+      if (idx !== -1) ageCounts[idx]++;
+    }
+
+    const avail = (member.availability ?? {}) as Availability;
+    for (const day of avail.days ?? []) if (day in dayCounts) dayCounts[day]++;
+
+    const pt = member.parent_type;
+    if (pt && pt in parentTypeCounts) parentTypeCounts[pt]++;
+  }
+
+  const ageBuckets: AgeBucket[] = AGE_BUCKETS.map((b, i) => ({ label: b.label, count: ageCounts[i] }));
+  if (expectedCount > 0) ageBuckets.push({ label: "Expected", count: expectedCount, expected: true });
+
+  const availabilityDays: AvailabilityCount[] = DAY_ORDER.map((d) => ({ label: DAY_LABELS[d], count: dayCounts[d] }));
+  const parentTypes: AvailabilityCount[] = PARENT_TYPE_ORDER.map((t) => ({ label: PARENT_TYPE_LABELS[t], count: parentTypeCounts[t] }));
+
+  return { locations, ageBuckets, availabilityDays, parentTypes };
 }
 
