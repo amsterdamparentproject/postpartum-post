@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
+import { geocodeZipcode } from "@/lib/matcher";
 
 export type Availability = {
   days: string[];
@@ -209,6 +210,25 @@ export async function updateMemberProfile(
       } catch (e) {
         console.error("Failed to sync email to Stripe:", e);
       }
+    }
+  }
+
+  if ("zipcode" in updates) {
+    if (updates.zipcode) {
+      void geocodeZipcode(updates.zipcode).then(async (coords) => {
+        if (!coords) return;
+        await supabase
+          .from("members")
+          .update({ lat: coords.lat, lng: coords.lng })
+          .eq("id", memberId);
+      }).catch((e) => console.error("Failed to geocode zipcode:", e));
+    } else {
+      void supabase
+        .from("members")
+        .update({ lat: null, lng: null })
+        .eq("id", memberId)
+        .then(() => {})
+        .catch((e) => console.error("Failed to clear geocoords:", e));
     }
   }
 }

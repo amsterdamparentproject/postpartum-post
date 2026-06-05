@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { currentMonth, monthToDate } from "@/lib/skip-token";
+import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -10,7 +11,15 @@ import { currentMonth, monthToDate } from "@/lib/skip-token";
 
 export type PlanBreakdown = { label: string; count: number }[];
 
-export type MemberLocation = { lat: number; lng: number };
+export type MemberLocation = {
+  lat: number;
+  lng: number;
+  name: string;
+  parentType: string;
+  zipcode: string | null;
+  childLabels: string[];
+  availabilityLabel: string;
+};
 
 export type AgeBucket = { label: string; count: number; expected?: true };
 
@@ -238,12 +247,24 @@ const AGE_BUCKETS: { label: string; minMonths: number; maxMonths: number }[] = [
   { label: "5+ yr",   minMonths: 60,  maxMonths: Infinity },
 ];
 
+const TIME_LABELS: Record<string, string> = { morning: "mornings", afternoon: "afternoons" };
+
+function buildAvailabilityLabel(avail: Availability): string {
+  const days = (avail.days ?? []).map((d) => DAY_LABELS[d] ?? d).join(", ");
+  const times = ENABLE_TIME_OF_DAY
+    ? (avail.times ?? []).map((t) => TIME_LABELS[t] ?? t).join(" & ")
+    : "";
+  if (!days && !times) return "Not set";
+  if (days && times) return `${days} · ${times}`;
+  return days || times;
+}
+
 export async function getDemographicStats(): Promise<DemographicStats> {
   const supabase = createAdminClient();
 
   const { data: members } = await supabase
     .from("members")
-    .select("lat, lng, children, availability, parent_type")
+    .select("lat, lng, children, availability, parent_type, first_name, last_name, zipcode")
     .eq("status", "active");
 
   const locations: MemberLocation[] = [];
@@ -257,11 +278,26 @@ export async function getDemographicStats(): Promise<DemographicStats> {
   const nowMonth = now.getMonth() + 1; // 1-indexed
 
   for (const member of members ?? []) {
-    if (member.lat != null && member.lng != null) {
-      locations.push({ lat: member.lat, lng: member.lng });
-    }
-
     const children: ChildEntry[] = Array.isArray(member.children) ? member.children : [];
+
+    if (member.lat != null && member.lng != null) {
+      const childLabels = children.map((c) => {
+        if (c.expected) return "Expecting";
+        if (c.birth_year == null || c.birth_month == null) return null;
+        const ageMonths = (nowYear - c.birth_year) * 12 + (nowMonth - c.birth_month);
+        return ageMonths < 12 ? `${ageMonths} mo` : `${Math.floor(ageMonths / 12)} yr`;
+      }).filter((l): l is string => l !== null);
+
+      locations.push({
+        lat: member.lat,
+        lng: member.lng,
+        name: [member.first_name, member.last_name].filter(Boolean).join(" ") || "Unknown",
+        parentType: ({ mom: "Mom", dad: "Dad", anyone: "Anyone" } as Record<string, string>)[member.parent_type ?? ""] ?? "—",
+        zipcode: member.zipcode ?? null,
+        childLabels,
+        availabilityLabel: buildAvailabilityLabel((member.availability ?? {}) as Availability),
+      });
+    }
     for (const child of children) {
       if (child.expected) { expectedCount++; continue; }
       if (child.birth_year == null || child.birth_month == null) continue;

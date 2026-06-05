@@ -33,9 +33,10 @@ export default function MemberMap({ locations }: Props) {
 
       mapRef.current = map;
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap contributors",
-        maxZoom: 18,
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 19,
       }).addTo(map);
 
       const dotIcon = L.divIcon({
@@ -52,8 +53,18 @@ export default function MemberMap({ locations }: Props) {
         iconAnchor: [5, 5],
       });
 
-      for (const { lat, lng } of locations) {
-        L.marker([lat, lng], { icon: dotIcon }).addTo(map);
+      for (const { lat, lng, name, parentType, zipcode, childLabels, availabilityLabel } of locations) {
+        const childLine = childLabels.length ? childLabels.join(", ") : "No children listed";
+        const tooltipHtml = `
+          <div style="font-size:13px;line-height:1.5">
+            <strong>${name}</strong><br/>
+            ${parentType}${zipcode ? ` · ${zipcode}` : ""}<br/>
+            <span style="color:#666">${childLine}</span><br/>
+            <span style="color:#666">${availabilityLabel}</span>
+          </div>`;
+        L.marker([lat, lng], { icon: dotIcon })
+          .bindTooltip(tooltipHtml, { direction: "top", offset: [0, -8] })
+          .addTo(map);
       }
     })();
 

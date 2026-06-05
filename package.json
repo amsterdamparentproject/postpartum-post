@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "geo:test": "tsx scripts/backfill-geo.ts test",
+    "geo:prod": "tsx scripts/backfill-geo.ts prod"
   },
   "dependencies": {
     "@beehiiv/sdk": "^0.1.9",
@@ -35,6 +37,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^2.1.9"
   }

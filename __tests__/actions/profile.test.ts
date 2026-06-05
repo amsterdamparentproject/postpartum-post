@@ -9,6 +9,10 @@ vi.mock("@/lib/stripe", () => ({
   }),
 }));
 
+vi.mock("@/lib/matcher", () => ({
+  geocodeZipcode: vi.fn().mockResolvedValue({ lat: 52.374, lng: 4.89 }),
+}));
+
 describe("email case-insensitivity", () => {
   let memberId: string;
 
@@ -31,6 +35,53 @@ describe("email case-insensitivity", () => {
 
     expect(await checkMemberExists("TEST-EXISTS@EXAMPLE.COM")).toBe(true);
     expect(await checkMemberExists("Test-Exists@Example.com")).toBe(true);
+  });
+});
+
+describe("profile — geocoding on save", () => {
+  let memberId: string;
+
+  afterEach(async () => {
+    if (memberId) await cleanupMember(memberId);
+  });
+
+  it("writes lat/lng after a zipcode is saved", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+
+    await updateMemberProfile(memberId, member.email, { zipcode: "1012AB" });
+
+    const supabase = createTestSupabase();
+    await vi.waitFor(async () => {
+      const { data } = await supabase
+        .from("members")
+        .select("lat, lng")
+        .eq("id", memberId)
+        .single();
+      expect(data?.lat).toBeCloseTo(52.374);
+      expect(data?.lng).toBeCloseTo(4.89);
+    }, { timeout: 3000 });
+  });
+
+  it("clears lat/lng when zipcode is set to null", async () => {
+    const member = await seedMember({ zipcode: "1012AB" });
+    memberId = member.id;
+
+    // Seed existing coords directly
+    const supabase = createTestSupabase();
+    await supabase.from("members").update({ lat: 52.374, lng: 4.89 }).eq("id", memberId);
+
+    await updateMemberProfile(memberId, member.email, { zipcode: null });
+
+    await vi.waitFor(async () => {
+      const { data } = await supabase
+        .from("members")
+        .select("lat, lng")
+        .eq("id", memberId)
+        .single();
+      expect(data?.lat).toBeNull();
+      expect(data?.lng).toBeNull();
+    }, { timeout: 3000 });
   });
 });
 

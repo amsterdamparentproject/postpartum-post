@@ -76,9 +76,17 @@ test("full sign-up flow: form → Stripe checkout → success → profile", asyn
   await page.getByPlaceholder("CVC").fill("123");
   await page.getByPlaceholder("Full name on card").fill("Jane Doe");
 
-  // Scroll the submit button into view — it sits below the fold after the
-  // card form expands.
-  const payButton = page.getByRole("button", { name: /pay and subscribe/i });
+  // Stripe collects a postal code for NL when automatic_tax is enabled.
+  const postalCodeInput = page.getByPlaceholder("Postal code");
+  if (await postalCodeInput.isVisible()) {
+    await postalCodeInput.fill("1012AB");
+  }
+
+  // Target the form's submit button directly. Text-based selectors are unreliable
+  // because Stripe A/B-tests button copy ("Subscribe", "Pay and subscribe", etc.)
+  // and the "Pay with Link" button may match text patterns and appear last in DOM.
+  const payButton = page.locator('button[type="submit"]').first();
+  await expect(payButton).toBeEnabled({ timeout: 10_000 });
   await payButton.scrollIntoViewIfNeeded();
   await payButton.click();
 

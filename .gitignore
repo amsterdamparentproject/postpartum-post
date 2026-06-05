@@ -38,7 +38,7 @@ yarn-error.log*
 next-env.d.ts
 
 # Claude documentation
-__claude-docs__/
+__claude__/
 
 # Playwright
 playwright-report/
