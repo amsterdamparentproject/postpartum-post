@@ -91,7 +91,8 @@ export async function POST(req: NextRequest) {
     .from("matches")
     .select(`
       id,
-      match_type,
+      member_id_1,
+      member_id_2,
       member1:member_id_1 ( id, first_name, last_name, email ),
       member2:member_id_2 ( id, first_name, last_name, email )
     `)
@@ -108,6 +109,29 @@ export async function POST(req: NextRequest) {
       { status: 404 }
     );
   }
+
+  // -------------------------------------------------------------------------
+  // Look up topic (coffee / playdate) from monthly_participation.
+  // Both members must agree on the topic; if they differ, use null so the
+  // email falls back to the generic "hang" copy rather than picking a side.
+  // -------------------------------------------------------------------------
+  const allMemberIds = [
+    ...matches.map((m) => m.member_id_1),
+    ...matches.map((m) => m.member_id_2),
+  ].filter(Boolean) as string[];
+
+  const { data: participationData } = await supabase
+    .from("monthly_participation")
+    .select("member_id, topics(name)")
+    .in("member_id", allMemberIds)
+    .eq("month", monthDate);
+
+  const topicByMemberId = new Map<string, string | null>(
+    (participationData ?? []).map((p) => [
+      p.member_id,
+      (p.topics as unknown as { name: string } | null)?.name ?? null,
+    ])
+  );
 
   // -------------------------------------------------------------------------
   // Detect double-matched member (appears in 2 pairs due to odd pool)
@@ -168,13 +192,17 @@ export async function POST(req: NextRequest) {
       const isM1Double = (matchCountById.get(m1.id) ?? 0) > 1;
       const isM2Double = (matchCountById.get(m2.id) ?? 0) > 1;
 
+      const t1 = topicByMemberId.get(match.member_id_1) ?? null;
+      const t2 = topicByMemberId.get(match.member_id_2) ?? null;
+      const topic = t1 && t2 && t1 === t2 ? t1 : null;
+
       if (!testMode || m1.email === TEST_EMAIL) {
         await sendMatchRevealEmail(
           m1.email,
           m1.first_name,
           m2.first_name,
           m2.last_name,
-          match.match_type,
+          topic,
           matchPageUrl,
           m1MatchesLink,
           isM1Double,
@@ -188,7 +216,7 @@ export async function POST(req: NextRequest) {
           m2.first_name,
           m1.first_name,
           m1.last_name,
-          match.match_type,
+          topic,
           matchPageUrl,
           m2MatchesLink,
           isM2Double,

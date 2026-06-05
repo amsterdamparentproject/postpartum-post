@@ -6,7 +6,7 @@
  *
  * Shows:
  *   - Both members' names and contact emails
- *   - Match type (coffee / playdate / online)
+ *   - Topic (coffee / playdate)
  *   - Activities:
  *       With coordinates → nearby upcoming events (3 km bounding box) + featured activities
  *       No coordinates  → featured activities only
@@ -156,7 +156,8 @@ export default async function MatchPage({ params, searchParams }: Props) {
     .from("matches")
     .select(`
       id,
-      match_type,
+      member_id_1,
+      member_id_2,
       matched_on,
       member1:member_id_1 ( first_name, last_name, email, lat, lng ),
       member2:member_id_2 ( first_name, last_name, email, lat, lng )
@@ -181,9 +182,23 @@ export default async function MatchPage({ params, searchParams }: Props) {
 
   const { nearbyEvents, featured } = await fetchActivities(center, match.matched_on);
 
+  const { data: participations } = await supabase
+    .from("monthly_participation")
+    .select("member_id, topics(name)")
+    .in("member_id", [match.member_id_1, match.member_id_2])
+    .eq("month", match.matched_on);
+
+  const topicFor = (memberId: string) =>
+    (participations?.find((p) => p.member_id === memberId)
+      ?.topics as unknown as { name: string } | null)?.name ?? null;
+
+  const t1 = topicFor(match.member_id_1);
+  const t2 = topicFor(match.member_id_2);
+  const topic = t1 && t2 && t1 === t2 ? t1 : null;
+
   const matchedOn = new Date(match.matched_on);
   const monthLabel = matchedOn.toLocaleString("en-US", { month: "long", year: "numeric" });
-  const meetingLabel = match.match_type ? TOPIC_LABEL[match.match_type] ?? null : null;
+  const meetingLabel = topic ? TOPIC_LABEL[topic] ?? null : null;
 
   const hasActivities = nearbyEvents.length > 0 || featured.events.length > 0 || featured.resources.length > 0;
 

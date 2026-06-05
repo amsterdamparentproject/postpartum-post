@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
   const { data: drafts, error: draftsError } = await supabase
     .from("match_drafts")
-    .select("member_id_1, member_id_2, match_type")
+    .select("member_id_1, member_id_2")
     .eq("round_id", round.id);
 
   if (draftsError) {
@@ -113,7 +113,6 @@ export async function POST(req: NextRequest) {
   const matchRows = drafts.map((d) => ({
     member_id_1: d.member_id_1,
     member_id_2: d.member_id_2,
-    match_type: d.match_type ?? null,
     matched_on: monthDate,
   }));
 

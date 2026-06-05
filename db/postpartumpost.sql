@@ -19,11 +19,6 @@ create type postpartumpost.rematch_reason as enum (
   'other'
 );
 
-create type postpartumpost.match_type as enum (
-  'in_person',
-  'online'
-);
-
 create type postpartumpost.parent_type as enum (
   'mom',   -- open to meeting moms
   'dad',   -- open to meeting dads
@@ -86,7 +81,6 @@ create table postpartumpost.matches (
   member_id_1 uuid not null references postpartumpost.members(id) on delete cascade,
   member_id_2 uuid not null references postpartumpost.members(id) on delete cascade,
   matched_on date not null default current_date,
-  match_type postpartumpost.match_type,
   rematch_requested boolean not null default false,
   rematch_reason postpartumpost.rematch_reason,
   rematch_requested_at timestamptz,
@@ -99,7 +93,6 @@ create table postpartumpost.matches (
 -- Monthly participation: one row per member per calendar month they opted in.
 -- Only members with a row here are included in the match run on the 5th.
 -- Members who neither skip nor participate are silently excluded (no subscription extension).
--- match_type here is the per-month preference and overrides the standing match_type on members.
 create table postpartumpost.monthly_participation (
   id          uuid primary key default gen_random_uuid(),
   member_id   uuid not null references postpartumpost.members(id) on delete cascade,
@@ -143,7 +136,6 @@ create table postpartumpost.match_drafts (
   member_id_2     uuid not null references postpartumpost.members(id),
   score           float8 not null,
   breakdown       jsonb not null,      -- { language, availability, topic, proximity, children }
-  match_type      postpartumpost.match_type,
   quality_tier    text check (quality_tier in ('great', 'good', 'needs_work')),
   created_at      timestamptz not null default now(),
   constraint no_self_draft check (member_id_1 != member_id_2)

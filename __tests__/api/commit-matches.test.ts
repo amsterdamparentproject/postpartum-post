@@ -70,7 +70,6 @@ async function seedMatchDraft(
     member_id_2: memberId2,
     score: 1000,
     breakdown: { language: 1000, availability: 0, topic: 0, proximity: 0, children: 0 },
-    match_type: null,
     quality_tier: "great",
   });
   if (error) throw new Error(`seedMatchDraft failed: ${error.message}`);

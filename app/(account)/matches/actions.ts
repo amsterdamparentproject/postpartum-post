@@ -31,7 +31,6 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
     .from("matches")
     .select(`
       id,
-      match_type,
       matched_on,
       rematch_requested,
       member_id_1,
@@ -42,6 +41,19 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
     .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`)
     .order("matched_on", { ascending: false });
 
+  // Look up this member's topic per month from their participation history
+  const { data: participationRows } = await supabase
+    .from("monthly_participation")
+    .select("month, topics(name)")
+    .eq("member_id", memberId);
+
+  const topicByMonth = new Map<string, string>(
+    (participationRows ?? []).map((p) => [
+      p.month,
+      ((p.topics as unknown as { name: string } | null)?.name ?? "coffee"),
+    ])
+  );
+
   const allMatches: MatchEntry[] = (rows ?? []).map((match) => {
     const isM1 = match.member_id_1 === memberId;
     const partnerRaw = isM1 ? match.member2 : match.member1;
@@ -50,7 +62,7 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
     return {
       matchId: match.id,
       token: generateMatchToken(match.id),
-      topic: (match.match_type ?? "coffee") as "coffee" | "playdate",
+      topic: (topicByMonth.get(match.matched_on) ?? "coffee") as "coffee" | "playdate",
       matchFirstName: (partnerData as { first_name: string } | null)?.first_name ?? "",
       matchedOn: match.matched_on,
       active: isCurrentMonth && !match.rematch_requested,

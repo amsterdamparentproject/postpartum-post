@@ -245,7 +245,6 @@ export async function seedParticipation(
 export async function seedMatchDirect(
   member1Id: string,
   member2Id: string,
-  topic: "coffee" | "playdate",
   matchedOn: string,    // "YYYY-MM-01"
 ): Promise<string> {
   const db = supabase();
@@ -254,7 +253,6 @@ export async function seedMatchDirect(
     id: matchId,
     member_id_1: member1Id,
     member_id_2: member2Id,
-    match_type: topic,
     matched_on: matchedOn,
   });
   if (error) throw new Error(`seedMatchDirect failed: ${error.message}`);

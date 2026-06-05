@@ -154,7 +154,7 @@ test(
       // In a live round, the match page URL is sent in the reveal email.
       // Here we seed the match directly to test the page without committing
       // a full round (which would conflict with any existing round for this month).
-      const matchId = await seedMatchDirect(member1.id, member2.id, "coffee", monthDate);
+      const matchId = await seedMatchDirect(member1.id, member2.id, monthDate);
 
       await page.goto(buildMatchPagePath(matchId));
 
@@ -325,8 +325,8 @@ test(
     try {
       // Seed two match rows for member A — simulates the odd-pool resolution
       // where a member with open_to_second_match=true is paired twice.
-      const matchId1 = await seedMatchDirect(memberA.id, memberB.id, "coffee", monthDate);
-      const matchId2 = await seedMatchDirect(memberA.id, memberC.id, "coffee", monthDate);
+      const matchId1 = await seedMatchDirect(memberA.id, memberB.id, monthDate);
+      const matchId2 = await seedMatchDirect(memberA.id, memberC.id, monthDate);
 
       // ── Step 1: Sign in as the double-matched member ──────────────────────
       await signInAs(page, memberA.email);
