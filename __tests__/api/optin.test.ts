@@ -199,7 +199,7 @@ describe("GET /api/optin", () => {
     const res = await GET(makeRequest(memberId, MONTH, "skip", token));
 
     expect(res.status).toBe(307);
-    expect(getRedirectTarget(res.headers.get("location"))).toContain("/profile?optin=skip");
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=skip");
 
     const supabase = createTestSupabase();
 
@@ -243,7 +243,7 @@ describe("GET /api/optin", () => {
     // Second skip attempt
     const res = await GET(makeRequest(memberId, MONTH, "skip", token));
 
-    expect(getRedirectTarget(res.headers.get("location"))).toContain("/profile?optin=already_skip");
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=already_skip");
     expect(mockUpdate).not.toHaveBeenCalled();
 
     const supabase = createTestSupabase();

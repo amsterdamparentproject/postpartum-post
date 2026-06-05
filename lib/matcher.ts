@@ -494,18 +494,20 @@ export async function runMatcher(
   supabase: AnySupabaseClient,
   coordMap: Map<string, GeoCoord>
 ): Promise<MatcherResult> {
-  if (members.length < 2) {
-    return { matched: [], unmatched: members };
+  // Deduplicate by ID so a member appearing twice can't be paired with themselves
+  const uniqueMembers = Array.from(new Map(members.map((m) => [m.id, m])).values());
+
+  if (uniqueMembers.length < 2) {
+    return { matched: [], unmatched: uniqueMembers };
   }
 
   const recentPairs = await getRecentlyMatchedPairs(supabase);
 
-  // Generate and score all unique pairs — never pair a member with themselves
+  // Generate and score all unique pairs
   const scoredPairs: ScoredPair[] = [];
-  for (let i = 0; i < members.length; i++) {
-    for (let j = i + 1; j < members.length; j++) {
-      if (members[i].id === members[j].id) continue;
-      scoredPairs.push(scorePair(members[i], members[j], coordMap));
+  for (let i = 0; i < uniqueMembers.length; i++) {
+    for (let j = i + 1; j < uniqueMembers.length; j++) {
+      scoredPairs.push(scorePair(uniqueMembers[i], uniqueMembers[j], coordMap));
     }
   }
 
