@@ -631,6 +631,41 @@ describe("Scenario 11: Odd-pool resolution via open_to_second_match", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Scenario 12 — Self-match prevention
+// ---------------------------------------------------------------------------
+
+describe("Scenario 12: A member is never matched with themselves", () => {
+  it("does not produce a self-pair even when the same ID appears twice in the pool", async () => {
+    const a = member({ id: "a", language: ["english"] });
+    const duplicate = member({ id: "a", language: ["english"] }); // same ID
+
+    const { matched, unmatched } = await runMatcher(
+      [a, duplicate],
+      mockSupabase(),
+      NO_COORDS
+    );
+
+    expect(matched).toHaveLength(0);
+    expect(unmatched.map((m) => m.id)).toContain("a");
+  });
+
+  it("does not use the leftover member as their own odd-pool double-match", async () => {
+    const a = member({ id: "a", language: ["english"], open_to_second_match: true });
+    const b = member({ id: "b", language: ["english"], open_to_second_match: true });
+    const leftover = member({ id: "b", language: ["english"] }); // same ID as b
+
+    const { doubleMatchedId } = await runMatcher(
+      [a, b, leftover],
+      mockSupabase(),
+      NO_COORDS
+    );
+
+    // b must not be matched with itself
+    expect(doubleMatchedId).not.toBe("b");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Scenario 12 — Monthly participation: topic_id flows through to scoring
 // ---------------------------------------------------------------------------
 

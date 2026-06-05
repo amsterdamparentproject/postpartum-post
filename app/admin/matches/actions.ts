@@ -658,30 +658,37 @@ export async function testSendOptinEmail(): Promise<TestStepResult> {
     return { success: false, error: `Failed to send email to ${testMember.email}: ${err}` };
   }
 
-  // --- Step 2: Simulate responses for remaining members ---
-  const rest = members.slice(1);
-  const actions: Array<"coffee" | "playdate" | "skip" | "no_response"> =
-    ["coffee", "playdate", "skip", "no_response"];
-
-  // Shuffle rest, then assign so all four outcomes appear at least once
-  const shuffled = [...rest].sort(() => Math.random() - 0.5);
-  const assignments: Array<{ member: typeof first; action: typeof actions[number] }> = [];
-
-  // Guarantee all four outcomes are represented
-  const guaranteed = [...actions];
-  for (const m of shuffled) {
-    const action = guaranteed.length > 0
-      ? guaranteed.splice(Math.floor(Math.random() * guaranteed.length), 1)[0]
-      : actions[Math.floor(Math.random() * actions.length)];
-    assignments.push({ member: m, action });
-  }
-
   // Fetch topic IDs once
   const { data: topics } = await supabase.from("topics").select("id, name");
   const coffeeId = topics?.find((t) => t.name === "coffee")?.id;
   const playdateId = topics?.find((t) => t.name === "playdate")?.id;
 
-  const summary: string[] = [`Sent email to ${first.email}`];
+  // --- Step 2: Opt testMember into coffee so they're always matchable ---
+  if (coffeeId) {
+    await supabase.from("monthly_participation").upsert(
+      { member_id: testMember.id, month: monthDate, topic_id: coffeeId },
+      { onConflict: "member_id,month" }
+    );
+  }
+
+  // --- Step 3: Simulate responses for remaining members ---
+  // Guarantee coffee + playdate appear at least once (skip/no_response are
+  // optional extras) so the pool always has enough participants to match.
+  const rest = members.filter(m => m.id !== testMember.id);
+  const allActions: Array<"coffee" | "playdate" | "skip" | "no_response"> =
+    ["coffee", "playdate", "skip", "no_response"];
+  const shuffled = [...rest].sort(() => Math.random() - 0.5);
+  const assignments: Array<{ member: typeof testMember; action: typeof allActions[number] }> = [];
+
+  const guaranteed: typeof allActions = ["coffee", "playdate"];
+  for (const m of shuffled) {
+    const action = guaranteed.length > 0
+      ? guaranteed.splice(Math.floor(Math.random() * guaranteed.length), 1)[0]
+      : allActions[Math.floor(Math.random() * allActions.length)];
+    assignments.push({ member: m, action });
+  }
+
+  const summary: string[] = [`Sent email to ${testMember.email} (opted in: coffee)`];
 
   for (const { member, action } of assignments) {
     if (action === "coffee" && coffeeId) {

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { deleteDraftPair, createDraftPair, computeCandidateScores, type RoundData, type DraftMember, type DraftPair, type CandidateScore } from "./actions";
+import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -168,11 +169,11 @@ function MemberDetailCard({
       value: member.availability?.days?.length ? member.availability.days.map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ") : "N/A",
       dot: daysDot(member, other),
     },
-    {
+    ...(ENABLE_TIME_OF_DAY ? [{
       label: "Time",
       value: member.availability?.times?.length ? member.availability.times.map((t) => t.charAt(0).toUpperCase() + t.slice(1)).join(", ") : "N/A",
       dot: timesDot(member, other),
-    },
+    }] : []),
     {
       label: "Topic",
       value: member.topic_name ? member.topic_name.charAt(0).toUpperCase() + member.topic_name.slice(1) : "N/A",
@@ -212,7 +213,9 @@ function MemberDetailCard({
       {/* Header */}
       <div className="mb-3 pr-10">
         <div className="flex items-center gap-1.5">
-          <p className="font-semibold text-dark text-sm truncate">{fullName(member)}</p>
+          <p className="font-semibold text-dark text-sm truncate">
+            {member.first_name} <span className="font-normal text-muted">({member.id.slice(0, 5)})</span>
+          </p>
           {member.open_to_second_match && (
             <span title="Open to second match" className="text-[#caadff] text-sm leading-none shrink-0">⇄</span>
           )}
@@ -333,7 +336,7 @@ function NeedsMatchCard({
                     >
                       <span className="text-xs text-dark truncate">
                         {fullName(c)}
-                        {isAlreadyMatched && <span className="text-muted ml-1">(2nd)</span>}
+                        {isAlreadyMatched && <span className="text-[#caadff] ml-1 shrink-0">2nd for {c.first_name}</span>}
                       </span>
                       <span className={`text-xs font-semibold shrink-0 ${
                         score >= 1500 ? "text-green-600" : score >= 500 ? "text-yellow-500" : "text-red-500"
@@ -467,13 +470,70 @@ function RoundSummary({ round }: { round: RoundData }) {
 }
 
 // ---------------------------------------------------------------------------
+// Tier tabs
+// ---------------------------------------------------------------------------
+
+type TierTab = "all" | "great" | "good" | "needs_work";
+
+const TABS: { id: TierTab; label: string; activeClass: string }[] = [
+  { id: "all",        label: "All",        activeClass: "border-dark text-dark" },
+  { id: "great",      label: "Great",      activeClass: "border-green-500 text-green-600" },
+  { id: "good",       label: "Good",       activeClass: "border-yellow-400 text-yellow-500" },
+  { id: "needs_work", label: "Needs work", activeClass: "border-red-400 text-red-500" },
+];
+
+function TierTabs({
+  tab,
+  counts,
+  onChange,
+}: {
+  tab: TierTab;
+  counts: { all: number; great: number; good: number; needs_work: number };
+  onChange: (t: TierTab) => void;
+}) {
+  return (
+    <div className="flex gap-1 border-b border-border">
+      {TABS.map(({ id, label, activeClass }) => (
+        <button
+          key={id}
+          onClick={() => onChange(id)}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
+            tab === id
+              ? activeClass
+              : "border-transparent text-muted hover:text-dark"
+          }`}
+        >
+          {label}
+          <span className={`ml-1.5 text-xs ${tab === id ? "" : "text-muted"}`}>
+            {counts[id]}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 
 export default function RoundView({ initialRound }: { initialRound: RoundData }) {
   const [round, setRound] = useState(initialRound);
-  const locked = round.status === "locked";
+  const [tab, setTab] = useState<TierTab>("all");
+  const locked = round.status === "locked" || round.status === "committed";
   const doubleMatchedIds = new Set(round.doubleMatchedIds);
+
+  const tabCounts = {
+    all:        round.pairs.length,
+    great:      round.tierCounts.great,
+    good:       round.tierCounts.good,
+    needs_work: round.tierCounts.needs_work,
+  };
+
+  const visiblePairs =
+    tab === "all"
+      ? round.pairs
+      : round.pairs.filter((p) => p.quality_tier === tab);
 
   return (
     <div className="space-y-6">
@@ -496,8 +556,10 @@ export default function RoundView({ initialRound }: { initialRound: RoundData })
         </div>
       )}
 
+      <TierTabs tab={tab} counts={tabCounts} onChange={setTab} />
+
       <div className="space-y-4">
-        {round.pairs.map((pair) => (
+        {visiblePairs.map((pair) => (
           <PairCard
             key={pair.id}
             pair={pair}
@@ -518,6 +580,10 @@ export default function RoundView({ initialRound }: { initialRound: RoundData })
             onUpdate={setRound}
           />
         ))}
+
+        {visiblePairs.length === 0 && tab !== "all" && (
+          <p className="text-center text-sm text-muted py-6">No {tab.replace("_", " ")} matches this round.</p>
+        )}
       </div>
     </div>
   );

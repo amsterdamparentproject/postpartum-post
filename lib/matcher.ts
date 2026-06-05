@@ -500,10 +500,11 @@ export async function runMatcher(
 
   const recentPairs = await getRecentlyMatchedPairs(supabase);
 
-  // Generate and score all unique pairs
+  // Generate and score all unique pairs — never pair a member with themselves
   const scoredPairs: ScoredPair[] = [];
   for (let i = 0; i < members.length; i++) {
     for (let j = i + 1; j < members.length; j++) {
+      if (members[i].id === members[j].id) continue;
       scoredPairs.push(scorePair(members[i], members[j], coordMap));
     }
   }
@@ -527,6 +528,7 @@ export async function runMatcher(
       // Score each willing member against the leftover; pick the highest
       const best = willing
         .map((m) => ({ member: m, pair: scorePair(m, leftover, coordMap) }))
+        .filter(({ member }) => member.id !== leftover.id)
         .filter(({ pair }) => parentTypeCompatible(pair.a, pair.b))
         .sort((x, y) => y.pair.score - x.pair.score)[0];
 

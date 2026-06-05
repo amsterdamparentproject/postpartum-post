@@ -20,7 +20,7 @@ function matchRevealHtml(
                                       Hi ${recipientFirstName},
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Your Post has arrived 📬 Your match for this month is <span style="font-weight:700">${matchFirstName} ${matchLastName}</span>, another parent in Amsterdam who is eager to connect.
+                                      Hurrah, your Post has arrived! 🎉📬 Your match for this month is <span style="font-weight:700">${matchFirstName} ${matchLastName}</span>, another parent in Amsterdam who is excited to connect.
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       Your match page has both of your contact details, plus some local activities and resources to inspire your meetup. Enjoy your ${meetingContext}!

@@ -206,6 +206,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
   const [availabilityDays, setAvailabilityDays] = useState<string[]>(initialData.availability?.days ?? []);
   const [availabilityTimes, setAvailabilityTimes] = useState<string[]>(initialData.availability?.times ?? []);
   const [matchPriority, setMatchPriority] = useState<"age" | "proximity" | "">(initialData.match_priority ?? "");
+  const [openToSecondMatch, setOpenToSecondMatch] = useState<boolean>(initialData.open_to_second_match ?? false);
   const [children, setChildren] = useState<Child[]>(initialData.children ?? []);
 
   // Snapshot of last-saved values — used to compute isDirty
@@ -219,6 +220,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
     availabilityDays: initialData.availability?.days ?? [] as string[],
     availabilityTimes: initialData.availability?.times ?? [] as string[],
     matchPriority: initialData.match_priority ?? "",
+    openToSecondMatch: initialData.open_to_second_match ?? false,
     children: initialData.children ?? [] as Child[],
   });
 
@@ -235,7 +237,8 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         JSON.stringify(children) !== JSON.stringify(snapshot.children)
       : section === "preferences"
       ? matchPriority !== snapshot.matchPriority ||
-        parentType !== snapshot.parentType
+        parentType !== snapshot.parentType ||
+        openToSecondMatch !== snapshot.openToSecondMatch
       : // onboarding — always starts dirty (empty form)
         true;
 
@@ -293,6 +296,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         ? {
             parent_type: (parentType as "mom" | "dad" | "anyone") || "anyone",
             match_priority: (matchPriority as "age" | "proximity") || null,
+            open_to_second_match: openToSecondMatch,
           }
         : {
             zipcode: zipcode || null,
@@ -319,6 +323,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
           availabilityDays: [...availabilityDays],
           availabilityTimes: [...availabilityTimes],
           matchPriority,
+          openToSecondMatch,
           children: [...children],
         });
       } catch (err) {
@@ -591,6 +596,30 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
               onClick={() => setMatchPriority(matchPriority === "proximity" ? "" : "proximity")}
             >
               Someone close by
+            </ToggleButton>
+          </div>
+        </div>
+      )}
+
+      {/* Open to second match — preferences section only */}
+      {section === "preferences" && (
+        <div>
+          <label className={labelClass}>Open to a second match?</label>
+          <p className="text-xs italic text-muted mb-2">
+            If there's an odd number of members this month, we may pair you with two people instead of one.
+          </p>
+          <div className="flex gap-2">
+            <ToggleButton
+              selected={openToSecondMatch}
+              onClick={() => setOpenToSecondMatch(true)}
+            >
+              Yes, I'm open to it
+            </ToggleButton>
+            <ToggleButton
+              selected={!openToSecondMatch}
+              onClick={() => setOpenToSecondMatch(false)}
+            >
+              Only one match, please
             </ToggleButton>
           </div>
         </div>
