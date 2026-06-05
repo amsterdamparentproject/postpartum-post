@@ -217,17 +217,20 @@ function MemberDetailCard({
             {member.first_name} <span className="font-normal text-muted">({member.id.slice(0, 5)})</span>
           </p>
           {member.open_to_second_match && (
-            <span title="Open to second match" className="text-[#caadff] text-sm leading-none shrink-0">⇄</span>
+            <svg className="w-3.5 h-3.5 text-[#caadff] shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-label="Open to second match">
+              <title>Open to second match</title>
+              <path fillRule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918z" clipRule="evenodd" />
+            </svg>
           )}
           {member.match_priority === "proximity" && (
-            <span title="Prioritises proximity" className="shrink-0">
+            <span title="Prioritizes proximity" className="shrink-0">
               <svg className={`w-3.5 h-3.5 ${priorityDot(member, other) === "green" ? "text-green-500" : "text-yellow-400"}`} viewBox="0 0 24 24" fill="currentColor">
                 <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.079 3.218-4.512 3.218-7.327a7.5 7.5 0 10-15 0c0 2.815 1.274 5.248 3.218 7.327a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
               </svg>
             </span>
           )}
           {member.match_priority === "age" && (
-            <span title="Prioritises child age" className="shrink-0">
+            <span title="Prioritizes child age" className="shrink-0">
               <svg className={`w-3.5 h-3.5 ${priorityDot(member, other) === "green" ? "text-green-500" : "text-yellow-400"}`} viewBox="0 0 24 24" fill="currentColor">
                 <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
               </svg>

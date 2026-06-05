@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { getRoundData, type RoundData, testSendOptinEmail, testRunMatcher, testCommitMatches, testSendMatchEmails, testLockRound, testResetRound } from "./actions";
 import RoundView from "./RoundView";
+import AdminNav from "../AdminNav";
 
 type PageState =
   | { status: "loading" }
@@ -21,7 +22,7 @@ export default function AdminMatchesPage() {
   return (
     <main className="min-h-screen bg-[#f0f1f5] px-6 py-10">
       <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-xl font-bold text-dark">Match review</h1>
+        <AdminNav active="matches" />
 
         {state.status === "loading" && (
           <p className="text-muted text-sm text-center">Loading…</p>
