@@ -10,11 +10,6 @@ import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 const DUTCH_POSTCODE = /^[1-9][0-9]{3}\s?[A-Za-z]{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const PARENT_TYPES = [
-  { value: "mom", label: "Moms" },
-  { value: "dad", label: "Dads" },
-  { value: "anyone", label: "Anyone" },
-] as const;
 
 const LANGUAGES = [
   { value: "english", label: "English" },
@@ -206,7 +201,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
   const [availabilityDays, setAvailabilityDays] = useState<string[]>(initialData.availability?.days ?? []);
   const [availabilityTimes, setAvailabilityTimes] = useState<string[]>(initialData.availability?.times ?? []);
   const [matchPriority, setMatchPriority] = useState<"age" | "proximity" | "">(initialData.match_priority ?? "");
-  const [openToSecondMatch, setOpenToSecondMatch] = useState<boolean>(initialData.open_to_second_match ?? false);
+  const [openToSecondMatch, setOpenToSecondMatch] = useState<boolean>(initialData.open_to_second_match ?? true);
   const [children, setChildren] = useState<Child[]>(initialData.children ?? []);
 
   // Snapshot of last-saved values — used to compute isDirty
@@ -220,7 +215,7 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
     availabilityDays: initialData.availability?.days ?? [] as string[],
     availabilityTimes: initialData.availability?.times ?? [] as string[],
     matchPriority: initialData.match_priority ?? "",
-    openToSecondMatch: initialData.open_to_second_match ?? false,
+    openToSecondMatch: initialData.open_to_second_match ?? true,
     children: initialData.children ?? [] as Child[],
   });
 
@@ -558,20 +553,22 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         <>
         {mode === "onboarding" && <hr className="border-border" />}
         <div>
-          <label className={labelClass}>Who would you like to meet?</label>
+          <label htmlFor="parentType" className={labelClass}>Who would you like to meet?</label>
           <p className="text-xs italic text-muted mb-2">
             Let us know if you'd prefer to meet with moms or dads — or anyone in our community.
           </p>
-          <div className="flex gap-2">
-            {PARENT_TYPES.map(({ value, label }) => (
-              <ToggleButton
-                key={value}
-                selected={parentType === value}
-                onClick={() => setParentType(parentType === value ? "" : value)}
-              >
-                {label}
-              </ToggleButton>
-            ))}
+          <div className="relative">
+            <select
+              id="parentType"
+              value={parentType}
+              onChange={(e) => setParentType(e.target.value as "mom" | "dad" | "anyone" | "")}
+              className={selectClass}
+            >
+              <option value="anyone">Anyone</option>
+              <option value="mom">Moms</option>
+              <option value="dad">Dads</option>
+            </select>
+            <ChevronDown />
           </div>
         </div>
         </>
@@ -580,23 +577,22 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
       {/* Match priority — preferences section and onboarding */}
       {(section === "preferences") && (
         <div>
-          <label className={labelClass}>What matters more to you in a match?</label>
+          <label htmlFor="matchPriority" className={labelClass}>What matters more to you in a match?</label>
           <p className="text-xs italic text-muted mb-2">
-            We&apos;ll use this to prioritize when finding you the right match.
+            Choose between someone nearby or with kids of a similar age. This is to help us prioritize — we can&apos;t guarantee either!
           </p>
-          <div className="flex gap-2">
-            <ToggleButton
-              selected={matchPriority === "age"}
-              onClick={() => setMatchPriority(matchPriority === "age" ? "" : "age")}
+          <div className="relative">
+            <select
+              id="matchPriority"
+              value={matchPriority}
+              onChange={(e) => setMatchPriority(e.target.value as "age" | "proximity" | "")}
+              className={selectClass}
             >
-              Kids of a similar age
-            </ToggleButton>
-            <ToggleButton
-              selected={matchPriority === "proximity"}
-              onClick={() => setMatchPriority(matchPriority === "proximity" ? "" : "proximity")}
-            >
-              Someone close by
-            </ToggleButton>
+              <option value="">No preference</option>
+              <option value="age">Kids of a similar age</option>
+              <option value="proximity">Someone close by</option>
+            </select>
+            <ChevronDown />
           </div>
         </div>
       )}
@@ -604,23 +600,21 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
       {/* Open to second match — preferences section only */}
       {section === "preferences" && (
         <div>
-          <label className={labelClass}>Open to a second match?</label>
+          <label htmlFor="openToSecondMatch" className={labelClass}>Open to a second match?</label>
           <p className="text-xs italic text-muted mb-2">
             If there's an odd number of members this month, we may pair you with two people instead of one.
           </p>
-          <div className="flex gap-2">
-            <ToggleButton
-              selected={openToSecondMatch}
-              onClick={() => setOpenToSecondMatch(true)}
+          <div className="relative">
+            <select
+              id="openToSecondMatch"
+              value={openToSecondMatch ? "yes" : "no"}
+              onChange={(e) => setOpenToSecondMatch(e.target.value === "yes")}
+              className={selectClass}
             >
-              Yes, I'm open to it
-            </ToggleButton>
-            <ToggleButton
-              selected={!openToSecondMatch}
-              onClick={() => setOpenToSecondMatch(false)}
-            >
-              Only one match, please
-            </ToggleButton>
+              <option value="yes">Yes, I'm open to it</option>
+              <option value="no">Only one match, please</option>
+            </select>
+            <ChevronDown />
           </div>
         </div>
       )}
