@@ -63,11 +63,12 @@ export default async function Home() {
         {/* Persona cards */}
         <div className="w-full max-w-sm md:max-w-xl mt-2 md:mt-6 mb-12">
           <h2
-            className="text-2xl font-semibold text-dark text-center mb-8"
+            className="text-2xl font-semibold text-dark text-center mb-4"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             We made <span className="text-coral">Postpartum Post</span> for you
           </h2>
+          <p className="mb-8 italic text-center text-base text-dark leading-relaxed max-w-lg mx-auto">For new parents at every stage, from pregnancy to age 4</p>
           <PersonaCards />
         </div>
 
