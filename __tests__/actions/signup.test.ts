@@ -39,6 +39,10 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
+vi.mock("next/headers", () => ({
+  headers: vi.fn().mockResolvedValue(new Headers({ host: "localhost:3000" })),
+}));
+
 vi.mock("@/lib/emails", () => ({
   sendWelcomeEmail: vi.fn().mockResolvedValue(undefined),
   sendUnsubscribedEmail: vi.fn().mockResolvedValue(undefined),
@@ -48,12 +52,13 @@ vi.mock("@/lib/emails", () => ({
 // Shared constants and setup
 // ---------------------------------------------------------------------------
 
-const MOCK_CUSTOMER_ID = "cus_test_signup";
+let MOCK_CUSTOMER_ID = "cus_test_signup";
 const MOCK_PRICE_ID = "price_test_3mo";
 const MOCK_CHECKOUT_URL = "https://checkout.stripe.com/pay/test_session";
 const MOCK_SUB_ID = "sub_test_signup_123";
 
 function setupStripeMocks() {
+  MOCK_CUSTOMER_ID = `cus_test_${crypto.randomUUID().slice(0, 8)}`;
   mockCustomerCreate.mockResolvedValue({ id: MOCK_CUSTOMER_ID });
   mockPricesList.mockResolvedValue({ data: [{ id: MOCK_PRICE_ID }] });
   mockSessionCreate.mockResolvedValue({ url: MOCK_CHECKOUT_URL });
