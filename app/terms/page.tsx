@@ -17,7 +17,7 @@ export default function TermsOfService() {
       <main className="flex-1 w-full px-6 py-16">
         <div className="max-w-2xl mx-auto">
           <h1
-            className="text-4xl font-semibold text-dark mb-2 leading-tight"
+            className="text-4xl text-dark mb-2 leading-tight"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             Terms of Service

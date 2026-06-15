@@ -4,6 +4,7 @@ import PageLayout from "@/components/PageLayout";
 import { EnvelopeStamp } from "@/components/StampIcons";
 import HowMatchingWorks from "@/components/HowMatchingWorks";
 import FAQ from "@/components/FAQ";
+import WordMark from "@/components/WordMark";
 
 export const metadata: Metadata = {
   title: "About",
@@ -25,10 +26,10 @@ export default function About() {
             <EnvelopeStamp size={96} />
           </div>
           <h1
-            className="text-4xl font-semibold text-dark mb-6 leading-tight"
+            className="text-4xl text-dark mb-6 leading-tight"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            About <span className="text-coral">Postpartum Post</span>
+            About <WordMark size="text-4xl" />
           </h1>
           <div className="space-y-4 text-dark leading-relaxed text-left">
             <p>
@@ -42,7 +43,7 @@ export default function About() {
             </p>
             <p>
               Postpartum Post was created for people who want to build deep connections — but <b>at the busy pace of early parenthood</b>.
-              Subscriptions are flexible by design: skip any month, pause when life gets full, cancel anytime.
+              We created a subscription to signal a committment to the community, even if life gets in the way. Subscriptions are flexible by design: skip any month, pause when life gets full, cancel anytime.
               In one click, you pick the topic, we find the match, and deliver the introduction in a delightful little letter to your inbox.
             </p>
           </div>

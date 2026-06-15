@@ -96,7 +96,7 @@
   color: #C56850;
   line-height: 1.5;
   white-space: nowrap;
-  font-style: italic;
+  font-family: var(--font-sansserif);
 }
 
 .letterContext {
@@ -108,37 +108,14 @@
   color: #000;
   line-height: 1;
   white-space: nowrap;
+  font-family: var(--font-sansserif);
 }
 
 .letterStamp {
   position: relative;
   margin-top: 28px;
   margin-left: 118px;
-  width: 30px;
-  height: 27px;
-  opacity: 0.3;
-}
-
-.letterStamp::before,
-.letterStamp::after {
-  content: '';
-  position: absolute;
-  background: #C56850;
-  width: 15px;
-  height: 24px;
-  border-radius: 15px 15px 0 0;
-}
-
-.letterStamp::before {
-  left: 15px;
-  transform: rotate(-45deg);
-  transform-origin: 0% 100%;
-}
-
-.letterStamp::after {
-  left: 0;
-  transform: rotate(45deg);
-  transform-origin: 100% 100%;
+  opacity: 0.5;
 }
 
 .shadow {

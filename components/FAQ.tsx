@@ -53,7 +53,7 @@ export default function FAQ() {
   return (
     <section className="w-full max-w-2xl mx-auto">
       <h2
-        className="text-2xl font-semibold text-dark text-center mb-2"
+        className="text-2xl text-dark text-center mb-2"
         style={{ fontFamily: "var(--font-serif)" }}
       >
         Frequently asked <span className="text-coral">questions</span>

@@ -5,7 +5,7 @@ import "./globals.css";
 
 const solway = Solway({
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "700"],
   variable: "--font-serif",
   display: "swap",
 });
@@ -56,8 +56,8 @@ export const metadata: Metadata = {
     images: ["/og-image.png"],
   },
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: "/envelope.svg",
+    apple: "/envelope.svg",
   },
 };
 

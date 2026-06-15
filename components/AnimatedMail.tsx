@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import styles from "./AnimatedMail.module.css";
+import WordMark from "./WordMark";
 
 export default function AnimatedMail() {
   const ref = useRef<HTMLDivElement>(null);
@@ -42,9 +44,11 @@ export default function AnimatedMail() {
           <div className={styles.backFold} />
           <div className={styles.letter}>
             <div className={styles.letterBorder} />
-            <p className={styles.letterTitle}>From: Postpartum Post</p>
+            <p className={styles.letterTitle}>From: <WordMark size="text-2xs" /></p>
             <p className={styles.letterContext}>To: You &amp; your new parent friend</p>
-            <div className={styles.letterStamp} />
+            <div className={styles.letterStamp}>
+              <Image src="/envelope.svg" alt="" width={30} height={22} />
+            </div>
           </div>
           <div className={styles.topFold} />
           <div className={styles.envelopeBody} />

@@ -3,7 +3,8 @@ import AnimatedMail from "@/components/AnimatedMail";
 import PersonaCards from "@/components/PersonaCards";
 import SubscribeSection from "@/components/SubscribeSection";
 import Image from "next/image";
-import { getStripe } from "@/lib/stripe";
+import { createAdminClient } from "@/lib/supabase";
+import WordMark from "@/components/WordMark";
 
 const FIRST20_TOTAL = 20;
 
@@ -14,12 +15,17 @@ const FIRST20_TOTAL = 20;
 export const revalidate = 300;
 
 async function getFirst20SpotsRemaining(): Promise<number | null> {
-  const couponId = process.env.STRIPE_FIRST20_COUPON_ID;
-  if (!couponId) return null;
+  const priceId = process.env.STRIPE_FOUNDING_MEMBER_PRICE_ID;
+  if (!priceId) return null;
   try {
-    const stripe = getStripe();
-    const coupon = await stripe.coupons.retrieve(couponId);
-    return Math.max(0, FIRST20_TOTAL - (coupon.times_redeemed ?? 0));
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .select("member_id")
+      .eq("stripe_price_id", priceId);
+    if (error) return null;
+    const uniqueMembers = new Set((data ?? []).map((r) => r.member_id)).size;
+    return Math.max(0, FIRST20_TOTAL - uniqueMembers);
   } catch {
     return null;
   }
@@ -40,16 +46,15 @@ export default async function Home() {
       <main className="flex-1 flex flex-col items-center px-6 px-6 md:py-16">
 
         {/* Hero */}
-        <div className="max-w-2xl w-full text-center mb-10">
+        <div className="max-w-xl w-full text-center mb-10">
           <h1
-            className="text-5xl hidden md:block font-semibold leading-tight text-center"
+            className="text-5xl hidden md:block leading-tight text-center"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            <span className="block text-coral">Amsterdam is full of parents like you.</span>
-            <span className="block text-dark">Let us introduce you.</span>
+            <span className="text-coral">Amsterdam is full of parents like you.</span>{" "}<span className="block text-dark">Let us introduce you.</span>
           </h1>
           <h1
-            className="text-3xl max-w-lg mt-6 md:hidden font-semibold leading-tight text-center mx-auto"
+            className="text-3xl max-w-lg mt-6 md:hidden leading-tight text-center mx-auto"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             <span className="text-coral">Amsterdam is full of parents like you.</span>{" "}
@@ -63,10 +68,10 @@ export default async function Home() {
         {/* Persona cards */}
         <div className="w-full max-w-sm md:max-w-xl mt-2 md:mt-6 mb-12">
           <h2
-            className="text-2xl font-semibold text-dark text-center mb-4"
+            className="text-2xl text-dark text-center mb-4"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            We made <span className="text-coral">Postpartum Post</span> for you
+            We made <WordMark size="text-2xl"/> for you
           </h2>
           <p className="mb-8 italic text-center text-base text-dark leading-relaxed max-w-lg mx-auto">For new parents at every stage, from pregnancy to age 4</p>
           <PersonaCards />
@@ -78,10 +83,10 @@ export default async function Home() {
         {/* Alex intro */}
         <div id="alex-intro" className="w-full max-w-md mt-12 mb-6 text-center">
           <h2
-            className="text-2xl font-semibold text-dark text-center mx-auto"
+            className="text-2xl text-dark text-center mx-auto"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            Delivered with joy by someone who <span className="text-coral">gets it</span>
+            Delivered with joy by <span className="text-coral">someone who gets it</span>
           </h2>
         </div>
         <div className="w-full max-w-lg mb-12 px-2 flex flex-col sm:flex-row items-center gap-6">

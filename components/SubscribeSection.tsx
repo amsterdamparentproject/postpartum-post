@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import SignupForm from "@/components/SignupForm";
-import { EnvelopeStamp } from "@/components/StampIcons";
+import Image from "next/image";
 
 export default function SubscribeSection({
   first20SpotsRemaining,
@@ -24,13 +24,13 @@ export default function SubscribeSection({
 
   return (
     <>
-      <div className="flex justify-center mb-4">
+      <div className="flex justify-center mb-6">
         <div className={wiggling ? "wiggle" : undefined}>
-          <EnvelopeStamp background="#FCFBFA" />
+          <Image src="/envelope.svg" alt="" width={66} height={49} />
         </div>
       </div>
       <h2
-        className="text-xl font-semibold text-dark mb-1"
+        className="text-xl text-dark mb-1"
         style={{ fontFamily: "var(--font-serif)" }}
       >
         Receive your monthly Post

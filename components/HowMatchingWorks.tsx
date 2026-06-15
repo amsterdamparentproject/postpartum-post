@@ -233,7 +233,7 @@ export default function HowMatchingWorks() {
   return (
     <section id="how-it-works" className="w-full max-w-lg mx-auto">
       <h2
-        className="text-2xl font-semibold text-dark text-center mb-2"
+        className="text-2xl text-dark text-center mb-2"
         style={{ fontFamily: "var(--font-serif)" }}
       >
         How <span className="text-coral">matching</span> works

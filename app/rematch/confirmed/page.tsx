@@ -8,7 +8,7 @@ export default function RematchConfirmed() {
         <div className="max-w-md w-full">
           <div className="text-5xl mb-6">💌</div>
           <h1
-            className="text-3xl font-semibold text-dark mb-4"
+            className="text-3xl text-dark mb-4"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             We&apos;re on it

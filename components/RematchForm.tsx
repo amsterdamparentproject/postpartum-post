@@ -27,7 +27,7 @@ export default function RematchForm({ memberId }: { memberId: string }) {
     <div className="max-w-md w-full bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
       <div className="text-4xl mb-5 text-center">🔄</div>
       <h1
-        className="text-2xl font-semibold text-dark mb-3 text-center"
+        className="text-2xl text-dark mb-3 text-center"
         style={{ fontFamily: "var(--font-serif)" }}
       >
         Request a new match

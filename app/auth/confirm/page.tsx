@@ -48,7 +48,7 @@ function ConfirmHandler() {
         <CalloutBox className="max-w-sm w-full">
           <div className="text-4xl mb-4">{isExpired ? "⏱️" : "🔗"}</div>
           <h2
-            className="text-2xl font-semibold text-dark mb-2"
+            className="text-2xl text-dark mb-2"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             {isExpired ? "This link has expired" : "Invalid sign-in link"}

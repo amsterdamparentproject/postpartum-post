@@ -32,7 +32,7 @@ export default function NotSubscribedView({ email }: { email: string }) {
       {/* Subscribe */}
       <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
         <h2
-          className="text-xl font-semibold text-dark mb-1"
+          className="text-xl text-dark mb-1"
           style={{ fontFamily: "var(--font-serif)" }}
         >
           Receive your monthly Post 💌

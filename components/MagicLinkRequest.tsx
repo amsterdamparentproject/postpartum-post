@@ -56,7 +56,7 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
       <CalloutBox className="max-w-sm mx-auto">
         <div className="text-4xl mb-4">💌</div>
         <h2
-          className="text-2xl font-semibold text-dark mb-2"
+          className="text-2xl text-dark mb-2"
           style={{ fontFamily: "var(--font-serif)" }}
         >
           Check your inbox
@@ -108,7 +108,7 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
       {notFound && (
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <h2
-            className="text-xl font-semibold text-dark mb-1"
+            className="text-xl text-dark mb-1"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             Or become a member now:

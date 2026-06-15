@@ -20,7 +20,7 @@ export default async function SkipAlready({
         <div className="max-w-sm w-full space-y-6">
           <p className="text-4xl">👍</p>
           <h1
-            className="text-3xl font-semibold text-dark leading-tight"
+            className="text-3xl text-dark leading-tight"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             Already sorted.

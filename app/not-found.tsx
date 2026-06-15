@@ -7,7 +7,7 @@ export default function NotFound() {
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-24 text-center">
         <p className="text-6xl mb-6">✉️</p>
         <h1
-          className="text-4xl font-semibold text-dark mb-3"
+          className="text-4xl text-dark mb-3"
           style={{ fontFamily: "var(--font-serif)" }}
         >
           Lost in the post

@@ -43,7 +43,7 @@ export default async function Success({
         <div className="mb-8 text-center">
           <div className="text-5xl mb-4">💌</div>
           <h1
-            className="text-3xl font-semibold text-dark mb-2"
+            className="text-3xl text-dark mb-2"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             {member ? `Welcome, ${member.first_name.trim()}!` : "You're in!"}
