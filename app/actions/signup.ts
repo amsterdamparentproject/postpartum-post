@@ -49,6 +49,7 @@ export type SignupFormData = {
   lastName: string;
   email: string;
   plan: "standard_monthly" | "commitment_3mo" | "first20_3mo";
+  giftCode?: string;
 };
 
 export type SignupError = { error: string };
@@ -56,6 +57,18 @@ export type SignupError = { error: string };
 export async function signup(data: SignupFormData): Promise<SignupError | void> {
   const supabase = createAdminClient();
   const stripe = getStripe();
+
+  let promotionCodeId: string | undefined;
+  if (data.giftCode) {
+    const { data: giftCard } = await supabase
+      .from("gift_cards")
+      .select("stripe_promotion_code_id, redeemed_at")
+      .eq("code", data.giftCode)
+      .single();
+    if (!giftCard) return { error: "This gift card code is not valid." };
+    if (giftCard.redeemed_at) return { error: "This gift card has already been redeemed." };
+    promotionCodeId = giftCard.stripe_promotion_code_id;
+  }
 
   const { data: member, error } = await supabase
     .from("members")
@@ -78,7 +91,7 @@ export async function signup(data: SignupFormData): Promise<SignupError | void> 
         .single();
 
       if (existing?.status === "pending" || existing?.status === "abandoned") {
-        return restartCheckout(existing.id, existing.stripe_customer_id, data);
+        return restartCheckout(existing.id, existing.stripe_customer_id, data, promotionCodeId);
       }
 
       return { error: "You're already signed up! Check your email for your sign-in link, or contact us if you need help." };
@@ -109,14 +122,15 @@ export async function signup(data: SignupFormData): Promise<SignupError | void> 
     .update({ stripe_customer_id: customer.id })
     .eq("id", member.id);
 
-  await createCheckoutSession(member.id, customer.id, price.id, isFirst20, stripe);
+  await createCheckoutSession(member.id, customer.id, price.id, isFirst20, stripe, promotionCodeId);
 }
 
 // Resets an abandoned/pending member back to pending and sends them to a new checkout session.
 async function restartCheckout(
   memberId: string,
   stripeCustomerId: string | null,
-  data: SignupFormData
+  data: SignupFormData,
+  promotionCodeId?: string
 ): Promise<SignupError | void> {
   const supabase = createAdminClient();
   const stripe = getStripe();
@@ -146,7 +160,7 @@ async function restartCheckout(
   const price = prices.data[0];
   if (!price) throw new Error(`Price not found for plan: ${priceLookupKey}`);
 
-  await createCheckoutSession(memberId, customerId, price.id, isFirst20, stripe);
+  await createCheckoutSession(memberId, customerId, price.id, isFirst20, stripe, promotionCodeId);
 }
 
 async function createCheckoutSession(
@@ -154,15 +168,20 @@ async function createCheckoutSession(
   customerId: string,
   priceId: string,
   isFirst20: boolean,
-  stripe: ReturnType<typeof getStripe>
+  stripe: ReturnType<typeof getStripe>,
+  promotionCodeId?: string
 ): Promise<void> {
   const taxEnabled = new Date() < new Date("2026-07-01T00:00:00Z");
+
+  const discountOption = promotionCodeId
+    ? { discounts: [{ promotion_code: promotionCodeId }] }
+    : (!isFirst20 ? { allow_promotion_codes: true } : {});
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
-    ...(!isFirst20 ? { allow_promotion_codes: true } : {}),
+    ...discountOption,
     automatic_tax: { enabled: taxEnabled },
     customer_update: taxEnabled ? { address: "auto" } : undefined,
     metadata: { member_id: memberId },

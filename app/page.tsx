@@ -4,8 +4,11 @@ import PersonaCards from "@/components/PersonaCards";
 import SubscribeSection from "@/components/SubscribeSection";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 import Image from "next/image";
+import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase";
 import WordMark from "@/components/WordMark";
+import GiftBow from "@/components/GiftBow";
+import TextLogo from "@/components/TextLogo";
 
 const FIRST20_TOTAL = 20;
 
@@ -210,6 +213,19 @@ export default async function Home() {
         {/* Signup form */}
         <div id="subscribe" className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <SubscribeSection first20SpotsRemaining={first20SpotsRemaining} pilotOnly={pilotOnly} />
+        </div>
+
+        {/* Gift card CTA */}
+        <div className="group relative w-full max-w-md mt-10 mb-6">
+          <GiftBow className="group-hover-wiggle absolute top-0 left-1/2 -translate-x-1/2 -translate-y-[38%] w-24 h-auto z-10" />
+          <Link
+            href="/gift"
+            data-umami-event="Home: Gift Card CTA"
+            className="block w-full pt-8 pb-4 px-6 bg-white/80 rounded-2xl border border-purple-light/40 shadow-sm text-center hover:bg-purple-light/20 hover:border-purple-light/70 transition-colors"
+          >
+            <span className="flex items-center justify-center gap-2 text-xl text-coral font-medium mb-2" style={{ fontFamily: "var(--font-serif)" }}>Give <TextLogo width={166} height={22} className="translate-y-[1px]" /> as a gift</span>
+            <span className="block text-sm text-dark mt-1">Give a new or expecting parent in your life <b>connection, not clutter</b>. Gift subscriptions from €12.</span>
+          </Link>
         </div>
 
       </main>
