@@ -61,7 +61,7 @@ export default async function Home() {
             <span className="text-dark">Let us introduce you.</span>
           </h1>
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
-            Instead of searching for community, get it delivered. Every month, we send you a curated friendship starter pack: a match with someone local who's navigating pregnancy or early parenthood like you, plus neighborhood activities handpicked for your families.
+            Instead of searching for community, get it delivered right to you. Every month, we send you a curated friendship starter pack: a match with someone local who's navigating pregnancy or early parenthood like you, plus neighborhood activities handpicked for your families.
           </p>
         </div>
 

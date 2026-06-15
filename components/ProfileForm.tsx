@@ -223,10 +223,10 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
     section === "personal"
       ? firstName !== snapshot.firstName ||
         lastName !== snapshot.lastName ||
-        email !== snapshot.email ||
-        zipcode !== snapshot.zipcode
+        email !== snapshot.email
       : section === "details"
-      ? !arrEq(languages, snapshot.languages) ||
+      ? zipcode !== snapshot.zipcode ||
+        !arrEq(languages, snapshot.languages) ||
         !arrEq(availabilityDays, snapshot.availabilityDays) ||
         !arrEq(availabilityTimes, snapshot.availabilityTimes) ||
         JSON.stringify(children) !== JSON.stringify(snapshot.children)
@@ -260,12 +260,14 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
     setSaved(false);
     setSaveError(null);
 
-    if (section === "personal" || mode === "onboarding") {
-      if (section === "personal" && !EMAIL_RE.test(email)) {
+    if (section === "personal") {
+      if (!EMAIL_RE.test(email)) {
         setEmailError("Enter a valid email address");
         return;
       }
       setEmailError(null);
+    }
+    if (section === "details" || mode === "onboarding") {
       if (zipcode && !DUTCH_POSTCODE.test(zipcode)) {
         setZipcodeError("Enter a valid Dutch postcode, e.g. 1234 AB");
         return;
@@ -280,9 +282,10 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
 
     const updates =
       section === "personal"
-        ? { first_name: firstName, last_name: lastName, email, zipcode: zipcode || null }
+        ? { first_name: firstName, last_name: lastName, email }
         : section === "details"
         ? {
+            zipcode: zipcode || null,
             language: languages.length > 0 ? languages : null,
             availability,
             children: children.length > 0 ? children : null,
@@ -409,30 +412,6 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         </>
       )}
 
-      {/* Zip code — personal section and onboarding */}
-      {(section === "personal" || mode === "onboarding") && (
-        <div>
-          <label htmlFor="zipcode" className={labelClass}>
-            Zip code
-          </label>
-          <input
-            id="zipcode"
-            type="text"
-            value={zipcode}
-            onChange={(e) => { setZipcode(e.target.value); setZipcodeError(null); }}
-            onBlur={() => {
-              if (zipcode && !DUTCH_POSTCODE.test(zipcode)) {
-                setZipcodeError("Enter a valid Dutch postcode, e.g. 1234 AB");
-              }
-            }}
-            autoComplete="postal-code"
-            placeholder="1234 AB"
-            className={`${inputClass} ${zipcodeError ? "border-coral" : ""}`}
-          />
-          {zipcodeError && <p className="mt-1 text-xs text-coral">{zipcodeError}</p>}
-        </div>
-      )}
-
       {/* Languages — details section and onboarding */}
       {(section === "details" || mode === "onboarding") && (
         <div>
@@ -507,6 +486,36 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
               ))}
             </div>
             </>)}
+          </div>
+        </>
+      )}
+
+      {/* Zip code — details section and onboarding */}
+      {(section === "details" || mode === "onboarding") && (
+        <>
+          <hr className="border-border" />
+          <div>
+            <label htmlFor="zipcode" className={labelClass}>
+              Zip code
+            </label>
+            <p className="text-xs italic text-muted mb-3">
+              For finding matches nearby
+            </p>
+            <input
+              id="zipcode"
+              type="text"
+              value={zipcode}
+              onChange={(e) => { setZipcode(e.target.value); setZipcodeError(null); }}
+              onBlur={() => {
+                if (zipcode && !DUTCH_POSTCODE.test(zipcode)) {
+                  setZipcodeError("Enter a valid Dutch postcode, e.g. 1234 AB");
+                }
+              }}
+              autoComplete="postal-code"
+              placeholder="1234 AB"
+              className={`${inputClass} ${zipcodeError ? "border-coral" : ""}`}
+            />
+            {zipcodeError && <p className="mt-1 text-xs text-coral">{zipcodeError}</p>}
           </div>
         </>
       )}

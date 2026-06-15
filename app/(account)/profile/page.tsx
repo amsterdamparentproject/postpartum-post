@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import ProfileForm, { type ProfileFormHandle } from "@/components/ProfileForm";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import NotSubscribedView from "@/components/NotSubscribedView";
-import NewsletterOptIn from "@/components/NewsletterOptIn";
 import { useAccount } from "@/app/(account)/AccountContext";
 import { useProfileSave } from "@/app/(account)/ProfileSaveContext";
 
@@ -94,7 +93,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Right column — availability & children + newsletter */}
+      {/* Right column — availability & children */}
       <div className="space-y-6">
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <ProfileForm
@@ -106,7 +105,6 @@ export default function ProfilePage() {
             section="details"
           />
         </div>
-        <NewsletterOptIn email={member.email} />
       </div>
     </div>
     </div>
