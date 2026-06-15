@@ -11,7 +11,7 @@
  *
  * Prerequisites:
  *   - `yarn dev` running (or set reuseExistingServer: false in playwright.config.ts)
- *   - `stripe listen --forward-to localhost:3000/api/webhooks/stripe` running
+ *   - `stripe listen --forward-to localhost:3001/api/webhooks/stripe` running
  *     (the webhook activates the member and generates the magic link in the welcome email)
  *   - Stripe test mode price `commitment_3mo` must exist
  */

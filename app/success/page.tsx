@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 };
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
+import EnvelopeLogo from "@/components/EnvelopeLogo";
 
 async function getMemberFromSession(sessionId: string) {
   try {
@@ -41,7 +42,7 @@ export default async function Success({
     <PageLayout showNav>
       <main className="flex-1 px-6 py-16 max-w-lg mx-auto w-full">
         <div className="mb-8 text-center">
-          <div className="text-5xl mb-4">💌</div>
+          <EnvelopeLogo width={48} height={36} className="mx-auto mb-4" />        
           <h1
             className="text-3xl text-dark mb-2"
             style={{ fontFamily: "var(--font-serif)" }}

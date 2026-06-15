@@ -1,12 +1,13 @@
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
+import EnvelopeLogo from "@/components/EnvelopeLogo";
 
 export default function RematchConfirmed() {
   return (
     <PageLayout>
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center">
         <div className="max-w-md w-full">
-          <div className="text-5xl mb-6">💌</div>
+          <EnvelopeLogo width={48} height={36} className="mx-auto mb-4" />
           <h1
             className="text-3xl text-dark mb-4"
             style={{ fontFamily: "var(--font-serif)" }}

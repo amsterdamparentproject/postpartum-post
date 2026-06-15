@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import SignupForm from "@/components/SignupForm";
-import Image from "next/image";
+import EnvelopeLogo from "@/components/EnvelopeLogo";
 
 export default function SubscribeSection({
   first20SpotsRemaining,
@@ -26,7 +26,7 @@ export default function SubscribeSection({
     <>
       <div className="flex justify-center mb-6">
         <div className={wiggling ? "wiggle" : undefined}>
-          <Image src="/envelope.svg" alt="" width={66} height={49} />
+          <EnvelopeLogo width={66} height={49} />
         </div>
       </div>
       <h2

@@ -46,7 +46,7 @@ test("cancel subscription: billing page → confirm cancel → profile → subsc
 
     // ── Step 5: Redirected to /unsubscribe/confirmed ──────────────────────
     await page.waitForURL(/\/unsubscribe\/confirmed/, { timeout: 15_000 });
-    await expect(page.getByText(/you've been unsubscribed/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /you've been unsubscribed/i })).toBeVisible();
 
     // ── Step 6: Return to /billing — no active subscription shown ────────────
     await page.goto("/billing");

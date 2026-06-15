@@ -1,12 +1,24 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 
 const FIRST20_TOTAL = 20;
 const PILOT_ONLY_UNTIL = new Date("2026-07-01");
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
+
+// Derives origin from the request so Stripe redirects work on any local port.
+// Falls back to the configured env var in production (behind a reverse proxy,
+// the host header reflects the internal host rather than the public origin).
+async function getBaseUrl(): Promise<string> {
+  if (process.env.NODE_ENV === "production") {
+    return process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
+  }
+  const headersList = await headers();
+  const host = headersList.get("host");
+  return host ? `http://${host}` : (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
+}
 
 export type SignupMeta = {
   first20SpotsRemaining: number | null;
@@ -154,8 +166,8 @@ async function createCheckoutSession(
     automatic_tax: { enabled: taxEnabled },
     customer_update: taxEnabled ? { address: "auto" } : undefined,
     metadata: { member_id: memberId },
-    success_url: `${BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${BASE_URL}/canceled?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${await getBaseUrl()}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${await getBaseUrl()}/canceled?session_id={CHECKOUT_SESSION_ID}`,
   });
 
   redirect(session.url!);

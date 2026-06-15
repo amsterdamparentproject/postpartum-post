@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import WordMark from "@/components/WordMark";
+import EnvelopeLogo from "@/components/EnvelopeLogo";
 
 const NAV_LINKS = [
   { href: "/about", label: "About" },
@@ -16,7 +16,7 @@ export default function Header({ showNav = true, activeRoute }: HeaderProps) {
   return (
     <header className="px-6 py-5 flex items-center justify-between max-w-5xl mx-auto w-full">
       <Link href="/" className="flex items-center gap-3">
-        <Image src="/envelope.svg" alt="" width={40} height={29} />
+        <EnvelopeLogo width={40} height={29} />
         <WordMark size="text-xl" className="hidden sm:inline" />
       </Link>
 

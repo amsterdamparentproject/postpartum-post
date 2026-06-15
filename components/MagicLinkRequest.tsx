@@ -6,6 +6,7 @@ import { checkMemberExists } from "@/app/actions/profile";
 import { getSignupMeta, type SignupMeta } from "@/app/actions/signup";
 import CalloutBox from "@/components/CalloutBox";
 import SignupForm from "@/components/SignupForm";
+import EnvelopeLogo from "./EnvelopeLogo";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -54,7 +55,7 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
   if (state === "sent") {
     return (
       <CalloutBox className="max-w-sm mx-auto">
-        <div className="text-4xl mb-4">💌</div>
+        <EnvelopeLogo width={48} height={36} className="mx-auto mb-4" />
         <h2
           className="text-2xl text-dark mb-2"
           style={{ fontFamily: "var(--font-serif)" }}

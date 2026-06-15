@@ -23,6 +23,7 @@ import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import { createAdminClient, createActivitiesClient } from "@/lib/supabase";
 import { verifyMatchToken } from "@/lib/match-token";
+import EnvelopeLogo from "@/components/EnvelopeLogo";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -209,12 +210,12 @@ export default async function MatchPage({ params, searchParams }: Props) {
 
           {/* Header */}
           <div className="text-center space-y-2">
-            <p className="text-muted text-sm uppercase tracking-wide">{monthLabel}</p>
+            <EnvelopeLogo width={48} height={36} className="mx-auto mb-4" />          
             <h1
               className="text-3xl font-semibold text-dark"
               style={{ fontFamily: "var(--font-serif)" }}
             >
-              Your match is here 💌
+              Your {monthLabel} match is here!
             </h1>
             {meetingLabel && (
               <p className="text-muted text-sm">You&apos;re meeting {meetingLabel} this month</p>
