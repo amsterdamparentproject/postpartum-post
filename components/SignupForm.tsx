@@ -144,7 +144,7 @@ export default function SignupForm({
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xl">{plan.icon}</span>
                   <div className="flex items-center gap-2">
-                    {plan.value === "first20_3mo" && first20SpotsRemaining != null && (first20SoldOut || first20SpotsRemaining <= 10) && (
+                    {plan.value === "first20_3mo" && first20SpotsRemaining != null && (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         first20SoldOut
                           ? "bg-gray-100 text-gray-400"
