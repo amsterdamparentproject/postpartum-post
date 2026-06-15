@@ -1,4 +1,4 @@
-import { FROM, SITE_URL, ASSETS_URL, getResend, bodySection, ctaButton, baseEmail, subjectPrefix } from "./base";
+import { FROM, ASSETS_URL, getResend, bodySection, ctaButton, baseEmail, subjectPrefix } from "./base";
 
 function welcomeHtml(firstName: string, profileLink: string, planLabel: string, nextBillingDate: string): string {
   const headerImage = `
@@ -6,10 +6,10 @@ function welcomeHtml(firstName: string, profileLink: string, planLabel: string, 
                   <tr><td style="padding:0 24px 16px">
                     <table cellpadding="0" cellspacing="0" border="0" style="width:100%"><tbody><tr>
                       <td align="center">
-                        <!--[if mso]><table cellpadding="0" cellspacing="0" border="0" width="408" style="width:408px"><tbody><tr><td><![endif]-->
-                        <table cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:408px"><tbody><tr>
+                        <!--[if mso]><table cellpadding="0" cellspacing="0" border="0" width="552" style="width:552px"><tbody><tr><td><![endif]-->
+                        <table cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:552px"><tbody><tr>
                           <td style="width:100%">
-                            <img src="${ASSETS_URL}/email-images/welcome-header.png" width="408" height="409"
+                            <img src="${ASSETS_URL}/email-images/welcome.png" width="552" height="625"
                               alt="Welcome to Postpartum Post"
                               style="display:block;width:100%;height:auto;max-width:100%">
                           </td>
@@ -63,7 +63,7 @@ function welcomeHtml(firstName: string, profileLink: string, planLabel: string, 
 
   return baseEmail(
     headerImage + welcomeCopy + ctaButton("Go to your profile", profileLink) + schedule,
-    `<link rel="preload" as="image" href="${ASSETS_URL}/email-images/welcome-header.png">`
+    `<link rel="preload" as="image" href="${ASSETS_URL}/email-images/welcome.png">`
   );
 }
 

@@ -12,6 +12,8 @@ export const ASSETS_URL = "https://postpartumpost.com";
 
 export const INSTAGRAM_ICON = `${ASSETS_URL}/email-images/instagram.png`;
 export const EMAIL_ICON = `${ASSETS_URL}/email-images/email.png`;
+export const TEXT_LOGO = `${ASSETS_URL}/email-images/logo.png`;
+export const TEXT_LOGO_DARK = `${ASSETS_URL}/email-images/logo-dark.png`;
 
 /** Returns "TEST: " when running locally, empty string in production. */
 export function subjectPrefix(): string {
@@ -60,6 +62,11 @@ export function emailHead(extraPreloads = ""): string {
     @media (max-width:100px) {
       .l3-c0,.l3-c1{display:block!important;width:100%!important}
       .l3-s0{display:block!important;width:auto!important;height:3px;font-size:0}
+    }
+    @media (prefers-color-scheme:dark) {
+      .email-header-bg{background-color:#1a1a18!important}
+      .logo-light{display:none!important;mso-hide:all}
+      .logo-dark{display:block!important;mso-hide:all}
     }
   </style>
   <!--<![endif]-->
@@ -160,17 +167,25 @@ export function emailFooter(): string {
                   </td></tr>`;
 }
 
-/** Coral brand header bar — shared by all non-welcome transactional emails. */
+/** Logo header — shared by all non-welcome transactional emails. */
 export function emailHeader(): string {
   return `
                   <!-- Brand header -->
                   <tr><td style="padding:0 0 16px">
                     <table border="0" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed">
                       <tbody><tr>
-                        <td style="background-color:#c56850;padding:20px 36px;border-radius:0">
-                          <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:600;color:#ffffff;letter-spacing:-0.3px">
-                            Postpartum Post
-                          </p>
+                        <td class="email-header-bg" style="background-color:#fffbf1;padding:20px 36px">
+                          <!--[if mso]><table cellpadding="0" cellspacing="0" border="0"><tbody><tr><td>
+                            <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:600;color:#d26149;letter-spacing:-0.3px">postpartum <span style="color:#12120f">post</span></p>
+                          </td></tr></tbody></table><![endif]-->
+                          <!--[if !mso]><!-->
+                          <img src="${TEXT_LOGO}" width="204" height="27"
+                            alt="postpartum post" class="logo-light"
+                            style="display:block;width:204px;height:auto;max-width:100%;border:0">
+                          <img src="${TEXT_LOGO_DARK}" width="204" height="27"
+                            alt="postpartum post" class="logo-dark"
+                            style="display:none;width:204px;height:auto;max-width:100%;border:0">
+                          <!--<![endif]-->
                         </td>
                       </tr></tbody>
                     </table>
