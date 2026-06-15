@@ -65,7 +65,7 @@ export default async function RedeemPage({
               className="text-4xl text-dark mb-4 leading-tight"
               style={{ fontFamily: "var(--font-serif)" }}
             >
-              {errorMessage ? "Lost in the post..." : `You've been gifted ${monthsText} of`}
+              {errorMessage ? "Hang on, we're tracking your package..." : `You've been gifted ${monthsText} of`}
             </h1>
             {!errorMessage && (
               <TextLogo width={315} height={41} className="mx-auto mb-6" />
