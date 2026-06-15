@@ -13,7 +13,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "geo:test": "tsx scripts/backfill-geo.ts test",
-    "geo:prod": "tsx scripts/backfill-geo.ts prod"
+    "geo:prod": "tsx scripts/backfill-geo.ts prod",
+    "emails:preview": "tsx --env-file=.env.local scripts/send-preview-emails.mts"
   },
   "dependencies": {
     "@beehiiv/sdk": "^0.1.9",

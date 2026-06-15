@@ -7,9 +7,9 @@ function welcomeHtml(firstName: string, profileLink: string, planLabel: string, 
                     <table cellpadding="0" cellspacing="0" border="0" style="width:100%"><tbody><tr>
                       <td align="center">
                         <!--[if mso]><table cellpadding="0" cellspacing="0" border="0" width="552" style="width:552px"><tbody><tr><td><![endif]-->
-                        <table cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:552px"><tbody><tr>
+                        <table cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:386px"><tbody><tr>
                           <td style="width:100%">
-                            <img src="${ASSETS_URL}/email-images/welcome.png" width="552" height="625"
+                            <img src="${ASSETS_URL}/email-images/welcome.png" width="386" height="438"
                               alt="Welcome to Postpartum Post"
                               style="display:block;width:100%;height:auto;max-width:100%">
                           </td>

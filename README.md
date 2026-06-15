@@ -20,6 +20,33 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Scripts
+
+### Preview emails
+
+Send all transactional emails to the default email address.
+
+```bash
+yarn emails:preview
+```
+
+Send a single email by name:
+
+```bash
+yarn emails:preview welcome
+yarn emails:preview unsubscribed
+yarn emails:preview auto-pause
+yarn emails:preview optin
+yarn emails:preview match-reveal
+```
+
+Send to a custom address:
+
+```bash
+yarn emails:preview you@example.com
+yarn emails:preview you@example.com welcome
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
