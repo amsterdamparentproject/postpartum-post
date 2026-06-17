@@ -113,9 +113,9 @@ export default async function Home() {
             className="text-2xl text-dark text-center mb-4"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            We made <WordMark size="text-2xl"/> for you
+            We made <span className="whitespace-nowrap"><WordMark size="text-2xl"/></span><br className="md:hidden" /> for you
           </h2>
-          <p className="mb-8 italic text-center text-base text-dark leading-relaxed max-w-lg mx-auto">For new parents at every stage, from pregnancy to age 4</p>
+          <p className="mb-8 italic text-center text-base text-dark leading-relaxed max-w-lg mx-auto">For new parents at every stage,<br className="md:hidden" /> from pregnancy to age 4</p>
           <PersonaCards />
         </div>
 
@@ -128,7 +128,7 @@ export default async function Home() {
             className="text-2xl text-dark text-center mx-auto"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            Delivered with joy by <span className="text-coral">someone who gets it</span>
+            Delivered with joy by<br className="md:hidden" /> <span className="text-coral">someone who gets it</span>
           </h2>
         </div>
         <div className="w-full max-w-lg mb-12 px-2 flex flex-col sm:flex-row items-center gap-6">
@@ -180,26 +180,26 @@ export default async function Home() {
             >
               <WordMark size="text-2xl" /> stats
             </h2>
-            <ul className="space-y-2">
-              <li className="flex items-center justify-center gap-3 text-sm text-dark">
+            <ul className="space-y-2 inline-block text-left md:block md:text-center">
+              <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
                 <EnvelopeLogo width={22} height={16} className="shrink-0" />
                 <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.count} {memberStats.count === 1 ? "member" : "members"}</span> getting a match next month</span>
               </li>
               {memberStats.lastJoinedAt && (
-                <li className="flex items-center justify-center gap-3 text-sm text-dark">
+                <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0" />
                   <span>Last member joined <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(175, 153, 255, 0.45)" }}>{formatRelativeTime(memberStats.lastJoinedAt)}</span></span>
                 </li>
               )}
               {memberStats.recentCount > 0 && (
-                <li className="flex items-center justify-center gap-3 text-sm text-dark">
+                <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0" />
                   <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 163, 115, 0.55)" }}>{memberStats.recentCount} joined</span> in the last month</span>
                 </li>
               )}
             </ul>
             <a
-              href="#subscribe-form"
+              href="#subscribe"
               className="inline-block mt-6 bg-coral text-white text-sm font-semibold rounded-full px-5 py-2 hover:opacity-90 transition-opacity"
             >
               Are you our member #{memberStats.count + 1}?
@@ -208,7 +208,7 @@ export default async function Home() {
         )}
 
         {/* Signup form */}
-        <div id="subscribe-form" className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
+        <div id="subscribe" className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <SubscribeSection first20SpotsRemaining={first20SpotsRemaining} pilotOnly={pilotOnly} />
         </div>
 
