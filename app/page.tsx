@@ -2,6 +2,7 @@ import PageLayout from "@/components/PageLayout";
 import AnimatedMail from "@/components/AnimatedMail";
 import PersonaCards from "@/components/PersonaCards";
 import SubscribeSection from "@/components/SubscribeSection";
+import EnvelopeLogo from "@/components/EnvelopeLogo";
 import Image from "next/image";
 import { createAdminClient } from "@/lib/supabase";
 import WordMark from "@/components/WordMark";
@@ -13,6 +14,44 @@ const FIRST20_TOTAL = 20;
 // call. Avoid reading Request-time APIs (searchParams, cookies, headers) here —
 // they would opt the route into per-request dynamic rendering.
 export const revalidate = 300;
+
+function formatRelativeTime(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 3600) {
+    const minutes = Math.max(1, Math.floor(seconds / 60));
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  }
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+  const days = Math.floor(seconds / 86400);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
+async function getActiveMemberStats(): Promise<{ count: number; lastJoinedAt: Date | null; recentCount: number } | null> {
+  try {
+    const supabase = createAdminClient();
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const [
+      { count, error: countError },
+      { data, error: lastError },
+      { count: recentCount, error: recentError },
+    ] = await Promise.all([
+      supabase.from("members").select("id", { count: "exact", head: true }).eq("status", "active"),
+      supabase.from("members").select("created_at").eq("status", "active").order("created_at", { ascending: false }).limit(1).single(),
+      supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").gte("created_at", thirtyDaysAgo),
+    ]);
+    if (countError) return null;
+    return {
+      count: count ?? 0,
+      lastJoinedAt: data?.created_at && !lastError ? new Date(data.created_at) : null,
+      recentCount: recentError ? 0 : (recentCount ?? 0),
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function getFirst20SpotsRemaining(): Promise<number | null> {
   const priceId = process.env.STRIPE_FOUNDING_MEMBER_PRICE_ID;
@@ -37,7 +76,10 @@ async function getFirst20SpotsRemaining(): Promise<number | null> {
 const PILOT_ONLY = true;
 
 export default async function Home() {
-  const first20SpotsRemaining = await getFirst20SpotsRemaining();
+  const [first20SpotsRemaining, memberStats] = await Promise.all([
+    getFirst20SpotsRemaining(),
+    getActiveMemberStats(),
+  ]);
 
   const pilotOnly = first20SpotsRemaining === 0 ? false : PILOT_ONLY;
 
@@ -128,6 +170,42 @@ export default async function Home() {
             </p>
           </div>
         </div>
+
+        {/* Member stats */}
+        {memberStats !== null && memberStats.count > 0 && (
+          <div className="w-full max-w-md mb-12 text-center">
+            <h2
+              className="text-2xl text-dark text-center mb-6"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              <WordMark size="text-2xl" /> stats
+            </h2>
+            <ul className="space-y-2">
+              <li className="flex items-center justify-center gap-3 text-sm text-dark">
+                <EnvelopeLogo width={22} height={16} className="shrink-0" />
+                <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.count} {memberStats.count === 1 ? "member" : "members"}</span> getting a match next month</span>
+              </li>
+              {memberStats.lastJoinedAt && (
+                <li className="flex items-center justify-center gap-3 text-sm text-dark">
+                  <EnvelopeLogo width={22} height={16} className="shrink-0" />
+                  <span>Last member joined <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(175, 153, 255, 0.45)" }}>{formatRelativeTime(memberStats.lastJoinedAt)}</span></span>
+                </li>
+              )}
+              {memberStats.recentCount > 0 && (
+                <li className="flex items-center justify-center gap-3 text-sm text-dark">
+                  <EnvelopeLogo width={22} height={16} className="shrink-0" />
+                  <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 163, 115, 0.55)" }}>{memberStats.recentCount} joined</span> in the last month</span>
+                </li>
+              )}
+            </ul>
+            <a
+              href="#subscribe-form"
+              className="inline-block mt-6 bg-coral text-white text-sm font-semibold rounded-full px-5 py-2 hover:opacity-90 transition-opacity"
+            >
+              Are you our member #{memberStats.count + 1}?
+            </a>
+          </div>
+        )}
 
         {/* Signup form */}
         <div id="subscribe-form" className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
