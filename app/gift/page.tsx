@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 
 export default function GiftPage() {
   const links = {
-    oneMonth: process.env.STRIPE_GIFT_CARD_1MO_LINK ?? "",
-    threeMonth: process.env.STRIPE_GIFT_CARD_3MO_LINK ?? "",
+    oneMonth: process.env.NEXT_PUBLIC_STRIPE_GIFT_CARD_1MO_LINK ?? "",
+    threeMonth: process.env.NEXT_PUBLIC_STRIPE_GIFT_CARD_3MO_LINK ?? "",
   };
 
   return (
