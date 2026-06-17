@@ -4,6 +4,7 @@ import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
 import { needsBillingExtension, nextMatchDate } from "@/lib/billing";
+import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -28,6 +29,12 @@ export async function POST(req: NextRequest) {
   if (event.type === "checkout.session.completed") {
     try {
     const session = event.data.object as Stripe.Checkout.Session;
+
+    if (session.metadata?.product === "gift_card") {
+      await createGiftCard(session);
+      return NextResponse.json({ received: true });
+    }
+
     const memberId = session.metadata?.member_id;
     const email = session.customer_details?.email;
 
@@ -42,7 +49,7 @@ export async function POST(req: NextRequest) {
     // latest_invoice.period_end replaces the removed current_period_end field.
     const stripeSubscription = await stripe.subscriptions.retrieve(
       session.subscription as string,
-      { expand: ["latest_invoice"] }
+      { expand: ["latest_invoice", "discounts"] }
     );
     const priceId = stripeSubscription.items.data[0].price.id;
     console.log("[webhook] retrieved stripe subscription", { priceId });
@@ -108,6 +115,22 @@ export async function POST(req: NextRequest) {
     const nextBillingDate = new Date(periodEndTs * 1000).toLocaleDateString("en-NL", {
       day: "numeric", month: "long", year: "numeric",
     });
+
+    // Mark gift card as redeemed if a promotion code was applied.
+    // discounts[0] is a full Discount object (expanded above); .promotion_code is the string ID.
+    const firstDiscount = stripeSubscription.discounts?.[0];
+    if (firstDiscount && typeof firstDiscount !== "string") {
+      const promoCode = firstDiscount.promotion_code;
+      const promoCodeId = typeof promoCode === "string" ? promoCode : promoCode?.id;
+      if (promoCodeId) {
+        try {
+          await redeemGiftCard(promoCodeId);
+          console.log("[webhook] gift card redeemed", { promoCodeId });
+        } catch (e) {
+          console.error("[webhook] redeemGiftCard failed (non-fatal):", e);
+        }
+      }
+    }
 
     // Send welcome email via Resend
     try {

@@ -19,10 +19,14 @@ export default function SignupForm({
   first20SpotsRemaining,
   pilotOnly = false,
   onSubmitHover,
+  lockedPlan,
+  giftCode,
 }: {
   first20SpotsRemaining?: number | null;
   pilotOnly?: boolean;
   onSubmitHover?: (hovering: boolean) => void;
+  lockedPlan?: SignupFormData["plan"];
+  giftCode?: string;
 }) {
   const first20SoldOut = first20SpotsRemaining === 0;
 
@@ -30,7 +34,7 @@ export default function SignupForm({
 
   const [isPending, startTransition] = useTransition();
   const [selectedPlan, setSelectedPlan] = useState<SignupFormData["plan"]>(
-    defaultPlan(pilotOnly)
+    lockedPlan ?? defaultPlan(pilotOnly)
   );
   const [emailError, setEmailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +57,7 @@ export default function SignupForm({
       lastName: (form.elements.namedItem("lastName") as HTMLInputElement).value.trim(),
       email: emailValue.trim(),
       plan: selectedPlan,
+      ...(giftCode ? { giftCode } : {}),
     };
 
     startTransition(async () => {
@@ -119,7 +124,22 @@ export default function SignupForm({
         <p className={labelClass}>
           Plan <RequiredMark />
         </p>
-        <div className="space-y-3">
+        {lockedPlan ? (() => {
+          const plan = PLANS.find((p) => p.value === lockedPlan)!;
+          return (
+            <div className="p-4 rounded-lg border-2 border-coral bg-coral/5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xl">{plan.icon}</span>
+                <span className="text-xs font-medium text-coral bg-coral/10 px-2 py-0.5 rounded-full">Gift</span>
+              </div>
+              <span className="block text-lg font-semibold text-dark leading-tight">
+                <span className="line-through text-muted font-normal mr-1">{plan.price}</span>€0
+              </span>
+              <span className="block text-sm font-medium text-dark mt-0.5 mb-1">{plan.name}</span>
+              <span className="block text-xs text-muted">{plan.billing}</span>
+            </div>
+          );
+        })() : <div className="space-y-3">
           {/* Featured plan — full width */}
           {plans.filter((p) => p.featured && !p.hidden).map((plan) => {
             const isSelected = selectedPlan === plan.value;
@@ -215,7 +235,7 @@ export default function SignupForm({
               );
             })}
           </div>
-        </div>
+        </div>}
       </div>
 
       {error && (
