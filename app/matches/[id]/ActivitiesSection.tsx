@@ -8,6 +8,7 @@ import TabContent from "./TabContent";
 import {
   PLACE_SORTS,
   ACTIVITY_SORTS,
+  effectiveDayOfWeek,
   type MemberAvailability,
   type Tab,
   type SortOrder,
@@ -48,8 +49,9 @@ export default function ActivitiesSection({
     () =>
       all.filter((a) => {
         if (a.kind !== "event") return false;
-        if (!a.day_of_week) return true;
-        return memberDays.has(a.day_of_week.toLowerCase());
+        const day = effectiveDayOfWeek(a);
+        if (!day) return true;
+        return memberDays.has(day);
       }),
     [all, memberDays],
   );

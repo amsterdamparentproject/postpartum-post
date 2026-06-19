@@ -6,10 +6,10 @@ import DayModal from "./DayModal";
 import {
   DAY_NAMES,
   MEMBER_COLORS,
-  effectiveDate,
   toLocalDateStr,
   monthWeekStarts,
   weekDays,
+  calendarDates,
   type MemberAvailability,
 } from "./activities-utils";
 
@@ -25,17 +25,23 @@ export default function CalendarView({ events, members, matchedOn }: Props) {
   const todayStr = toLocalDateStr(new Date());
   const [modalDay, setModalDay] = useState<{ day: Date; events: Activity[] } | null>(null);
 
+  const monthStart = matchedOn.slice(0, 7) + "-01";
+  const monthEnd = toLocalDateStr(
+    new Date(new Date(monthStart + "T00:00:00").setMonth(
+      new Date(monthStart + "T00:00:00").getMonth() + 1,
+    )),
+  );
+
   const eventsByDate = useMemo(() => {
     const map = new Map<string, Activity[]>();
     for (const e of events) {
-      const d = effectiveDate(e);
-      if (!d) continue;
-      const key = d.slice(0, 10);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(e);
+      for (const d of calendarDates(e, monthStart, monthEnd)) {
+        if (!map.has(d)) map.set(d, []);
+        if (!map.get(d)!.find((x) => x.id === e.id)) map.get(d)!.push(e);
+      }
     }
     return map;
-  }, [events]);
+  }, [events, monthStart, monthEnd]);
 
   const monthLabel = new Date(matchedOn.slice(0, 7) + "-01T00:00:00").toLocaleDateString(
     "en-US",

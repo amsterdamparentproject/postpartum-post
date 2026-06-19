@@ -4,7 +4,7 @@ import type { Activity } from "@/lib/activities";
 import {
   DAY_NAMES,
   MEMBER_COLORS,
-  locationText,
+  formatMeta,
   type MemberAvailability,
 } from "./activities-utils";
 
@@ -73,7 +73,7 @@ export default function DayModal({ day, events, members, onClose }: Props) {
 
         <div className="space-y-3">
           {events.map((e) => {
-            const loc = locationText(e);
+            const meta = formatMeta(e);
             return (
               <div
                 key={e.id}
@@ -93,23 +93,18 @@ export default function DayModal({ day, events, members, onClose }: Props) {
                     e.title
                   )}
                 </p>
-                <p className="text-xs text-muted">
-                  {e.start_time && <>{e.start_time.slice(0, 5)} · </>}
-                  {loc && (
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-coral hover:underline"
-                    >
-                      {loc}
-                    </a>
-                  )}
-                </p>
-                {(e.tagline ?? e.description) && (
-                  <p className="text-sm text-dark line-clamp-3">
-                    {e.tagline ?? e.description}
-                  </p>
+                {meta && (
+                  <p className="text-xs text-muted italic">{meta}</p>
+                )}
+                {e.url && (
+                  <a
+                    href={e.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-xs text-purple hover:underline pt-1"
+                  >
+                    Learn more →
+                  </a>
                 )}
               </div>
             );

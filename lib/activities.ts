@@ -38,10 +38,12 @@ export interface Activity {
   start_date?: string;
   end_date?: string | null;
   start_time?: string | null;
+  end_time?: string | null;
   day_of_week?: string | null;
   repeat_next_date?: string | null;
   tagline?: string | null;
   newsletter_description?: string | null;
+  repeat_rrule?: string | null;
   /** Computed */
   score: number;
   isRecommended: boolean;
@@ -98,6 +100,16 @@ function normDays(days: string[]): Set<string> {
   return new Set(days.map((d) => d.toLowerCase()));
 }
 
+const DAY_NAMES = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+
+/** Derive day-of-week from the effective display date (repeat_next_date ?? start_date) */
+function derivedDayOfWeek(a: Omit<Activity, "score" | "isRecommended">): string | null {
+  if (a.kind !== "event") return null;
+  const dateStr = (a.repeat_next_date ?? a.start_date)?.slice(0, 10);
+  if (!dateStr) return null;
+  return DAY_NAMES[new Date(dateStr.slice(0, 10) + "T00:00:00").getDay()];
+}
+
 /** 0–1: fraction of pair's shared days that overlap with the activity day */
 function availabilityScore(
   pairDays: string[],
@@ -137,7 +149,7 @@ function scoreActivity(
 ): number {
   const avail = availabilityScore(
     profile.availabilityDays,
-    activity.day_of_week,
+    derivedDayOfWeek(activity),
   );
   const dist = profile.center
     ? distanceScore(profile.center, activity.lat, activity.lng)
@@ -165,10 +177,12 @@ type RawEvent = {
   start_date: string;
   end_date: string | null;
   start_time: string | null;
+  end_time: string | null;
   day_of_week: string | null;
   repeat_next_date: string | null;
   tagline: string | null;
   newsletter_description: string | null;
+  repeat_rrule: string | null;
 };
 
 type RawLocation = {
@@ -212,7 +226,7 @@ export async function fetchMatchActivities(
       client
         .from("events")
         .select(
-          "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories, start_date, end_date, start_time, day_of_week, repeat_next_date, tagline, newsletter_description",
+          "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories, start_date, end_date, start_time, end_time, day_of_week, repeat_next_date, repeat_rrule, tagline, newsletter_description",
         )
         .neq("status", "new")
         .neq("status", "archived")
@@ -269,10 +283,12 @@ export async function fetchMatchActivities(
         start_date: e.start_date,
         end_date: e.end_date,
         start_time: e.start_time,
+        end_time: e.end_time,
         day_of_week: e.day_of_week,
         repeat_next_date: e.repeat_next_date,
         tagline: e.tagline,
         newsletter_description: e.newsletter_description,
+        repeat_rrule: e.repeat_rrule,
       })),
       ...rawLocations.map((l) => ({
         id: l.id,
@@ -305,18 +321,18 @@ export async function fetchMatchActivities(
     // For events: prioritize "both can attend" — only fill remaining slots with one-member events
     const m1Set = new Set(profile.member1Days.map((d) => d.toLowerCase()));
     const m2Set = new Set(profile.member2Days.map((d) => d.toLowerCase()));
-    const bothCanAttend = (day: string | null | undefined) => {
+    const bothCanAttend = (a: typeof scored[number]) => {
+      const day = derivedDayOfWeek(a);
       if (!day) return false;
-      const d = day.toLowerCase();
-      return m1Set.has(d) && m2Set.has(d);
+      return m1Set.has(day) && m2Set.has(day);
     };
 
     const scoredActivities = scored
       .filter((a) => a.kind !== "location")
       .sort((a, b) => b.score - a.score);
 
-    const bothEvents = scoredActivities.filter((a) => bothCanAttend(a.day_of_week));
-    const oneEvents  = scoredActivities.filter((a) => !bothCanAttend(a.day_of_week));
+    const bothEvents = scoredActivities.filter((a) => bothCanAttend(a));
+    const oneEvents  = scoredActivities.filter((a) => !bothCanAttend(a));
     const topActivities = [
       ...bothEvents.slice(0, 5),
       ...oneEvents.slice(0, Math.max(0, 5 - bothEvents.length)),

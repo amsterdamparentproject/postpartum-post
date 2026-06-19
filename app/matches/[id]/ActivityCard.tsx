@@ -4,8 +4,8 @@ import type { Activity } from "@/lib/activities";
 import {
   MEMBER_COLORS,
   locationText,
-  formatDate,
-  effectiveDate,
+  formatMeta,
+  effectiveDayOfWeek,
   type MemberAvailability,
 } from "./activities-utils";
 
@@ -18,20 +18,19 @@ export default function ActivityCard({ activity, members }: Props) {
   const loc = locationText(activity);
   const newsletterDesc = activity.newsletter_description ?? null;
   const fallbackDesc = activity.description ?? null;
-  const date = effectiveDate(activity);
+  const meta = formatMeta(activity);
 
-  const freeMembers =
-    members && activity.kind === "event" && activity.day_of_week
-      ? members
-          .map((m, i) => ({
-            initial: m.name[0].toUpperCase(),
-            color: MEMBER_COLORS[i],
-            free: m.days
-              .map((d) => d.toLowerCase())
-              .includes(activity.day_of_week!.toLowerCase()),
-          }))
-          .filter((m) => m.free)
-      : [];
+  const activityDay = activity.kind === "event" ? effectiveDayOfWeek(activity) : null;
+  const freeMembers: { initial: string; color: string }[] = [];
+  if (members && activityDay != null) {
+    const day = activityDay; // narrowed to string for TypeScript
+    for (let i = 0; i < members.length; i++) {
+      const m = members[i];
+      if (m.days.map((d) => d.toLowerCase()).includes(day)) {
+        freeMembers.push({ initial: m.name[0].toUpperCase(), color: MEMBER_COLORS[i] });
+      }
+    }
+  }
 
   return (
     <div
@@ -62,10 +61,8 @@ export default function ActivityCard({ activity, members }: Props) {
           </div>
         )}
       </div>
-      {date && (
-        <p className="text-xs text-coral">
-          {formatDate(date, activity.start_time)}
-        </p>
+      {meta && (
+        <p className="text-xs text-coral italic">{meta}</p>
       )}
       {newsletterDesc ? (
         <p className="text-dark text-sm leading-relaxed">{newsletterDesc}</p>
