@@ -16,9 +16,11 @@ const ActivitiesMap = dynamic(() => import("@/components/ActivitiesMap"), {
 export default function ActivitiesMapClient({
   activities,
   center,
+  memberCoords,
 }: {
   activities: Activity[];
   center: { lat: number; lng: number } | null;
+  memberCoords: { lat: number; lng: number }[];
 }) {
-  return <ActivitiesMap activities={activities} center={center} />;
+  return <ActivitiesMap activities={activities} center={center} memberCoords={memberCoords} />;
 }

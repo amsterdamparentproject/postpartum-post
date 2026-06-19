@@ -37,10 +37,12 @@ export interface Activity {
   categories: string[];
   /** Events only */
   start_date?: string;
+  end_date?: string | null;
   start_time?: string | null;
   day_of_week?: string | null;
   repeat_next_date?: string | null;
   tagline?: string | null;
+  newsletter_description?: string | null;
   /** Computed */
   score: number;
   isRecommended: boolean;
@@ -49,8 +51,13 @@ export interface Activity {
 export interface MatchProfile {
   /** Midpoint of the two members' coordinates */
   center: { lat: number; lng: number } | null;
-  /** Union of both members' availability days */
+  /** Union of both members' availability days (used for scoring) */
   availabilityDays: string[];
+  /** Each member's individual availability days (used for "both can attend" prioritization) */
+  member1Days: string[];
+  member2Days: string[];
+  /** The match's month date (YYYY-MM-DD), used to filter events to this month */
+  matchedOn: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,10 +164,12 @@ type RawEvent = {
   longitude: number | null;
   categories: string[] | null;
   start_date: string;
+  end_date: string | null;
   start_time: string | null;
   day_of_week: string | null;
   repeat_next_date: string | null;
   tagline: string | null;
+  newsletter_description: string | null;
 };
 
 type RawResource = {
@@ -192,9 +201,11 @@ type RawLocation = {
 // ---------------------------------------------------------------------------
 
 export interface ActivitiesResult {
-  /** Top 5 by score */
-  recommended: Activity[];
-  /** All matching activities (with isRecommended flag set) */
+  /** Top 5 locations by score */
+  recommendedPlaces: Activity[];
+  /** Top 5 events + resources by score */
+  recommendedActivities: Activity[];
+  /** All matching activities (with isRecommended flag set per type) */
   all: Activity[];
 }
 
@@ -203,23 +214,39 @@ export async function fetchMatchActivities(
 ): Promise<ActivitiesResult> {
   try {
     const client = createActivitiesClient();
-    const today = new Date().toISOString().slice(0, 10);
+
+    // Compute month window from matchedOn (format: YYYY-MM-DD)
+    const monthStart = profile.matchedOn.slice(0, 7) + "-01";
+    const monthEnd = new Date(
+      new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1),
+    )
+      .toISOString()
+      .slice(0, 10);
 
     const [eventsRes, resourcesRes, locationsRes] = await Promise.all([
       client
         .from("events")
         .select(
-          "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories, start_date, start_time, day_of_week, repeat_next_date, tagline",
+          "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories, start_date, end_date, start_time, day_of_week, repeat_next_date, tagline, newsletter_description",
         )
-        .eq("status", "edited")
-        .or(`start_date.gte.${today},repeat_next_date.gte.${today}`),
+        .neq("status", "new")
+        .neq("status", "archived")
+        // Include events where:
+        //   1. start_date falls within the match month
+        //   2. repeat_next_date falls within the match month
+        //   3. the match month overlaps the event's start_date–end_date range
+        .or(
+          `and(start_date.gte.${monthStart},start_date.lt.${monthEnd}),` +
+          `and(repeat_next_date.gte.${monthStart},repeat_next_date.lt.${monthEnd}),` +
+          `and(start_date.lt.${monthEnd},end_date.gte.${monthStart})`,
+        ),
 
       client
         .from("resources")
         .select(
           "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories",
         )
-        .eq("status", "edited"),
+        .neq("status", "new"),
 
       client
         .from("locations")
@@ -230,7 +257,22 @@ export async function fetchMatchActivities(
     if (resourcesRes.error) console.error("[activities] resources query failed:", resourcesRes.error.message);
     if (locationsRes.error) console.error("[activities] locations query failed:", locationsRes.error.message);
 
-    const rawEvents = (eventsRes.data ?? []) as RawEvent[];
+    const today = new Date().toISOString().slice(0, 10);
+    const rawEvents = ((eventsRes.data ?? []) as RawEvent[]).filter((e) => {
+      // Drop events entirely in the past
+      const notPast =
+        (e.end_date != null && e.end_date >= today) ||
+        (e.repeat_next_date != null && e.repeat_next_date >= today) ||
+        e.start_date >= today;
+      if (!notPast) return false;
+
+      // The effective display date must fall within the match month.
+      // For range events (condition 3), use start_date as the anchor instead.
+      const displayDate = e.repeat_next_date ?? e.start_date;
+      const inMonth = displayDate >= monthStart && displayDate < monthEnd;
+      const startInMonth = e.start_date >= monthStart && e.start_date < monthEnd;
+      return inMonth || startInMonth;
+    });
     const rawResources = (resourcesRes.data ?? []) as RawResource[];
     const rawLocations = (locationsRes.data ?? []) as RawLocation[];
 
@@ -249,10 +291,12 @@ export async function fetchMatchActivities(
         lng: e.longitude,
         categories: e.categories ?? [],
         start_date: e.start_date,
+        end_date: e.end_date,
         start_time: e.start_time,
         day_of_week: e.day_of_week,
         repeat_next_date: e.repeat_next_date,
         tagline: e.tagline,
+        newsletter_description: e.newsletter_description,
       })),
       ...rawResources.map((r) => ({
         id: r.id,
@@ -285,21 +329,51 @@ export async function fetchMatchActivities(
     ];
 
     // Score all candidates
-    const scored: Activity[] = candidates
-      .map((a) => ({ ...a, score: scoreActivity(a, profile), isRecommended: false }))
+    const scored = candidates.map((a) => ({
+      ...a,
+      score: scoreActivity(a, profile),
+      isRecommended: false,
+    }));
+
+    // Split by type and take top 5 within each group independently
+    const scoredPlaces = scored
+      .filter((a) => a.kind === "location")
       .sort((a, b) => b.score - a.score);
 
-    // Top 5 are recommended
-    const recommendedIds = new Set(scored.slice(0, 5).map((a) => a.id));
-    const all = scored.map((a) => ({
-      ...a,
-      isRecommended: recommendedIds.has(a.id),
-    }));
-    const recommended = all.slice(0, 5);
+    // For events: prioritize "both can attend" — only fill remaining slots with one-member events
+    const m1Set = new Set(profile.member1Days.map((d) => d.toLowerCase()));
+    const m2Set = new Set(profile.member2Days.map((d) => d.toLowerCase()));
+    const bothCanAttend = (day: string | null | undefined) => {
+      if (!day) return false;
+      const d = day.toLowerCase();
+      return m1Set.has(d) && m2Set.has(d);
+    };
 
-    return { recommended, all };
+    const scoredActivities = scored
+      .filter((a) => a.kind !== "location")
+      .sort((a, b) => b.score - a.score);
+
+    const bothEvents = scoredActivities.filter((a) => bothCanAttend(a.day_of_week));
+    const oneEvents  = scoredActivities.filter((a) => !bothCanAttend(a.day_of_week));
+    const topActivities = [
+      ...bothEvents.slice(0, 5),
+      ...oneEvents.slice(0, Math.max(0, 5 - bothEvents.length)),
+    ];
+
+    const recPlaceIds = new Set(scoredPlaces.slice(0, 5).map((a) => a.id));
+    const recActivityIds = new Set(topActivities.map((a) => a.id));
+
+    const all = [...scoredPlaces, ...scoredActivities].map((a) => ({
+      ...a,
+      isRecommended: recPlaceIds.has(a.id) || recActivityIds.has(a.id),
+    }));
+
+    const recommendedPlaces = all.filter((a) => recPlaceIds.has(a.id));
+    const recommendedActivities = all.filter((a) => recActivityIds.has(a.id));
+
+    return { recommendedPlaces, recommendedActivities, all };
   } catch (err) {
     console.error("[activities] fetch failed:", err);
-    return { recommended: [], all: [] };
+    return { recommendedPlaces: [], recommendedActivities: [], all: [] };
   }
 }

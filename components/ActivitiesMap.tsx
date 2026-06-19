@@ -8,34 +8,35 @@ import type { Activity } from "@/lib/activities";
 interface Props {
   activities: Activity[];
   center: { lat: number; lng: number } | null;
+  /** Member coordinates used only for bounds fitting — no markers rendered */
+  memberCoords: { lat: number; lng: number }[];
 }
 
 const COLORS = {
-  recommended: "#D4E09B", // green
-  location: "#C56850",    // coral
-  activity: "#AF99FF",    // purple
+  recPlace:    "#D4E09B", // green — recommended places
+  recActivity: "#AF99FF", // purple — recommended things to do
+  location:    "#C56850", // coral — non-recommended places
+  activity:    "#AF99FF", // purple — non-recommended things to do
 };
 
 function makeMarkerHtml(activity: Activity): string {
+  const bg = activity.isRecommended
+    ? (activity.kind === "location" ? COLORS.recPlace : COLORS.recActivity)
+    : (activity.kind === "location" ? COLORS.location : COLORS.activity);
+
   if (activity.isRecommended) {
     return `<div style="
-      width: 28px;
-      height: 28px;
-      background: ${COLORS.recommended};
+      width: 28px; height: 28px;
+      background: ${bg};
       border-radius: 50%;
       border: 2px solid white;
       box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; line-height: 1;
     ">★</div>`;
   }
-  const bg = activity.kind === "location" ? COLORS.location : COLORS.activity;
   return `<div style="
-    width: 14px;
-    height: 14px;
+    width: 14px; height: 14px;
     background: ${bg};
     border-radius: 50%;
     border: 2px solid white;
@@ -50,9 +51,7 @@ function makePopupHtml(activity: Activity): string {
   const dateStr =
     activity.kind === "event" && activity.start_date
       ? new Date(activity.start_date).toLocaleDateString("en-US", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
+          weekday: "short", month: "short", day: "numeric",
         })
       : null;
 
@@ -66,7 +65,7 @@ function makePopupHtml(activity: Activity): string {
   `;
 }
 
-export default function ActivitiesMap({ activities, center }: Props) {
+export default function ActivitiesMap({ activities, center, memberCoords }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
 
@@ -89,6 +88,20 @@ export default function ActivitiesMap({ activities, center }: Props) {
         scrollWheelZoom: false,
       });
       mapRef.current = map;
+
+      // Fit bounds to recommended markers; fall back to all activities, then member coords
+      const recCoords = activities
+        .filter((a) => a.isRecommended && a.lat != null && a.lng != null)
+        .map((a) => [a.lat!, a.lng!] as [number, number]);
+      const allCoords = activities
+        .filter((a) => a.lat != null && a.lng != null)
+        .map((a) => [a.lat!, a.lng!] as [number, number]);
+      const boundsCoords = recCoords.length > 0 ? recCoords
+        : allCoords.length > 0 ? allCoords
+        : memberCoords.map((c) => [c.lat, c.lng] as [number, number]);
+      if (boundsCoords.length > 0) {
+        map.fitBounds(L.latLngBounds(boundsCoords), { padding: [64, 64], maxZoom: 15 });
+      }
 
       L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
@@ -131,12 +144,7 @@ export default function ActivitiesMap({ activities, center }: Props) {
   return (
     <div
       ref={containerRef}
-      style={{
-        width: "100%",
-        height: "320px",
-        borderRadius: "12px",
-        overflow: "hidden",
-      }}
+      style={{ width: "100%", height: "320px", borderRadius: "12px", overflow: "hidden" }}
     />
   );
 }

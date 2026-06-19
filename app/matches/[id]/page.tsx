@@ -90,8 +90,14 @@ export default async function MatchPage({ params, searchParams }: Props) {
     ...(m2.availability?.days ?? []),
   ]));
 
-  const { recommended: recommendedActivities, all: allActivities } =
-    await fetchMatchActivities({ center, availabilityDays });
+  const { recommendedPlaces, recommendedActivities, all: allActivities } =
+    await fetchMatchActivities({
+      center,
+      availabilityDays,
+      member1Days: m1.availability?.days ?? [],
+      member2Days: m2.availability?.days ?? [],
+      matchedOn: match.matched_on,
+    });
 
   const { data: participations } = await supabase
     .from("monthly_participation")
@@ -116,16 +122,16 @@ export default async function MatchPage({ params, searchParams }: Props) {
   return (
     <PageLayout>
       <main className="flex-1 flex flex-col items-center px-6 py-16">
-        <div className="max-w-lg w-full space-y-12">
+        <div className="max-w-2xl px-4 md:px-0 w-full space-y-16">
 
           {/* Header */}
           <div className="text-center space-y-2">
-            <EnvelopeLogo width={48} height={36} className="mx-auto mb-4" />          
+            <EnvelopeLogo width={48} height={36} className="hidden sm:block mx-auto mb-4" />
             <h1
-              className="text-3xl font-semibold text-dark"
+              className="text-4xl sm:text-5xl font-semibold text-dark"
               style={{ fontFamily: "var(--font-serif)" }}
             >
-              Your {monthLabel} match is here!
+              Your <span className="text-coral">{monthLabel}</span> match<span className="hidden md:inline"><br /></span> is here!
             </h1>
             {meetingLabel && (
               <p className="text-muted text-sm">You&apos;re meeting {meetingLabel} this month</p>
@@ -133,32 +139,69 @@ export default async function MatchPage({ params, searchParams }: Props) {
           </div>
 
           {/* Match cards */}
-          <section className="space-y-4">
-            {[m1, m2].map((member, i) => (
-              <div key={i} className="border border-border rounded-xl p-6 bg-white space-y-1">
-                <p className="font-semibold text-dark text-lg">
-                  {member.first_name} {member.last_name}
-                </p>
-                <a href={`mailto:${member.email}`} className="text-coral hover:underline text-sm">
-                  {member.email}
-                </a>
-              </div>
-            ))}
+          <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[m1, m2].map((member, i) => {
+              const days = member.availability?.days ?? [];
+              const dayLabels = days.map((d) =>
+                d.charAt(0).toUpperCase() + d.slice(1, 3).toLowerCase()
+              );
+              const borderColor = i === 0 ? "#C56850" : "#9B7355";
+              const radius = i === 0
+                ? "2rem 0.5rem 2rem 0.5rem / 0.5rem 2rem 0.5rem 2rem"
+                : "0.5rem 2rem 0.5rem 2rem / 2rem 0.5rem 2rem 0.5rem";
+              return (
+                <div
+                  key={i}
+                  className="p-5 bg-white space-y-2"
+                  style={{ borderRadius: radius, border: `1.5px solid ${borderColor}` }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-dark text-lg" style={{ fontFamily: "var(--font-serif)" }}>
+                      {member.first_name} {member.last_name}
+                    </p>
+                    <span
+                      className="inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-xs font-bold shrink-0"
+                      style={{ background: borderColor }}
+                    >
+                      {member.first_name[0].toUpperCase()}
+                    </span>
+                  </div>
+                  <a href={`mailto:${member.email}`} className="text-purple hover:underline text-sm block">
+                    Send them an email →
+                  </a>
+                  {dayLabels.length > 0 && (
+                    <p className="text-muted text-xs">
+                      Available on: {dayLabels.join(", ")}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </section>
 
-          {/* Activities */}
+{/* Activities */}
           {hasActivities && (
             <ActivitiesSection
-              recommended={recommendedActivities}
+              recommendedPlaces={recommendedPlaces}
+              recommendedActivities={recommendedActivities}
               all={allActivities}
               center={center}
+              memberCoords={[
+                ...(m1.lat != null && m1.lng != null ? [{ lat: m1.lat, lng: m1.lng }] : []),
+                ...(m2.lat != null && m2.lng != null ? [{ lat: m2.lat, lng: m2.lng }] : []),
+              ]}
+              members={[
+                { name: m1.first_name, days: m1.availability?.days ?? [] },
+                { name: m2.first_name, days: m2.availability?.days ?? [] },
+              ]}
+              matchedOn={match.matched_on}
             />
           )}
 
-          {/* About matching */}
+{/* About matching */}
           <div className="pt-4 pb-2" id="about-matching">
             <h2
-              className="text-xl font-semibold text-dark"
+              className="text-2xl sm:text-3xl font-semibold text-dark"
               style={{ fontFamily: "var(--font-serif)" }}
             >
               About the matching process
