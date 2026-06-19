@@ -36,9 +36,6 @@ export function WeekGroupedList({ items, members }: ListProps) {
       ))}
       {undated.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted">
-            Resources
-          </p>
           {undated.map((a) => (
             <ActivityCard key={`${a.kind}-${a.id}`} activity={a} members={members} />
           ))}

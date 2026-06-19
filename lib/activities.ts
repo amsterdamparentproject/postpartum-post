@@ -1,9 +1,8 @@
 /**
  * lib/activities.ts
  *
- * Fetches and scores activities from three tables in the `activities` schema:
+ * Fetches and scores activities from two tables in the `activities` schema:
  *   - events    (dated, have day_of_week for availability matching)
- *   - resources (undated curated content)
  *   - locations (physical venues / places)
  *
  * Scoring priority:
@@ -20,7 +19,7 @@ import { createActivitiesClient } from "@/lib/supabase";
 // Types
 // ---------------------------------------------------------------------------
 
-export type ActivityKind = "event" | "resource" | "location";
+export type ActivityKind = "event" | "location";
 
 export interface Activity {
   id: string;
@@ -172,20 +171,6 @@ type RawEvent = {
   newsletter_description: string | null;
 };
 
-type RawResource = {
-  id: string;
-  title: string;
-  description: string;
-  url: string | null;
-  organization: string | null;
-  location: string | null;
-  neighborhood: string | null;
-  area: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  categories: string[] | null;
-};
-
 type RawLocation = {
   id: string;
   name: string;
@@ -203,7 +188,7 @@ type RawLocation = {
 export interface ActivitiesResult {
   /** Top 5 locations by score */
   recommendedPlaces: Activity[];
-  /** Top 5 events + resources by score */
+  /** Top 5 events by score */
   recommendedActivities: Activity[];
   /** All matching activities (with isRecommended flag set per type) */
   all: Activity[];
@@ -223,7 +208,7 @@ export async function fetchMatchActivities(
       .toISOString()
       .slice(0, 10);
 
-    const [eventsRes, resourcesRes, locationsRes] = await Promise.all([
+    const [eventsRes, locationsRes] = await Promise.all([
       client
         .from("events")
         .select(
@@ -242,19 +227,11 @@ export async function fetchMatchActivities(
         ),
 
       client
-        .from("resources")
-        .select(
-          "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories",
-        )
-        .neq("status", "new"),
-
-      client
         .from("locations")
         .select("id, name, address, neighborhood, area, latitude, longitude"),
     ]);
 
     if (eventsRes.error) console.error("[activities] events query failed:", eventsRes.error.message);
-    if (resourcesRes.error) console.error("[activities] resources query failed:", resourcesRes.error.message);
     if (locationsRes.error) console.error("[activities] locations query failed:", locationsRes.error.message);
 
     const today = new Date().toISOString().slice(0, 10);
@@ -273,7 +250,6 @@ export async function fetchMatchActivities(
       const startInMonth = e.start_date >= monthStart && e.start_date < monthEnd;
       return inMonth || startInMonth;
     });
-    const rawResources = (resourcesRes.data ?? []) as RawResource[];
     const rawLocations = (locationsRes.data ?? []) as RawLocation[];
 
     const candidates: Omit<Activity, "score" | "isRecommended">[] = [
@@ -297,20 +273,6 @@ export async function fetchMatchActivities(
         repeat_next_date: e.repeat_next_date,
         tagline: e.tagline,
         newsletter_description: e.newsletter_description,
-      })),
-      ...rawResources.map((r) => ({
-        id: r.id,
-        kind: "resource" as ActivityKind,
-        title: r.title,
-        description: r.description,
-        url: r.url,
-        organization: r.organization,
-        location: r.location,
-        neighborhood: r.neighborhood,
-        area: r.area,
-        lat: r.latitude,
-        lng: r.longitude,
-        categories: r.categories ?? [],
       })),
       ...rawLocations.map((l) => ({
         id: l.id,

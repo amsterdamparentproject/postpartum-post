@@ -151,8 +151,8 @@ export default function ActivitiesSection({
       <div className="flex">
         {(["activities", "places"] as Tab[]).map((tab, i) => {
           const labels: Record<Tab, string> = {
-            places: `Places to Go (${places.length})`,
-            activities: `Things to Do (${activities.length})`,
+            places: `Places to go`,
+            activities: `Things to do`,
           };
           const activeStyle =
             tab === "activities"
