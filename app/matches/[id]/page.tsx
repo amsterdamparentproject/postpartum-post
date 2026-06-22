@@ -19,7 +19,6 @@
  */
 
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import { createAdminClient } from "@/lib/supabase";
 import { verifyMatchToken } from "@/lib/match-token";
@@ -239,9 +238,9 @@ export default async function MatchPage({ params, searchParams }: Props) {
             <p className="text-muted text-sm mb-3">
               Not feeling the connection? You can request a rematch before the 14th.
             </p>
-            <Link href="/matches" className="text-sm text-coral hover:underline">
-              Go to your profile to request a rematch
-            </Link>
+            <a href="mailto:post@amsterdamparentproject.nl?subject=REMATCH:" className="text-sm text-coral hover:underline">
+              Request a rematch
+            </a>
           </div>
 
         </div>
