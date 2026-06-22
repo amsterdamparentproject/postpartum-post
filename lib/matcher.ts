@@ -471,17 +471,44 @@ function pairKey(a: MatchCandidate, b: MatchCandidate): string {
 }
 
 // ---------------------------------------------------------------------------
+// Permanent exclusions
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a Set of pair keys ("id1:id2" with id1 < id2) for every permanent
+ * match exclusion. These never expire, unlike the 6-month recent-match window.
+ */
+export async function getPermanentExclusions(
+  supabase: AnySupabaseClient,
+): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("match_exclusions")
+    .select("member_id_1, member_id_2");
+
+  if (error) {
+    console.error("[matcher] Failed to fetch permanent exclusions:", error);
+    return new Set();
+  }
+
+  const pairs = new Set<string>();
+  for (const row of data ?? []) {
+    pairs.add([row.member_id_1, row.member_id_2].sort().join(":"));
+  }
+  return pairs;
+}
+
+// ---------------------------------------------------------------------------
 // Greedy pairing
 // ---------------------------------------------------------------------------
 
 function greedyPair(
   scoredPairs: ScoredPair[],
-  recentPairs: Set<string>
+  excludedPairs: Set<string>
 ): { matched: ScoredPair[]; unmatched: MatchCandidate[] } {
-  // Filter out incompatible or recently-matched pairs
+  // Filter out incompatible or excluded pairs
   const valid = scoredPairs.filter(
     (p) =>
-      parentTypeCompatible(p.a, p.b) && !recentPairs.has(pairKey(p.a, p.b))
+      parentTypeCompatible(p.a, p.b) && !excludedPairs.has(pairKey(p.a, p.b))
   );
 
   // Sort descending by score
@@ -534,7 +561,11 @@ export async function runMatcher(
     return { matched: [], unmatched: uniqueMembers };
   }
 
-  const recentPairs = await getRecentlyMatchedPairs(supabase);
+  const [recentPairs, permanentExclusions] = await Promise.all([
+    getRecentlyMatchedPairs(supabase),
+    getPermanentExclusions(supabase),
+  ]);
+  const excludedPairs = new Set([...recentPairs, ...permanentExclusions]);
 
   // Generate and score all unique pairs
   const scoredPairs: ScoredPair[] = [];
@@ -544,7 +575,7 @@ export async function runMatcher(
     }
   }
 
-  const result: MatcherResult = greedyPair(scoredPairs, recentPairs);
+  const result: MatcherResult = greedyPair(scoredPairs, excludedPairs);
 
   // ---------------------------------------------------------------------------
   // Odd-pool resolution: if exactly one member is unmatched, find the best

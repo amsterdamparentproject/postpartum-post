@@ -55,6 +55,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
       member_id_1,
       member_id_2,
       matched_on,
+      rematch_requested,
       member1:member_id_1 ( first_name, last_name, email, lat, lng, availability, children ),
       member2:member_id_2 ( first_name, last_name, email, lat, lng, availability, children )
     `)
@@ -62,6 +63,27 @@ export default async function MatchPage({ params, searchParams }: Props) {
     .maybeSingle();
 
   if (error || !match) notFound();
+
+  if (match.rematch_requested) {
+    return (
+      <PageLayout>
+        <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center">
+          <div className="max-w-md space-y-4">
+            <EnvelopeLogo width={48} height={36} className="mx-auto mb-4" />
+            <h1
+              className="text-3xl font-semibold text-dark"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              This match has ended
+            </h1>
+            <p className="text-muted leading-relaxed">
+              Your match for this month has changed.
+            </p>
+          </div>
+        </main>
+      </PageLayout>
+    );
+  }
 
   type MatchMember = {
     first_name: string;

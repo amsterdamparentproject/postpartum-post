@@ -4,13 +4,164 @@ import { createAdminClient } from "@/lib/supabase";
 import { currentMonth, monthToDate } from "@/lib/skip-token";
 import { generateMatchToken } from "@/lib/match-token";
 
+// ---------------------------------------------------------------------------
+// Match exclusions
+// ---------------------------------------------------------------------------
+
+export type Exclusion = {
+  id: string;
+  otherMemberName: string;
+  otherMemberEmail: string;
+  createdAt: string;
+};
+
+export type AddExclusionResult =
+  | { success: true; exclusion: Exclusion }
+  | { success: false; error: "not_found" | "already_excluded" | "self" };
+
+export async function getExclusions(memberId: string): Promise<Exclusion[]> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("match_exclusions")
+    .select("id, member_id_1, member_id_2, created_at")
+    .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  // For each row, fetch the other member's name + email
+  const results: Exclusion[] = [];
+  for (const row of data) {
+    const otherId = row.member_id_1 === memberId ? row.member_id_2 : row.member_id_1;
+    const { data: other } = await supabase
+      .from("members")
+      .select("first_name, last_name, email")
+      .eq("id", otherId)
+      .maybeSingle();
+
+    results.push({
+      id: row.id,
+      otherMemberName: other ? `${other.first_name} ${other.last_name}` : "Unknown",
+      otherMemberEmail: other?.email ?? "",
+      createdAt: row.created_at,
+    });
+  }
+
+  return results;
+}
+
+export async function addExclusion(
+  memberId: string,
+  email: string,
+): Promise<AddExclusionResult> {
+  const supabase = createAdminClient();
+
+  // Look up the target member by email
+  const { data: target } = await supabase
+    .from("members")
+    .select("id, first_name, last_name, email")
+    .eq("email", email.toLowerCase().trim())
+    .maybeSingle();
+
+  if (!target) return { success: false, error: "not_found" };
+  if (target.id === memberId) return { success: false, error: "self" };
+
+  // Check for an existing exclusion (order-independent)
+  const { data: existing } = await supabase
+    .from("match_exclusions")
+    .select("id")
+    .or(
+      `and(member_id_1.eq.${memberId},member_id_2.eq.${target.id}),` +
+      `and(member_id_1.eq.${target.id},member_id_2.eq.${memberId})`
+    )
+    .maybeSingle();
+
+  if (existing) return { success: false, error: "already_excluded" };
+
+  // Insert the exclusion
+  const { data: inserted, error } = await supabase
+    .from("match_exclusions")
+    .insert({
+      member_id_1: memberId,
+      member_id_2: target.id,
+      reason: "member_request",
+      created_by: "member_request",
+    })
+    .select("id, created_at")
+    .single();
+
+  if (error || !inserted) return { success: false, error: "not_found" };
+
+  return {
+    success: true,
+    exclusion: {
+      id: inserted.id,
+      otherMemberName: `${target.first_name} ${target.last_name}`,
+      otherMemberEmail: target.email,
+      createdAt: inserted.created_at,
+    },
+  };
+}
+
+export async function addExclusionByMemberId(
+  memberId: string,
+  targetMemberId: string,
+): Promise<{ success: boolean }> {
+  const supabase = createAdminClient();
+
+  // Check first — the unique index is order-independent (least/greatest),
+  // so upsert with onConflict on raw columns won't resolve it correctly.
+  const { data: existing } = await supabase
+    .from("match_exclusions")
+    .select("id")
+    .or(
+      `and(member_id_1.eq.${memberId},member_id_2.eq.${targetMemberId}),` +
+      `and(member_id_1.eq.${targetMemberId},member_id_2.eq.${memberId})`
+    )
+    .maybeSingle();
+
+  if (existing) return { success: true };
+
+  const { error } = await supabase
+    .from("match_exclusions")
+    .insert({
+      member_id_1: memberId,
+      member_id_2: targetMemberId,
+      reason: "member_request",
+      created_by: "member_request",
+    });
+
+  return { success: !error };
+}
+
+export async function deleteExclusion(
+  memberId: string,
+  exclusionId: string,
+): Promise<{ success: boolean }> {
+  const supabase = createAdminClient();
+
+  // Only allow deletion if this member is one of the pair
+  const { error } = await supabase
+    .from("match_exclusions")
+    .delete()
+    .eq("id", exclusionId)
+    .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`);
+
+  return { success: !error };
+}
+
 export type MatchEntry = {
   matchId: string;
   token: string;
   topic: "coffee" | "playdate";
   matchFirstName: string;
+  matchLastName: string;
+  matchEmail: string;
+  matchMemberId: string;
   matchedOn: string;
   active: boolean;
+  rematchRequested: boolean;
 };
 
 export type MatchStatus =
@@ -35,8 +186,8 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
       rematch_requested,
       member_id_1,
       member_id_2,
-      member1:member_id_1 ( first_name ),
-      member2:member_id_2 ( first_name )
+      member1:member_id_1 ( id, first_name, last_name, email ),
+      member2:member_id_2 ( id, first_name, last_name, email )
     `)
     .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`)
     .order("matched_on", { ascending: false });
@@ -59,13 +210,18 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
     const partnerRaw = isM1 ? match.member2 : match.member1;
     const partnerData = Array.isArray(partnerRaw) ? partnerRaw[0] : partnerRaw;
     const isCurrentMonth = match.matched_on >= monthDate;
+    const partner = partnerData as { id: string; first_name: string; last_name: string; email: string } | null;
     return {
       matchId: match.id,
       token: generateMatchToken(match.id),
       topic: (topicByMonth.get(match.matched_on) ?? "coffee") as "coffee" | "playdate",
-      matchFirstName: (partnerData as { first_name: string } | null)?.first_name ?? "",
+      matchFirstName: partner?.first_name ?? "",
+      matchLastName: partner?.last_name ?? "",
+      matchEmail: partner?.email ?? "",
+      matchMemberId: isM1 ? match.member_id_2 : match.member_id_1,
       matchedOn: match.matched_on,
-      active: isCurrentMonth && !match.rematch_requested,
+      active: isCurrentMonth,
+      rematchRequested: !!match.rematch_requested,
     };
   });
 
