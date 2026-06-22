@@ -9,9 +9,12 @@ export function createAdminClient() {
 }
 
 export function createActivitiesClient() {
+  // Always reads from the live DB so local/test environments see real content.
+  // Set ACTIVITIES_SUPABASE_URL + ACTIVITIES_SUPABASE_SERVICE_ROLE_KEY to the
+  // production Supabase project; falls back to the current env if not set.
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.ACTIVITIES_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.ACTIVITIES_SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { db: { schema: "activities" } }
   );
 }

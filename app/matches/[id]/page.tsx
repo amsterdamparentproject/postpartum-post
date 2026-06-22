@@ -19,41 +19,16 @@
  */
 
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
-import { createAdminClient, createActivitiesClient } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 import { verifyMatchToken } from "@/lib/match-token";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
+import { fetchMatchActivities, childAgeBucket } from "@/lib/activities";
+import ActivitiesSection from "@/app/matches/[id]/ActivitiesSection";
 
 interface Props {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ token?: string }>;
-}
-
-interface ActivityEvent {
-  id: string;
-  title: string;
-  description: string;
-  url: string | null;
-  organization: string | null;
-  location: string | null;
-  neighborhood: string | null;
-  area: string | null;
-  start_date: string;
-  start_time: string | null;
-  tagline: string | null;
-  repeat_next_date?: string | null;
-}
-
-interface ActivityResource {
-  id: string;
-  title: string;
-  description: string;
-  url: string | null;
-  organization: string | null;
-  location: string | null;
-  neighborhood: string | null;
-  area: string | null;
 }
 
 const TOPIC_LABEL: Record<string, string> = {
@@ -61,87 +36,7 @@ const TOPIC_LABEL: Record<string, string> = {
   playdate: "arranging a playdate 🛝",
 };
 
-function locationText(item: { location: string | null; neighborhood: string | null; area: string | null }): string | null {
-  return item.location ?? item.neighborhood ?? item.area ?? null;
-}
-
-function formatEventDate(startDate: string, startTime: string | null): string {
-  const date = new Date(startDate).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-  if (!startTime) return date;
-  return `${date} · ${startTime.slice(0, 5)}`;
-}
-
-/** Bounding box half-widths for ~3 km radius. 1° lat ≈ 111 km; 1° lng ≈ 74 km at 52°N. */
-const GEO_DELTA_LAT = 3 / 111;
-const GEO_DELTA_LNG = 3 / 74;
-
 interface Coords { lat: number; lng: number }
-
-async function fetchActivities(center: Coords | null, matchedOn: string): Promise<{
-  nearbyEvents: ActivityEvent[];
-  featured: { events: ActivityEvent[]; resources: ActivityResource[] };
-}> {
-  try {
-    const client = createActivitiesClient();
-    const today = new Date().toISOString().slice(0, 10);
-    const monthStart = matchedOn.slice(0, 7) + "-01";
-    const monthEnd = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1))
-      .toISOString()
-      .slice(0, 10);
-
-    // Featured activities — always fetched; filtered in JS since the list is small
-    const featuredResult = await client
-      .from("featured_activities")
-      .select(`
-        event_id,
-        resource_id,
-        events ( id, title, description, url, organization, location, neighborhood, area, start_date, start_time, tagline, repeat_next_date ),
-        resources ( id, title, description, url, organization, location, neighborhood, area )
-      `);
-
-    const inMonth = (e: ActivityEvent) =>
-      (e.start_date >= monthStart && e.start_date < monthEnd) ||
-      (e.repeat_next_date != null && e.repeat_next_date >= monthStart && e.repeat_next_date < monthEnd);
-
-    const featuredEvents = (featuredResult.data ?? [])
-      .filter((row) => row.event_id != null)
-      .map((row) => (Array.isArray(row.events) ? row.events[0] : row.events) as ActivityEvent | null)
-      .filter((e): e is ActivityEvent => e !== null && inMonth(e));
-
-    const featuredResources = (featuredResult.data ?? [])
-      .filter((row) => row.resource_id != null)
-      .map((row) => (Array.isArray(row.resources) ? row.resources[0] : row.resources) as ActivityResource | null)
-      .filter((r): r is ActivityResource => r !== null);
-
-    // Nearby upcoming events — only when coordinates are available
-    let nearbyEvents: ActivityEvent[] = [];
-    if (center) {
-      const { data } = await client
-        .from("events")
-        .select("id, title, description, url, organization, location, neighborhood, area, start_date, start_time, tagline")
-        .eq("status", "edited")
-        .gte("start_date", today)
-        .gte("latitude", center.lat - GEO_DELTA_LAT)
-        .lte("latitude", center.lat + GEO_DELTA_LAT)
-        .gte("longitude", center.lng - GEO_DELTA_LNG)
-        .lte("longitude", center.lng + GEO_DELTA_LNG)
-        .order("start_date", { ascending: true })
-        .limit(5);
-      nearbyEvents = (data ?? []) as ActivityEvent[];
-    }
-
-    return {
-      nearbyEvents,
-      featured: { events: featuredEvents, resources: featuredResources },
-    };
-  } catch {
-    return { nearbyEvents: [], featured: { events: [], resources: [] } };
-  }
-}
 
 export default async function MatchPage({ params, searchParams }: Props) {
   const { id } = await params;
@@ -160,15 +55,23 @@ export default async function MatchPage({ params, searchParams }: Props) {
       member_id_1,
       member_id_2,
       matched_on,
-      member1:member_id_1 ( first_name, last_name, email, lat, lng ),
-      member2:member_id_2 ( first_name, last_name, email, lat, lng )
+      member1:member_id_1 ( first_name, last_name, email, lat, lng, availability, children ),
+      member2:member_id_2 ( first_name, last_name, email, lat, lng, availability, children )
     `)
     .eq("id", id)
     .maybeSingle();
 
   if (error || !match) notFound();
 
-  type MatchMember = { first_name: string; last_name: string; email: string; lat: number | null; lng: number | null };
+  type MatchMember = {
+    first_name: string;
+    last_name: string;
+    email: string;
+    lat: number | null;
+    lng: number | null;
+    availability: { days: string[]; times: string[] } | null;
+    children: { birth_month: number; birth_year: number; expected: boolean }[] | null;
+  };
   const m1 = (Array.isArray(match.member1) ? match.member1[0] : match.member1) as MatchMember | null;
   const m2 = (Array.isArray(match.member2) ? match.member2[0] : match.member2) as MatchMember | null;
 
@@ -181,7 +84,22 @@ export default async function MatchPage({ params, searchParams }: Props) {
       : m2.lat != null && m2.lng != null ? { lat: m2.lat, lng: m2.lng }
       : null;
 
-  const { nearbyEvents, featured } = await fetchActivities(center, match.matched_on);
+  // Union of both members' availability days for scoring
+  const availabilityDays = Array.from(new Set([
+    ...(m1.availability?.days ?? []),
+    ...(m2.availability?.days ?? []),
+  ]));
+
+  const { recommendedPlaces, recommendedActivities, all: allActivities } =
+    await fetchMatchActivities({
+      center,
+      availabilityDays,
+      member1Days: m1.availability?.days ?? [],
+      member2Days: m2.availability?.days ?? [],
+      member1Children: m1.children ?? [],
+      member2Children: m2.children ?? [],
+      matchedOn: match.matched_on,
+    });
 
   const { data: participations } = await supabase
     .from("monthly_participation")
@@ -201,21 +119,21 @@ export default async function MatchPage({ params, searchParams }: Props) {
   const monthLabel = matchedOn.toLocaleString("en-US", { month: "long", year: "numeric" });
   const meetingLabel = topic ? TOPIC_LABEL[topic] ?? null : null;
 
-  const hasActivities = nearbyEvents.length > 0 || featured.events.length > 0 || featured.resources.length > 0;
+  const hasActivities = recommendedActivities.length > 0 || allActivities.length > 0;
 
   return (
     <PageLayout>
       <main className="flex-1 flex flex-col items-center px-6 py-16">
-        <div className="max-w-lg w-full space-y-12">
+        <div className="max-w-2xl px-4 md:px-0 w-full space-y-16">
 
           {/* Header */}
           <div className="text-center space-y-2">
-            <EnvelopeLogo width={48} height={36} className="mx-auto mb-4" />          
+            <EnvelopeLogo width={48} height={36} className="hidden sm:block mx-auto mb-4" />
             <h1
-              className="text-3xl font-semibold text-dark"
+              className="text-4xl sm:text-5xl font-semibold text-dark"
               style={{ fontFamily: "var(--font-serif)" }}
             >
-              Your {monthLabel} match is here!
+              Your <span className="text-coral">{monthLabel}</span> match<span className="hidden md:inline"><br /></span> is here!
             </h1>
             {meetingLabel && (
               <p className="text-muted text-sm">You&apos;re meeting {meetingLabel} this month</p>
@@ -223,110 +141,85 @@ export default async function MatchPage({ params, searchParams }: Props) {
           </div>
 
           {/* Match cards */}
-          <section className="space-y-4">
-            {[m1, m2].map((member, i) => (
-              <div key={i} className="border border-border rounded-xl p-6 bg-white space-y-1">
-                <p className="font-semibold text-dark text-lg">
-                  {member.first_name} {member.last_name}
-                </p>
-                <a href={`mailto:${member.email}`} className="text-coral hover:underline text-sm">
-                  {member.email}
-                </a>
-              </div>
-            ))}
+          <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[m1, m2].map((member, i) => {
+              const days = member.availability?.days ?? [];
+              const dayLabels = days.map((d) =>
+                d.charAt(0).toUpperCase() + d.slice(1, 3).toLowerCase()
+              );
+              const borderColor = i === 0 ? "#C56850" : "#9B7355";
+              const radius = i === 0
+                ? "2rem 0.5rem 2rem 0.5rem / 0.5rem 2rem 0.5rem 2rem"
+                : "0.5rem 2rem 0.5rem 2rem / 2rem 0.5rem 2rem 0.5rem";
+              return (
+                <div
+                  key={i}
+                  className="p-5 bg-white space-y-2"
+                  style={{ borderRadius: radius, border: `1.5px solid ${borderColor}` }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold text-dark text-lg" style={{ fontFamily: "var(--font-serif)" }}>
+                      {member.first_name} {member.last_name}
+                    </p>
+                    <span
+                      className="inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-xs font-bold shrink-0"
+                      style={{ background: borderColor }}
+                    >
+                      {member.first_name[0].toUpperCase()}
+                    </span>
+                  </div>
+                  <a href={`mailto:${member.email}`} className="text-purple hover:underline text-sm block">
+                    Send them an email →
+                  </a>
+                  <p className="text-muted text-xs flex items-center gap-1">
+                    {dayLabels.length > 0
+                      ? `Available on: ${dayLabels.join(", ")}`
+                      : "Available on: Not specified"
+                    }
+                    <a href="/profile" title="Edit availability" target="_blank" rel="noopener noreferrer" style={{ color: borderColor }} className="ml-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </a>
+                  </p>
+                  {process.env.NODE_ENV === "development" && (() => {
+                    const children = member.children ?? [];
+                    const buckets = children
+                      .map(childAgeBucket)
+                      .filter((b): b is string => b !== null)
+                      .map((b) => b.charAt(0).toUpperCase() + b.slice(1));
+                    return (
+                      <p className="text-muted text-xs">
+                        {`Children: ${buckets.length > 0 ? buckets.join(", ") : "Not specified"}`}
+                      </p>
+                    );
+                  })()}
+                </div>
+              );
+            })}
           </section>
 
-          {/* Activities */}
+{/* Activities */}
           {hasActivities && (
-            <section className="space-y-8">
-              <h2
-                className="text-xl font-semibold text-dark"
-                style={{ fontFamily: "var(--font-serif)" }}
-              >
-                Things to do
-              </h2>
-
-              {/* Nearby upcoming events */}
-              {nearbyEvents.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-muted text-xs uppercase tracking-wide">Nearby this month</p>
-                  {nearbyEvents.map((event) => {
-                    const loc = locationText(event);
-                    return (
-                      <div key={event.id} className="border border-border rounded-xl p-5 bg-white space-y-1">
-                        <p className="font-semibold text-dark text-sm">
-                          {event.url
-                            ? <a href={event.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{event.title}</a>
-                            : event.title}
-                        </p>
-                        <p className="text-muted text-xs">
-                          {formatEventDate(event.start_date, event.start_time)}
-                          {loc && <> · {loc}</>}
-                          {event.organization && <> · {event.organization}</>}
-                        </p>
-                        <p className="text-dark text-sm leading-relaxed">{event.tagline ?? event.description}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Featured events */}
-              {featured.events.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-muted text-xs uppercase tracking-wide">Our picks this month</p>
-                  {featured.events.map((event) => {
-                    const loc = locationText(event);
-                    return (
-                      <div key={event.id} className="border border-border rounded-xl p-5 bg-white space-y-1">
-                        <p className="font-semibold text-dark text-sm">
-                          {event.url
-                            ? <a href={event.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{event.title}</a>
-                            : event.title}
-                        </p>
-                        <p className="text-muted text-xs">
-                          {formatEventDate(event.start_date, event.start_time)}
-                          {loc && <> · {loc}</>}
-                          {event.organization && <> · {event.organization}</>}
-                        </p>
-                        <p className="text-dark text-sm leading-relaxed">{event.tagline ?? event.description}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Featured resources */}
-              {featured.resources.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-muted text-xs uppercase tracking-wide">Local resources</p>
-                  {featured.resources.map((resource) => {
-                    const loc = locationText(resource);
-                    return (
-                      <div key={resource.id} className="border border-border rounded-xl p-5 bg-white space-y-1">
-                        <p className="font-semibold text-dark text-sm">
-                          {resource.url
-                            ? <a href={resource.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{resource.title}</a>
-                            : resource.title}
-                        </p>
-                        {(loc || resource.organization) && (
-                          <p className="text-muted text-xs">
-                            {[resource.organization, loc].filter(Boolean).join(" · ")}
-                          </p>
-                        )}
-                        <p className="text-dark text-sm leading-relaxed">{resource.description}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
+            <ActivitiesSection
+              recommendedPlaces={recommendedPlaces}
+              recommendedActivities={recommendedActivities}
+              all={allActivities}
+              center={center}
+              memberCoords={[
+                ...(m1.lat != null && m1.lng != null ? [{ lat: m1.lat, lng: m1.lng }] : []),
+                ...(m2.lat != null && m2.lng != null ? [{ lat: m2.lat, lng: m2.lng }] : []),
+              ]}
+              members={[
+                { name: m1.first_name, days: m1.availability?.days ?? [] },
+                { name: m2.first_name, days: m2.availability?.days ?? [] },
+              ]}
+              matchedOn={match.matched_on}
+            />
           )}
 
-          {/* About matching */}
+{/* About matching */}
           <div className="pt-4 pb-2" id="about-matching">
             <h2
-              className="text-xl font-semibold text-dark"
+              className="text-2xl sm:text-3xl font-semibold text-dark"
               style={{ fontFamily: "var(--font-serif)" }}
             >
               About the matching process
@@ -345,9 +238,9 @@ export default async function MatchPage({ params, searchParams }: Props) {
             <p className="text-muted text-sm mb-3">
               Not feeling the connection? You can request a rematch before the 14th.
             </p>
-            <Link href="/matches" className="text-sm text-coral hover:underline">
-              Go to your profile to request a rematch
-            </Link>
+            <a href="mailto:post@amsterdamparentproject.nl?subject=REMATCH:" className="text-sm text-coral hover:underline">
+              Request a rematch
+            </a>
           </div>
 
         </div>
