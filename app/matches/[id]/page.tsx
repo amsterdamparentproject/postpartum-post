@@ -79,6 +79,12 @@ export default async function MatchPage({ params, searchParams }: Props) {
             <p className="text-muted leading-relaxed">
               Your match for this month has changed.
             </p>
+            <a
+              href="/matches"
+              className="inline-block mt-2 rounded-lg bg-coral text-white text-sm font-medium px-5 py-2.5 hover:opacity-90 transition-opacity"
+            >
+              Go to your matches
+            </a>
           </div>
         </main>
       </PageLayout>
