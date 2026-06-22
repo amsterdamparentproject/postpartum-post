@@ -34,6 +34,7 @@ export interface Activity {
   lat: number | null;
   lng: number | null;
   categories: string[];
+  age_categories: string[];
   /** Events only */
   start_date?: string;
   end_date?: string | null;
@@ -49,6 +50,8 @@ export interface Activity {
   isRecommended: boolean;
 }
 
+export type ChildRecord = { birth_month: number; birth_year: number; expected: boolean };
+
 export interface MatchProfile {
   /** Midpoint of the two members' coordinates */
   center: { lat: number; lng: number } | null;
@@ -57,8 +60,46 @@ export interface MatchProfile {
   /** Each member's individual availability days (used for "both can attend" prioritization) */
   member1Days: string[];
   member2Days: string[];
+  /** Children for each member, used for age-bucket filtering */
+  member1Children: ChildRecord[];
+  member2Children: ChildRecord[];
   /** The match's month date (YYYY-MM-DD), used to filter events to this month */
   matchedOn: string;
+}
+
+// ---------------------------------------------------------------------------
+// Age bucket helpers
+// ---------------------------------------------------------------------------
+
+/** Age tags used in activities.categories. Must match values in the DB. */
+const AGE_TAGS = new Set(["expecting", "newborn", "baby", "toddler", "all ages"]);
+
+/** Maps a child record to its age bucket tag, or null if over 4 years. */
+export function childAgeBucket(c: ChildRecord): string | null {
+  if (c.expected) return "expecting";
+  const now = new Date();
+  const birthDate = new Date(c.birth_year, c.birth_month - 1, 1);
+  const ageMonths = Math.floor((now.getTime() - birthDate.getTime()) / (1_000 * 60 * 60 * 24 * 30.44));
+  if (ageMonths < 4)  return "newborn";
+  if (ageMonths < 12) return "baby";
+  if (ageMonths < 48) return "toddler";
+  return null; // over 4 years — no specific bucket
+}
+
+/**
+ * Returns true if the activity's age categories are compatible with the pair's children.
+ *
+ * Rules:
+ *   - No age tags on the activity → include (untagged = not yet curated, don't penalize)
+ *   - "all ages" tag → always include
+ *   - At least one age tag matches a pair bucket → include
+ *   - Age tags present but none match → exclude
+ */
+function ageCompatible(age_categories: string[], pairBuckets: Set<string>): boolean {
+  if (age_categories.length === 0) return true;           // untagged — neutral
+  if (age_categories.includes("all ages")) return true;   // always suitable
+  if (pairBuckets.size === 0) return true;                // no children data — don't penalize
+  return age_categories.some((t) => pairBuckets.has(t));
 }
 
 // ---------------------------------------------------------------------------
@@ -139,23 +180,33 @@ function availabilityScore(
 // ---------------------------------------------------------------------------
 
 const WEIGHTS = {
-  availability: 0.6,
-  distance: 0.4,
+  availability: 0.5,
+  age: 0.3,
+  distance: 0.2,
 };
+
+/** 0–1: 1.0 = direct bucket match, 0.7 = "all ages", 0.5 = untagged (neutral) */
+function ageScore(age_categories: string[], pairBuckets: Set<string>): number {
+  if (age_categories.length === 0) return 0.5;
+  if (age_categories.includes("all ages")) return 0.7;
+  return age_categories.some((t) => pairBuckets.has(t)) ? 1 : 0;
+}
 
 function scoreActivity(
   activity: Omit<Activity, "score" | "isRecommended">,
   profile: MatchProfile,
+  pairBuckets: Set<string>,
 ): number {
   const avail = availabilityScore(
     profile.availabilityDays,
     derivedDayOfWeek(activity),
   );
+  const age  = ageScore(activity.age_categories, pairBuckets);
   const dist = profile.center
     ? distanceScore(profile.center, activity.lat, activity.lng)
     : 0.5;
 
-  return WEIGHTS.availability * avail + WEIGHTS.distance * dist;
+  return WEIGHTS.availability * avail + WEIGHTS.age * age + WEIGHTS.distance * dist;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +225,7 @@ type RawEvent = {
   latitude: number | null;
   longitude: number | null;
   categories: string[] | null;
+  age_categories: string[] | null;
   start_date: string;
   end_date: string | null;
   start_time: string | null;
@@ -195,6 +247,7 @@ type RawLocation = {
   area: string | null;
   latitude: number | null;
   longitude: number | null;
+  age_categories: string[] | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -228,7 +281,7 @@ export async function fetchMatchActivities(
       client
         .from("events")
         .select(
-          "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories, start_date, end_date, start_time, end_time, day_of_week, repeat_next_date, repeat_rrule, tagline, newsletter_description",
+          "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories, age_categories, start_date, end_date, start_time, end_time, day_of_week, repeat_next_date, repeat_rrule, tagline, newsletter_description",
         )
         .eq("postpartum_post", true)
         .neq("status", "new")
@@ -245,7 +298,7 @@ export async function fetchMatchActivities(
 
       client
         .from("locations")
-        .select("id, name, description, url, address, neighborhood, area, latitude, longitude")
+        .select("id, name, description, url, address, neighborhood, area, latitude, longitude, age_categories")
         .eq("postpartum_post", true),
     ]);
 
@@ -284,6 +337,7 @@ export async function fetchMatchActivities(
         lat: e.latitude,
         lng: e.longitude,
         categories: e.categories ?? [],
+        age_categories: e.age_categories ?? [],
         start_date: e.start_date,
         end_date: e.end_date,
         start_time: e.start_time,
@@ -307,13 +361,22 @@ export async function fetchMatchActivities(
         lat: l.latitude,
         lng: l.longitude,
         categories: [] as string[],
+        age_categories: l.age_categories ?? [],
       })),
     ];
 
+    // Age-bucket filter
+    const pairBuckets = new Set(
+      [...profile.member1Children, ...profile.member2Children]
+        .map(childAgeBucket)
+        .filter((b): b is string => b !== null),
+    );
+    const ageFiltered = candidates.filter((a) => ageCompatible(a.age_categories, pairBuckets));
+
     // Score all candidates
-    const scored = candidates.map((a) => ({
+    const scored = ageFiltered.map((a) => ({
       ...a,
-      score: scoreActivity(a, profile),
+      score: scoreActivity(a, profile, pairBuckets),
       isRecommended: false,
     }));
 

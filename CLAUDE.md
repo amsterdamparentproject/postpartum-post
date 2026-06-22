@@ -1,5 +1,5 @@
 @AGENTS.md
-Save all documents to __claude-docs__
+Save all documents to __claude__
 Do not give Git command and commit recommendations
 
 This project uses yarn (not npm)

@@ -24,7 +24,7 @@ import PageLayout from "@/components/PageLayout";
 import { createAdminClient } from "@/lib/supabase";
 import { verifyMatchToken } from "@/lib/match-token";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
-import { fetchMatchActivities } from "@/lib/activities";
+import { fetchMatchActivities, childAgeBucket } from "@/lib/activities";
 import ActivitiesSection from "@/app/matches/[id]/ActivitiesSection";
 
 interface Props {
@@ -56,8 +56,8 @@ export default async function MatchPage({ params, searchParams }: Props) {
       member_id_1,
       member_id_2,
       matched_on,
-      member1:member_id_1 ( first_name, last_name, email, lat, lng, availability ),
-      member2:member_id_2 ( first_name, last_name, email, lat, lng, availability )
+      member1:member_id_1 ( first_name, last_name, email, lat, lng, availability, children ),
+      member2:member_id_2 ( first_name, last_name, email, lat, lng, availability, children )
     `)
     .eq("id", id)
     .maybeSingle();
@@ -71,6 +71,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
     lat: number | null;
     lng: number | null;
     availability: { days: string[]; times: string[] } | null;
+    children: { birth_month: number; birth_year: number; expected: boolean }[] | null;
   };
   const m1 = (Array.isArray(match.member1) ? match.member1[0] : match.member1) as MatchMember | null;
   const m2 = (Array.isArray(match.member2) ? match.member2[0] : match.member2) as MatchMember | null;
@@ -96,6 +97,8 @@ export default async function MatchPage({ params, searchParams }: Props) {
       availabilityDays,
       member1Days: m1.availability?.days ?? [],
       member2Days: m2.availability?.days ?? [],
+      member1Children: m1.children ?? [],
+      member2Children: m2.children ?? [],
       matchedOn: match.matched_on,
     });
 
@@ -174,10 +177,22 @@ export default async function MatchPage({ params, searchParams }: Props) {
                       ? `Available on: ${dayLabels.join(", ")}`
                       : "Available on: Not specified"
                     }
-                    <a href="/profile" title="Edit availability" style={{ color: borderColor }} className="ml-1">
+                    <a href="/profile" title="Edit availability" target="_blank" rel="noopener noreferrer" style={{ color: borderColor }} className="ml-1">
                       <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </a>
                   </p>
+                  {process.env.NODE_ENV === "development" && (() => {
+                    const children = member.children ?? [];
+                    const buckets = children
+                      .map(childAgeBucket)
+                      .filter((b): b is string => b !== null)
+                      .map((b) => b.charAt(0).toUpperCase() + b.slice(1));
+                    return (
+                      <p className="text-muted text-xs">
+                        {`Children: ${buckets.length > 0 ? buckets.join(", ") : "Not specified"}`}
+                      </p>
+                    );
+                  })()}
                 </div>
               );
             })}

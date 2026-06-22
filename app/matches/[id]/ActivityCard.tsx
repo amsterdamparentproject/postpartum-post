@@ -15,6 +15,8 @@ interface Props {
   members?: [MemberAvailability, MemberAvailability];
 }
 
+const AGE_CATEGORY_ORDER = ["expecting", "newborn", "baby", "toddler", "all ages"];
+
 export default function ActivityCard({ activity, members }: Props) {
   const loc = locationText(activity);
   const description = activity.kind === "event"
@@ -79,7 +81,7 @@ export default function ActivityCard({ activity, members }: Props) {
         </p>
       )}
       {description && (
-        <p className={`text-dark text-sm leading-relaxed ${activity.kind === "event" ? "line-clamp-3" : ""}`}>
+        <p className="text-dark text-sm leading-relaxed">
           {description}
         </p>
       )}
@@ -98,6 +100,24 @@ export default function ActivityCard({ activity, members }: Props) {
           </p>
         )}
       </div>
+      {activity.age_categories.length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-1">
+          {[...activity.age_categories]
+            .sort((a, b) => {
+              const ai = AGE_CATEGORY_ORDER.indexOf(a);
+              const bi = AGE_CATEGORY_ORDER.indexOf(b);
+              return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+            })
+            .map((cat) => (
+            <span
+              key={cat}
+              className="px-2 py-0.5 rounded-full bg-border/50 text-muted text-[11px]"
+            >
+              {cat.charAt(0).toUpperCase() + cat.slice(1)}
+            </span>
+          ))}
+        </div>
+      )}
       {activity.url && (
         <a
           href={activity.url}
