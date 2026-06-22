@@ -41,6 +41,7 @@ export async function requestRematch(memberId: string, reason: string | null, ma
       rematch_reason: reason,
       rematch_requested_at: new Date().toISOString(),
       rematch_requested_by: memberId,
+      flagged_for_review: reason === "safety_concern" || reason === "harassment",
     })
     .eq("id", match.id);
 

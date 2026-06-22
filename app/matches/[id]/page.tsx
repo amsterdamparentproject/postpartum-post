@@ -258,9 +258,9 @@ export default async function MatchPage({ params, searchParams }: Props) {
           {/* Rematch */}
           <div className="text-center pt-4 border-t border-border">
             <p className="text-muted text-sm mb-3">
-              Not feeling the connection? You can request a rematch before the 14th.
+              Something not working this month? You can request a rematch before the 14th — your match is not notified, and your contact info remains hidden from this match going forward.
             </p>
-            <a href="mailto:post@amsterdamparentproject.nl?subject=REMATCH:" className="text-sm text-coral hover:underline">
+            <a href={`/rematch?match_id=${id}`} className="text-sm text-coral hover:underline">
               Request a rematch
             </a>
           </div>

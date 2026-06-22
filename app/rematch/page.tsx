@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import PageLayout from "@/components/PageLayout";
 import RematchForm from "@/components/RematchForm";
+import RematchSessionGate from "@/components/RematchSessionGate";
 import { createAdminClient } from "@/lib/supabase";
 import { currentMonth, monthToDate } from "@/lib/skip-token";
 
@@ -53,6 +54,17 @@ export default async function Rematch({
   searchParams: Promise<{ member_id?: string; match_id?: string }>;
 }) {
   const { member_id, match_id } = await searchParams;
+
+  if (!member_id && match_id) {
+    // Arriving from the token-gated match reveal page — resolve member from session.
+    return (
+      <PageLayout>
+        <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
+          <RematchSessionGate matchId={match_id} />
+        </main>
+      </PageLayout>
+    );
+  }
 
   if (!member_id) {
     return (

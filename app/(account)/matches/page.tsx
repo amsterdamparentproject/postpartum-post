@@ -133,7 +133,7 @@ function MatchAdmin({
       {activeMatch && (
         <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-2">
           <h2 className="font-semibold text-dark text-sm">Request a rematch</h2>
-          <p className="text-xs text-muted">Not feeling the connection? We&apos;ll find you a new match.</p>
+          <p className="text-xs text-muted">Something not working with your match this month? We&apos;ll find you a new match.</p>
           <Link
             href={`/rematch?member_id=${memberId}`}
             className="inline-block w-full text-center rounded-lg border border-border text-sm py-2 text-dark hover:border-coral hover:text-coral transition-colors"

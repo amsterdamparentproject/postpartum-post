@@ -494,4 +494,211 @@ describe("requestRematch: inserts match_exclusion on rematch", () => {
       "Match not found"
     );
   });
+
+  it("sets flagged_for_review=true for safety_concern", async () => {
+    const updateSpy = vi.fn().mockReturnValue({
+      eq: () => Promise.resolve({ error: null }),
+    });
+    const MATCH = { id: "match-1", member_id_1: "m1", member_id_2: "m2" };
+
+    vi.doMock("@/lib/supabase", () => ({
+      createAdminClient: () => ({
+        from: (table: string) => {
+          if (table === "matches") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  or: () => ({
+                    single: () => Promise.resolve({ data: MATCH, error: null }),
+                  }),
+                }),
+              }),
+              update: updateSpy,
+            };
+          }
+          return {
+            select: () => ({
+              or: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        },
+      }),
+    }));
+
+    const { requestRematch } = await import("@/app/actions/rematch");
+    await requestRematch("m1", "safety_concern", "match-1").catch(() => {});
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ flagged_for_review: true })
+    );
+  });
+
+  it("sets flagged_for_review=true for harassment", async () => {
+    const updateSpy = vi.fn().mockReturnValue({
+      eq: () => Promise.resolve({ error: null }),
+    });
+    const MATCH = { id: "match-1", member_id_1: "m1", member_id_2: "m2" };
+
+    vi.doMock("@/lib/supabase", () => ({
+      createAdminClient: () => ({
+        from: (table: string) => {
+          if (table === "matches") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  or: () => ({
+                    single: () => Promise.resolve({ data: MATCH, error: null }),
+                  }),
+                }),
+              }),
+              update: updateSpy,
+            };
+          }
+          return {
+            select: () => ({
+              or: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        },
+      }),
+    }));
+
+    const { requestRematch } = await import("@/app/actions/rematch");
+    await requestRematch("m1", "harassment", "match-1").catch(() => {});
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ flagged_for_review: true })
+    );
+  });
+
+  it("sets flagged_for_review=false for benign reasons", async () => {
+    const updateSpy = vi.fn().mockReturnValue({
+      eq: () => Promise.resolve({ error: null }),
+    });
+    const MATCH = { id: "match-1", member_id_1: "m1", member_id_2: "m2" };
+
+    vi.doMock("@/lib/supabase", () => ({
+      createAdminClient: () => ({
+        from: (table: string) => {
+          if (table === "matches") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  or: () => ({
+                    single: () => Promise.resolve({ data: MATCH, error: null }),
+                  }),
+                }),
+              }),
+              update: updateSpy,
+            };
+          }
+          return {
+            select: () => ({
+              or: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        },
+      }),
+    }));
+
+    const { requestRematch } = await import("@/app/actions/rematch");
+    for (const reason of ["no_response", "already_met", "not_a_good_fit", "other"]) {
+      vi.resetModules();
+      await requestRematch("m1", reason, "match-1").catch(() => {});
+    }
+
+    // Every call must have flagged_for_review=false
+    for (const call of updateSpy.mock.calls) {
+      expect(call[0]).toMatchObject({ flagged_for_review: false });
+    }
+  });
+
+  it("writes rematch_requested, rematch_reason, and rematch_requested_by to the match row", async () => {
+    const updateSpy = vi.fn().mockReturnValue({
+      eq: () => Promise.resolve({ error: null }),
+    });
+    const MATCH = { id: "match-1", member_id_1: "m1", member_id_2: "m2" };
+
+    vi.doMock("@/lib/supabase", () => ({
+      createAdminClient: () => ({
+        from: (table: string) => {
+          if (table === "matches") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  or: () => ({
+                    single: () => Promise.resolve({ data: MATCH, error: null }),
+                  }),
+                }),
+              }),
+              update: updateSpy,
+            };
+          }
+          return {
+            select: () => ({
+              or: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        },
+      }),
+    }));
+
+    const { requestRematch } = await import("@/app/actions/rematch");
+    await requestRematch("m1", "no_response", "match-1").catch(() => {});
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rematch_requested: true,
+        rematch_reason: "no_response",
+        rematch_requested_by: "m1",
+      })
+    );
+  });
+
+  it("falls back to the current-month match when no matchId is provided", async () => {
+    const insertSpy = vi.fn().mockResolvedValue({ error: null });
+    const MATCH = { id: "month-match", member_id_1: "m1", member_id_2: "m2" };
+
+    vi.doMock("@/lib/supabase", () => ({
+      createAdminClient: () => ({
+        from: (table: string) => {
+          if (table === "matches") {
+            return {
+              select: () => ({
+                or: () => ({
+                  gte: () => ({
+                    order: () => ({
+                      limit: () => ({
+                        single: () => Promise.resolve({ data: MATCH, error: null }),
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+              update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+            };
+          }
+          return {
+            select: () => ({
+              or: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+            insert: insertSpy,
+          };
+        },
+      }),
+    }));
+
+    const { requestRematch } = await import("@/app/actions/rematch");
+    // No matchId passed — should resolve via the fallback path
+    await requestRematch("m1", "no_response").catch(() => {});
+
+    expect(insertSpy).toHaveBeenCalledOnce();
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ member_id_1: "m1", member_id_2: "m2" })
+    );
+  });
 });
