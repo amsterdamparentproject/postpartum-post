@@ -401,9 +401,9 @@ export async function fetchMatchActivities(
       .filter((a) => a.kind !== "location")
       .sort((a, b) => b.score - a.score);
 
-    const topActivities = scoredActivities.filter((a) => bothCanAttend(a)).slice(0, 5);
+    const topActivities = scoredActivities.filter((a) => bothCanAttend(a)).slice(0, 8);
 
-    const recPlaceIds = new Set(scoredPlaces.slice(0, 5).map((a) => a.id));
+    const recPlaceIds = new Set(scoredPlaces.slice(0, 8).map((a) => a.id));
     const recActivityIds = new Set(topActivities.map((a) => a.id));
 
     const all = [...scoredPlaces, ...scoredActivities].map((a) => ({

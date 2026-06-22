@@ -56,27 +56,9 @@ export default function ActivitiesSection({
     [all, memberDays],
   );
 
-  const recPlaceIds = useMemo(
-    () => new Set(recommendedPlaces.map((a) => a.id)),
-    [recommendedPlaces],
-  );
-  const recActivityIds = useMemo(
-    () => new Set(recommendedActivities.map((a) => a.id)),
-    [recommendedActivities],
-  );
-
   const filteredRecActivities = useMemo(
     () => recommendedActivities.filter((a) => activities.some((b) => b.id === a.id)),
     [recommendedActivities, activities],
-  );
-
-  const restPlaces = useMemo(
-    () => places.filter((a) => !recPlaceIds.has(a.id)),
-    [places, recPlaceIds],
-  );
-  const restActivities = useMemo(
-    () => activities.filter((a) => !recActivityIds.has(a.id)),
-    [activities, recActivityIds],
   );
 
   const calendarEvents = useMemo(
@@ -204,14 +186,12 @@ export default function ActivitiesSection({
       {activeTab === "places" ? (
         <TabContent
           rec={recommendedPlaces}
-          rest={restPlaces}
           sortOrder={sortOrder}
           isActivities={false}
         />
       ) : (
         <TabContent
           rec={filteredRecActivities}
-          rest={restActivities}
           sortOrder={sortOrder}
           isActivities={true}
           members={members}
