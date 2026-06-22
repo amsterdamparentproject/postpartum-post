@@ -10,7 +10,7 @@
  *   2. Distance     — Haversine from pair midpoint (all three tables have lat/lng)
  *   3. Age          — deferred until min_age_months / max_age_months columns exist
  *
- * postpartum_post filter: deferred until column is added — currently includes all.
+ * postpartum_post filter: only rows with postpartum_post = true are shown.
  */
 
 import { createActivitiesClient } from "@/lib/supabase";
@@ -188,6 +188,8 @@ type RawEvent = {
 type RawLocation = {
   id: string;
   name: string;
+  description: string | null;
+  url: string | null;
   address: string | null;
   neighborhood: string | null;
   area: string | null;
@@ -228,6 +230,7 @@ export async function fetchMatchActivities(
         .select(
           "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories, start_date, end_date, start_time, end_time, day_of_week, repeat_next_date, repeat_rrule, tagline, newsletter_description",
         )
+        .eq("postpartum_post", true)
         .neq("status", "new")
         .neq("status", "archived")
         // Include events where:
@@ -242,7 +245,8 @@ export async function fetchMatchActivities(
 
       client
         .from("locations")
-        .select("id, name, address, neighborhood, area, latitude, longitude"),
+        .select("id, name, description, url, address, neighborhood, area, latitude, longitude")
+        .eq("postpartum_post", true),
     ]);
 
     if (eventsRes.error) console.error("[activities] events query failed:", eventsRes.error.message);
@@ -294,8 +298,8 @@ export async function fetchMatchActivities(
         id: l.id,
         kind: "location" as ActivityKind,
         title: l.name,
-        description: null,
-        url: null,
+        description: l.description,
+        url: l.url,
         organization: null,
         location: l.address,
         neighborhood: l.neighborhood,
@@ -324,19 +328,17 @@ export async function fetchMatchActivities(
     const bothCanAttend = (a: typeof scored[number]) => {
       const day = derivedDayOfWeek(a);
       if (!day) return false;
-      return m1Set.has(day) && m2Set.has(day);
+      // Empty days = availability not set → assume free every day
+      const m1Free = m1Set.size === 0 || m1Set.has(day);
+      const m2Free = m2Set.size === 0 || m2Set.has(day);
+      return m1Free && m2Free;
     };
 
     const scoredActivities = scored
       .filter((a) => a.kind !== "location")
       .sort((a, b) => b.score - a.score);
 
-    const bothEvents = scoredActivities.filter((a) => bothCanAttend(a));
-    const oneEvents  = scoredActivities.filter((a) => !bothCanAttend(a));
-    const topActivities = [
-      ...bothEvents.slice(0, 5),
-      ...oneEvents.slice(0, Math.max(0, 5 - bothEvents.length)),
-    ];
+    const topActivities = scoredActivities.filter((a) => bothCanAttend(a)).slice(0, 5);
 
     const recPlaceIds = new Set(scoredPlaces.slice(0, 5).map((a) => a.id));
     const recActivityIds = new Set(topActivities.map((a) => a.id));

@@ -13,34 +13,18 @@ interface Props {
 }
 
 const COLORS = {
-  recPlace:    "#D4E09B", // green — recommended places
-  recActivity: "#AF99FF", // purple — recommended things to do
-  location:    "#C56850", // coral — non-recommended places
-  activity:    "#AF99FF", // purple — non-recommended things to do
+  location: "#D4E09B", // green — places
+  activity: "#AF99FF", // purple — things to do
 };
 
 function makeMarkerHtml(activity: Activity): string {
-  const bg = activity.isRecommended
-    ? (activity.kind === "location" ? COLORS.recPlace : COLORS.recActivity)
-    : (activity.kind === "location" ? COLORS.location : COLORS.activity);
-
-  if (activity.isRecommended) {
-    return `<div style="
-      width: 28px; height: 28px;
-      background: ${bg};
-      border-radius: 50%;
-      border: 2px solid white;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px; line-height: 1;
-    ">★</div>`;
-  }
+  const bg = activity.kind === "location" ? COLORS.location : COLORS.activity;
   return `<div style="
-    width: 14px; height: 14px;
+    width: 28px; height: 28px;
     background: ${bg};
     border-radius: 50%;
     border: 2px solid white;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
   "></div>`;
 }
 
@@ -89,15 +73,12 @@ export default function ActivitiesMap({ activities, center, memberCoords }: Prop
       });
       mapRef.current = map;
 
-      // Fit bounds to recommended markers; fall back to all activities, then member coords
-      const recCoords = activities
-        .filter((a) => a.isRecommended && a.lat != null && a.lng != null)
-        .map((a) => [a.lat!, a.lng!] as [number, number]);
+      // Fit bounds to activity markers; fall back to member coords
       const allCoords = activities
         .filter((a) => a.lat != null && a.lng != null)
         .map((a) => [a.lat!, a.lng!] as [number, number]);
-      const boundsCoords = recCoords.length > 0 ? recCoords
-        : allCoords.length > 0 ? allCoords
+      const boundsCoords = allCoords.length > 0
+        ? allCoords
         : memberCoords.map((c) => [c.lat, c.lng] as [number, number]);
       if (boundsCoords.length > 0) {
         map.fitBounds(L.latLngBounds(boundsCoords), { padding: [64, 64], maxZoom: 15 });
@@ -113,20 +94,18 @@ export default function ActivitiesMap({ activities, center, memberCoords }: Prop
         },
       ).addTo(map);
 
-      // Sort so recommended markers render on top
+      // Locations first, events on top
       const sorted = [...activities].sort((a, b) =>
-        a.isRecommended === b.isRecommended ? 0 : a.isRecommended ? 1 : -1,
+        (a.kind === "location" ? 0 : 1) - (b.kind === "location" ? 0 : 1),
       );
 
       for (const activity of sorted) {
         if (activity.lat == null || activity.lng == null) continue;
-        const isRec = activity.isRecommended;
-        const size = isRec ? 28 : 14;
         const icon = L.divIcon({
           className: "",
           html: makeMarkerHtml(activity),
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2],
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
         });
         L.marker([activity.lat, activity.lng], { icon })
           .bindPopup(makePopupHtml(activity), { maxWidth: 240 })

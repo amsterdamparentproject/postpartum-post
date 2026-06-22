@@ -169,11 +169,15 @@ export default async function MatchPage({ params, searchParams }: Props) {
                   <a href={`mailto:${member.email}`} className="text-purple hover:underline text-sm block">
                     Send them an email →
                   </a>
-                  {dayLabels.length > 0 && (
-                    <p className="text-muted text-xs">
-                      Available on: {dayLabels.join(", ")}
-                    </p>
-                  )}
+                  <p className="text-muted text-xs flex items-center gap-1">
+                    {dayLabels.length > 0
+                      ? `Available on: ${dayLabels.join(", ")}`
+                      : "Available on: Not specified"
+                    }
+                    <a href="/profile" title="Edit availability" style={{ color: borderColor }} className="ml-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </a>
+                  </p>
                 </div>
               );
             })}

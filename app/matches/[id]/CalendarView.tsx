@@ -88,7 +88,8 @@ export default function CalendarView({ events, members, matchedOn }: Props) {
               .map((m, idx) => ({
                 initial: m.name[0].toUpperCase(),
                 color: MEMBER_COLORS[idx],
-                free: m.days.map((d) => d.toLowerCase()).includes(dayName),
+                // Empty days = availability not set → assume free every day
+                free: m.days.length === 0 || m.days.map((d) => d.toLowerCase()).includes(dayName),
               }))
               .filter((m) => m.free);
             const dayEvents = (eventsByDate.get(dateStr) ?? [])

@@ -18,8 +18,11 @@ export default function TabContent({ rec, rest, sortOrder, isActivities, members
 
   const sortFn = (a: Activity, b: Activity) => {
     if (sortOrder === "alpha") return a.title.localeCompare(b.title);
-    if (sortOrder === "date")
-      return (effectiveDate(a) ?? "").localeCompare(effectiveDate(b) ?? "");
+    if (sortOrder === "date") {
+      const dateCmp = (effectiveDate(a) ?? "").localeCompare(effectiveDate(b) ?? "");
+      if (dateCmp !== 0) return dateCmp;
+      return (a.start_time ?? "").localeCompare(b.start_time ?? "");
+    }
     return b.score - a.score;
   };
 

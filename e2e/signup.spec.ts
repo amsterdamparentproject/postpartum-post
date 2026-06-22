@@ -26,7 +26,7 @@ test.afterAll(async () => {
   await cleanupMemberByEmail(TEST_EMAIL);
 });
 
-test("full sign-up flow: form → Stripe checkout → success → profile", async ({ page }) => {
+test("full sign-up flow: form → Stripe checkout → success → profile", { timeout: 120_000 }, async ({ page }) => {
   // ── Step 1: Fill in the sign-up form ───────────────────────────────────
   await page.goto("/");
 
@@ -92,6 +92,11 @@ test("full sign-up flow: form → Stripe checkout → success → profile", asyn
 
   // ── Step 4: Land on /success ───────────────────────────────────────────
   await page.waitForURL("**/success**", { timeout: 30_000 });
+  // waitForURL resolves as soon as the URL changes, but the success page is
+  // server-rendered and still needs to complete a Stripe sessions.retrieve()
+  // + Supabase query before the HTML arrives. Wait for the network to settle
+  // before asserting on SSR content.
+  await page.waitForLoadState("networkidle", { timeout: 30_000 });
   // The heading is personalized ("Welcome, Jane!") — verifies the name flowed
   // from the signup form through Stripe session metadata and into the DB.
   await expect(page.getByRole("heading", { name: /welcome, jane/i })).toBeVisible();

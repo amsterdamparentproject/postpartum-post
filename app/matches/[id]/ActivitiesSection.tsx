@@ -117,11 +117,11 @@ export default function ActivitiesSection({
       {/* Map legend */}
       <div className="flex flex-wrap gap-4 text-xs text-muted">
         <span className="flex items-center gap-1.5">
-          <span className="text-base leading-none" style={{ color: "#D4E09B" }}>★</span>{" "}
+          <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: "#D4E09B", flexShrink: 0 }} />
           Places to go
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="text-base leading-none" style={{ color: "#AF99FF" }}>★</span>{" "}
+          <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: "#AF99FF", flexShrink: 0 }} />
           Things to do
         </span>
       </div>

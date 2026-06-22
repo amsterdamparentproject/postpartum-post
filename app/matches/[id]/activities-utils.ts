@@ -261,10 +261,11 @@ export function groupByWeek(
     .map(([ws, its]) => ({
       ws,
       label: weekLabel(ws),
-      items: its.sort(
-        (a, b) =>
-          (effectiveDate(a) ?? "").localeCompare(effectiveDate(b) ?? ""),
-      ),
+      items: its.sort((a, b) => {
+        const dateCmp = (effectiveDate(a) ?? "").localeCompare(effectiveDate(b) ?? "");
+        if (dateCmp !== 0) return dateCmp;
+        return (a.start_time ?? "").localeCompare(b.start_time ?? "");
+      }),
     }));
   return { groups, undated };
 }

@@ -160,8 +160,8 @@ test(
 
       await expect(page.getByText("Alice Optin")).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText("Bob Optin")).toBeVisible();
-      await expect(page.getByText(member1.email)).toBeVisible();
-      await expect(page.getByText(member2.email)).toBeVisible();
+      await expect(page.locator(`a[href="mailto:${member1.email}"]`)).toBeVisible();
+      await expect(page.locator(`a[href="mailto:${member2.email}"]`)).toBeVisible();
 
     } finally {
       // cleanupMember deletes matches, participation, skips, subscriptions,
@@ -345,15 +345,15 @@ test(
       await page.goto(buildMatchPagePath(matchId1));
       await expect(page.getByText("Alex Double")).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText("Beth First")).toBeVisible();
-      await expect(page.getByText(memberA.email)).toBeVisible();
-      await expect(page.getByText(memberB.email)).toBeVisible();
+      await expect(page.locator(`a[href="mailto:${memberA.email}"]`)).toBeVisible();
+      await expect(page.locator(`a[href="mailto:${memberB.email}"]`)).toBeVisible();
 
       // ── Step 4: Second match reveal page shows correct pair ───────────────
       await page.goto(buildMatchPagePath(matchId2));
       await expect(page.getByText("Alex Double")).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText("Chris Second")).toBeVisible();
-      await expect(page.getByText(memberA.email)).toBeVisible();
-      await expect(page.getByText(memberC.email)).toBeVisible();
+      await expect(page.locator(`a[href="mailto:${memberA.email}"]`)).toBeVisible();
+      await expect(page.locator(`a[href="mailto:${memberC.email}"]`)).toBeVisible();
 
       // ── Step 5: Email double-match note trigger condition verified ─────────
       // send-match-emails builds matchCountById across all pairs for the month.

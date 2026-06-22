@@ -5,6 +5,7 @@ import {
   MEMBER_COLORS,
   locationText,
   formatMeta,
+  effectiveDate,
   effectiveDayOfWeek,
   type MemberAvailability,
 } from "./activities-utils";
@@ -16,21 +17,22 @@ interface Props {
 
 export default function ActivityCard({ activity, members }: Props) {
   const loc = locationText(activity);
-  const newsletterDesc = activity.newsletter_description ?? null;
-  const fallbackDesc = activity.description ?? null;
+  const description = activity.kind === "event"
+    ? (activity.newsletter_description ?? activity.description)
+    : activity.description;
   const meta = formatMeta(activity);
 
-  const activityDay = activity.kind === "event" ? effectiveDayOfWeek(activity) : null;
-  const freeMembers: { initial: string; color: string }[] = [];
-  if (members && activityDay != null) {
-    const day = activityDay; // narrowed to string for TypeScript
-    for (let i = 0; i < members.length; i++) {
-      const m = members[i];
-      if (m.days.map((d) => d.toLowerCase()).includes(day)) {
-        freeMembers.push({ initial: m.name[0].toUpperCase(), color: MEMBER_COLORS[i] });
-      }
-    }
-  }
+  const eventDay = activity.kind === "event" ? effectiveDayOfWeek(activity) : null;
+  const freeMembers =
+    members && eventDay
+      ? members
+          .map((m, i) => ({
+            initial: m.name[0].toUpperCase(),
+            color: MEMBER_COLORS[i],
+            free: m.days.length === 0 || m.days.map((d) => d.toLowerCase()).includes(eventDay),
+          }))
+          .filter((m) => m.free)
+      : [];
 
   return (
     <div
@@ -62,15 +64,28 @@ export default function ActivityCard({ activity, members }: Props) {
         )}
       </div>
       {meta && (
-        <p className="text-xs text-coral italic">{meta}</p>
+        <p className="text-xs text-coral">{meta}</p>
       )}
-      {newsletterDesc ? (
-        <p className="text-dark text-sm leading-relaxed">{newsletterDesc}</p>
-      ) : fallbackDesc ? (
-        <p className="text-dark text-sm leading-relaxed line-clamp-6">{fallbackDesc}</p>
-      ) : null}
+      {activity.kind === "location" && loc && (
+        <p className="text-xs text-coral">
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            {loc}
+          </a>
+        </p>
+      )}
+      {description && (
+        <p className={`text-dark text-sm leading-relaxed ${activity.kind === "event" ? "line-clamp-3" : ""}`}>
+          {description}
+        </p>
+      )}
       <div className="text-xs text-muted space-y-0.5">
-        {loc && (
+        {activity.organization && <p>By {activity.organization}</p>}
+        {activity.kind === "event" && loc && (
           <p>
             <a
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`}
@@ -82,16 +97,15 @@ export default function ActivityCard({ activity, members }: Props) {
             </a>
           </p>
         )}
-        {activity.organization && <p>{activity.organization}</p>}
       </div>
       {activity.url && (
         <a
           href={activity.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-block text-xs text-purple hover:underline pt-1"
+          className="inline-flex items-center gap-1 mt-1 px-3 py-1 rounded-md bg-coral text-white text-xs font-medium transition-opacity hover:opacity-80"
         >
-          Learn more →
+          Check it out →
         </a>
       )}
     </div>
