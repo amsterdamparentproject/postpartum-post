@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { generateOptinToken } from "@/lib/optin-token";
-import { currentMonth } from "@/lib/skip-token";
+import { currentMonth } from "@/lib/tokens";
 import { sendOptinEmail } from "@/lib/emails";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";

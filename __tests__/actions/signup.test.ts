@@ -96,7 +96,7 @@ describe("signup action", () => {
   });
 
   it("creates a pending member in the DB with correct fields", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     const supabase = createTestSupabase();
     const { data: member } = await supabase
@@ -114,7 +114,7 @@ describe("signup action", () => {
 
   it("lowercases email before inserting", async () => {
     const mixedEmail = testEmail.replace("signup", "Signup");
-    await signup({ firstName: "Jane", lastName: "Doe", email: mixedEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: mixedEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     const supabase = createTestSupabase();
     const { data: member } = await supabase
@@ -131,7 +131,7 @@ describe("signup action", () => {
   });
 
   it("creates a Stripe customer with correct email, name, and member_id metadata", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     expect(mockCustomerCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -143,7 +143,7 @@ describe("signup action", () => {
   });
 
   it("looks up the commitment_3mo price for a 3-month plan", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     expect(mockPricesList).toHaveBeenCalledWith(
       expect.objectContaining({ lookup_keys: ["commitment_3mo"] })
@@ -151,7 +151,7 @@ describe("signup action", () => {
   });
 
   it("uses the founding_member price for first20_3mo plan, with no promo codes or discounts", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "first20_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "first20_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     expect(mockPricesList).toHaveBeenCalledWith(
       expect.objectContaining({ lookup_keys: ["founding_member"] })
@@ -163,7 +163,7 @@ describe("signup action", () => {
   });
 
   it("allows promotion codes for non-FIRST20 plans", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     const sessionArgs = mockSessionCreate.mock.calls[0][0];
     expect(sessionArgs.allow_promotion_codes).toBe(true);
@@ -171,14 +171,14 @@ describe("signup action", () => {
   });
 
   it("does not set trial_end in the checkout session (extension is applied post-checkout by the webhook)", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     const sessionArgs = mockSessionCreate.mock.calls[0][0];
     expect(sessionArgs.subscription_data?.trial_end).toBeUndefined();
   });
 
   it("redirects to the Stripe checkout URL", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     const { redirect } = await import("next/navigation");
     expect(redirect).toHaveBeenCalledWith(MOCK_CHECKOUT_URL);
@@ -190,7 +190,7 @@ describe("signup action", () => {
       .from("members")
       .insert({ first_name: "Jane", last_name: "Doe", email: testEmail, status: "active" });
 
-    const result = await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    const result = await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
     expect(result).toEqual({ error: expect.stringContaining("You're already signed up!") });
     expect(mockCustomerCreate).not.toHaveBeenCalled();
   });
@@ -199,7 +199,7 @@ describe("signup action", () => {
     mockPricesList.mockResolvedValue({ data: [] });
 
     await expect(
-      signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" })
+      signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true })
     ).rejects.toThrow("Price not found for plan: commitment_3mo");
   });
 
@@ -207,7 +207,7 @@ describe("signup action", () => {
     mockPricesList.mockResolvedValue({ data: [] });
 
     await expect(
-      signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "first20_3mo" })
+      signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "first20_3mo", eligibilityConfirmed: true, guidelinesAccepted: true })
     ).rejects.toThrow("Price not found for plan: founding_member");
   });
 });
@@ -230,18 +230,18 @@ describe("abandoned checkout re-signup", () => {
   });
 
   it("allows a pending member to restart checkout without creating a new Stripe customer", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
     vi.clearAllMocks();
     setupStripeMocks();
 
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     expect(mockSessionCreate).toHaveBeenCalledTimes(1);
     expect(mockCustomerCreate).not.toHaveBeenCalled();
   });
 
   it("allows an abandoned member to re-subscribe without creating a new Stripe customer", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
     const supabase = createTestSupabase();
     const { data: member } = await supabase
       .from("members")
@@ -253,14 +253,14 @@ describe("abandoned checkout re-signup", () => {
     vi.clearAllMocks();
     setupStripeMocks();
 
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     expect(mockSessionCreate).toHaveBeenCalledTimes(1);
     expect(mockCustomerCreate).not.toHaveBeenCalled();
   });
 
   it("resets member status to pending when restarting checkout", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
     const supabase = createTestSupabase();
     await supabase
       .from("members")
@@ -270,7 +270,7 @@ describe("abandoned checkout re-signup", () => {
     vi.clearAllMocks();
     setupStripeMocks();
 
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     const { data: member } = await supabase
       .from("members")
@@ -290,7 +290,7 @@ describe("abandoned checkout re-signup", () => {
       stripe_customer_id: null,
     });
 
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     expect(mockCustomerCreate).toHaveBeenCalledTimes(1);
     expect(mockSessionCreate).toHaveBeenCalledTimes(1);
@@ -315,7 +315,7 @@ describe("abandonCheckout", () => {
   });
 
   it("marks a pending member as abandoned", async () => {
-    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo" });
+    await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
     const supabase = createTestSupabase();
     const { data: member } = await supabase
       .from("members")
@@ -392,6 +392,8 @@ describe("Billing flow — E2E", () => {
       lastName: "Doe",
       email: testEmail,
       plan: "commitment_3mo",
+      eligibilityConfirmed: true,
+      guidelinesAccepted: true,
     });
 
     const supabase = createTestSupabase();

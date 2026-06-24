@@ -14,6 +14,9 @@ export const INSTAGRAM_ICON = `${ASSETS_URL}/email-images/instagram.png`;
 export const EMAIL_ICON = `${ASSETS_URL}/email-images/email.png`;
 export const TEXT_LOGO = `${ASSETS_URL}/email-images/logo.png`;
 export const TEXT_LOGO_DARK = `${ASSETS_URL}/email-images/logo-dark.png`;
+// Full-width banner with the cream (#fffbf1) background baked in. Used in the header so
+// email clients' auto dark mode can't darken the background and hide the dark "post" text.
+export const TEXT_BANNER = `${ASSETS_URL}/email-images/logo-banner.png`;
 
 /** Returns "TEST: " when running locally, empty string in production. */
 export function subjectPrefix(): string {
@@ -32,6 +35,8 @@ export function emailHead(extraPreloads = ""): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   ${extraPreloads}
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
   <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
   <meta name="x-apple-disable-message-reformatting">
   <style>
@@ -62,11 +67,6 @@ export function emailHead(extraPreloads = ""): string {
     @media (max-width:100px) {
       .l3-c0,.l3-c1{display:block!important;width:100%!important}
       .l3-s0{display:block!important;width:auto!important;height:3px;font-size:0}
-    }
-    @media (prefers-color-scheme:dark) {
-      .email-header-bg{background-color:#1a1a18!important}
-      .logo-light{display:none!important;mso-hide:all}
-      .logo-dark{display:block!important;mso-hide:all}
     }
   </style>
   <!--<![endif]-->
@@ -167,28 +167,31 @@ export function emailFooter(): string {
                   </td></tr>`;
 }
 
-/** Logo header — shared by all non-welcome transactional emails. Pass centered=true to center the logo. */
+/**
+ * Logo header — shared by all non-welcome transactional emails.
+ *
+ * Uses a single full-width banner image with the cream (#fffbf1) background baked in,
+ * shown identically in light and dark mode. Because email clients (Gmail, Outlook) do not
+ * recolor image pixels, the cream field and the dark "post" text stay readable even when a
+ * client forces dark mode — which previously darkened the CSS background and hid "post".
+ *
+ * `centered` only affects the Outlook (mso) text fallback; the banner image is always full width.
+ */
 export function emailHeader({ centered = true }: { centered?: boolean } = {}): string {
-  const logoStyle = centered
-    ? "display:block;width:204px;height:auto;max-width:100%;border:0;margin:0 auto"
-    : "display:block;width:204px;height:auto;max-width:100%;border:0";
   const msoAlign = centered ? "center" : "left";
   return `
                   <!-- Brand header -->
                   <tr><td style="padding:0 0 16px">
                     <table border="0" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed">
                       <tbody><tr>
-                        <td class="email-header-bg" style="background-color:#fffbf1;padding:20px 36px;text-align:${msoAlign}">
-                          <!--[if mso]><table cellpadding="0" cellspacing="0" border="0" align="${msoAlign}" style="margin:0 auto"><tbody><tr><td>
+                        <td class="email-header-bg" style="background-color:#fffbf1;padding:0;text-align:${msoAlign};font-size:0;line-height:0">
+                          <!--[if mso]><table cellpadding="0" cellspacing="0" border="0" align="${msoAlign}" style="margin:0 auto"><tbody><tr><td style="padding:20px 36px">
                             <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:600;color:#d26149;letter-spacing:-0.3px;text-align:${msoAlign}">postpartum <span style="color:#12120f">post</span></p>
                           </td></tr></tbody></table><![endif]-->
                           <!--[if !mso]><!-->
-                          <img src="${TEXT_LOGO}" width="204" height="27"
-                            alt="postpartum post" class="logo-light"
-                            style="${logoStyle}">
-                          <img src="${TEXT_LOGO_DARK}" width="204" height="27"
-                            alt="postpartum post" class="logo-dark"
-                            style="${logoStyle.replace("display:block", "display:none")}">
+                          <img src="${TEXT_BANNER}" width="600" height="67"
+                            alt="postpartum post"
+                            style="display:block;width:100%;height:auto;max-width:600px;border:0;margin:0 auto">
                           <!--<![endif]-->
                         </td>
                       </tr></tbody>

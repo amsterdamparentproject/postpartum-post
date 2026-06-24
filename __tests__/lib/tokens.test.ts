@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { generateSkipToken, verifySkipToken } from "@/lib/skip-token";
+import { generateSkipToken, verifySkipToken } from "@/lib/tokens";
 
 beforeAll(() => {
   if (!process.env.SKIP_TOKEN_SECRET) {
@@ -10,7 +10,7 @@ beforeAll(() => {
 const MEMBER_ID = "member-abc-123";
 const MONTH = "2025-03";
 
-describe("skip-token", () => {
+describe("tokens", () => {
   it("verifies a valid token successfully", () => {
     const token = generateSkipToken(MEMBER_ID, MONTH);
     expect(verifySkipToken(MEMBER_ID, MONTH, token)).toBe(true);

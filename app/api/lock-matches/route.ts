@@ -23,7 +23,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { currentMonth, monthToDate } from "@/lib/skip-token";
+import { currentMonth, monthToDate } from "@/lib/tokens";
 
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------

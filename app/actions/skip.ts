@@ -2,7 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
-import { verifySkipToken, monthToDate } from "@/lib/skip-token";
+import { verifySkipToken, monthToDate } from "@/lib/tokens";
 import { sendAutoPauseEmail } from "@/lib/emails";
 
 export type SkipStatus = "ok" | "already_skipped" | "invalid_token" | "not_found";

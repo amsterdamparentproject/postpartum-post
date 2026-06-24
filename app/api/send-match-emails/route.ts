@@ -26,7 +26,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { currentMonth, monthToDate } from "@/lib/skip-token";
+import { currentMonth, monthToDate } from "@/lib/tokens";
 import { generateMatchToken } from "@/lib/match-token";
 import { sendMatchRevealEmail } from "@/lib/emails";
 

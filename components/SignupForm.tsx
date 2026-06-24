@@ -38,6 +38,8 @@ export default function SignupForm({
   );
   const [emailError, setEmailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [eligibilityConfirmed, setEligibilityConfirmed] = useState(false);
+  const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,6 +59,8 @@ export default function SignupForm({
       lastName: (form.elements.namedItem("lastName") as HTMLInputElement).value.trim(),
       email: emailValue.trim(),
       plan: selectedPlan,
+      eligibilityConfirmed,
+      guidelinesAccepted,
       ...(giftCode ? { giftCode } : {}),
     };
 
@@ -236,6 +240,37 @@ export default function SignupForm({
             })}
           </div>
         </div>}
+      </div>
+
+      {/* Consent checkboxes */}
+      <div className="space-y-3 pt-1">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={eligibilityConfirmed}
+            onChange={(e) => setEligibilityConfirmed(e.target.checked)}
+            required
+            className="mt-0.5 shrink-0 accent-coral"
+          />
+          <span className="text-sm text-dark leading-snug">
+            I am a parent (or expecting a child) and 18 or older
+          </span>
+        </label>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={guidelinesAccepted}
+            onChange={(e) => setGuidelinesAccepted(e.target.checked)}
+            required
+            className="mt-0.5 shrink-0 accent-coral"
+          />
+          <span className="text-sm text-dark leading-snug">
+            I agree to the{" "}
+            <a href="/community-guidelines" target="_blank" rel="noopener noreferrer" className="underline hover:text-coral transition-colors">
+              Community Guidelines
+            </a>
+          </span>
+        </label>
       </div>
 
       {error && (

@@ -12,6 +12,7 @@ import { sendAutoPauseEmail } from "../lib/emails/auto-pause.ts";
 import { sendOptinEmail } from "../lib/emails/optin.ts";
 import { sendMatchRevealEmail } from "../lib/emails/match-reveal.ts";
 import { sendRematchConfirmationEmail } from "../lib/emails/rematch-confirmation.ts";
+import { sendMemberUpdateEmail } from "../lib/emails/member-update.ts";
 
 const args = process.argv.slice(2);
 const isEmail = (s: string) => s.includes("@");
@@ -72,8 +73,12 @@ await send("rematch-confirmation", () =>
   sendRematchConfirmationEmail(TO, "Alex")
 );
 
+await send("member-update", () =>
+  sendMemberUpdateEmail(TO, "Alex", "00000000-0000-0000-0000-000000000000")
+);
+
 if (results.length === 0 && filter) {
-  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, auto-pause, optin, match-reveal, rematch-confirmation`);
+  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, auto-pause, optin, match-reveal, rematch-confirmation, member-update`);
   process.exit(1);
 }
 

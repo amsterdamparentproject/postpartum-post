@@ -2,7 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
-import { currentMonth, monthToDate } from "@/lib/skip-token";
+import { currentMonth, monthToDate } from "@/lib/tokens";
 import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 // ---------------------------------------------------------------------------

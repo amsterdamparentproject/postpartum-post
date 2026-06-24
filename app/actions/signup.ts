@@ -49,12 +49,18 @@ export type SignupFormData = {
   lastName: string;
   email: string;
   plan: "standard_monthly" | "commitment_3mo" | "first20_3mo";
+  eligibilityConfirmed: boolean;
+  guidelinesAccepted: boolean;
   giftCode?: string;
 };
 
 export type SignupError = { error: string };
 
 export async function signup(data: SignupFormData): Promise<SignupError | void> {
+  if (!data.eligibilityConfirmed || !data.guidelinesAccepted) {
+    return { error: "Please confirm your eligibility and agree to the Community Guidelines." };
+  }
+
   const supabase = createAdminClient();
   const stripe = getStripe();
 
@@ -70,6 +76,8 @@ export async function signup(data: SignupFormData): Promise<SignupError | void> 
     promotionCodeId = giftCard.stripe_promotion_code_id;
   }
 
+  const now = new Date().toISOString();
+
   const { data: member, error } = await supabase
     .from("members")
     .insert({
@@ -77,6 +85,8 @@ export async function signup(data: SignupFormData): Promise<SignupError | void> 
       last_name: data.lastName,
       email: data.email.toLowerCase(),
       status: "pending",
+      eligibility_confirmed_at: now,
+      guidelines_accepted_at: now,
     })
     .select("id")
     .single();

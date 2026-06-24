@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { verifyOptinToken, type OptinAction } from "@/lib/optin-token";
-import { monthToDate } from "@/lib/skip-token";
+import { monthToDate } from "@/lib/tokens";
 
 /**
  * GET /api/optin?member={memberId}&month={YYYY-MM}&action={coffee|playdate|skip}&token={hmac}

@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { headers } from "next/headers";
 import { sendOptinEmail } from "@/lib/emails";
 import { generateOptinToken } from "@/lib/optin-token";
-import { currentMonth, monthToDate } from "@/lib/skip-token";
+import { currentMonth, monthToDate } from "@/lib/tokens";
 import { scorePair, parentTypeCompatible, maxAchievableScore, qualityTier, type MatchCandidate } from "@/lib/matcher";
 
 // ---------------------------------------------------------------------------

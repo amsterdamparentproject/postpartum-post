@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { seedMember, seedSubscription, cleanupMember, createTestSupabase } from "@tests/helpers";
-import { generateSkipToken } from "@/lib/skip-token";
+import { generateSkipToken } from "@/lib/tokens";
 import { recordSkip } from "@/app/actions/skip";
 
 // --- Mocks ---
