@@ -7,9 +7,9 @@
  * Used on the home page and /about. Add new entries to the FAQS array below.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-const FAQS = [
+const FAQS: { question: string; answer: string; id?: string }[] = [
   {
     question: "Who is Postpartum Post for?",
     answer:
@@ -24,6 +24,12 @@ const FAQS = [
     question: "How does matching work?",
     answer:
       "Each month, we read through your profile — your neighborhood, your child's age, your availability — and pick one other parent you share common ground with. We warmly introduce you by email, and list some activities nearby that you can enjoy together. What happens next is totally up to you!",
+  },
+  {
+    id: "rematch",
+    question: "Can I request a rematch?",
+    answer:
+      "Yes — if a match isn't working out, you can request a rematch from your matches page before the 14th of the month. We'll pair you with someone new as soon as we can. After the 14th, rematches close for that month and you'll get a fresh match the following month.",
   },
   {
     question: "Can I skip a month?",
@@ -50,6 +56,18 @@ const FAQS = [
 export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const idx = FAQS.findIndex((f) => f.id === hash);
+    if (idx < 0) return;
+    setOpenIndex(idx);
+    // Let the DOM update before scrolling so the element is in its final position
+    setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  }, []);
+
   return (
     <section className="w-full max-w-2xl mx-auto">
       <h2
@@ -68,6 +86,7 @@ export default function FAQ() {
           return (
             <div
               key={i}
+              id={faq.id}
               className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm overflow-hidden"
             >
               <button

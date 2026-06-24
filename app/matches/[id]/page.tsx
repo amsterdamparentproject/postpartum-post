@@ -55,6 +55,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
       member_id_1,
       member_id_2,
       matched_on,
+      rematch_requested,
       member1:member_id_1 ( first_name, last_name, email, lat, lng, availability, children ),
       member2:member_id_2 ( first_name, last_name, email, lat, lng, availability, children )
     `)
@@ -62,6 +63,33 @@ export default async function MatchPage({ params, searchParams }: Props) {
     .maybeSingle();
 
   if (error || !match) notFound();
+
+  if (match.rematch_requested) {
+    return (
+      <PageLayout>
+        <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center">
+          <div className="max-w-md space-y-4">
+            <EnvelopeLogo width={48} height={36} className="mx-auto mb-4" />
+            <h1
+              className="text-3xl font-semibold text-dark"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              This match has ended
+            </h1>
+            <p className="text-muted leading-relaxed">
+              Your match for this month has changed.
+            </p>
+            <a
+              href="/matches"
+              className="inline-block mt-2 rounded-lg bg-coral text-white text-sm font-medium px-5 py-2.5 hover:opacity-90 transition-opacity"
+            >
+              Go to your matches
+            </a>
+          </div>
+        </main>
+      </PageLayout>
+    );
+  }
 
   type MatchMember = {
     first_name: string;
@@ -236,9 +264,9 @@ export default async function MatchPage({ params, searchParams }: Props) {
           {/* Rematch */}
           <div className="text-center pt-4 border-t border-border">
             <p className="text-muted text-sm mb-3">
-              Not feeling the connection? You can request a rematch before the 14th.
+              Something not working this month? You can request a rematch before the 14th — your match is not notified, and your contact info remains hidden from this match going forward.
             </p>
-            <a href="mailto:post@amsterdamparentproject.nl?subject=REMATCH:" className="text-sm text-coral hover:underline">
+            <a href={`/rematch?match_id=${id}`} className="text-sm text-coral hover:underline">
               Request a rematch
             </a>
           </div>
