@@ -41,7 +41,9 @@ test("abandoned checkout: member can re-subscribe after navigating away from Str
     await page.getByRole("button", { name: /3.month commitment/i }).click();
   }
 
-  // ── Step 2: Submit and redirect to Stripe — capture the session ID ────────
+  // ── Step 2: Check consent boxes, submit, and capture the session ID ──────
+  await page.getByLabel(/I am a parent/).check();
+  await page.getByLabel(/I agree to the/).check();
   await page.getByRole("button", { name: "Subscribe", exact: true }).click();
   await page.waitForURL(/checkout\.stripe\.com/, { timeout: 15_000 });
 
@@ -73,6 +75,8 @@ test("abandoned checkout: member can re-subscribe after navigating away from Str
     await page.getByRole("button", { name: /3.month commitment/i }).click();
   }
 
+  await page.getByLabel(/I am a parent/).check();
+  await page.getByLabel(/I agree to the/).check();
   await page.getByRole("button", { name: "Subscribe", exact: true }).click();
 
   // Should redirect to a new Stripe checkout session — not show "already signed up"

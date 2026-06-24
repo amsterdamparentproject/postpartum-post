@@ -43,7 +43,9 @@ test("full sign-up flow: form → Stripe checkout → success → profile", { ti
     await page.getByRole("button", { name: /3.month commitment/i }).click();
   }
 
-  // ── Step 2: Submit and redirect to Stripe ──────────────────────────────
+  // ── Step 2: Check consent boxes and submit ────────────────────────────
+  await page.getByLabel(/I am a parent/).check();
+  await page.getByLabel(/I agree to the/).check();
   await page.getByRole("button", { name: "Subscribe", exact: true }).click();
 
   await page.waitForURL(/checkout\.stripe\.com/, { timeout: 15_000 });

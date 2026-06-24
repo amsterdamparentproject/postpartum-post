@@ -62,7 +62,7 @@ test(
       await page.selectOption("select", "no_response");
 
       // Chris Changed should be pre-selected (passed via match_id); confirm & submit
-      await page.getByRole("button", { name: /request rematch/i }).click();
+      await page.getByRole("button", { name: /request a new match/i }).click();
 
       // ── Step 4: Lands on /rematch/confirmed ───────────────────────────────
       await page.waitForURL(/\/rematch\/confirmed/, { timeout: 15_000 });
