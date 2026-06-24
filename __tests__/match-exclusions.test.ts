@@ -405,6 +405,15 @@ describe("requestRematch: inserts match_exclusion on rematch", () => {
               }),
             };
           }
+          if (table === "members") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: () => Promise.resolve({ data: null, error: null }),
+                }),
+              }),
+            };
+          }
           // match_exclusions
           return {
             select: () => ({
@@ -680,6 +689,15 @@ describe("requestRematch: inserts match_exclusion on rematch", () => {
                 }),
               }),
               update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+            };
+          }
+          if (table === "members") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: () => Promise.resolve({ data: null, error: null }),
+                }),
+              }),
             };
           }
           return {
