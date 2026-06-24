@@ -130,18 +130,33 @@ function MatchAdmin({
 
   return (
     <div className="space-y-3">
-      {activeMatch && (
-        <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-2">
-          <h2 className="font-semibold text-dark text-sm">Request a rematch</h2>
-          <p className="text-xs text-muted">Something not working with your match this month? We&apos;ll find you a new match.</p>
-          <Link
-            href={`/rematch?member_id=${memberId}`}
-            className="inline-block w-full text-center rounded-lg border border-border text-sm py-2 text-dark hover:border-coral hover:text-coral transition-colors"
-          >
-            Request a rematch
-          </Link>
-        </div>
-      )}
+      {activeMatch && (() => {
+        const beforeCutoff = new Date().getDate() <= 14;
+        return (
+          <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-2">
+            <h2 className="font-semibold text-dark text-sm">Request a rematch</h2>
+            <p className="text-xs text-muted">Something not working with your match? You can request to be matched with someone else this month.</p>
+            {beforeCutoff ? (
+              <Link
+                href={`/rematch?member_id=${memberId}`}
+                className="inline-block w-full text-center rounded-lg border border-border text-sm py-2 text-dark hover:border-coral hover:text-coral transition-colors"
+              >
+                Request a rematch
+              </Link>
+            ) : (
+              <span className="inline-block w-full text-center rounded-lg border border-border text-sm py-2 text-muted cursor-not-allowed select-none">
+                Rematches closed
+              </span>
+            )}
+            <p className="text-xs text-muted">
+              You have until the 14th to request a rematch.{" "}
+              <Link href="/about#rematch" className="underline hover:text-dark transition-colors">
+                Learn more
+              </Link>
+            </p>
+          </div>
+        );
+      })()}
       <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-5">
       <h2 className="font-semibold text-dark text-sm">Parents you won't match with</h2>
 
@@ -221,9 +236,10 @@ function MatchedCard({
   disabled?: boolean;
   onExclusionAdded?: () => void;
 }) {
-  const { matchId, token, topic, matchFirstName, matchLastName, matchEmail, matchMemberId, matchedOn, rematchRequested } = match;
+  const { matchId, token, topic, matchFirstName, matchLastName, matchEmail, matchMemberId, matchedOn, rematchRequested, rematchRequestedBy } = match;
   const monthYear = new Date(matchedOn + "T00:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
   const isChanged = !disabled && rematchRequested;
+  const isRequester = !!rematchRequestedBy && rematchRequestedBy === memberId;
   const [showConfirm, setShowConfirm] = useState(false);
   const [isExcluded, setIsExcluded] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -280,15 +296,26 @@ function MatchedCard({
               </a>
 
               {/* Rematch */}
-              <Link
-                href={`/rematch?member_id=${memberId}&match_id=${matchId}`}
-                title="Request a rematch"
-                className="p-2 rounded-lg border border-border text-muted hover:text-dark hover:border-dark transition-colors"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
-                </svg>
-              </Link>
+              {new Date().getDate() <= 14 ? (
+                <Link
+                  href={`/rematch?member_id=${memberId}&match_id=${matchId}`}
+                  title="Request a rematch"
+                  className="p-2 rounded-lg border border-border text-muted hover:text-dark hover:border-dark transition-colors"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+                  </svg>
+                </Link>
+              ) : (
+                <span
+                  title="Rematches are closed after the 14th"
+                  className="p-2 rounded-lg border border-border text-muted/40 cursor-not-allowed"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+                  </svg>
+                </span>
+              )}
 
               {/* Do not match */}
               <div className="relative" ref={dialogRef}>
@@ -335,7 +362,11 @@ function MatchedCard({
 
         {/* Changed message */}
         {isChanged && (
-          new Date().getDate() <= 14 ? (
+          isRequester ? (
+            <p className="text-xs text-muted">
+              Your match for this month has changed. If you&apos;ve requested a rematch, we&apos;ll be in touch soon.
+            </p>
+          ) : new Date().getDate() <= 14 ? (
             <p className="text-xs text-muted">
               Your match for this month has changed.{" "}
               <Link href={`/rematch?member_id=${memberId}&match_id=${matchId}`} className="underline hover:text-dark transition-colors">
@@ -345,7 +376,7 @@ function MatchedCard({
             </p>
           ) : (
             <p className="text-xs text-muted">
-              Your match for this month has changed. You&apos;ll get a new match next month!
+              Your match for this month has changed. You&apos;ll hear from us with a new match next month.
             </p>
           )
         )}

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase";
+import { sendRematchConfirmationEmail } from "@/lib/emails/rematch-confirmation";
 
 export async function requestRematch(memberId: string, reason: string | null, matchId?: string) {
   const supabase = createAdminClient();
@@ -45,6 +46,13 @@ export async function requestRematch(memberId: string, reason: string | null, ma
     })
     .eq("id", match.id);
 
+  // Look up the requesting member's name and email for the confirmation email.
+  const { data: requestingMember } = await supabase
+    .from("members")
+    .select("first_name, email")
+    .eq("id", memberId)
+    .single();
+
   // Permanently exclude this pair from future matches.
   // Check first to avoid hitting the order-independent unique index with a raw-column upsert.
   const { data: existing } = await supabase
@@ -65,6 +73,12 @@ export async function requestRematch(memberId: string, reason: string | null, ma
         reason: "rematch_request",
         created_by: "rematch_request",
       });
+  }
+
+  if (requestingMember) {
+    await sendRematchConfirmationEmail(requestingMember.email, requestingMember.first_name).catch(
+      (err) => console.error("[rematch] confirmation email failed:", err)
+    );
   }
 
   redirect("/rematch/confirmed");

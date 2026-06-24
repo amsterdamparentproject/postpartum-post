@@ -162,6 +162,7 @@ export type MatchEntry = {
   matchedOn: string;
   active: boolean;
   rematchRequested: boolean;
+  rematchRequestedBy: string | null;
 };
 
 export type MatchStatus =
@@ -184,6 +185,7 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
       id,
       matched_on,
       rematch_requested,
+      rematch_requested_by,
       member_id_1,
       member_id_2,
       member1:member_id_1 ( id, first_name, last_name, email ),
@@ -222,6 +224,7 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
       matchedOn: match.matched_on,
       active: isCurrentMonth,
       rematchRequested: !!match.rematch_requested,
+      rematchRequestedBy: match.rematch_requested_by ?? null,
     };
   });
 

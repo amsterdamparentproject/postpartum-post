@@ -84,11 +84,25 @@ create table postpartumpost.matches (
   rematch_requested boolean not null default false,
   rematch_reason postpartumpost.rematch_reason,
   rematch_requested_at timestamptz,
-  flagged_for_review boolean not null default false, -- set when rematch_reason is safety_concern or harassment
+  rematch_requested_by uuid references postpartumpost.members(id) on delete set null,
+  flagged_for_review boolean not null default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   constraint no_self_match check (member_id_1 != member_id_2)
 );
+
+create view postpartumpost.rematches as
+select
+  id                   as match_id,
+  member_id_1,
+  member_id_2,
+  matched_on,
+  rematch_reason       as reason,
+  rematch_requested_at as requested_at,
+  rematch_requested_by as requested_by,
+  flagged_for_review
+from postpartumpost.matches
+where rematch_requested = true;
 
 -- Monthly participation: one row per member per calendar month they opted in.
 -- Only members with a row here are included in the match run on the 5th.
