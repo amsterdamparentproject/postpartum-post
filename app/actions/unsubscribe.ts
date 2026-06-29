@@ -21,14 +21,12 @@ export async function unsubscribe(memberId: string) {
 
   await cancelSubscription(subscription.stripe_subscription_id);
 
-  await supabase
-    .from("subscriptions")
-    .update({ status: "canceled" })
-    .eq("stripe_subscription_id", subscription.stripe_subscription_id);
-
+  // Mark the member as canceling — they still have access until the billing period ends.
+  // The Stripe customer.subscription.deleted webhook will set them to "inactive" when
+  // the period actually expires.
   await supabase
     .from("members")
-    .update({ status: "inactive" })
+    .update({ status: "canceling" })
     .eq("id", memberId);
 
   redirect(`/unsubscribe/confirmed`);

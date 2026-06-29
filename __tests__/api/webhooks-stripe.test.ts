@@ -325,7 +325,7 @@ describe("Stripe webhook", () => {
     await supabase.from("gift_cards").delete().eq("stripe_promotion_code_id", promoCodeId);
   });
 
-  // ── Cancellation test ────────────────────────────────────────────────────
+  // ── Cancellation tests ───────────────────────────────────────────────────
 
   it("sets subscription status to canceled on customer.subscription.deleted", async () => {
     const member = await seedMember();
@@ -359,5 +359,42 @@ describe("Stripe webhook", () => {
       .eq("stripe_subscription_id", stripeSubId)
       .single();
     expect(sub?.status).toBe("canceled");
+  });
+
+  it("sets member status to 'inactive' when their billing period expires (customer.subscription.deleted)", async () => {
+    // Simulate a member who canceled but was still in the 'canceling' state
+    // while their paid period ran out. The webhook is the only thing that
+    // transitions them to 'inactive'.
+    const member = await seedMember({ status: "canceling" });
+    memberId = member.id;
+
+    const supabase = createTestSupabase();
+    const stripeSubId = `sub_test_${memberId.slice(0, 8)}`;
+    await supabase.from("subscriptions").insert({
+      member_id: memberId,
+      stripe_subscription_id: stripeSubId,
+      stripe_price_id: "price_test_monthly",
+      status: "active",
+    });
+
+    mockConstructEvent.mockReturnValue({
+      type: "customer.subscription.deleted",
+      data: {
+        object: {
+          id: stripeSubId,
+          customer: member.stripe_customer_id,
+        },
+      },
+    });
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    const { data: updatedMember } = await supabase
+      .from("members")
+      .select("status")
+      .eq("id", memberId)
+      .single();
+    expect(updatedMember?.status).toBe("inactive");
   });
 });

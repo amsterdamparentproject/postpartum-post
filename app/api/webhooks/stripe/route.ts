@@ -156,23 +156,31 @@ export async function POST(req: NextRequest) {
       .update({ status: "canceled" })
       .eq("stripe_subscription_id", subscription.id);
 
-    // Look up member to send unsubscribed email
+    // Look up member to set inactive and send unsubscribed email.
+    // Fires when the billing period actually ends — not at cancel time.
     try {
       const { data: member } = await supabase
         .from("members")
-        .select("email, first_name")
+        .select("id, email, first_name")
         .eq("stripe_customer_id", subscription.customer as string)
         .single();
 
-      if (member?.email) {
-        await sendUnsubscribedEmail(
-          member.email,
-          member.first_name ?? "there"
-        );
-        console.log("[webhook] unsubscribed email sent to", member.email);
+      if (member) {
+        await supabase
+          .from("members")
+          .update({ status: "inactive" })
+          .eq("id", member.id);
+
+        if (member.email) {
+          await sendUnsubscribedEmail(
+            member.email,
+            member.first_name ?? "there"
+          );
+          console.log("[webhook] unsubscribed email sent to", member.email);
+        }
       }
     } catch (e) {
-      console.error("[webhook] sendUnsubscribedEmail failed (non-fatal):", e);
+      console.error("[webhook] subscription.deleted handler failed (non-fatal):", e);
     }
   }
 

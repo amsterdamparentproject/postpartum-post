@@ -46,13 +46,13 @@ export async function POST(req: NextRequest) {
   }
 
   // -------------------------------------------------------------------------
-  // Fetch active members
+  // Fetch active members (includes "canceling" — paid through end of period)
   // -------------------------------------------------------------------------
   const supabase = createAdminClient();
   const { data: members, error } = await supabase
     .from("members")
     .select("id, first_name, email")
-    .eq("status", "active");
+    .in("status", ["active", "canceling"]);
 
   if (error) {
     console.error("[send-optin-email] Failed to fetch members:", error);

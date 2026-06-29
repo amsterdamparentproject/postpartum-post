@@ -4,14 +4,14 @@ import { unsubscribe } from "@/app/actions/unsubscribe";
 
 // --- Mocks ---
 
-const { mockCancel } = vi.hoisted(() => ({
-  mockCancel: vi.fn(),
+const { mockUpdate } = vi.hoisted(() => ({
+  mockUpdate: vi.fn(),
 }));
 
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({
     subscriptions: {
-      cancel: mockCancel,
+      update: mockUpdate,
     },
   }),
 }));
@@ -28,15 +28,15 @@ describe("unsubscribe — integration", () => {
   let memberId: string;
 
   beforeEach(() => {
-    mockCancel.mockReset();
-    mockCancel.mockResolvedValue({});
+    mockUpdate.mockReset();
+    mockUpdate.mockResolvedValue({});
   });
 
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
   });
 
-  it("sets subscription status to 'canceled' and member status to 'inactive'", async () => {
+  it("sets member status to 'canceling' and leaves subscription active", async () => {
     const member = await seedMember({ status: "active" });
     memberId = member.id;
     const sub = await seedSubscription(memberId);
@@ -45,19 +45,22 @@ describe("unsubscribe — integration", () => {
 
     const supabase = createTestSupabase();
 
+    // Subscription row stays active — the webhook handles the transition when
+    // the billing period actually expires.
     const { data: updatedSub } = await supabase
       .from("subscriptions")
       .select("status")
       .eq("stripe_subscription_id", sub.stripe_subscription_id)
       .single();
-    expect(updatedSub?.status).toBe("canceled");
+    expect(updatedSub?.status).toBe("active");
 
+    // Member transitions to 'canceling', not 'inactive' — they still have access.
     const { data: updatedMember } = await supabase
       .from("members")
       .select("status")
       .eq("id", memberId)
       .single();
-    expect(updatedMember?.status).toBe("inactive");
+    expect(updatedMember?.status).toBe("canceling");
   });
 
   it("throws and makes no DB writes if no active subscription exists", async () => {
@@ -67,7 +70,7 @@ describe("unsubscribe — integration", () => {
 
     await expect(unsubscribe(memberId)).rejects.toThrow("No active subscription found");
 
-    expect(mockCancel).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
 
     // Member status should be unchanged
     const supabase = createTestSupabase();
@@ -82,22 +85,22 @@ describe("unsubscribe — integration", () => {
 
 // --- E2E-style test ---
 // Seeds a complete member + subscription scenario and verifies the full cancel
-// flow end-to-end: Stripe is called with the correct ID, and both DB tables
-// reflect the canceled state.
+// flow end-to-end: Stripe is called with cancel_at_period_end, and the member
+// transitions to 'canceling' while the subscription row stays active.
 
 describe("unsubscribe — E2E", () => {
   let memberId: string;
 
   beforeEach(() => {
-    mockCancel.mockReset();
-    mockCancel.mockResolvedValue({});
+    mockUpdate.mockReset();
+    mockUpdate.mockResolvedValue({});
   });
 
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
   });
 
-  it("calls Stripe cancel with the correct subscription ID and updates both DB tables", async () => {
+  it("calls Stripe update with cancel_at_period_end and sets member to 'canceling'", async () => {
     const member = await seedMember({ status: "active" });
     memberId = member.id;
     const sub = await seedSubscription(memberId, {
@@ -107,26 +110,29 @@ describe("unsubscribe — E2E", () => {
 
     await unsubscribe(memberId);
 
-    // Stripe received the right subscription ID
-    expect(mockCancel).toHaveBeenCalledOnce();
-    expect(mockCancel).toHaveBeenCalledWith(sub.stripe_subscription_id);
+    // Stripe received cancel_at_period_end — not an immediate cancel
+    expect(mockUpdate).toHaveBeenCalledOnce();
+    expect(mockUpdate).toHaveBeenCalledWith(
+      sub.stripe_subscription_id,
+      { cancel_at_period_end: true }
+    );
 
     const supabase = createTestSupabase();
 
-    // Subscription row is canceled
+    // Subscription stays active until Stripe fires the deleted event
     const { data: updatedSub } = await supabase
       .from("subscriptions")
       .select("status")
       .eq("member_id", memberId)
       .single();
-    expect(updatedSub?.status).toBe("canceled");
+    expect(updatedSub?.status).toBe("active");
 
-    // Member is inactive
+    // Member is canceling, not inactive — they keep access until period ends
     const { data: updatedMember } = await supabase
       .from("members")
       .select("status")
       .eq("id", memberId)
       .single();
-    expect(updatedMember?.status).toBe("inactive");
+    expect(updatedMember?.status).toBe("canceling");
   });
 });

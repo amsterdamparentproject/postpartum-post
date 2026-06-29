@@ -17,5 +17,5 @@ export async function extendSubscriptionByOneMonth(subscriptionId: string): Prom
 
 export async function cancelSubscription(subscriptionId: string): Promise<void> {
   const stripe = getStripe();
-  await stripe.subscriptions.cancel(subscriptionId);
+  await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
 }

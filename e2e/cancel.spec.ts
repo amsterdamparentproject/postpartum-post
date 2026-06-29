@@ -18,7 +18,7 @@
 
 import { test, expect } from "@playwright/test";
 import { signInAs } from "./helpers/auth";
-import { seedMemberWithSubscription, cleanupMember, cancelStripeSubscription } from "./helpers/db";
+import { seedMemberWithSubscription, cleanupMember, cancelStripeSubscription, getMemberStatusByEmail } from "./helpers/db";
 
 test("cancel subscription: billing page → confirm cancel → profile → subscription canceled", async ({ page }) => {
   // ── Setup: seed member with a real Stripe test subscription ─────────────
@@ -48,14 +48,19 @@ test("cancel subscription: billing page → confirm cancel → profile → subsc
     await page.waitForURL(/\/unsubscribe\/confirmed/, { timeout: 15_000 });
     await expect(page.getByRole("heading", { name: /you've been unsubscribed/i })).toBeVisible();
 
-    // ── Step 6: Return to /billing — no active subscription shown ────────────
+    // ── Step 6: Return to /billing — shows "Cancels on" with end date ────────
     await page.goto("/billing");
 
-    // After cancellation the billing page shows "No active subscription found."
-    // (the subscription is removed from the DB, not just flagged as canceled)
-    await expect(page.getByText(/no active subscription/i)).toBeVisible({ timeout: 10_000 });
+    // After cancellation the subscription stays active until the billing period
+    // ends (cancel_at_period_end: true), so the billing page shows "Cancels on"
+    // rather than removing the subscription details entirely.
+    await expect(page.getByText(/cancels on/i)).toBeVisible({ timeout: 10_000 });
     // Cancel button should no longer be shown
     await expect(page.getByRole("button", { name: /cancel subscription/i })).not.toBeVisible();
+
+    // ── Step 7: Member status in DB should be 'canceling', not 'inactive' ────
+    const status = await getMemberStatusByEmail(member.email);
+    expect(status).toBe("canceling");
   } finally {
     // Cleanup — cancel the Stripe sub if the test failed before doing so
     await cancelStripeSubscription(member.stripeSubscriptionId);

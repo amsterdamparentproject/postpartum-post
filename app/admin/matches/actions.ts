@@ -628,11 +628,11 @@ export async function testSendOptinEmail(): Promise<TestStepResult> {
   const month = currentMonth();
   const monthDate = monthToDate(month);
 
-  // Fetch all active members from the test DB
+  // Fetch all active members from the test DB (includes "canceling" — paid through end of period)
   const { data: members, error } = await supabase
     .from("members")
     .select("id, first_name, email")
-    .eq("status", "active");
+    .in("status", ["active", "canceling"]);
 
   if (error || !members?.length) {
     return { success: false, error: error?.message ?? "No active members in test DB." };

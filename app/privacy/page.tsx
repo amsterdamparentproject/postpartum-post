@@ -34,8 +34,8 @@ export default function PrivacyPolicy() {
               </p>
               <p className="mt-3">
                 You can reach us at{" "}
-                <a href="mailto:post@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
-                  post@amsterdamparentproject.nl
+                <a href="mailto:hello@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
+                  hello@amsterdamparentproject.nl
                 </a>.
               </p>
             </section>
@@ -107,7 +107,9 @@ export default function PrivacyPolicy() {
               <ul className="list-disc list-inside space-y-2 text-dark">
                 <li><strong>Stripe</strong> — payment processing and subscription management</li>
                 <li><strong>Resend</strong> — email delivery (match introductions, monthly emails, account notifications)</li>
-                <li><strong>Supabase</strong> — secure database hosting for your account and profile data</li>
+                <li><strong>Supabase</strong> — secure database hosting (EU region) for your account and profile data</li>
+                <li><strong>Netlify</strong> — website and application hosting</li>
+                <li><strong>n8n</strong> — automation that runs the monthly matching process</li>
                 <li><strong>Umami</strong> — privacy-first website analytics (no personal data shared)</li>
               </ul>
               <p className="mt-3">
@@ -131,6 +133,7 @@ export default function PrivacyPolicy() {
                 is our legitimate interest in protecting other members and the integrity of the community,
                 and the establishment or defense of legal claims — both recognized grounds under GDPR.
                 This retention is an exception to the right to erasure, as permitted by Article 17(3) of the GDPR.
+                We keep this safety record for up to 5 years, after which it is deleted.
               </p>
             </section>
 
@@ -147,8 +150,8 @@ export default function PrivacyPolicy() {
               </ul>
               <p className="mt-3">
                 To exercise any of these rights, email us at{" "}
-                <a href="mailto:post@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
-                  post@amsterdamparentproject.nl
+                <a href="mailto:hello@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
+                  hello@amsterdamparentproject.nl
                 </a>
                 . We'll respond within 30 days.
               </p>
@@ -187,8 +190,8 @@ export default function PrivacyPolicy() {
               <h2 className="text-xl font-semibold mb-3">Questions?</h2>
               <p>
                 Email us at{" "}
-                <a href="mailto:post@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
-                  post@amsterdamparentproject.nl
+                <a href="mailto:hello@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
+                  hello@amsterdamparentproject.nl
                 </a>
                 . We're happy to help.
               </p>

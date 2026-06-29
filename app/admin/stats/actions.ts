@@ -78,16 +78,16 @@ export async function getBaseStats(): Promise<BaseStats> {
       supabase
         .from("members")
         .select("*", { count: "exact", head: true })
-        .eq("status", "active"),
+        .in("status", ["active", "canceling"]),
       supabase
         .from("members")
         .select("*", { count: "exact", head: true })
-        .eq("status", "active")
+        .in("status", ["active", "canceling"])
         .gte("created_at", monthStart),
       supabase
         .from("members")
         .select("id")
-        .eq("status", "active"),
+        .in("status", ["active", "canceling"]),
       stripe.prices.list({ limit: 100 }),
     ]);
 
@@ -195,7 +195,7 @@ export async function getMatchRoundStats(): Promise<MatchRoundStats> {
       supabase
         .from("members")
         .select("*", { count: "exact", head: true })
-        .eq("status", "active"),
+        .in("status", ["active", "canceling"]),
       supabase
         .from("monthly_participation")
         .select("topic_id, topics ( name )")
@@ -265,7 +265,7 @@ export async function getDemographicStats(): Promise<DemographicStats> {
   const { data: members } = await supabase
     .from("members")
     .select("lat, lng, children, availability, parent_type, first_name, last_name, zipcode")
-    .eq("status", "active");
+    .in("status", ["active", "canceling"]);
 
   const locations: MemberLocation[] = [];
   const ageCounts = new Array<number>(AGE_BUCKETS.length).fill(0);

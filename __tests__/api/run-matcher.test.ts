@@ -165,6 +165,29 @@ describe("POST /api/run-matcher", () => {
     expect(matchedIds).not.toContain(c.id);
   });
 
+  it("includes canceling members who have opted in", async () => {
+    const topicId = await getTopicId("coffee");
+
+    // One active, one canceling — both opted in. Both should be matched.
+    const a = await seedMember({ language: ["english"] });
+    const b = await seedMember({ language: ["english"], status: "canceling" });
+    memberIds.push(a.id, b.id);
+
+    await seedParticipation(a.id, THIS_MONTH_DATE, topicId);
+    await seedParticipation(b.id, THIS_MONTH_DATE, topicId);
+
+    const req = makeRequest({ dryRun: true });
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.matched).toHaveLength(1);
+
+    const matchedIds = [body.matched[0].member1.id, body.matched[0].member2.id];
+    expect(matchedIds).toContain(a.id);
+    expect(matchedIds).toContain(b.id);
+  });
+
   // -------------------------------------------------------------------------
   // dryRun mode
   // -------------------------------------------------------------------------

@@ -78,7 +78,13 @@ export default function BillingPage() {
         {subscriptionLoading ? (
           <p className="text-sm text-muted">Fetching your plan…</p>
         ) : !subscription ? (
-          <p className="text-sm text-muted">No active subscription found.</p>
+          member?.status === "canceling" ? (
+            <p className="text-sm text-muted">
+              Your membership is active — you&apos;ll keep receiving matches and won&apos;t be charged again.
+            </p>
+          ) : (
+            <p className="text-sm text-muted">No active subscription found.</p>
+          )
         ) : (
           <>
             {/* Skip this month banner */}
