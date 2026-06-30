@@ -14,7 +14,12 @@
     "test:e2e:debug": "playwright test --debug",
     "geo:test": "tsx scripts/backfill-geo.ts test",
     "geo:prod": "tsx scripts/backfill-geo.ts prod",
-    "emails:preview": "tsx --env-file=.env.local scripts/send-preview-emails.mts"
+    "emails:preview": "tsx --env-file=.env.local scripts/send-preview-emails.mts",
+    "member-update:test": "tsx scripts/send-member-update.mts test",
+    "member-update:prod": "NODE_ENV=production tsx scripts/send-member-update.mts prod",
+    "consent-link": "tsx scripts/gen-consent-link.mts",
+    "confirm-member": "tsx scripts/confirm-member.mts",
+    "reset-consent": "tsx scripts/reset-consent.mts"
   },
   "dependencies": {
     "@beehiiv/sdk": "^0.1.9",

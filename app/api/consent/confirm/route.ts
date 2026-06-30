@@ -9,7 +9,11 @@ export async function GET(req: NextRequest) {
   const memberId = searchParams.get("member_id");
   const token = searchParams.get("token");
 
-  if (!memberId || !token || !verifyConsentToken(memberId, token)) {
+  const secretPresent = !!process.env.SKIP_TOKEN_SECRET;
+  const tokenValid = memberId && token ? verifyConsentToken(memberId, token) : false;
+  console.error(`[consent/confirm] member_id=${memberId} token_prefix=${token?.slice(0, 8)} secret_present=${secretPresent} valid=${tokenValid}`);
+
+  if (!memberId || !token || !tokenValid) {
     return NextResponse.redirect(`${SITE_URL}/consent/confirmed?invalid=1`);
   }
 

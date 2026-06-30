@@ -255,6 +255,42 @@ describe("GET /api/optin", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it("coffee after skip — redirects to /billing?optin=already_skip and does not write a participation row", async () => {
+    const member = await seedMember({ consecutive_skips: 1 });
+    memberId = member.id;
+    await seedSubscription(memberId);
+    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
+
+    // First: skip
+    const skipToken = generateOptinToken(memberId, MONTH, "skip");
+    await GET(makeRequest(memberId, MONTH, "skip", skipToken));
+
+    // Then: try to opt in with coffee
+    const coffeeToken = generateOptinToken(memberId, MONTH, "coffee");
+    const res = await GET(makeRequest(memberId, MONTH, "coffee", coffeeToken));
+
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=already_skip");
+
+    const supabase = createTestSupabase();
+
+    // No participation row written
+    const { data: participation } = await supabase
+      .from("monthly_participation")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(participation).toBeNull();
+
+    // consecutive_skips not reset
+    const { data: updated } = await supabase
+      .from("members")
+      .select("consecutive_skips")
+      .eq("id", memberId)
+      .single();
+    expect(updated?.consecutive_skips).toBe(2);
+  });
+
   // ---------------------------------------------------------------------------
   // No response
   // ---------------------------------------------------------------------------

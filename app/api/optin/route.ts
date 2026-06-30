@@ -95,6 +95,20 @@ export async function GET(request: NextRequest) {
   }
 
   // coffee or playdate
+  const monthDate = monthToDate(month);
+
+  // Block if they've already skipped this month
+  const { data: existingSkip } = await supabase
+    .from("monthly_skips")
+    .select("id")
+    .eq("member_id", memberId)
+    .eq("month", monthDate)
+    .maybeSingle();
+
+  if (existingSkip) {
+    return signInAndRedirect(supabase, memberRow.email, `${origin}/billing?optin=already_skip`, origin);
+  }
+
   const { data: topic, error: topicError } = await supabase
     .from("topics")
     .select("id")
@@ -105,8 +119,6 @@ export async function GET(request: NextRequest) {
     console.error("[optin] Topic not found for action:", action, topicError);
     return NextResponse.redirect(`${origin}/`);
   }
-
-  const monthDate = monthToDate(month);
 
   const { error: participationError } = await supabase
     .from("monthly_participation")

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { Suspense, useEffect, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import { useAccount } from "@/app/(account)/AccountContext";
 import {
@@ -27,8 +28,11 @@ function formatDate(unixTimestamp: number) {
   });
 }
 
-export default function BillingPage() {
+function BillingContent() {
   const { loading, member } = useAccount();
+  const searchParams = useSearchParams();
+  const optinParam = searchParams.get("optin");
+  const [showSkipBanner, setShowSkipBanner] = useState(optinParam === "skip" || optinParam === "already_skip");
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -71,7 +75,26 @@ export default function BillingPage() {
   if (!member) return <MagicLinkRequest />;
 
   return (
-    <div className="max-w-md space-y-6">
+    <div className="space-y-6">
+      {showSkipBanner && (
+        <div className="bg-[#caadff]/30 border border-[#caadff] rounded-2xl px-5 py-4 flex items-start justify-between gap-4">
+          <p className="text-sm text-dark leading-relaxed">
+            {optinParam === "already_skip"
+              ? <>You&apos;ve already chosen to skip this month. If you&apos;d like to rejoin the match pool, please contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a>.</>
+              : "You're skipping your match this month — all good! We've automatically adjusted your billing cycle so that you're not charged this month. See you next month 💌"
+            }
+          </p>
+          <button
+            onClick={() => setShowSkipBanner(false)}
+            className="shrink-0 text-muted hover:text-dark transition text-lg leading-none"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <div className="max-w-md space-y-6">
       <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8 space-y-4">
         <h2 className="text-base font-semibold text-dark">Plan & billing</h2>
 
@@ -194,6 +217,15 @@ export default function BillingPage() {
           </>
         )}
       </div>
+      </div>
     </div>
+  );
+}
+
+export default function BillingPage() {
+  return (
+    <Suspense>
+      <BillingContent />
+    </Suspense>
   );
 }

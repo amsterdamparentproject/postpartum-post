@@ -8,7 +8,7 @@ import NotSubscribedView from "@/components/NotSubscribedView";
 import { useAccount } from "@/app/(account)/AccountContext";
 import { useProfileSave } from "@/app/(account)/ProfileSaveContext";
 
-type OptinParam = "coffee" | "playdate" | "skip" | "already_skip";
+type OptinParam = "coffee" | "playdate" | "skip";
 
 function OptinBanner() {
   const searchParams = useSearchParams();
@@ -20,8 +20,8 @@ function OptinBanner() {
   return (
     <div className="bg-[#caadff]/30 border border-[#caadff] rounded-2xl px-5 py-4 flex items-start justify-between gap-4">
       <p className="text-sm text-dark leading-relaxed">
-        {optin === "skip" || optin === "already_skip"
-          ? "You're skipping your match this month — all good! We've automatically adjusted your billing cycle so that you're not charged this month. See you next month 💌"
+        {optin === "skip"
+          ? "You're skipping your match this month — all good! We've automatically adjusted your billing cycle so that you won't be charged. See you next month 💌"
           : <>You're in! 🎉 We're excited to arrange your next <span className="font-semibold">{optin}</span>! Make sure your profile is up to date so we can find you the best match this month.</>
         }
       </p>
