@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/match-token", () => ({
   generateMatchToken: () => "mock-token",
 }));
-vi.mock("@/lib/skip-token", () => ({
+vi.mock("@/lib/tokens", () => ({
   currentMonth: () => "2026-06",
   monthToDate: () => "2026-06-01",
 }));
