@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { verifyMagicLinkToken } from "@/lib/auth-confirm";
+import { createBrowserClient } from "@/lib/supabase";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import PageLayout from "@/components/PageLayout";
 import CalloutBox from "@/components/CalloutBox";
@@ -19,20 +20,36 @@ function ConfirmHandler() {
     const type = searchParams.get("type");
     const next = searchParams.get("next") ?? "/profile";
 
-    if (!tokenHash || !type) {
-      setStatus("invalid");
+    // PKCE flow: token_hash arrives as a query param (standard magic link emails)
+    if (tokenHash && type) {
+      verifyMagicLinkToken(tokenHash, type).then((errorMessage) => {
+        if (errorMessage) {
+          console.error("[auth/confirm] verifyOtp error:", errorMessage);
+          setStatus("error");
+        } else {
+          setStatus("success");
+          router.replace(next);
+        }
+      });
       return;
     }
 
-    verifyMagicLinkToken(tokenHash, type).then((errorMessage) => {
-      if (errorMessage) {
-        console.error("[auth/confirm] verifyOtp error:", errorMessage);
-        setStatus("error");
-      } else {
-        setStatus("success");
-        router.replace(next);
-      }
-    });
+    // Implicit flow: access_token arrives in the hash fragment (admin.generateLink)
+    if (window.location.hash.includes("access_token")) {
+      const supabase = createBrowserClient();
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_IN") {
+          subscription.unsubscribe();
+          setStatus("success");
+          router.replace(next);
+        }
+      });
+      // Trigger the Supabase client to process the hash
+      supabase.auth.getSession();
+      return;
+    }
+
+    setStatus("invalid");
   }, [router, searchParams]);
 
   if (status === "loading" || status === "success") {

@@ -24,13 +24,20 @@ const MONTH = "2024-03";
 const MONTH_DATE = "2024-03-01";
 const BASE_URL = "http://localhost";
 
-// The optin route now redirects through a Supabase magic link. Extract the
-// final destination from the redirect_to query param when present.
+// The optin route redirects through a Supabase magic link whose redirect_to
+// points to /auth/confirm?next=<final-dest>. Unwrap both layers to reach the
+// actual destination URL.
 function getRedirectTarget(location: string | null): string {
   if (!location) return "";
   try {
-    const redirectTo = new URL(location).searchParams.get("redirect_to");
-    return redirectTo ?? location;
+    const url = new URL(location);
+    // Supabase action_link has a redirect_to pointing to /auth/confirm?next=...
+    const redirectTo = url.searchParams.get("redirect_to");
+    if (redirectTo) return getRedirectTarget(redirectTo);
+    // /auth/confirm wraps the real destination in a next param
+    const next = url.searchParams.get("next");
+    if (next) return next;
+    return location;
   } catch {
     return location;
   }

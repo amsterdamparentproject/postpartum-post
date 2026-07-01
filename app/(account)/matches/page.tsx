@@ -412,26 +412,20 @@ function PendingCard({ topic }: { topic: "coffee" | "playdate" }) {
   const monthYear = new Date().toLocaleString("en-NL", { month: "long", year: "numeric" });
 
   return (
-    <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-2">
+    <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-3">
       <div className="flex items-center gap-3">
-        <span className="text-2xl">{topic === "coffee" ? "☕" : "🛝"}</span>
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-dark text-sm">
-              {topic === "coffee" ? "Coffee match" : "Playdate match"}
-            </p>
-            <span className="text-xs text-muted bg-gray-100 rounded-full px-2.5 py-0.5">
-              {monthYear}
-            </span>
-          </div>
-          <p className="text-xs text-muted mt-0.5">
-            We're arranging your introduction. You'll hear from us on the 7th.
-          </p>
-        </div>
-        <span className="ml-auto text-xs text-muted bg-gray-100 rounded-full px-2.5 py-1 shrink-0">
-          Pending
-        </span>
+        <span className="text-3xl">{topic === "coffee" ? "☕" : "🛝"}</span>
+        <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
+          {topic === "coffee" ? "Coffee match" : "Playdate match"}
+        </p>
       </div>
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-muted">{monthYear}</p>
+        <span className="text-xs text-muted bg-gray-100 rounded-full px-2.5 py-0.5">Pending</span>
+      </div>
+      <p className="text-sm text-muted">
+        We&apos;re arranging your introduction. You&apos;ll hear from us on the 7th.
+      </p>
     </div>
   );
 }

@@ -147,11 +147,16 @@ export async function GET(request: NextRequest) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function signInAndRedirect(supabase: any, email: string, redirectTo: string, origin: string) {
+  // Route through /auth/confirm so the PKCE token_hash is handled correctly,
+  // then on to the final destination via the `next` param.
+  const next = redirectTo.startsWith(origin) ? redirectTo.slice(origin.length) : redirectTo;
+  const confirmUrl = `${origin}/auth/confirm?next=${encodeURIComponent(next)}`;
+
   try {
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo },
+      options: { redirectTo: confirmUrl },
     });
 
     if (!error && data?.properties?.action_link) {
