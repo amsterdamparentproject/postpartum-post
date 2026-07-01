@@ -32,7 +32,7 @@ const BASE_MATCH = {
   member2: { id: MEMBER_B, first_name: "Beth", last_name: "B", email: "b@test.com" },
 };
 
-function mockSupabase(matchRow = BASE_MATCH) {
+function mockSupabase(matchRow = BASE_MATCH, { skipped = false } = {}) {
   return {
     createAdminClient: () => ({
       from: (table: string) => {
@@ -49,6 +49,64 @@ function mockSupabase(matchRow = BASE_MATCH) {
           return {
             select: () => ({
               eq: () => Promise.resolve({ data: [], error: null }),
+            }),
+          };
+        }
+        if (table === "monthly_skips") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({
+                    data: skipped ? { month: "2026-06-01" } : null,
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        return { select: () => ({ eq: () => Promise.resolve({ data: [], error: null }) }) };
+      },
+    }),
+  };
+}
+
+function mockSupabaseNoMatch({ skipped = false } = {}) {
+  return {
+    createAdminClient: () => ({
+      from: (table: string) => {
+        if (table === "matches") {
+          return {
+            select: () => ({
+              or: () => ({
+                order: () => Promise.resolve({ data: [], error: null }),
+              }),
+            }),
+          };
+        }
+        if (table === "monthly_participation") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "monthly_skips") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({
+                    data: skipped ? { month: "2026-06-01" } : null,
+                    error: null,
+                  }),
+                }),
+              }),
             }),
           };
         }
@@ -98,6 +156,25 @@ describe("getMatchStatus — rematchRequestedBy", () => {
     const match = status.matches[0];
     expect(match.rematchRequestedBy).toBe(MEMBER_A);
     expect(match.rematchRequestedBy).not.toBe(MEMBER_B);
+  });
+
+  it("returns type 'skipped' when member has a monthly_skips row for the current month", async () => {
+    vi.doMock("@/lib/supabase", () => mockSupabaseNoMatch({ skipped: true }));
+    const { getMatchStatus } = await import("@/app/(account)/matches/actions");
+
+    const status = await getMatchStatus(MEMBER_A);
+    expect(status.type).toBe("skipped");
+    if (status.type !== "skipped") return;
+    expect(status.month).toBe("2026-06-01");
+    expect(status.pastMatches).toHaveLength(0);
+  });
+
+  it("returns type 'none' when member has no match, no participation, and no skip", async () => {
+    vi.doMock("@/lib/supabase", () => mockSupabaseNoMatch({ skipped: false }));
+    const { getMatchStatus } = await import("@/app/(account)/matches/actions");
+
+    const status = await getMatchStatus(MEMBER_A);
+    expect(status.type).toBe("none");
   });
 
   it("returns null rematchRequestedBy when no rematch has been requested", async () => {

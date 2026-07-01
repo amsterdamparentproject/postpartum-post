@@ -168,6 +168,7 @@ export type MatchEntry = {
 export type MatchStatus =
   | { type: "pending"; topic: "coffee" | "playdate"; pastMatches: MatchEntry[] }
   | { type: "matched"; matches: MatchEntry[]; pastMatches: MatchEntry[] }
+  | { type: "skipped"; month: string; pastMatches: MatchEntry[] }
   | { type: "none"; pastMatches: MatchEntry[] };
 
 /**
@@ -250,6 +251,18 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
       topic: (topicName === "playdate" ? "playdate" : "coffee") as "coffee" | "playdate",
       pastMatches,
     };
+  }
+
+  // Check if they skipped this month
+  const { data: skip } = await supabase
+    .from("monthly_skips")
+    .select("month")
+    .eq("member_id", memberId)
+    .eq("month", monthDate)
+    .maybeSingle();
+
+  if (skip) {
+    return { type: "skipped", month: monthDate, pastMatches };
   }
 
   return { type: "none", pastMatches };

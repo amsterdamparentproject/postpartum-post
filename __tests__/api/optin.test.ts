@@ -262,6 +262,51 @@ describe("GET /api/optin", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it("skip after coffee — removes the existing participation row", async () => {
+    const member = await seedMember({ consecutive_skips: 0 });
+    memberId = member.id;
+    await seedSubscription(memberId);
+    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
+
+    // First: opt in with coffee
+    const coffeeToken = generateOptinToken(memberId, MONTH, "coffee");
+    await GET(makeRequest(memberId, MONTH, "coffee", coffeeToken));
+
+    // Confirm participation row exists
+    const supabase = createTestSupabase();
+    const { data: before } = await supabase
+      .from("monthly_participation")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(before).not.toBeNull();
+
+    // Then: skip
+    const skipToken = generateOptinToken(memberId, MONTH, "skip");
+    const res = await GET(makeRequest(memberId, MONTH, "skip", skipToken));
+
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=skip");
+
+    // Participation row should be gone
+    const { data: after } = await supabase
+      .from("monthly_participation")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(after).toBeNull();
+
+    // Skip row should exist
+    const { data: skip } = await supabase
+      .from("monthly_skips")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(skip).not.toBeNull();
+  });
+
   it("coffee after skip — redirects to /billing?optin=already_skip and does not write a participation row", async () => {
     const member = await seedMember({ consecutive_skips: 1 });
     memberId = member.id;

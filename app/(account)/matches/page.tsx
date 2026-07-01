@@ -50,7 +50,8 @@ export default function MatchesPage() {
             />
           ))}
           {status?.type === "pending" && <PendingCard topic={status.topic} />}
-          {status?.type === "none" && <EmptyCard />}
+          {status?.type === "skipped" && <SkippedCard month={status.month} />}
+          {status?.type === "none" && pastMatches.length === 0 && <EmptyCard />}
         </section>
 
         {/* Past matches */}
@@ -391,6 +392,23 @@ function MatchedCard({
           Go to match page
         </Link>
       )}
+    </div>
+  );
+}
+
+function SkippedCard({ month }: { month: string }) {
+  const monthYear = new Date(month + "T00:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
+
+  return (
+    <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-3">
+      <div className="flex items-center gap-3">
+        <span className="text-3xl">⏩</span>
+        <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>Skipped match</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-muted">{monthYear}</p>
+        <span className="text-xs text-muted bg-gray-100 rounded-full px-2.5 py-0.5">Skipped</span>
+      </div>
     </div>
   );
 }

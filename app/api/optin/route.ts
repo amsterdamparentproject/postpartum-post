@@ -74,6 +74,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/`);
     }
 
+    // Remove any existing participation row so they're not included in the match run
+    await supabase
+      .from("monthly_participation")
+      .delete()
+      .eq("member_id", memberId)
+      .eq("month", monthDate);
+
     const { data: sub } = await supabase
       .from("subscriptions")
       .select("stripe_subscription_id")
