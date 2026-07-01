@@ -118,7 +118,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
     ...(m2.availability?.days ?? []),
   ]));
 
-  const { recommendedPlaces, recommendedActivities, all: allActivities } =
+  const { recommendedPlaces, recommendedActivities, all: allActivities, playgrounds } =
     await fetchMatchActivities({
       center,
       availabilityDays,
@@ -147,7 +147,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
   const monthLabel = matchedOn.toLocaleString("en-US", { month: "long", year: "numeric" });
   const meetingLabel = topic ? TOPIC_LABEL[topic] ?? null : null;
 
-  const hasActivities = recommendedActivities.length > 0 || allActivities.length > 0;
+  const hasActivities = recommendedActivities.length > 0 || allActivities.length > 0 || playgrounds.length > 0;
 
   return (
     <PageLayout>
@@ -241,6 +241,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
                 { name: m2.first_name, days: m2.availability?.days ?? [] },
               ]}
               matchedOn={match.matched_on}
+              playgrounds={playgrounds}
             />
           )}
 

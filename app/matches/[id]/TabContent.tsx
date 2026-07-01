@@ -1,7 +1,7 @@
 "use client";
 
 import type { Activity } from "@/lib/activities";
-import { FlatList, WeekGroupedList } from "./ActivityLists";
+import { FlatList } from "./ActivityLists";
 import { effectiveDate, type MemberAvailability, type SortOrder } from "./activities-utils";
 
 interface Props {
@@ -23,7 +23,6 @@ export default function TabContent({ rec, sortOrder, isActivities, members }: Pr
   };
 
   const sortedRec = [...rec].sort(sortFn);
-  const useWeeks = isActivities && sortOrder === "date";
 
   if (sortedRec.length === 0) {
     return (
@@ -35,11 +34,7 @@ export default function TabContent({ rec, sortOrder, isActivities, members }: Pr
 
   return (
     <div className="space-y-4">
-      {useWeeks ? (
-        <WeekGroupedList items={sortedRec} members={members} />
-      ) : (
-        <FlatList items={sortedRec} members={members} />
-      )}
+      <FlatList items={sortedRec} members={members} />
     </div>
   );
 }

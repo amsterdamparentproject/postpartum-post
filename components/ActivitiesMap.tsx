@@ -3,18 +3,21 @@
 import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 import type { Map as LeafletMap } from "leaflet";
-import type { Activity } from "@/lib/activities";
+import type { Activity, Playground } from "@/lib/activities";
+import { formatPlaygroundType } from "@/lib/activities";
 
 interface Props {
   activities: Activity[];
   center: { lat: number; lng: number } | null;
   /** Member coordinates used only for bounds fitting — no markers rendered */
   memberCoords: { lat: number; lng: number }[];
+  playgrounds?: Playground[];
 }
 
 const COLORS = {
-  location: "#D4E09B", // green — places
-  activity: "#AF99FF", // purple — things to do
+  location: "#D4E09B",  // green — places
+  activity: "#AF99FF",  // purple — things to do
+  playground: "#D4A373", // tan — playgrounds
 };
 
 function makeMarkerHtml(activity: Activity): string {
@@ -40,16 +43,43 @@ function makePopupHtml(activity: Activity): string {
       : null;
 
   return `
-    <div style="font-size:13px;line-height:1.6;min-width:160px;max-width:220px">
-      <strong style="font-size:14px">${activity.title}</strong>
-      ${meta ? `<br/><span style="color:#8B7B72">${meta}</span>` : ""}
-      ${dateStr ? `<br/><span style="color:#8B7B72">${dateStr}</span>` : ""}
+    <div style="font-size:13px;line-height:1.6;min-width:160px;max-width:220px;color:#8B7B72">
+      <strong style="font-size:14px;color:#242424">${activity.title}</strong>
+      ${meta ? `<br/><span>${meta}</span>` : ""}
+      ${dateStr ? `<br/><span>${dateStr}</span>` : ""}
       ${activity.url ? `<br/><a href="${activity.url}" target="_blank" rel="noopener noreferrer" style="color:#C56850">More info →</a>` : ""}
     </div>
   `;
 }
 
-export default function ActivitiesMap({ activities, center, memberCoords }: Props) {
+function makePlaygroundMarkerHtml(): string {
+  return `<div style="
+    width: 28px; height: 28px;
+    background: ${COLORS.playground};
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  "></div>`;
+}
+
+function makePlaygroundPopupHtml(p: Playground): string {
+  const typeLabel = formatPlaygroundType(p.playground_type);
+  const distLabel = p.distanceKm < Infinity
+    ? `${p.distanceKm < 1 ? Math.round(p.distanceKm * 1000) + " m" : p.distanceKm.toFixed(1) + " km"} away`
+    : null;
+  const mapsUrl = `https://www.google.com/maps?q=${p.lat},${p.lng}`;
+
+  return `
+    <div style="font-size:13px;line-height:1.6;min-width:160px;max-width:220px;color:#8B7B72">
+      <strong style="font-size:14px;color:#242424">${p.name ?? "Playground"}</strong>
+      <br/><span>${typeLabel}</span>
+      ${distLabel ? `<br/><span>${distLabel}</span>` : ""}
+      <br/><a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" style="color:#C56850">Open in Maps →</a>
+    </div>
+  `;
+}
+
+export default function ActivitiesMap({ activities, center, memberCoords, playgrounds = [] }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
 
@@ -73,10 +103,13 @@ export default function ActivitiesMap({ activities, center, memberCoords }: Prop
       });
       mapRef.current = map;
 
-      // Fit bounds to activity markers; fall back to member coords
-      const allCoords = activities
-        .filter((a) => a.lat != null && a.lng != null)
-        .map((a) => [a.lat!, a.lng!] as [number, number]);
+      // Fit bounds to activity + playground markers; fall back to member coords
+      const allCoords = [
+        ...activities
+          .filter((a) => a.lat != null && a.lng != null)
+          .map((a) => [a.lat!, a.lng!] as [number, number]),
+        ...playgrounds.map((p) => [p.lat, p.lng] as [number, number]),
+      ];
       const boundsCoords = allCoords.length > 0
         ? allCoords
         : memberCoords.map((c) => [c.lat, c.lng] as [number, number]);
@@ -109,6 +142,19 @@ export default function ActivitiesMap({ activities, center, memberCoords }: Prop
         });
         L.marker([activity.lat, activity.lng], { icon })
           .bindPopup(makePopupHtml(activity), { maxWidth: 240 })
+          .addTo(map);
+      }
+
+      // Playground markers (rendered below activity markers)
+      for (const pg of playgrounds) {
+        const icon = L.divIcon({
+          className: "",
+          html: makePlaygroundMarkerHtml(),
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        });
+        L.marker([pg.lat, pg.lng], { icon })
+          .bindPopup(makePlaygroundPopupHtml(pg), { maxWidth: 240 })
           .addTo(map);
       }
     })();

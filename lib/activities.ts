@@ -52,6 +52,27 @@ export interface Activity {
 
 export type ChildRecord = { birth_month: number; birth_year: number; expected: boolean };
 
+// ---------------------------------------------------------------------------
+// Playground types
+// ---------------------------------------------------------------------------
+
+export interface Playground {
+  id: string;
+  name: string | null;
+  lat: number;
+  lng: number;
+  playground_type: string;
+  distanceKm: number;
+}
+
+/** "play_spot" → "Play spot", "adventure_playground" → "Adventure playground" */
+export function formatPlaygroundType(type: string): string {
+  return type
+    .split("_")
+    .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
 export interface MatchProfile {
   /** Midpoint of the two members' coordinates */
   center: { lat: number; lng: number } | null;
@@ -142,6 +163,68 @@ function normDays(days: string[]): Set<string> {
 }
 
 const DAY_NAMES = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+
+// ---------------------------------------------------------------------------
+// Rrule walk-back helpers
+// ---------------------------------------------------------------------------
+
+/** Step in days between occurrences for a given rrule string. */
+function rruleStepDays(rrule: string | null | undefined): number | null {
+  if (!rrule) return 7; // no rule → assume weekly
+  const freq = (rrule.match(/FREQ=([A-Z]+)/i)?.[1] ?? "WEEKLY").toUpperCase();
+  const interval = parseInt(rrule.match(/INTERVAL=(\d+)/i)?.[1] ?? "1", 10);
+  if (freq === "DAILY")    return 1 * interval;
+  if (freq === "WEEKLY")   return 7 * interval;
+  if (freq === "BIWEEKLY") return 14 * interval;
+  return null; // MONTHLY etc. — can't expand
+}
+
+function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * For a recurring event with a future repeat_next_date, find the first
+ * occurrence within [monthStart, monthEnd).
+ *
+ * Prefers day_of_week (ground truth for which weekday the event falls on)
+ * over walking back from repeat_next_date, which may land on the wrong day
+ * if the stored date doesn't match the event's actual recurrence day.
+ */
+export function rruleOccurrenceInMonth(
+  repeatNextDate: string,
+  rrule: string | null | undefined,
+  monthStart: string,
+  monthEnd: string,
+  dayOfWeek?: string | null,
+): string | null {
+  const mStart = new Date(monthStart + "T00:00:00");
+  const mEnd   = new Date(monthEnd   + "T00:00:00");
+
+  // Prefer day_of_week: find the first matching weekday in the month
+  if (dayOfWeek) {
+    const targetDay = DAY_NAMES.indexOf(dayOfWeek.toLowerCase());
+    if (targetDay !== -1) {
+      const cur = new Date(mStart);
+      while (cur < mEnd) {
+        if (cur.getDay() === targetDay) return toDateStr(cur);
+        cur.setDate(cur.getDate() + 1);
+      }
+      return null;
+    }
+  }
+
+  // Fallback: walk back from repeat_next_date by the rrule step
+  const step = rruleStepDays(rrule);
+  if (step === null) return null;
+
+  const anchor = new Date(repeatNextDate.slice(0, 10) + "T00:00:00");
+  while (anchor >= mStart) anchor.setDate(anchor.getDate() - step);
+  anchor.setDate(anchor.getDate() + step);
+
+  if (anchor >= mEnd) return null;
+  return toDateStr(anchor);
+}
 
 /** Derive day-of-week from the effective display date (repeat_next_date ?? start_date) */
 function derivedDayOfWeek(a: Omit<Activity, "score" | "isRecommended">): string | null {
@@ -250,6 +333,14 @@ type RawLocation = {
   age_categories: string[] | null;
 };
 
+type RawPlayground = {
+  id: string;
+  name: string | null;
+  latitude: number;
+  longitude: number;
+  playground_type: string;
+};
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -261,6 +352,8 @@ export interface ActivitiesResult {
   recommendedActivities: Activity[];
   /** All matching activities (with isRecommended flag set per type) */
   all: Activity[];
+  /** Top 10 nearest playgrounds to the match midpoint */
+  playgrounds: Playground[];
 }
 
 export async function fetchMatchActivities(
@@ -277,7 +370,7 @@ export async function fetchMatchActivities(
       .toISOString()
       .slice(0, 10);
 
-    const [eventsRes, locationsRes] = await Promise.all([
+    const [eventsRes, locationsRes, playgroundsRes] = await Promise.all([
       client
         .from("events")
         .select(
@@ -290,20 +383,28 @@ export async function fetchMatchActivities(
         //   1. start_date falls within the match month
         //   2. repeat_next_date falls within the match month
         //   3. the match month overlaps the event's start_date–end_date range
+        //   4. recurring event whose repeat_next_date is in the future — walk-back
+        //      in JS will confirm whether an occurrence lands in this month
         .or(
           `and(start_date.gte.${monthStart},start_date.lt.${monthEnd}),` +
           `and(repeat_next_date.gte.${monthStart},repeat_next_date.lt.${monthEnd}),` +
-          `and(start_date.lt.${monthEnd},end_date.gte.${monthStart})`,
+          `and(start_date.lt.${monthEnd},end_date.gte.${monthStart}),` +
+          `repeat_next_date.gt.${monthEnd}`,
         ),
 
       client
         .from("locations")
         .select("id, name, description, url, address, neighborhood, area, latitude, longitude, age_categories")
         .eq("postpartum_post", true),
+
+      client
+        .from("playgrounds")
+        .select("id, name, latitude, longitude, playground_type"),
     ]);
 
     if (eventsRes.error) console.error("[activities] events query failed:", eventsRes.error.message);
     if (locationsRes.error) console.error("[activities] locations query failed:", locationsRes.error.message);
+    if (playgroundsRes.error) console.error("[activities] playgrounds query failed:", playgroundsRes.error.message);
 
     const today = new Date().toISOString().slice(0, 10);
     const rawEvents = ((eventsRes.data ?? []) as RawEvent[]).filter((e) => {
@@ -319,7 +420,15 @@ export async function fetchMatchActivities(
       const displayDate = e.repeat_next_date ?? e.start_date;
       const inMonth = displayDate >= monthStart && displayDate < monthEnd;
       const startInMonth = e.start_date >= monthStart && e.start_date < monthEnd;
-      return inMonth || startInMonth;
+
+      // For recurring events fetched via condition 4 (future repeat_next_date),
+      // confirm a walk-back occurrence lands in this month.
+      const hasOccurrenceInMonth =
+        e.repeat_next_date != null &&
+        e.repeat_next_date > monthEnd &&
+        rruleOccurrenceInMonth(e.repeat_next_date, e.repeat_rrule, monthStart, monthEnd, e.day_of_week) !== null;
+
+      return inMonth || startInMonth || hasOccurrenceInMonth;
     });
     const rawLocations = (locationsRes.data ?? []) as RawLocation[];
 
@@ -343,7 +452,12 @@ export async function fetchMatchActivities(
         start_time: e.start_time,
         end_time: e.end_time,
         day_of_week: e.day_of_week,
-        repeat_next_date: e.repeat_next_date,
+        // For recurring events with a future repeat_next_date, substitute the
+        // in-month occurrence so scoring and display use the correct date.
+        repeat_next_date:
+          e.repeat_next_date != null && e.repeat_next_date > monthEnd
+            ? (rruleOccurrenceInMonth(e.repeat_next_date, e.repeat_rrule, monthStart, monthEnd, e.day_of_week) ?? e.repeat_next_date)
+            : e.repeat_next_date,
         tagline: e.tagline,
         newsletter_description: e.newsletter_description,
         repeat_rrule: e.repeat_rrule,
@@ -414,9 +528,25 @@ export async function fetchMatchActivities(
     const recommendedPlaces = all.filter((a) => recPlaceIds.has(a.id));
     const recommendedActivities = all.filter((a) => recActivityIds.has(a.id));
 
-    return { recommendedPlaces, recommendedActivities, all };
+    // Playgrounds: rank by distance from center, return top 10
+    const rawPlaygrounds = (playgroundsRes.data ?? []) as RawPlayground[];
+    const playgrounds: Playground[] = rawPlaygrounds
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        lat: p.latitude,
+        lng: p.longitude,
+        playground_type: p.playground_type,
+        distanceKm: profile.center
+          ? haversineKm(profile.center, { lat: p.latitude, lng: p.longitude })
+          : Infinity,
+      }))
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, 8);
+
+    return { recommendedPlaces, recommendedActivities, all, playgrounds };
   } catch (err) {
     console.error("[activities] fetch failed:", err);
-    return { recommendedPlaces: [], recommendedActivities: [], all: [] };
+    return { recommendedPlaces: [], recommendedActivities: [], all: [], playgrounds: [] };
   }
 }

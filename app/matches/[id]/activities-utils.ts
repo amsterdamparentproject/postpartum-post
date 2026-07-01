@@ -9,8 +9,8 @@ export interface MemberAvailability {
   days: string[]; // lowercase: "monday", "tuesday", …
 }
 
-export type Tab = "places" | "activities";
-export type SortOrder = "score" | "alpha" | "date";
+export type Tab = "places" | "activities" | "playgrounds";
+export type SortOrder = "score" | "alpha" | "date" | "distance";
 
 export interface WeekGroup {
   ws: string;
@@ -36,6 +36,11 @@ export const PLACE_SORTS: { label: string; value: SortOrder }[] = [
 export const ACTIVITY_SORTS: { label: string; value: SortOrder }[] = [
   { label: "Date", value: "date" },
   { label: "Best location", value: "score" },
+  { label: "Alphabetical", value: "alpha" },
+];
+
+export const PLAYGROUND_SORTS: { label: string; value: SortOrder }[] = [
+  { label: "Best location", value: "distance" },
   { label: "Alphabetical", value: "alpha" },
 ];
 
