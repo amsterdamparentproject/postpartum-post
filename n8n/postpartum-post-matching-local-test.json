@@ -1,0 +1,174 @@
+{
+  "name": "Postpartum Post: Monthly matching (local test)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b1b2c3d4-0001-0001-0001-000000000001",
+      "name": "1. Send opt-in email",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/send-optin-email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "{\"testMode\": true}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b1b2c3d4-0001-0001-0001-000000000002",
+      "name": "POST /api/send-optin-email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "b1b2c3d4-0002-0002-0002-000000000001",
+      "name": "2. Run matcher",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/run-matcher",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "{\"dryRun\": false}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "b1b2c3d4-0002-0002-0002-000000000002",
+      "name": "POST /api/run-matcher",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "b1b2c3d4-0003-0003-0003-000000000001",
+      "name": "3. Commit + send emails",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/commit-matches",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b1b2c3d4-0003-0003-0003-000000000002",
+      "name": "POST /api/commit-matches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/send-match-emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "{\"testMode\": true}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b1b2c3d4-0003-0003-0003-000000000003",
+      "name": "POST /api/send-match-emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "b1b2c3d4-0004-0004-0004-000000000001",
+      "name": "4. Lock round",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/lock-matches",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b1b2c3d4-0004-0004-0004-000000000002",
+      "name": "POST /api/lock-matches",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 700],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "1. Send opt-in email": {
+      "main": [[{ "node": "POST /api/send-optin-email", "type": "main", "index": 0 }]]
+    },
+    "2. Run matcher": {
+      "main": [[{ "node": "POST /api/run-matcher", "type": "main", "index": 0 }]]
+    },
+    "3. Commit + send emails": {
+      "main": [[{ "node": "POST /api/commit-matches", "type": "main", "index": 0 }]]
+    },
+    "POST /api/commit-matches": {
+      "main": [[{ "node": "POST /api/send-match-emails", "type": "main", "index": 0 }]]
+    },
+    "4. Lock round": {
+      "main": [[{ "node": "POST /api/lock-matches", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Amsterdam"
+  },
+  "tags": [{ "name": "postpartum-post" }]
+}

@@ -5,11 +5,11 @@ function memberUpdateHtml(firstName: string, confirmUrl: string): string {
   const content =
     emailHeader() +
     bodySection(`
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Hi ${firstName},
-                                    </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;font-style:italic;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       You just received a copy of this email with "TEST:" in the subject line — early Founding Member perks 😆. Both emails are legit, but I'm resending this with the correct subject line so that you know it's real. Thanks for your patience ❤️ Looking forward to tomorrow.
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      Hi ${firstName},
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       Alex here, the mom behind Postpartum Post and APP. So excited to have you as one of our Founding Members for the Post. We've got a full house, and the <span style="font-weight:700">first match round starts tomorrow!</span> 🎉

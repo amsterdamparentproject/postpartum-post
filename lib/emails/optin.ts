@@ -37,7 +37,7 @@ export async function sendOptinEmail(
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `${subjectPrefix()}Who would you like to meet this month? 💌`,
+    subject: `${subjectPrefix()}Postpartum Post: Let's meet this month! 💌`,
     html: optinHtml(firstName, coffeeUrl, playdateUrl, skipUrl),
   });
   if (error) {
