@@ -349,12 +349,15 @@ export async function optInFromMatches(
 
   const { error: participationError } = await supabase
     .from("monthly_participation")
-    .upsert(
-      { member_id: memberId, month: monthDate, topic_id: topic.id },
-      { onConflict: "member_id,month" }
-    );
+    .insert({ member_id: memberId, month: monthDate, topic_id: topic.id });
 
-  if (participationError) return { success: false, error: "server_error" };
+  if (participationError) {
+    // Unique constraint violation — member already responded this month
+    if (participationError.code === "23505") {
+      return { success: false, error: "already_responded" };
+    }
+    return { success: false, error: "server_error" };
+  }
 
   await supabase.from("members").update({ consecutive_skips: 0 }).eq("id", memberId);
 

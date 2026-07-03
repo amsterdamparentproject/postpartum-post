@@ -219,8 +219,12 @@ export function rruleOccurrenceInMonth(
   if (step === null) return null;
 
   const anchor = new Date(repeatNextDate.slice(0, 10) + "T00:00:00");
-  while (anchor >= mStart) anchor.setDate(anchor.getDate() - step);
-  anchor.setDate(anchor.getDate() + step);
+  if (anchor >= mStart) {
+    while (anchor >= mStart) anchor.setDate(anchor.getDate() - step);
+    anchor.setDate(anchor.getDate() + step);
+  } else {
+    while (anchor < mStart) anchor.setDate(anchor.getDate() + step);
+  }
 
   if (anchor >= mEnd) return null;
   return toDateStr(anchor);
