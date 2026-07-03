@@ -267,3 +267,96 @@ export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
 
   return { type: "none", pastMatches };
 }
+
+// ---------------------------------------------------------------------------
+// In-app opt-in — lets a member join the match pool from /matches instead of
+// waiting for (or in addition to) the emailed opt-in link. Mirrors the
+// coffee/playdate/skip logic in /api/optin/route.ts.
+// ---------------------------------------------------------------------------
+
+export type OptInAction = "coffee" | "playdate" | "skip";
+
+export type OptInResult =
+  | { success: true }
+  | { success: false; error: "closed" | "already_responded" | "server_error" };
+
+/** Opt-in window closes after this day of the month (matches the emailed deadline). */
+const OPTIN_DEADLINE_DAY = 5;
+
+export async function optInFromMatches(
+  memberId: string,
+  action: OptInAction
+): Promise<OptInResult> {
+  if (new Date().getDate() > OPTIN_DEADLINE_DAY) {
+    return { success: false, error: "closed" };
+  }
+
+  const supabase = createAdminClient();
+  const monthDate = monthToDate(currentMonth());
+
+  const { data: memberRow } = await supabase
+    .from("members")
+    .select("consecutive_skips")
+    .eq("id", memberId)
+    .single();
+
+  if (!memberRow) return { success: false, error: "server_error" };
+
+  // Don't allow silently overwriting an existing response for the month
+  const [{ data: existingSkip }, { data: existingParticipation }] = await Promise.all([
+    supabase.from("monthly_skips").select("id").eq("member_id", memberId).eq("month", monthDate).maybeSingle(),
+    supabase.from("monthly_participation").select("id").eq("member_id", memberId).eq("month", monthDate).maybeSingle(),
+  ]);
+
+  if (existingSkip || existingParticipation) {
+    return { success: false, error: "already_responded" };
+  }
+
+  if (action === "skip") {
+    const { error: skipError } = await supabase
+      .from("monthly_skips")
+      .insert({ member_id: memberId, month: monthDate });
+    if (skipError) return { success: false, error: "server_error" };
+
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("stripe_subscription_id")
+      .eq("member_id", memberId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (sub?.stripe_subscription_id) {
+      const { extendSubscriptionByOneMonth } = await import("@/lib/subscription-utils");
+      await extendSubscriptionByOneMonth(sub.stripe_subscription_id);
+    }
+
+    await supabase
+      .from("members")
+      .update({ consecutive_skips: memberRow.consecutive_skips + 1 })
+      .eq("id", memberId);
+
+    return { success: true };
+  }
+
+  // coffee or playdate
+  const { data: topic, error: topicError } = await supabase
+    .from("topics")
+    .select("id")
+    .eq("name", action)
+    .maybeSingle();
+
+  if (topicError || !topic) return { success: false, error: "server_error" };
+
+  const { error: participationError } = await supabase
+    .from("monthly_participation")
+    .upsert(
+      { member_id: memberId, month: monthDate, topic_id: topic.id },
+      { onConflict: "member_id,month" }
+    );
+
+  if (participationError) return { success: false, error: "server_error" };
+
+  await supabase.from("members").update({ consecutive_skips: 0 }).eq("id", memberId);
+
+  return { success: true };
+}

@@ -10,10 +10,14 @@ import {
   addExclusion,
   addExclusionByMemberId,
   deleteExclusion,
+  optInFromMatches,
   type MatchStatus,
   type MatchEntry,
   type Exclusion,
+  type OptInAction,
 } from "./actions";
+
+const OPTIN_DEADLINE_DAY = 5;
 
 export default function MatchesPage() {
   const { loading, member } = useAccount();
@@ -51,7 +55,18 @@ export default function MatchesPage() {
           ))}
           {status?.type === "pending" && <PendingCard topic={status.topic} />}
           {status?.type === "skipped" && <SkippedCard month={status.month} />}
-          {status?.type === "none" && pastMatches.length === 0 && <EmptyCard />}
+          {status?.type === "none" && (
+            new Date().getDate() <= OPTIN_DEADLINE_DAY ? (
+              <OptInCard
+                memberId={member.id}
+                onOptIn={() => getMatchStatus(member.id).then(setStatus)}
+              />
+            ) : pastMatches.length === 0 ? (
+              <EmptyCard />
+            ) : (
+              <ClosedCard />
+            )
+          )}
         </section>
 
         {/* Past matches */}
@@ -408,6 +423,83 @@ function SkippedCard({ month }: { month: string }) {
       <div className="flex items-center gap-2">
         <p className="text-sm text-muted">{monthYear}</p>
         <span className="text-xs text-muted bg-gray-100 rounded-full px-2.5 py-0.5">Skipped</span>
+      </div>
+    </div>
+  );
+}
+
+function OptInCard({ memberId, onOptIn }: { memberId: string; onOptIn: () => void }) {
+  const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] = useState<OptInAction | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function handleChoice(action: OptInAction) {
+    setError(null);
+    setPendingAction(action);
+    startTransition(async () => {
+      const result = await optInFromMatches(memberId, action);
+      if (result.success) {
+        onOptIn();
+      } else {
+        const messages: Record<string, string> = {
+          closed: "The opt-in window for this month has closed.",
+          already_responded: "You've already responded for this month.",
+          server_error: "Something went wrong. Please try again.",
+        };
+        setError(messages[result.error] ?? "Something went wrong.");
+        setPendingAction(null);
+      }
+    });
+  }
+
+  return (
+    <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <span className="text-3xl">💌</span>
+        <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
+          Join this month&apos;s match
+        </p>
+      </div>
+      <p className="text-sm text-muted">
+        Let us know how you&apos;d like to meet this month — we&apos;ll take care of the rest.
+        You have until the {OPTIN_DEADLINE_DAY}th to respond.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <button
+          onClick={() => handleChoice("coffee")}
+          disabled={isPending}
+          className="rounded-lg bg-coral text-white text-sm py-2.5 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {isPending && pendingAction === "coffee" ? "Joining…" : "☕ Meet for coffee"}
+        </button>
+        <button
+          onClick={() => handleChoice("playdate")}
+          disabled={isPending}
+          className="rounded-lg bg-coral text-white text-sm py-2.5 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {isPending && pendingAction === "playdate" ? "Joining…" : "🛝 Meet for a playdate"}
+        </button>
+      </div>
+      <button
+        onClick={() => handleChoice("skip")}
+        disabled={isPending}
+        className="text-xs text-muted underline hover:text-dark transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+      >
+        {isPending && pendingAction === "skip" ? "Skipping…" : "Skip this month"}
+      </button>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+function ClosedCard() {
+  return (
+    <div className="rounded-2xl border border-dashed border-border p-6">
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">🗓️</span>
+        <p className="text-sm text-muted">
+          This month&apos;s opt-in window has closed. Check your email around the 1st of next month to join the match pool again.
+        </p>
       </div>
     </div>
   );
