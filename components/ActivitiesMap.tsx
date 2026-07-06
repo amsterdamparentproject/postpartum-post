@@ -20,18 +20,41 @@ const COLORS = {
   playground: "#D4A373", // tan — playgrounds
 };
 
-function makeMarkerHtml(activity: Activity): string {
-  const bg = activity.kind === "location" ? COLORS.location : COLORS.activity;
+/**
+ * Groups items sharing the exact same coordinates (e.g. two events at the
+ * same venue) so they render as a single marker with a combined popover,
+ * instead of stacking invisibly on top of one another.
+ */
+function groupByCoord<T extends { lat: number | null; lng: number | null }>(
+  items: T[],
+): T[][] {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    if (item.lat == null || item.lng == null) continue;
+    const key = `${item.lat.toFixed(6)},${item.lng.toFixed(6)}`;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(item);
+  }
+  return [...map.values()];
+}
+
+function makeGroupedMarkerHtml(bg: string, count: number): string {
   return `<div style="
     width: 28px; height: 28px;
     background: ${bg};
     border-radius: 50%;
     border: 2px solid white;
     box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-  "></div>`;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+  ">${count > 1 ? count : ""}</div>`;
 }
 
-function makePopupHtml(activity: Activity): string {
+function makePopupItemHtml(activity: Activity): string {
   const loc = activity.location ?? activity.neighborhood ?? activity.area ?? null;
   const org = activity.organization;
   const meta = [org, loc].filter(Boolean).join(" · ");
@@ -43,7 +66,7 @@ function makePopupHtml(activity: Activity): string {
       : null;
 
   return `
-    <div style="font-size:13px;line-height:1.6;min-width:160px;max-width:220px;color:#8B7B72">
+    <div>
       <strong style="font-size:14px;color:#242424">${activity.title}</strong>
       ${meta ? `<br/><span>${meta}</span>` : ""}
       ${dateStr ? `<br/><span>${dateStr}</span>` : ""}
@@ -52,17 +75,20 @@ function makePopupHtml(activity: Activity): string {
   `;
 }
 
-function makePlaygroundMarkerHtml(): string {
-  return `<div style="
-    width: 28px; height: 28px;
-    background: ${COLORS.playground};
-    border-radius: 50%;
-    border: 2px solid white;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-  "></div>`;
+function makePopupHtml(group: Activity[]): string {
+  const items = group
+    .map(makePopupItemHtml)
+    .join(`<hr style="margin:8px 0;border:none;border-top:1px solid #eee" />`);
+
+  return `
+    <div style="font-size:13px;line-height:1.6;min-width:160px;max-width:240px;max-height:220px;overflow-y:auto;color:#8B7B72">
+      ${group.length > 1 ? `<div style="font-size:11px;font-weight:700;color:#C56850;margin-bottom:6px;">${group.length} things here</div>` : ""}
+      ${items}
+    </div>
+  `;
 }
 
-function makePlaygroundPopupHtml(p: Playground): string {
+function makePlaygroundPopupItemHtml(p: Playground): string {
   const typeLabel = formatPlaygroundType(p.playground_type);
   const distLabel = p.distanceKm < Infinity
     ? `${p.distanceKm < 1 ? Math.round(p.distanceKm * 1000) + " m" : p.distanceKm.toFixed(1) + " km"} away`
@@ -70,11 +96,24 @@ function makePlaygroundPopupHtml(p: Playground): string {
   const mapsUrl = `https://www.google.com/maps?q=${p.lat},${p.lng}`;
 
   return `
-    <div style="font-size:13px;line-height:1.6;min-width:160px;max-width:220px;color:#8B7B72">
+    <div>
       <strong style="font-size:14px;color:#242424">${p.name ?? "Playground"}</strong>
       <br/><span>${typeLabel}</span>
       ${distLabel ? `<br/><span>${distLabel}</span>` : ""}
       <br/><a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" style="color:#C56850">Open in Maps →</a>
+    </div>
+  `;
+}
+
+function makePlaygroundPopupHtml(group: Playground[]): string {
+  const items = group
+    .map(makePlaygroundPopupItemHtml)
+    .join(`<hr style="margin:8px 0;border:none;border-top:1px solid #eee" />`);
+
+  return `
+    <div style="font-size:13px;line-height:1.6;min-width:160px;max-width:240px;max-height:220px;overflow-y:auto;color:#8B7B72">
+      ${group.length > 1 ? `<div style="font-size:11px;font-weight:700;color:#C56850;margin-bottom:6px;">${group.length} playgrounds here</div>` : ""}
+      ${items}
     </div>
   `;
 }
@@ -132,29 +171,29 @@ export default function ActivitiesMap({ activities, center, memberCoords, playgr
         (a.kind === "location" ? 0 : 1) - (b.kind === "location" ? 0 : 1),
       );
 
-      for (const activity of sorted) {
-        if (activity.lat == null || activity.lng == null) continue;
+      for (const group of groupByCoord(sorted)) {
+        const bg = group[0].kind === "location" ? COLORS.location : COLORS.activity;
         const icon = L.divIcon({
           className: "",
-          html: makeMarkerHtml(activity),
+          html: makeGroupedMarkerHtml(bg, group.length),
           iconSize: [28, 28],
           iconAnchor: [14, 14],
         });
-        L.marker([activity.lat, activity.lng], { icon })
-          .bindPopup(makePopupHtml(activity), { maxWidth: 240 })
+        L.marker([group[0].lat!, group[0].lng!], { icon })
+          .bindPopup(makePopupHtml(group), { maxWidth: 260 })
           .addTo(map);
       }
 
       // Playground markers (rendered below activity markers)
-      for (const pg of playgrounds) {
+      for (const group of groupByCoord(playgrounds)) {
         const icon = L.divIcon({
           className: "",
-          html: makePlaygroundMarkerHtml(),
+          html: makeGroupedMarkerHtml(COLORS.playground, group.length),
           iconSize: [28, 28],
           iconAnchor: [14, 14],
         });
-        L.marker([pg.lat, pg.lng], { icon })
-          .bindPopup(makePlaygroundPopupHtml(pg), { maxWidth: 240 })
+        L.marker([group[0].lat, group[0].lng], { icon })
+          .bindPopup(makePlaygroundPopupHtml(group), { maxWidth: 260 })
           .addTo(map);
       }
     })();
