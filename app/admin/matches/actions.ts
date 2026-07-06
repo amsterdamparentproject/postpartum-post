@@ -450,6 +450,7 @@ export async function createDraftPair(
 export type CandidateScore = {
   member: DraftMember;
   score: number;
+  breakdown: DraftPair["breakdown"];
   isAlreadyMatched: boolean;
 };
 
@@ -544,6 +545,7 @@ export async function computeCandidateScores(
       return {
         member: candidate,
         score: Math.round(scored.score),
+        breakdown: scored.breakdown,
         isAlreadyMatched: matchedIds.has(candidate.id),
       };
     })

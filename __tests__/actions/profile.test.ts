@@ -21,20 +21,22 @@ describe("email case-insensitivity", () => {
   });
 
   it("getMemberProfile finds a member regardless of input casing", async () => {
-    const member = await seedMember({ email: "test-case@example.com" });
+    const member = await seedMember();
     memberId = member.id;
 
-    const result = await getMemberProfile("TEST-CASE@EXAMPLE.COM");
+    const result = await getMemberProfile(member.email.toUpperCase());
     expect(result).not.toBeNull();
     expect(result?.id).toBe(memberId);
   });
 
   it("checkMemberExists returns true regardless of input casing", async () => {
-    const member = await seedMember({ email: "test-exists@example.com" });
+    const member = await seedMember();
     memberId = member.id;
 
-    expect(await checkMemberExists("TEST-EXISTS@EXAMPLE.COM")).toBe(true);
-    expect(await checkMemberExists("Test-Exists@Example.com")).toBe(true);
+    expect(await checkMemberExists(member.email.toUpperCase())).toBe(true);
+    expect(await checkMemberExists(
+      member.email.slice(0, 5).toUpperCase() + member.email.slice(5)
+    )).toBe(true);
   });
 });
 

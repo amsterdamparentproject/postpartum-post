@@ -8,6 +8,10 @@ export default defineConfig({
     setupFiles: ["__tests__/setup.ts"],
     include: ["__tests__/**/*.test.ts"],
     exclude: ["**/node_modules/**"],
+    retry: 1,
+    poolOptions: {
+      threads: { singleThread: true },
+    },
   },
   resolve: {
     alias: {

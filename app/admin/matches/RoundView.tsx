@@ -83,20 +83,28 @@ function jaccard(a: string[], b: string[]): number {
   return union === 0 ? 1 : intersect / union;
 }
 
-function fromJaccard(score: number): DotColor {
-  if (score >= 0.7) return "green";
-  if (score >= 0.3) return "yellow";
-  return "red";
+/**
+ * Overlap-aware color: red is reserved for genuinely zero shared days/times.
+ * Any real overlap is at least yellow, even if it's a small slice of the
+ * union (e.g. one person's only free day still falls within the other's).
+ */
+function fromOverlap(a: string[], b: string[]): DotColor {
+  const setA = new Set(a);
+  const setB = new Set(b);
+  const intersect = [...setA].filter((x) => setB.has(x)).length;
+  if (intersect === 0 && (a.length > 0 || b.length > 0)) return "red";
+  const score = jaccard(a, b);
+  return score >= 0.7 ? "green" : "yellow";
 }
 
 function daysDot(a: DraftMember, b: DraftMember): DotColor {
   if (!a.availability || !b.availability) return "gray";
-  return fromJaccard(jaccard(a.availability.days, b.availability.days));
+  return fromOverlap(a.availability.days, b.availability.days);
 }
 
 function timesDot(a: DraftMember, b: DraftMember): DotColor {
   if (!a.availability || !b.availability) return "gray";
-  return fromJaccard(jaccard(a.availability.times, b.availability.times));
+  return fromOverlap(a.availability.times, b.availability.times);
 }
 
 function topicDot(a: DraftMember, b: DraftMember): DotColor {
@@ -254,6 +262,81 @@ function MemberDetailCard({
 }
 
 // ---------------------------------------------------------------------------
+// Solo profile fields (no partner yet, so no comparison dots)
+// ---------------------------------------------------------------------------
+
+function MemberProfileFields({ member }: { member: DraftMember }) {
+  const fields = [
+    {
+      label: "Language",
+      value: member.language?.length ? member.language.map((l) => l.charAt(0).toUpperCase() + l.slice(1)).join(", ") : "N/A",
+    },
+    {
+      label: "Parent",
+      value: member.parent_type ? (member.parent_type === "mom" ? "Moms" : member.parent_type === "dad" ? "Dads" : "Anyone") : "N/A",
+    },
+    {
+      label: "Days",
+      value: member.availability?.days?.length ? member.availability.days.map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ") : "N/A",
+    },
+    ...(ENABLE_TIME_OF_DAY ? [{
+      label: "Time",
+      value: member.availability?.times?.length ? member.availability.times.map((t) => t.charAt(0).toUpperCase() + t.slice(1)).join(", ") : "N/A",
+    }] : []),
+    {
+      label: "Topic",
+      value: member.topic_name ? member.topic_name.charAt(0).toUpperCase() + member.topic_name.slice(1) : "N/A",
+    },
+    {
+      label: "Zipcode",
+      value: member.zipcode ?? "N/A",
+    },
+    {
+      label: "Children",
+      value: member.children?.length ? member.children.map(formatChildAge).join(", ") : "N/A",
+    },
+  ];
+
+  return (
+    <div className="space-y-1">
+      {fields.map(({ label, value }) => (
+        <div key={label} className="flex items-center justify-between gap-2 text-xs">
+          <span className="text-muted w-16 shrink-0">{label}</span>
+          <span className="text-dark flex-1 truncate text-right">{value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MemberProfileIcons({ member }: { member: DraftMember }) {
+  return (
+    <>
+      {member.open_to_second_match && (
+        <svg className="w-3.5 h-3.5 text-[#caadff] shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-label="Open to second match">
+          <title>Open to second match</title>
+          <path fillRule="evenodd" d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918z" clipRule="evenodd" />
+        </svg>
+      )}
+      {member.match_priority === "proximity" && (
+        <span title="Prioritizes proximity" className="shrink-0">
+          <svg className="w-3.5 h-3.5 text-muted" viewBox="0 0 24 24" fill="currentColor">
+            <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.079 3.218-4.512 3.218-7.327a7.5 7.5 0 10-15 0c0 2.815 1.274 5.248 3.218 7.327a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+          </svg>
+        </span>
+      )}
+      {member.match_priority === "age" && (
+        <span title="Prioritizes child age" className="shrink-0">
+          <svg className="w-3.5 h-3.5 text-muted" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+          </svg>
+        </span>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Needs Match card (unmatched member)
 // ---------------------------------------------------------------------------
 
@@ -272,9 +355,11 @@ function NeedsMatchCard({
   const [error, setError] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [candidates, setCandidates] = useState<CandidateScore[] | null>(null);
+  const [index, setIndex] = useState(0);
 
   function openSelector() {
     setSelecting(true);
+    setIndex(0);
     if (!candidates) {
       startTransition(async () => {
         const scores = await computeCandidateScores(round.id, member.id);
@@ -283,79 +368,169 @@ function NeedsMatchCard({
     }
   }
 
-  function handleAssign(newMemberId: string) {
+  function closeSelector() {
     setSelecting(false);
+    setError(null);
+  }
+
+  function handleAssign(newMemberId: string) {
     setError(null);
     startTransition(async () => {
       const result = await createDraftPair(round.id, member.id, newMemberId, round.month);
-      if (result.success) { setCandidates(null); onUpdate(result.round); }
-      else setError(result.error);
+      if (result.success) {
+        setCandidates(null);
+        setSelecting(false);
+        setIndex(0);
+        onUpdate(result.round);
+      } else {
+        setError(result.error);
+      }
     });
   }
 
-  return (
-    <div className="bg-white/80 backdrop-blur rounded-2xl border border-dashed border-red-300 shadow-sm p-5">
-      <div className="flex gap-4 items-stretch">
-        {/* Member card */}
-        <div className="flex-1 bg-white rounded-xl border border-border p-4 space-y-2">
-          <p className="font-semibold text-dark text-sm">{fullName(member)}</p>
-          <p className="text-xs text-muted">{member.email}</p>
-          {member.language?.length && (
-            <p className="text-xs text-muted">
-              {member.language.map((l) => l.charAt(0).toUpperCase() + l.slice(1)).join(", ")}
-            </p>
-          )}
-        </div>
+  const current = candidates?.[index] ?? null;
 
-        {/* Needs match side */}
-        <div className="flex-1 flex flex-col justify-center gap-2">
-          {!selecting ? (
-            <div className="flex flex-col items-center gap-2">
-              <p className="font-semibold text-red-500 text-sm text-center">Needs match</p>
-              <button
-                onClick={openSelector}
-                disabled={isPending}
-                className="text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-50"
-              >
-                Assign match →
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-medium text-dark">Select match</p>
-                <button onClick={() => setSelecting(false)} className="text-xs text-muted hover:text-dark">✕</button>
+  return (
+    <div className="bg-white/80 backdrop-blur rounded-2xl border border-dashed border-red-300 shadow-sm p-5 space-y-3">
+      {selecting && current && (
+        <p className="text-center text-sm font-medium text-muted">
+          Match score:{" "}
+          <span className={`font-bold text-base ${
+            current.score >= 1500 ? "text-green-600" : current.score >= 500 ? "text-yellow-500" : "text-red-500"
+          }`}>
+            {current.score}
+          </span>
+        </p>
+      )}
+
+      <div className="flex gap-4 items-stretch">
+        {!selecting ? (
+          <>
+            {/* Member card */}
+            <div className="flex-1 min-w-0 bg-white rounded-xl border border-border p-4 space-y-2 relative">
+              <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                <MemberProfileIcons member={member} />
               </div>
-              {!candidates ? (
-                <p className="text-xs text-muted text-center py-2">Computing scores…</p>
-              ) : (
-                <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {candidates.map(({ member: c, score, isAlreadyMatched }) => (
-                    <button
-                      key={c.id}
-                      onClick={() => handleAssign(c.id)}
-                      disabled={isPending}
-                      className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg border border-border hover:border-coral hover:bg-coral/5 transition text-left disabled:opacity-50"
-                    >
-                      <span className="text-xs text-dark truncate">
-                        {fullName(c)}
-                        {isAlreadyMatched && <span className="text-[#caadff] ml-1 shrink-0">2nd for {c.first_name}</span>}
-                      </span>
-                      <span className={`text-xs font-semibold shrink-0 ${
-                        score >= 1500 ? "text-green-600" : score >= 500 ? "text-yellow-500" : "text-red-500"
-                      }`}>
-                        {score}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="pr-8">
+                <p className="font-semibold text-dark text-sm truncate">
+                  {fullName(member)} <span className="font-normal text-muted">({member.id.slice(0, 5)})</span>
+                </p>
+                <p className="text-xs text-muted truncate">{member.email}</p>
+              </div>
+              <MemberProfileFields member={member} />
             </div>
-          )}
-          {error && <p className="text-xs text-red-600">{error}</p>}
-        </div>
+
+            {/* Needs match side */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center gap-2">
+              <div className="flex flex-col items-center gap-2">
+                <p className="font-semibold text-red-500 text-sm text-center">Needs match</p>
+                <button
+                  onClick={openSelector}
+                  disabled={isPending}
+                  className="text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-50"
+                >
+                  Assign match →
+                </button>
+              </div>
+            </div>
+          </>
+        ) : !candidates ? (
+          <div className="flex-1 flex items-center justify-center py-8">
+            <p className="text-xs text-muted">Computing scores…</p>
+          </div>
+        ) : candidates.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center gap-2 py-8">
+            <p className="text-xs text-muted">No candidates available.</p>
+            <button onClick={closeSelector} className="text-xs text-muted hover:text-dark">Cancel</button>
+          </div>
+        ) : current ? (
+          <>
+            <MemberDetailCard
+              member={member}
+              other={current.member}
+              breakdown={current.breakdown}
+              isDouble={false}
+              locked
+              onRemove={() => {}}
+              isPending={isPending}
+            />
+            <MemberDetailCard
+              member={current.member}
+              other={member}
+              breakdown={current.breakdown}
+              isDouble={current.isAlreadyMatched}
+              locked
+              onRemove={() => {}}
+              isPending={isPending}
+            />
+          </>
+        ) : null}
       </div>
+
+      {selecting && candidates && candidates.length > 0 && current && (
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => setIndex((i) => Math.max(0, i - 1))}
+              disabled={index === 0}
+              className="text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-30"
+            >
+              ← Prev
+            </button>
+            <span className="text-xs text-muted">
+              {index + 1} of {candidates.length}
+              {current.isAlreadyMatched && (
+                <span className="text-[#caadff] ml-1.5">2nd for {current.member.first_name}</span>
+              )}
+            </span>
+            <button
+              onClick={() => setIndex((i) => Math.min(candidates.length - 1, i + 1))}
+              disabled={index === candidates.length - 1}
+              className="text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-30"
+            >
+              Next →
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={closeSelector}
+              disabled={isPending}
+              className="flex-1 text-xs px-3 py-1.5 border border-border rounded-lg text-muted hover:text-dark transition disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => handleAssign(current.member.id)}
+              disabled={isPending}
+              className="flex-1 text-xs px-3 py-1.5 bg-coral text-white rounded-lg hover:opacity-90 transition disabled:opacity-50"
+            >
+              Assign this match
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && <p className="text-xs text-red-600 text-center">{error}</p>}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Checkmark toggle icon
+// ---------------------------------------------------------------------------
+
+function CheckCircleIcon({ solid = false }: { solid?: boolean }) {
+  if (solid) {
+    return (
+      <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.086l4-5.5z" clipRule="evenodd" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
   );
 }
 
@@ -380,6 +555,7 @@ function PairCard({
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   function handleRemove() {
     setError(null);
@@ -390,12 +566,40 @@ function PairCard({
     });
   }
 
+  if (collapsed) {
+    return (
+      <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm px-5 py-3 flex items-center justify-between gap-3">
+        <p className="text-sm text-dark truncate">
+          {pair.member1.first_name} <span className="text-muted">({pair.member1.id.slice(0, 5)})</span>
+          <span className="text-muted"> &amp; </span>
+          {pair.member2.first_name} <span className="text-muted">({pair.member2.id.slice(0, 5)})</span>
+        </p>
+        <button
+          onClick={() => setCollapsed(false)}
+          className="shrink-0 text-green-600 hover:opacity-70 transition"
+          title="Expand match"
+        >
+          <CheckCircleIcon solid />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={`bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-5 space-y-3 ${isPending ? "opacity-60" : ""}`}>
       {/* Score */}
-      <p className="text-center text-sm font-medium text-muted">
-        Match score: <span className={`font-bold text-base ${scoreColor(pair.quality_tier)}`}>{pair.score}</span>
-      </p>
+      <div className="relative">
+        <p className="text-center text-sm font-medium text-muted">
+          Match score: <span className={`font-bold text-base ${scoreColor(pair.quality_tier)}`}>{pair.score}</span>
+        </p>
+        <button
+          onClick={() => setCollapsed(true)}
+          className="absolute right-0 top-1/2 -translate-y-1/2 text-muted hover:text-green-600 transition"
+          title="Mark as reviewed"
+        >
+          <CheckCircleIcon />
+        </button>
+      </div>
 
       {/* Members side by side */}
       <div className="flex gap-3">

@@ -42,10 +42,10 @@ function stripeMonthlySubResponse() {
   };
 }
 
-// Fixed "now" within the opt-in window (3rd of the month) and outside it
-// (10th), keeping year/month otherwise identical so currentMonth() /
-// monthToDate() stay in sync with the faked clock.
+// Fixed pre-deadline date used for all tests so the suite passes regardless of
+// what day of the month it actually is.
 const BEFORE_DEADLINE = new Date("2026-07-03T12:00:00.000Z");
+// Date used to push the clock past the opt-in deadline (the 5th).
 const AFTER_DEADLINE = new Date("2026-07-10T12:00:00.000Z");
 
 describe("optInFromMatches", () => {
@@ -53,7 +53,7 @@ describe("optInFromMatches", () => {
   let monthDate: string;
 
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(BEFORE_DEADLINE);
     monthDate = monthToDate(currentMonth());
     mockRetrieve.mockReset();
@@ -76,8 +76,8 @@ describe("optInFromMatches", () => {
   it("after the 5th — returns 'closed' and makes no DB writes", async () => {
     const member = await seedMember();
     memberId = member.id;
-    vi.setSystemTime(AFTER_DEADLINE);
 
+    vi.setSystemTime(AFTER_DEADLINE);
     const result = await optInFromMatches(memberId, "coffee");
     expect(result).toEqual({ success: false, error: "closed" });
 
