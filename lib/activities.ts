@@ -266,10 +266,20 @@ function availabilityScore(
 // Scoring
 // ---------------------------------------------------------------------------
 
-const WEIGHTS = {
+// Events ("Things to do") are tied to a specific day, so availability — can
+// both members actually make it — dominates. Locations ("Places to go") have
+// no schedule, so there's nothing to be "available" for; instead distance
+// dominates, since a venue on the wrong side of town isn't practical for a
+// stroller/toddler outing no matter how well it's tagged for age.
+const EVENT_WEIGHTS = {
   availability: 0.5,
   age: 0.3,
   distance: 0.2,
+};
+
+const LOCATION_WEIGHTS = {
+  distance: 0.7,
+  age: 0.3,
 };
 
 /** 0–1: 1.0 = direct bucket match, 0.7 = "all ages", 0.5 = untagged (neutral) */
@@ -284,16 +294,20 @@ function scoreActivity(
   profile: MatchProfile,
   pairBuckets: Set<string>,
 ): number {
-  const avail = availabilityScore(
-    profile.availabilityDays,
-    derivedDayOfWeek(activity),
-  );
   const age  = ageScore(activity.age_categories, pairBuckets);
   const dist = profile.center
     ? distanceScore(profile.center, activity.lat, activity.lng)
     : 0.5;
 
-  return WEIGHTS.availability * avail + WEIGHTS.age * age + WEIGHTS.distance * dist;
+  if (activity.kind === "location") {
+    return LOCATION_WEIGHTS.distance * dist + LOCATION_WEIGHTS.age * age;
+  }
+
+  const avail = availabilityScore(
+    profile.availabilityDays,
+    derivedDayOfWeek(activity),
+  );
+  return EVENT_WEIGHTS.availability * avail + EVENT_WEIGHTS.age * age + EVENT_WEIGHTS.distance * dist;
 }
 
 // ---------------------------------------------------------------------------

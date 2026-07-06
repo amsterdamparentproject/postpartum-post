@@ -157,6 +157,9 @@ export default function ActivitiesSection({
       <p className="text-muted text-sm">
         This list has been made for just you two — it's meant to inspire you! It contains a mix of places to go and events and activities around the city that match your profiles. We've also included free playgrounds close by to meet up at, originally sourced (then Post-ified 😉) from <a href="https://www.buitenspeelkaart.nl/amsterdam/" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">here</a>. 
       </p>
+      <p className="text-muted text-xs pb-2">
+        Heads up: We're adding and refining more and more activity data every day. We'd absolutely <a href="https://forms.gle/15dS6YvYucyeU8Cv9" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">love your feedback</a> on how useful this data is to you and your experience in general!
+      </p>
 
       {/* Tabs */}
       <div className="flex">

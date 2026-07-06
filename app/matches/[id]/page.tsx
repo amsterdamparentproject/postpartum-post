@@ -25,16 +25,12 @@ import { verifyMatchToken } from "@/lib/match-token";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 import { fetchMatchActivities, childAgeBucket } from "@/lib/activities";
 import ActivitiesSection from "@/app/matches/[id]/ActivitiesSection";
+import MonthlyWhimsy from "@/app/matches/[id]/MonthlyWhimsy";
 
 interface Props {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ token?: string }>;
 }
-
-const TOPIC_LABEL: Record<string, string> = {
-  coffee: "grabbing a coffee ☕",
-  playdate: "arranging a playdate 🛝",
-};
 
 interface Coords { lat: number; lng: number }
 
@@ -129,23 +125,8 @@ export default async function MatchPage({ params, searchParams }: Props) {
       matchedOn: match.matched_on,
     });
 
-  const { data: participations } = await supabase
-    .from("monthly_participation")
-    .select("member_id, topics(name)")
-    .in("member_id", [match.member_id_1, match.member_id_2])
-    .eq("month", match.matched_on);
-
-  const topicFor = (memberId: string) =>
-    (participations?.find((p) => p.member_id === memberId)
-      ?.topics as unknown as { name: string } | null)?.name ?? null;
-
-  const t1 = topicFor(match.member_id_1);
-  const t2 = topicFor(match.member_id_2);
-  const topic = t1 && t2 && t1 === t2 ? t1 : null;
-
   const matchedOn = new Date(match.matched_on);
   const monthLabel = matchedOn.toLocaleString("en-US", { month: "long", year: "numeric" });
-  const meetingLabel = topic ? TOPIC_LABEL[topic] ?? null : null;
 
   const hasActivities = recommendedActivities.length > 0 || allActivities.length > 0 || playgrounds.length > 0;
 
@@ -163,9 +144,6 @@ export default async function MatchPage({ params, searchParams }: Props) {
             >
               Your <span className="text-coral">{monthLabel}</span> match<span className="hidden md:inline"><br /></span> is here!
             </h1>
-            {meetingLabel && (
-              <p className="text-muted text-sm">You&apos;re meeting {meetingLabel} this month</p>
-            )}
           </div>
 
           {/* Match cards */}
@@ -245,10 +223,12 @@ export default async function MatchPage({ params, searchParams }: Props) {
             />
           )}
 
+          <MonthlyWhimsy />
+
 {/* About matching */}
           <div className="pt-4 pb-2" id="about-matching">
             <h2
-              className="text-2xl sm:text-3xl font-semibold text-dark"
+              className="text-2xl sm:text-3xl font-normal text-dark"
               style={{ fontFamily: "var(--font-serif)" }}
             >
               About the matching process
@@ -258,8 +238,23 @@ export default async function MatchPage({ params, searchParams }: Props) {
               It’s looking for the <span className="font-semibold text-coral">best outcomes for the whole community</span> — which means that not every individual match may be perfect ❤️ 
             </p>
             <p className="mb-3">
-              Language, mom/dad preferences, and availability rank most highly. When creating every match, we can only account for the profile information that we have. If something is really not working out, you can always request a rematch.
+              Language, mom/dad preferences, and availability rank most highly. When creating every match, we can only account for the profile information that we have. If something is really not working out, you can always{" "}
+              <a href={`/rematch?match_id=${id}`} className="text-coral hover:underline">
+                request a rematch
+              </a>.
             </p>
+          </div>
+
+          {/* Feedback */}
+          <div className="text-center">
+            <a
+              href="https://docs.google.com/forms/d/e/1FAIpQLScslq1CKK6FCg6jMyNaPBKn1xCwMT44y-yQb5KOS_K3FSLHzQ/viewform?usp=dialog"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block bg-coral text-white text-sm font-medium rounded-lg px-5 py-2.5 hover:opacity-90 transition-opacity"
+            >
+              Leave match feedback
+            </a>
           </div>
 
           {/* Rematch */}
