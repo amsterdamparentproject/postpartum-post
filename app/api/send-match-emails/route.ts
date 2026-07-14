@@ -28,6 +28,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { generateMatchToken } from "@/lib/match-token";
+import { isMember1Initiator } from "@/lib/match-initiator";
 import { sendMatchRevealEmail } from "@/lib/emails";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
@@ -165,14 +166,18 @@ export async function POST(req: NextRequest) {
     const matchPageUrl = `${SITE_URL}/matches/${match.id}?token=${token}`;
     const matchesUrl = `${SITE_URL}/matches`;
 
-    // Generate a magic link to /matches for each recipient so clicking
-    // "matches page" in the email signs them straight in without a prompt.
-    async function matchesMagicLink(email: string): Promise<string> {
+    // Generate a magic link for each recipient so clicking a link in the
+    // email signs them straight in without a separate sign-in prompt —
+    // the match page now requires the viewer to be authenticated as one
+    // of the two matched members. Falls back to a plain (unauthenticated)
+    // link if link generation fails, so the recipient can still sign in
+    // manually from the resulting page.
+    async function magicLink(email: string, redirectTo: string): Promise<string> {
       try {
         const { data, error } = await supabase.auth.admin.generateLink({
           type: "magiclink",
           email,
-          options: { redirectTo: matchesUrl },
+          options: { redirectTo },
         });
         if (!error && data?.properties?.action_link) {
           return data.properties.action_link;
@@ -180,13 +185,15 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         console.error("[send-match-emails] generateLink failed for", email, err);
       }
-      return matchesUrl;
+      return redirectTo;
     }
 
     try {
-      const [m1MatchesLink, m2MatchesLink] = await Promise.all([
-        matchesMagicLink(m1.email),
-        matchesMagicLink(m2.email),
+      const [m1MatchesLink, m2MatchesLink, m1MatchPageUrl, m2MatchPageUrl] = await Promise.all([
+        magicLink(m1.email, matchesUrl),
+        magicLink(m2.email, matchesUrl),
+        magicLink(m1.email, matchPageUrl),
+        magicLink(m2.email, matchPageUrl),
       ]);
 
       const isM1Double = (matchCountById.get(m1.id) ?? 0) > 1;
@@ -196,6 +203,8 @@ export async function POST(req: NextRequest) {
       const t2 = topicByMemberId.get(match.member_id_2) ?? null;
       const topic = t1 && t2 && t1 === t2 ? t1 : null;
 
+      const m1IsInitiator = isMember1Initiator(match.id);
+
       if (!testMode || m1.email === TEST_EMAIL) {
         await sendMatchRevealEmail(
           m1.email,
@@ -203,9 +212,10 @@ export async function POST(req: NextRequest) {
           m2.first_name,
           m2.last_name,
           topic,
-          matchPageUrl,
+          m1MatchPageUrl,
           m1MatchesLink,
           isM1Double,
+          m1IsInitiator,
         );
         sentCount++;
       }
@@ -217,9 +227,10 @@ export async function POST(req: NextRequest) {
           m1.first_name,
           m1.last_name,
           topic,
-          matchPageUrl,
+          m2MatchPageUrl,
           m2MatchesLink,
           isM2Double,
+          !m1IsInitiator,
         );
         sentCount++;
       }

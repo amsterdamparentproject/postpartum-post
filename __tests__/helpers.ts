@@ -89,3 +89,55 @@ export async function cleanupMember(memberId: string) {
   await supabase.from("subscriptions").delete().eq("member_id", memberId);
   await supabase.from("members").delete().eq("id", memberId);
 }
+
+/**
+ * Signs a member in server-side (no browser needed) and returns a real
+ * Supabase access token for their session — for tests that need to exercise
+ * code paths gated behind `supabase.auth.getUser(accessToken)`, e.g. the
+ * match page's auth check.
+ *
+ * Mirrors what e2e/helpers/auth.ts does in a browser: generates a magic
+ * link (which auto-creates the auth.users row if it doesn't exist yet),
+ * then exchanges its token_hash for a session directly via verifyOtp
+ * instead of navigating a page to process the redirect.
+ */
+export async function getAccessTokenForEmail(email: string): Promise<string> {
+  const admin = createTestSupabase();
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  });
+  if (error || !data?.properties?.hashed_token) {
+    throw new Error(`getAccessTokenForEmail: generateLink failed: ${error?.message}`);
+  }
+
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url || !anonKey) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.test");
+  }
+  const anon = createClient(url, anonKey);
+  // Supabase issues a "signup"-type token (not "magiclink") when the email
+  // has no existing auth.users row yet, since generateLink auto-creates the
+  // user. verifyOtp's type must match whatever was actually issued, or it's
+  // rejected as expired/invalid — so use verification_type from the response
+  // rather than assuming "magiclink".
+  const { data: verified, error: verifyError } = await anon.auth.verifyOtp({
+    token_hash: data.properties.hashed_token,
+    type: data.properties.verification_type as "magiclink" | "signup",
+  });
+  if (verifyError || !verified.session?.access_token) {
+    throw new Error(`getAccessTokenForEmail: verifyOtp failed: ${verifyError?.message}`);
+  }
+  return verified.session.access_token;
+}
+
+/** Deletes the Supabase Auth user created by getAccessTokenForEmail, if any. */
+export async function cleanupAuthUser(email: string): Promise<void> {
+  const admin = createTestSupabase();
+  const { data } = await admin.auth.admin.listUsers();
+  const user = data?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+  if (user) {
+    await admin.auth.admin.deleteUser(user.id);
+  }
+}

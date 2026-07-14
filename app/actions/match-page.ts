@@ -1,0 +1,178 @@
+"use server";
+
+/**
+ * Server-side gate + data loader for the private match reveal page
+ * (/matches/[id]). Called from the client after the browser confirms a
+ * Supabase session, passing along the session's access token.
+ *
+ * Authorization does NOT trust anything the client claims about who it is —
+ * the access token is independently verified against Supabase Auth here,
+ * and the resulting email is checked against the two members on *this*
+ * specific match. A signed-in member of a different match gets nothing
+ * back, even with a valid link/token.
+ *
+ * The link token (HMAC of the match ID, see lib/match-token.ts) is kept as
+ * a secondary check so a bare guess at a match ID still isn't enough.
+ */
+
+import { createAdminClient } from "@/lib/supabase";
+import { verifyMatchToken } from "@/lib/match-token";
+import { isMember1Initiator } from "@/lib/match-initiator";
+import { fetchMatchActivities, childAgeBucket, type Activity, type Playground } from "@/lib/activities";
+
+export type MatchMemberView = {
+  first_name: string;
+  last_name: string;
+  email: string;
+  availability: { days: string[]; times: string[] } | null;
+};
+
+export type MatchPageResult =
+  | { authorized: false; reason: "invalid" | "not_signed_in" | "forbidden" }
+  | { authorized: true; rematchRequested: true }
+  | {
+      authorized: true;
+      rematchRequested: false;
+      monthLabel: string;
+      matchedOn: string;
+      initiatorName: string;
+      m1: MatchMemberView;
+      m2: MatchMemberView;
+      hasActivities: boolean;
+      recommendedPlaces: Activity[];
+      recommendedActivities: Activity[];
+      allActivities: Activity[];
+      playgrounds: Playground[];
+      center: { lat: number; lng: number } | null;
+      memberCoords: { lat: number; lng: number }[];
+      /** Dev-only debug info — undefined outside development. */
+      childBuckets?: { m1: string[]; m2: string[] };
+    };
+
+export async function getMatchPageData(
+  matchId: string,
+  token: string,
+  accessToken: string,
+): Promise<MatchPageResult> {
+  if (!token || !verifyMatchToken(matchId, token)) {
+    return { authorized: false, reason: "invalid" };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+  const viewerEmail = userData?.user?.email?.toLowerCase();
+  if (userError || !viewerEmail) {
+    return { authorized: false, reason: "not_signed_in" };
+  }
+
+  const { data: match, error } = await supabase
+    .from("matches")
+    .select(`
+      id,
+      member_id_1,
+      member_id_2,
+      matched_on,
+      rematch_requested,
+      member1:member_id_1 ( first_name, last_name, email, lat, lng, availability, children ),
+      member2:member_id_2 ( first_name, last_name, email, lat, lng, availability, children )
+    `)
+    .eq("id", matchId)
+    .maybeSingle();
+
+  if (error || !match) {
+    return { authorized: false, reason: "invalid" };
+  }
+
+  type MatchMember = {
+    first_name: string;
+    last_name: string;
+    email: string;
+    lat: number | null;
+    lng: number | null;
+    availability: { days: string[]; times: string[] } | null;
+    children: { birth_month: number; birth_year: number; expected: boolean }[] | null;
+  };
+  const m1 = (Array.isArray(match.member1) ? match.member1[0] : match.member1) as MatchMember | null;
+  const m2 = (Array.isArray(match.member2) ? match.member2[0] : match.member2) as MatchMember | null;
+
+  if (!m1 || !m2) {
+    return { authorized: false, reason: "invalid" };
+  }
+
+  const isViewerM1 = m1.email.toLowerCase() === viewerEmail;
+  const isViewerM2 = m2.email.toLowerCase() === viewerEmail;
+  if (!isViewerM1 && !isViewerM2) {
+    return { authorized: false, reason: "forbidden" };
+  }
+
+  if (match.rematch_requested) {
+    return { authorized: true, rematchRequested: true };
+  }
+
+  const center: { lat: number; lng: number } | null =
+    m1.lat != null && m1.lng != null && m2.lat != null && m2.lng != null
+      ? { lat: (m1.lat + m2.lat) / 2, lng: (m1.lng + m2.lng) / 2 }
+      : m1.lat != null && m1.lng != null ? { lat: m1.lat, lng: m1.lng }
+      : m2.lat != null && m2.lng != null ? { lat: m2.lat, lng: m2.lng }
+      : null;
+
+  const availabilityDays = Array.from(new Set([
+    ...(m1.availability?.days ?? []),
+    ...(m2.availability?.days ?? []),
+  ]));
+
+  const { recommendedPlaces, recommendedActivities, all: allActivities, playgrounds } =
+    await fetchMatchActivities({
+      center,
+      availabilityDays,
+      member1Days: m1.availability?.days ?? [],
+      member2Days: m2.availability?.days ?? [],
+      member1Children: m1.children ?? [],
+      member2Children: m2.children ?? [],
+      matchedOn: match.matched_on,
+    });
+
+  const matchedOn = new Date(match.matched_on);
+  const monthLabel = matchedOn.toLocaleString("en-US", { month: "long", year: "numeric" });
+  const initiatorName = isMember1Initiator(match.id) ? m1.first_name : m2.first_name;
+  const hasActivities = recommendedActivities.length > 0 || allActivities.length > 0 || playgrounds.length > 0;
+
+  const toView = (m: MatchMember): MatchMemberView => ({
+    first_name: m.first_name,
+    last_name: m.last_name,
+    email: m.email,
+    availability: m.availability,
+  });
+
+  let childBuckets: { m1: string[]; m2: string[] } | undefined;
+  if (process.env.NODE_ENV === "development") {
+    const bucket = (children: MatchMember["children"]) =>
+      (children ?? [])
+        .map(childAgeBucket)
+        .filter((b): b is string => b !== null)
+        .map((b) => b.charAt(0).toUpperCase() + b.slice(1));
+    childBuckets = { m1: bucket(m1.children), m2: bucket(m2.children) };
+  }
+
+  return {
+    authorized: true,
+    rematchRequested: false,
+    monthLabel,
+    matchedOn: match.matched_on,
+    initiatorName,
+    m1: toView(m1),
+    m2: toView(m2),
+    hasActivities,
+    recommendedPlaces,
+    recommendedActivities,
+    allActivities,
+    playgrounds,
+    center,
+    memberCoords: [
+      ...(m1.lat != null && m1.lng != null ? [{ lat: m1.lat, lng: m1.lng }] : []),
+      ...(m2.lat != null && m2.lng != null ? [{ lat: m2.lat, lng: m2.lng }] : []),
+    ],
+    childBuckets,
+  };
+}

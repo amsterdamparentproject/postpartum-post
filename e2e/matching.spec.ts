@@ -371,3 +371,46 @@ test(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// Test 5 — Auth gate: signed-out and unrelated members are blocked
+// ---------------------------------------------------------------------------
+
+test(
+  "auth gate: signed-out visitor and unrelated member both blocked from contact info",
+  async ({ page }) => {
+    const month = currentMonth();
+    const monthDate = `${month}-01`;
+
+    const memberA = await seedMember({ firstName: "Robin", lastName: "Private" });
+    const memberB = await seedMember({ firstName: "Sam", lastName: "Private" });
+    const outsider = await seedMember({ firstName: "Casey", lastName: "Outsider" });
+
+    try {
+      const matchId = await seedMatchDirect(memberA.id, memberB.id, monthDate);
+      const matchPath = buildMatchPagePath(matchId);
+
+      // ── Step 1: Signed-out visitor with a fully valid link+token ─────────
+      await page.goto(matchPath);
+      await expect(page.getByText(/sign in to see your match/i)).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("Robin Private")).not.toBeVisible();
+      await expect(page.getByText("Sam Private")).not.toBeVisible();
+      await expect(page.locator(`a[href="mailto:${memberA.email}"]`)).not.toBeVisible();
+      await expect(page.locator(`a[href="mailto:${memberB.email}"]`)).not.toBeVisible();
+
+      // ── Step 2: Signed in, but as someone who isn't part of this match ────
+      await signInAs(page, outsider.email);
+      await page.goto(matchPath);
+      await expect(page.getByText(/this isn.t your match/i)).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("Robin Private")).not.toBeVisible();
+      await expect(page.getByText("Sam Private")).not.toBeVisible();
+      await expect(page.locator(`a[href="mailto:${memberA.email}"]`)).not.toBeVisible();
+      await expect(page.locator(`a[href="mailto:${memberB.email}"]`)).not.toBeVisible();
+
+    } finally {
+      await cleanupMember(memberA.id);
+      await cleanupMember(memberB.id);
+      await cleanupMember(outsider.id);
+    }
+  },
+);

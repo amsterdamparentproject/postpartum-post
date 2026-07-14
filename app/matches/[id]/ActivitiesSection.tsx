@@ -118,11 +118,11 @@ export default function ActivitiesSection({
       <div className="flex flex-wrap gap-4 text-xs text-muted">
         <span className="flex items-center gap-1.5">
           <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: "#D4E09B", flexShrink: 0 }} />
-          Places to go
+          Places
         </span>
         <span className="flex items-center gap-1.5">
           <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: "#AF99FF", flexShrink: 0 }} />
-          Things to do
+          Events
         </span>
         {playgrounds.length > 0 && (
           <span className="flex items-center gap-1.5">
@@ -165,8 +165,8 @@ export default function ActivitiesSection({
       <div className="flex">
         {(["activities", "places", ...(playgrounds.length > 0 ? ["playgrounds"] : [])] as Tab[]).map((tab, i, arr) => {
           const labels: Record<Tab, string> = {
-            places: "Places to go",
-            activities: "Things to do",
+            places: "Places",
+            activities: "Events",
             playgrounds: "Playgrounds",
           };
           const activeStyle =

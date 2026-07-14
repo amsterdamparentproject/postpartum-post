@@ -66,7 +66,11 @@ test(
 
       // ── Step 4: Lands on /rematch/confirmed ───────────────────────────────
       await page.waitForURL(/\/rematch\/confirmed/, { timeout: 15_000 });
-      await expect(page.getByText(/we're on it/i)).toBeVisible();
+      // Scoped to the heading — a plain getByText match also hits Next.js's
+      // hidden #__next-route-announcer__ live region, which echoes the new
+      // page's heading text after a client-side navigation and trips
+      // Playwright's strict mode (two matches).
+      await expect(page.getByRole("heading", { name: /we're on it/i })).toBeVisible();
 
       // ── Step 5: /matches — second card shows "Changed", no quick actions ──
       await page.goto("/matches");

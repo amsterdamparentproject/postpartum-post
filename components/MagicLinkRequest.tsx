@@ -12,7 +12,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type State = "idle" | "sending" | "sent" | "not_found";
 
-export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: string } = {}) {
+export default function MagicLinkRequest({
+  defaultEmail,
+  redirectTo,
+}: { defaultEmail?: string; redirectTo?: string } = {}) {
   const [email, setEmail] = useState(defaultEmail ?? "");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [state, setState] = useState<State>("idle");
@@ -46,7 +49,7 @@ export default function MagicLinkRequest({ defaultEmail }: { defaultEmail?: stri
       const supabase = createBrowserClient();
       await supabase.auth.signInWithOtp({
         email: normalizedEmail,
-        options: { emailRedirectTo: `${window.location.origin}/profile` },
+        options: { emailRedirectTo: `${window.location.origin}${redirectTo ?? "/profile"}` },
       });
       setState("sent");
     });

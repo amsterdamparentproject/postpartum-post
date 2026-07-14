@@ -8,7 +8,12 @@ function matchRevealHtml(
   matchPageUrl: string,
   matchesLink: string,
   isDoubleMatch: boolean,
+  isRecipientInitiator: boolean,
 ): string {
+  const initiatorLine = isRecipientInitiator
+    ? `<b>Get started:</b> To skip all that first-contact awkwardness, we select 1 person from the match to initiate the conversation — and it's you!</b> Reach out to ${matchFirstName} in the next day or so; they'll be waiting ☺️`
+    : `<b>Get started:</b> We've nudged ${matchFirstName} to start the conversation this month. Keep an eye on your inbox over the next day or two — or say hi now if you're eager to get started ☺️`;
+
   const content =
     emailHeader() +
     bodySection(`
@@ -19,13 +24,14 @@ function matchRevealHtml(
                                       Hurrah, your Post has arrived! 🎉📬 Your match for this month is <span style="font-weight:700">${matchFirstName} ${matchLastName}</span>, another parent in Amsterdam who is excited to connect.
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Your match page has both of your contact details, plus some local activities and resources to inspire your meetup. Enjoy your ${topic || "hang"}!
-                                    </td></tr>
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      The link below is shared just between you and ${matchFirstName} — unique to you both, no login needed.
+                                      ${initiatorLine}
                                     </td></tr>`) +
     ctaButton("See your match page", matchPageUrl) +
     bodySection(`
+      
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      Your match page is shared just between you and ${matchFirstName}. It has both of your contact details, plus some local activities and resources to inspire your meetup. Enjoy your ${topic || "hang"}!
+                                    </td></tr>                         
                                     <tr><td dir="ltr" style="font-size:14px;color:#666666;text-align:left;padding:0 0 8px;line-height:1.4;mso-line-height-alt:19.6px">
                                       Please make sure to review our <a href="https://postpartumpost.com/community-guidelines" style="color:#000000;text-decoration:underline;">Community Guidelines</a> before interacting with your match — to keep things safe and joyful for all. If this match isn&apos;t working out, you can request a rematch from your <a href="${matchesLink}" style="color:#000000;text-decoration:underline;">matches page</a> before the 14th of the month.
                                     </td></tr>
@@ -44,6 +50,7 @@ export async function sendMatchRevealEmail(
   matchPageUrl: string,
   matchesLink: string,
   isDoubleMatch = false,
+  isRecipientInitiator = false,
 ): Promise<void> {
   const resend = getResend();
   const { error } = await resend.emails.send({
@@ -58,6 +65,7 @@ export async function sendMatchRevealEmail(
       matchPageUrl,
       matchesLink,
       isDoubleMatch,
+      isRecipientInitiator,
     ),
   });
   if (error) {
