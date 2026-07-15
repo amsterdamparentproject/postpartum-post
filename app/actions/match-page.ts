@@ -18,7 +18,7 @@
 import { createAdminClient } from "@/lib/supabase";
 import { verifyMatchToken } from "@/lib/match-token";
 import { isMember1Initiator } from "@/lib/match-initiator";
-import { fetchMatchActivities, childAgeBucket, type Activity, type Playground } from "@/lib/activities";
+import { fetchMatchActivities, type Activity, type Playground } from "@/lib/activities";
 
 export type MatchMemberView = {
   first_name: string;
@@ -36,6 +36,16 @@ export type MatchPageResult =
       monthLabel: string;
       matchedOn: string;
       initiatorName: string;
+      /** True if the signed-in viewer is member_id_1 (vs member_id_2) on this match. */
+      viewerIsM1: boolean;
+      /** True if the signed-in viewer is the one designated to reach out first. */
+      viewerIsInitiator: boolean;
+      /** The signed-in viewer's own member ID — lets the page link straight
+       *  into /rematch?member_id=...&match_id=... without an extra session
+       *  lookup (see components/RematchSessionGate.tsx for the fallback path). */
+      viewerMemberId: string;
+      /** Shared topic (coffee/playdate) if both members agree, else null. */
+      topic: string | null;
       m1: MatchMemberView;
       m2: MatchMemberView;
       hasActivities: boolean;
@@ -45,8 +55,6 @@ export type MatchPageResult =
       playgrounds: Playground[];
       center: { lat: number; lng: number } | null;
       memberCoords: { lat: number; lng: number }[];
-      /** Dev-only debug info — undefined outside development. */
-      childBuckets?: { m1: string[]; m2: string[] };
     };
 
 export async function getMatchPageData(
@@ -135,8 +143,27 @@ export async function getMatchPageData(
 
   const matchedOn = new Date(match.matched_on);
   const monthLabel = matchedOn.toLocaleString("en-US", { month: "long", year: "numeric" });
-  const initiatorName = isMember1Initiator(match.id) ? m1.first_name : m2.first_name;
+  const m1IsInitiator = isMember1Initiator(match.id);
+  const initiatorName = m1IsInitiator ? m1.first_name : m2.first_name;
+  const viewerIsInitiator = m1IsInitiator === isViewerM1;
   const hasActivities = recommendedActivities.length > 0 || allActivities.length > 0 || playgrounds.length > 0;
+
+  // Shared topic (coffee/playdate) — only meaningful if both members agreed;
+  // falls back to null (generic "hang" copy) if they differ.
+  const { data: participationData } = await supabase
+    .from("monthly_participation")
+    .select("member_id, topics(name)")
+    .in("member_id", [match.member_id_1, match.member_id_2])
+    .eq("month", match.matched_on);
+  const topicByMemberId = new Map<string, string | null>(
+    (participationData ?? []).map((p) => [
+      p.member_id,
+      (p.topics as unknown as { name: string } | null)?.name ?? null,
+    ])
+  );
+  const t1 = topicByMemberId.get(match.member_id_1) ?? null;
+  const t2 = topicByMemberId.get(match.member_id_2) ?? null;
+  const topic = t1 && t2 && t1 === t2 ? t1 : null;
 
   const toView = (m: MatchMember): MatchMemberView => ({
     first_name: m.first_name,
@@ -145,22 +172,16 @@ export async function getMatchPageData(
     availability: m.availability,
   });
 
-  let childBuckets: { m1: string[]; m2: string[] } | undefined;
-  if (process.env.NODE_ENV === "development") {
-    const bucket = (children: MatchMember["children"]) =>
-      (children ?? [])
-        .map(childAgeBucket)
-        .filter((b): b is string => b !== null)
-        .map((b) => b.charAt(0).toUpperCase() + b.slice(1));
-    childBuckets = { m1: bucket(m1.children), m2: bucket(m2.children) };
-  }
-
   return {
     authorized: true,
     rematchRequested: false,
     monthLabel,
     matchedOn: match.matched_on,
     initiatorName,
+    viewerIsM1: isViewerM1,
+    viewerIsInitiator,
+    viewerMemberId: isViewerM1 ? match.member_id_1 : match.member_id_2,
+    topic,
     m1: toView(m1),
     m2: toView(m2),
     hasActivities,
@@ -173,6 +194,5 @@ export async function getMatchPageData(
       ...(m1.lat != null && m1.lng != null ? [{ lat: m1.lat, lng: m1.lng }] : []),
       ...(m2.lat != null && m2.lng != null ? [{ lat: m2.lat, lng: m2.lng }] : []),
     ],
-    childBuckets,
   };
 }

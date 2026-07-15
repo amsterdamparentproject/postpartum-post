@@ -44,3 +44,17 @@ export function buildMatchPagePath(matchId: string): string {
   const token = createHmac("sha256", secret).update(matchId).digest("hex");
   return `/matches/${matchId}?token=${token}`;
 }
+
+/**
+ * Replicates lib/match-initiator.ts's isMember1Initiator() so tests can
+ * predict, for a given match ID, which member the match page will designate
+ * as responsible for reaching out first — without importing the Next.js-bound
+ * lib module.
+ */
+export function isMember1Initiator(matchId: string): boolean {
+  let hash = 0;
+  for (let i = 0; i < matchId.length; i++) {
+    hash = (hash * 31 + matchId.charCodeAt(i)) | 0;
+  }
+  return hash % 2 === 0;
+}

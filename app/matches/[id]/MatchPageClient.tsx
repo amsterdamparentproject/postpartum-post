@@ -185,12 +185,26 @@ function MatchPageReady({
   matchId: string;
   monthlyWhimsy?: React.ReactNode;
 }) {
-  const { m1, m2, monthLabel, matchedOn, initiatorName, hasActivities, recommendedPlaces, recommendedActivities, allActivities, center, memberCoords, playgrounds, childBuckets } = data;
+  const { m1, m2, monthLabel, matchedOn, viewerIsM1, viewerIsInitiator, viewerMemberId, topic, hasActivities, recommendedPlaces, recommendedActivities, allActivities, center, memberCoords, playgrounds } = data;
+
+  const them = viewerIsM1 ? m2 : m1;
+
+  const mailtoSubject = encodeURIComponent(`Let's meet for a ${topic || "hang"}! (Postpartum Post)`);
+  const mailtoBody = encodeURIComponent(`Hi ${them.first_name},`);
+  const mailtoHref = `mailto:${them.email}?subject=${mailtoSubject}&body=${mailtoBody}`;
+  const rematchHref = `/rematch?member_id=${viewerMemberId}&match_id=${matchId}`;
 
   return (
     <PageLayout>
       <main className="flex-1 flex flex-col items-center px-6 py-16">
         <div className="max-w-2xl px-4 md:px-0 w-full space-y-16">
+
+          {/* Header, welcome blurb, match cards, and get-started — grouped so
+              the gaps between them can be tighter than the space-y-16 rhythm
+              used between the page's main sections further down. */}
+          <div className="space-y-10">
+
+          <div className="space-y-8">
 
           {/* Header */}
           <div className="text-center space-y-2">
@@ -210,9 +224,14 @@ function MatchPageReady({
 
           <div className="space-y-2">
             <p className="text-center text-muted leading-relaxed max-w-xl mx-auto">
-              Welcome to your {monthLabel}&nbsp;match page! It&apos;s shared just between the two of you. You&apos;ll find contact details, your availability calendar, and activities that have been selected based on your specific profiles.
+              Welcome to your {monthLabel}&nbsp;match page! You&apos;ll find contact details, your availability calendar, and activities that have been selected based on your specific profiles — shared just between the two of you.
             </p>
           </div>
+          </div>
+
+          {/* Match cards + get started — grouped so the gap between them can be
+              tighter than the space-y-16 rhythm used between page sections. */}
+          <div className="space-y-10">
 
           {/* Match cards */}
           <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -225,7 +244,6 @@ function MatchPageReady({
               const radius = i === 0
                 ? "2rem 0.5rem 2rem 0.5rem / 0.5rem 2rem 0.5rem 2rem"
                 : "0.5rem 2rem 0.5rem 2rem / 2rem 0.5rem 2rem 0.5rem";
-              const buckets = i === 0 ? childBuckets?.m1 : childBuckets?.m2;
               return (
                 <div
                   key={i}
@@ -243,9 +261,6 @@ function MatchPageReady({
                       {member.first_name[0].toUpperCase()}
                     </span>
                   </div>
-                  <a href={`mailto:${member.email}`} className="text-purple hover:underline text-sm block">
-                    Send them an email →
-                  </a>
                   <p className="text-muted text-xs flex items-center gap-1">
                     {dayLabels.length > 0
                       ? `Available on: ${dayLabels.join(", ")}`
@@ -255,18 +270,35 @@ function MatchPageReady({
                       <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </a>
                   </p>
-                  {buckets && (
-                    <p className="text-muted text-xs">
-                      {`Children: ${buckets.length > 0 ? buckets.join(", ") : "Not specified"}`}
-                    </p>
-                  )}
+                  <CopyEmailButton email={member.email} />
                 </div>
               );
             })}
           </section>
-                      <p className="text-center text-muted leading-relaxed max-w-xl mx-auto">
-              <span className="font-semibold text-coral">Get started:</span> {initiatorName} has been chosen to reach out first to kickstart the conversation and get something scheduled this month. Happy meeting!
+
+          <div className="pb-2 text-center">
+            <p className="my-3">
+              {viewerIsInitiator ? (
+                <>
+                  To skip all that first-contact awkwardness, we select 1 person from the match to initiate the conversation — and it&apos;s you!<span className="text-coral">{" "}Reach out to {them.first_name}{" "} in the next day or so{" "}</span> to start planning your meetup. They&apos;ll be waiting ☺️
+                </>
+              ) : (
+                <>
+                  <span className="text-coral">{them.first_name}{" "}has been asked to reach out first this month.</span>{" "}Keep an eye on your inbox over the next day or two, or say hi yourself now ☺️
+                </>
+              )}
             </p>
+            <div className="text-center mt-8">
+              <a
+                href={mailtoHref}
+                className="inline-block bg-coral text-white text-[17.5px] font-medium rounded-lg px-[25px] py-[12.5px] hover:opacity-90 transition-opacity"
+              >
+                Email {them.first_name}
+              </a>
+            </div>
+          </div>
+          </div>
+          </div>
 
           {/* Activities */}
           {hasActivities && (
@@ -301,7 +333,7 @@ function MatchPageReady({
             </p>
             <p className="mb-3">
               Language, mom/dad preferences, and availability rank most highly. When creating every match, we can only account for the profile information that we have. If something is really not working out, you can always{" "}
-              <a href={`/rematch?match_id=${matchId}`} className="text-coral hover:underline">
+              <a href={rematchHref} className="text-coral hover:underline">
                 request a rematch
               </a>.
             </p>
@@ -324,7 +356,7 @@ function MatchPageReady({
             <p className="text-muted text-sm mb-3">
               Something not working this month? You can request a rematch before the 14th — your match is not notified, and your contact info remains hidden from this match going forward.
             </p>
-            <a href={`/rematch?match_id=${matchId}`} className="text-sm text-coral hover:underline">
+            <a href={rematchHref} className="text-sm text-coral hover:underline">
               Request a rematch
             </a>
           </div>
@@ -332,5 +364,29 @@ function MatchPageReady({
         </div>
       </main>
     </PageLayout>
+  );
+}
+
+function CopyEmailButton({ email }: { email: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable (e.g. insecure context) — fail silently.
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="text-coral hover:underline text-xs block"
+    >
+      {copied ? "Copied!" : "Copy contact email"}
+    </button>
   );
 }

@@ -42,7 +42,7 @@ import {
   hasMemberSkip,
   getMemberMatchCount,
 } from "./helpers/db";
-import { currentMonth, buildOptinUrl, buildMatchPagePath } from "./helpers/tokens";
+import { currentMonth, buildOptinUrl, buildMatchPagePath, isMember1Initiator } from "./helpers/tokens";
 
 // ---------------------------------------------------------------------------
 // Shared utilities
@@ -160,8 +160,10 @@ test(
 
       await expect(page.getByText("Alice Optin")).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText("Bob Optin")).toBeVisible();
-      await expect(page.locator(`a[href="mailto:${member1.email}"]`)).toBeVisible();
-      await expect(page.locator(`a[href="mailto:${member2.email}"]`)).toBeVisible();
+      // Signed in as member1 (Alice) — the single "Email them now" button
+      // should target member2 (Bob), never Alice's own address.
+      await expect(page.locator(`a[href^="mailto:${member2.email}"]`)).toBeVisible();
+      await expect(page.locator(`a[href^="mailto:${member1.email}"]`)).toHaveCount(0);
 
     } finally {
       // cleanupMember deletes matches, participation, skips, subscriptions,
@@ -345,15 +347,16 @@ test(
       await page.goto(buildMatchPagePath(matchId1));
       await expect(page.getByText("Alex Double")).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText("Beth First")).toBeVisible();
-      await expect(page.locator(`a[href="mailto:${memberA.email}"]`)).toBeVisible();
-      await expect(page.locator(`a[href="mailto:${memberB.email}"]`)).toBeVisible();
+      // Signed in as memberA — "Email them now" targets memberB, never memberA's own address.
+      await expect(page.locator(`a[href^="mailto:${memberB.email}"]`)).toBeVisible();
+      await expect(page.locator(`a[href^="mailto:${memberA.email}"]`)).toHaveCount(0);
 
       // ── Step 4: Second match reveal page shows correct pair ───────────────
       await page.goto(buildMatchPagePath(matchId2));
       await expect(page.getByText("Alex Double")).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText("Chris Second")).toBeVisible();
-      await expect(page.locator(`a[href="mailto:${memberA.email}"]`)).toBeVisible();
-      await expect(page.locator(`a[href="mailto:${memberC.email}"]`)).toBeVisible();
+      await expect(page.locator(`a[href^="mailto:${memberC.email}"]`)).toBeVisible();
+      await expect(page.locator(`a[href^="mailto:${memberA.email}"]`)).toHaveCount(0);
 
       // ── Step 5: Email double-match note trigger condition verified ─────────
       // send-match-emails builds matchCountById across all pairs for the month.
@@ -411,6 +414,110 @@ test(
       await cleanupMember(memberA.id);
       await cleanupMember(memberB.id);
       await cleanupMember(outsider.id);
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Test 6 — Get-started copy and mailto CTA are personalized per viewer
+//
+// Each viewer gets its own test (and its own fresh Playwright context via
+// the `page` fixture) rather than switching identities mid-test — signing
+// in as a second member in an already-authenticated browser session isn't
+// a pattern exercised (or trusted) anywhere else in this suite.
+// ---------------------------------------------------------------------------
+
+async function assertPersonalizedMatchPage(
+  page: Page,
+  {
+    matchId,
+    matchPath,
+    viewer,
+    other,
+    viewerIsInitiator,
+  }: {
+    matchId: string;
+    matchPath: string;
+    viewer: { id: string; email: string };
+    other: { fullName: string; email: string };
+    viewerIsInitiator: boolean;
+  },
+): Promise<void> {
+  await signInAs(page, viewer.email);
+  await page.goto(matchPath);
+  await expect(page.getByText(other.fullName)).toBeVisible({ timeout: 10_000 });
+
+  if (viewerIsInitiator) {
+    await expect(page.getByText(/and it's you!/i)).toBeVisible();
+  } else {
+    await expect(page.getByText(/has been asked to reach out first/i)).toBeVisible();
+  }
+  // The mailto CTA always targets the *other* member, regardless of who's
+  // designated to go first — never the viewer's own address.
+  await expect(page.locator(`a[href^="mailto:${other.email}"]`)).toBeVisible();
+  await expect(page.locator(`a[href^="mailto:${viewer.email}"]`)).toHaveCount(0);
+  // The rematch link is stamped with the viewer's own member ID directly
+  // (no RematchSessionGate round-trip needed for this entry point).
+  await expect(
+    page.locator(`a[href^="/rematch?member_id=${viewer.id}&match_id=${matchId}"]`).first()
+  ).toBeVisible();
+}
+
+test(
+  "match page personalizes 'get started' + mailto CTA for member1",
+  async ({ page }) => {
+    const month = currentMonth();
+    const monthDate = `${month}-01`;
+
+    const memberA = await seedMember({ firstName: "Dana", lastName: "Turntaker" });
+    const memberB = await seedMember({ firstName: "Eli", lastName: "Turntaker" });
+
+    try {
+      const matchId = await seedMatchDirect(memberA.id, memberB.id, monthDate);
+      const matchPath = buildMatchPagePath(matchId);
+      // seedMatchDirect always inserts memberA as member_id_1.
+      const aIsInitiator = isMember1Initiator(matchId);
+
+      await assertPersonalizedMatchPage(page, {
+        matchId,
+        matchPath,
+        viewer: memberA,
+        other: { fullName: "Eli Turntaker", email: memberB.email },
+        viewerIsInitiator: aIsInitiator,
+      });
+    } finally {
+      await cleanupMember(memberA.id);
+      await cleanupMember(memberB.id);
+    }
+  },
+);
+
+test(
+  "match page personalizes 'get started' + mailto CTA for member2",
+  async ({ page }) => {
+    const month = currentMonth();
+    const monthDate = `${month}-01`;
+
+    const memberA = await seedMember({ firstName: "Dana", lastName: "Turntaker" });
+    const memberB = await seedMember({ firstName: "Eli", lastName: "Turntaker" });
+
+    try {
+      const matchId = await seedMatchDirect(memberA.id, memberB.id, monthDate);
+      const matchPath = buildMatchPagePath(matchId);
+      // seedMatchDirect always inserts memberA as member_id_1, so memberB's
+      // initiator status is the opposite of member1's.
+      const bIsInitiator = !isMember1Initiator(matchId);
+
+      await assertPersonalizedMatchPage(page, {
+        matchId,
+        matchPath,
+        viewer: memberB,
+        other: { fullName: "Dana Turntaker", email: memberA.email },
+        viewerIsInitiator: bIsInitiator,
+      });
+    } finally {
+      await cleanupMember(memberA.id);
+      await cleanupMember(memberB.id);
     }
   },
 );
