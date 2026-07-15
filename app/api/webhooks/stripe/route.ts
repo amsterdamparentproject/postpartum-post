@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
-import { needsBillingExtension, nextMatchDate } from "@/lib/billing";
+import { extendSubscriptionToNext5th } from "@/lib/subscription-utils";
 import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
 
 export async function POST(req: NextRequest) {
@@ -73,15 +73,21 @@ export async function POST(req: NextRequest) {
     );
     console.log("[webhook] subscription upsert", { error: subError?.message });
 
-    // Extend billing to the next match date when the member signs up mid-cycle,
-    // so they're never charged before receiving their first match.
-    if (needsBillingExtension()) {
+    // Align billing to the next match day (the 5th) when the subscription's
+    // natural anchor (signup date + plan interval, as Stripe computed it at
+    // checkout) doesn't already land there — e.g. a 3-month plan signed up
+    // on the 6th would otherwise renew on the 6th too, leaving only ~1 day
+    // of buffer after that cycle's 3rd match. Gate on the natural anchor's
+    // calendar day directly (not on today's date) so an already-aligned
+    // subscription is left untouched — no trial_end update, no "trialing"
+    // status. Safe to apply post-checkout because extendSubscriptionToNext5th
+    // only ever pushes the period end later, never earlier — see
+    // __claude__/billing-extension-bugfix-plan.md.
+    const naturalAnchor = new Date(stripeSubscription.items.data[0].current_period_end * 1000);
+    if (naturalAnchor.getUTCDate() !== 5) {
       try {
-        await stripe.subscriptions.update(session.subscription as string, {
-          trial_end: nextMatchDate(),
-          proration_behavior: "none",
-        });
-        console.log("[webhook] billing extended to next match date");
+        const { newDate } = await extendSubscriptionToNext5th(session.subscription as string);
+        console.log("[webhook] billing extended to next 5th-of-month:", newDate.toISOString());
       } catch (e) {
         console.error("[webhook] billing extension failed (non-fatal):", e);
       }

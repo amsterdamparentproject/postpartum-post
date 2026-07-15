@@ -2,13 +2,13 @@
 
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
+import { extendSubscriptionToNext5th } from "@/lib/subscription-utils";
 import { verifySkipToken, monthToDate } from "@/lib/tokens";
 import { sendAutoPauseEmail } from "@/lib/emails";
 
 export type SkipStatus = "ok" | "already_skipped" | "invalid_token" | "not_found";
 export type SkipResult = { status: SkipStatus; email?: string };
 
-const SECONDS_PER_DAY = 86_400;
 const AUTO_PAUSE_THRESHOLD = 3;
 
 export async function recordSkip(
@@ -77,8 +77,8 @@ export async function recordSkip(
 /**
  * Adjusts billing for a skipped month:
  * - Monthly plans: pause Stripe collection for the skip month (no invoice generated).
- * - 3-month plans: extend the current period end by 30 days (member has already paid
- *   upfront; this pushes when the next charge fires).
+ * - 3-month plans: push the current period end to the next match day (member has
+ *   already paid upfront; this delays when the next charge fires).
  */
 /** Returns true if the member is on a monthly plan (used to gate auto-pause logic). */
 async function adjustStripeBilling(
@@ -119,16 +119,10 @@ async function adjustStripeBilling(
       pause_collection: { behavior: "void", resumes_at: resumesAt },
     });
   } else {
-    // 3-month or first20 prepaid plan — push the next billing date forward by 30 days.
-    // trial_end on an active subscription delays the next invoice without affecting
-    // the already-paid current period.
-    const currentPeriodEnd = stripeSub.items.data[0].current_period_end;
-    const newPeriodEnd = currentPeriodEnd + 30 * SECONDS_PER_DAY;
-
-    await stripe.subscriptions.update(sub.stripe_subscription_id, {
-      trial_end: newPeriodEnd,
-      proration_behavior: "none",
-    });
+    // 3-month or first20 prepaid plan — push the next billing date forward
+    // to the next match day. Member has already paid upfront; this delays
+    // the next charge without affecting the already-paid current period.
+    await extendSubscriptionToNext5th(sub.stripe_subscription_id);
   }
 
   return isMonthly;

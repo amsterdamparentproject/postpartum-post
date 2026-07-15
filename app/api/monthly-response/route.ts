@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { extendSubscriptionByOneMonth, cancelSubscription } from "@/lib/subscription-utils";
+import { extendSubscriptionToNext5th, cancelSubscription } from "@/lib/subscription-utils";
 
 const MAX_CONSECUTIVE_SKIPS = 3;
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ result: "canceled", reason: "max_skips_reached" });
     }
 
-    await extendSubscriptionByOneMonth(subscription.stripe_subscription_id);
+    await extendSubscriptionToNext5th(subscription.stripe_subscription_id);
     await supabase
       .from("members")
       .update({ consecutive_skips: newConsecutiveSkips })

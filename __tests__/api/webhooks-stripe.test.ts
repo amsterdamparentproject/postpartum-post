@@ -59,7 +59,15 @@ describe("Stripe webhook", () => {
     memberId = member.id;
 
     mockRetrieve.mockResolvedValue({
-      items: { data: [{ price: { id: "price_test_monthly" } }] },
+      items: {
+        data: [
+          {
+            price: { id: "price_test_monthly" },
+            current_period_end: Math.floor(new Date("2026-09-05T00:00:00Z").getTime() / 1000),
+          },
+        ],
+      },
+      metadata: {},
     });
 
     mockConstructEvent.mockReturnValue({
@@ -96,9 +104,22 @@ describe("Stripe webhook", () => {
 
   // ── Plan label tests ────────────────────────────────────────────────────
 
-  function makeCheckoutEvent(memberId: string, email: string, lookupKey: string) {
+  function makeCheckoutEvent(
+    memberId: string,
+    email: string,
+    lookupKey: string,
+    currentPeriodEndISO: string = "2026-09-05T00:00:00Z"
+  ) {
     mockRetrieve.mockResolvedValue({
-      items: { data: [{ price: { id: "price_test", lookup_key: lookupKey } }] },
+      items: {
+        data: [
+          {
+            price: { id: "price_test", lookup_key: lookupKey },
+            current_period_end: Math.floor(new Date(currentPeriodEndISO).getTime() / 1000),
+          },
+        ],
+      },
+      metadata: {},
       latest_invoice: { period_end: 1780000000 },
       billing_cycle_anchor: 1780000000,
     });
@@ -169,42 +190,40 @@ describe("Stripe webhook", () => {
   });
 
   // ── Billing extension tests ──────────────────────────────────────────────
+  // The webhook realigns a subscription's next charge to match day (the 5th)
+  // whenever the natural anchor Stripe already assigned at checkout (signup
+  // date + plan interval) doesn't land there. Driven entirely by the fetched
+  // subscription's current_period_end — not by "now" — since Stripe has
+  // already computed the natural anchor by the time the webhook runs.
 
   it.each([
-    // June 1: next match July 5 (different month) → extend
-    ["June 1",    "2026-06-01T00:00:00Z", "2026-07-05T00:00:00Z", true],
-    // August 4: next match August 5 (same month) → no extension
-    ["August 4",  "2026-08-04T00:00:00Z", null, false],
-    // August 20: next match September 5 (different month) → extend
-    ["August 20", "2026-08-20T00:00:00Z", "2026-09-05T00:00:00Z", true],
+    // Case A: signup Aug 1, 3mo plan → natural anchor Nov 1 → extend to Nov 5.
+    ["Nov 1 (Case A)", "2026-11-01T10:00:00Z", "2026-11-05T00:00:00Z", true],
+    // Case B: signup Aug 6, 3mo plan → natural anchor Nov 6 → extend to Dec 5.
+    ["Nov 6 (Case B)", "2026-11-06T10:00:00Z", "2026-12-05T00:00:00Z", true],
+    // Natural anchor already lands on the 5th → already aligned, no extension.
+    ["Aug 5 (aligned)", "2026-08-05T14:32:00Z", null, false],
   ])(
-    "billing extension on %s signup: extends=%s",
-    async (_label, signupDate, expectedTrialEnd, shouldExtend) => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date(signupDate));
+    "billing extension when natural anchor is %s: extends=%s",
+    async (_label, currentPeriodEndISO, expectedNewEnd, shouldExtend) => {
+      const member = await seedMember({ status: "pending" });
+      memberId = member.id;
+      makeCheckoutEvent(memberId, member.email, "commitment_3mo", currentPeriodEndISO);
 
-      try {
-        const member = await seedMember({ status: "pending" });
-        memberId = member.id;
-        makeCheckoutEvent(memberId, member.email, "commitment_3mo");
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
 
-        const res = await POST(makeRequest("{}"));
-        expect(res.status).toBe(200);
-
-        if (shouldExtend) {
-          const expected = Math.floor(new Date(expectedTrialEnd!).getTime() / 1000);
-          expect(mockUpdate).toHaveBeenCalledWith(
-            expect.any(String),
-            expect.objectContaining({
-              trial_end: expected,
-              proration_behavior: "none",
-            })
-          );
-        } else {
-          expect(mockUpdate).not.toHaveBeenCalled();
-        }
-      } finally {
-        vi.useRealTimers();
+      if (shouldExtend) {
+        const expected = Math.floor(new Date(expectedNewEnd!).getTime() / 1000);
+        expect(mockUpdate).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            trial_end: expected,
+            proration_behavior: "none",
+          })
+        );
+      } else {
+        expect(mockUpdate).not.toHaveBeenCalled();
       }
     }
   );
@@ -216,7 +235,15 @@ describe("Stripe webhook", () => {
     memberId = member.id;
 
     mockRetrieve.mockResolvedValue({
-      items: { data: [{ price: { id: "price_test_monthly", lookup_key: "standard_monthly" } }] },
+      items: {
+        data: [
+          {
+            price: { id: "price_test_monthly", lookup_key: "standard_monthly" },
+            current_period_end: Math.floor(new Date("2026-09-05T00:00:00Z").getTime() / 1000),
+          },
+        ],
+      },
+      metadata: {},
       latest_invoice: { period_end: 1780000000 },
       billing_cycle_anchor: 1780000000,
     });
@@ -294,7 +321,15 @@ describe("Stripe webhook", () => {
     memberId = member.id;
 
     mockRetrieve.mockResolvedValue({
-      items: { data: [{ price: { id: "price_test_3mo", lookup_key: "commitment_3mo" } }] },
+      items: {
+        data: [
+          {
+            price: { id: "price_test_3mo", lookup_key: "commitment_3mo" },
+            current_period_end: Math.floor(new Date("2026-09-05T00:00:00Z").getTime() / 1000),
+          },
+        ],
+      },
+      metadata: {},
       latest_invoice: { period_end: 1780000000 },
       billing_cycle_anchor: 1780000000,
       discounts: [{ promotion_code: promoCodeId }],

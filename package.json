@@ -19,7 +19,8 @@
     "member-update:prod": "NODE_ENV=production tsx scripts/send-member-update.mts prod",
     "consent-link": "tsx scripts/gen-consent-link.mts",
     "confirm-member": "tsx scripts/confirm-member.mts",
-    "reset-consent": "tsx scripts/reset-consent.mts"
+    "reset-consent": "tsx scripts/reset-consent.mts",
+    "grant-free-month": "tsx scripts/grant-free-month.mts"
   },
   "dependencies": {
     "@beehiiv/sdk": "^0.1.9",

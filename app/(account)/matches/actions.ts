@@ -326,8 +326,8 @@ export async function optInFromMatches(
       .maybeSingle();
 
     if (sub?.stripe_subscription_id) {
-      const { extendSubscriptionByOneMonth } = await import("@/lib/subscription-utils");
-      await extendSubscriptionByOneMonth(sub.stripe_subscription_id);
+      const { extendSubscriptionToNext5th } = await import("@/lib/subscription-utils");
+      await extendSubscriptionToNext5th(sub.stripe_subscription_id);
     }
 
     await supabase

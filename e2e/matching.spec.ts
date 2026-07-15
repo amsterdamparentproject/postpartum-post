@@ -183,7 +183,7 @@ test(
   async ({ page }) => {
     const month = currentMonth();
 
-    // Real Stripe subscription needed so extendSubscriptionByOneMonth can
+    // Real Stripe subscription needed so extendSubscriptionToNext5th can
     // update the trial_end via the Stripe API.
     const member = await seedMemberWithSubscription({ firstName: "Carol", lastName: "Skip" });
 
@@ -210,15 +210,32 @@ test(
       // billing page under "Months skipped in a row".
       await expect(page.getByText(/months skipped in a row/i)).toBeVisible({ timeout: 15_000 });
 
-      // ── Step 4: Stripe subscription extended by approximately one month ───
+      // The billing page's Status badge reflects our own `subscriptions.status`
+      // DB column (set once at signup, never synced with Stripe's live
+      // status — see getSubscriptionDetails in app/actions/profile.ts), so it
+      // stays "Active" even though the skip just put the Stripe subscription
+      // into "trialing" under the hood. Assert what's actually shown, and
+      // guard against the raw "Trial" wording ever leaking through.
+      await expect(page.getByText("Active", { exact: true })).toBeVisible();
+      await expect(page.getByText("Trial", { exact: true })).not.toBeVisible();
+
+      // ── Step 4: Stripe subscription extended to the next match day ────────
       const trialEndAfter = await getStripeTrialEnd(member.stripeSubscriptionId);
 
       expect(trialEndAfter).not.toBeNull();
       expect(trialEndBefore).not.toBeNull();
-      // Extension adds ~30 days; allow 28–33 days to account for month length
-      const extensionDays = (trialEndAfter! - trialEndBefore!) / (24 * 60 * 60);
-      expect(extensionDays).toBeGreaterThan(28);
-      expect(extensionDays).toBeLessThan(33);
+      // extendSubscriptionToNext5th rounds forward to the next 5th-of-month
+      // rather than always adding a flat ~30 days — the gap varies (as
+      // little as ~1 day, as much as ~31) depending on where in the month
+      // the subscription's period end already falls when the skip happens.
+      // Assert the invariant that actually holds regardless of test-run
+      // date: it's a forward-only extension landing exactly on the 5th.
+      expect(trialEndAfter!).toBeGreaterThan(trialEndBefore!);
+      const afterDate = new Date(trialEndAfter! * 1000);
+      expect(afterDate.getUTCDate()).toBe(5);
+      expect(afterDate.getUTCHours()).toBe(0);
+      expect(afterDate.getUTCMinutes()).toBe(0);
+      expect(afterDate.getUTCSeconds()).toBe(0);
 
       // ── Step 5: DB reflects the skip, not an opt-in ───────────────────────
       expect(await hasMemberParticipation(member.id, month)).toBe(false);
