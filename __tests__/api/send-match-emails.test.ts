@@ -125,7 +125,7 @@ describe("POST /api/send-match-emails — topic resolution", () => {
       // Both emails should carry null so the template uses the "hang" fallback
       expect(mockSend).toHaveBeenCalledTimes(2);
       for (const call of mockSend.mock.calls) {
-        const topic = call[4]; // sendMatchRevealEmail(email, recipientFirst, matchFirst, matchLast, topic, ...)
+        const topic = call[5]; // sendMatchRevealEmail(email, recipientFirst, matchFirst, matchLast, matchEmail, topic, ...)
         expect(topic).toBeNull();
       }
     } finally {
@@ -148,7 +148,7 @@ describe("POST /api/send-match-emails — topic resolution", () => {
 
       expect(mockSend).toHaveBeenCalledTimes(2);
       for (const call of mockSend.mock.calls) {
-        const topic = call[4];
+        const topic = call[5];
         expect(topic).toBe("coffee");
       }
     } finally {

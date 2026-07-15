@@ -239,10 +239,18 @@ export function ctaButton(label: string, url: string): string {
 /**
  * Body copy section — pass inner <tr><td>...</td></tr> rows.
  * Handles all the email-table nesting boilerplate.
+ *
+ * @param tightBottom  Drop this section's own trailing 16px spacer row.
+ *   Use when a ctaButton() immediately follows — that button's already got
+ *   its own bottom padding, and this section's default bottom spacing was
+ *   designed for section-to-section gaps, not text-to-button gaps. Without
+ *   this, the gap above a button ends up noticeably larger than the gap
+ *   below it (16 text + 26 inner + 16 outer = 58px vs. 16 button + 26 next
+ *   section = 42px). Defaults to false so existing callers are unaffected.
  */
-export function bodySection(rows: string): string {
+export function bodySection(rows: string, tightBottom = false): string {
   return `
-                  <tr><td style="padding:0 24px 16px">
+                  <tr><td style="padding:0 24px ${tightBottom ? 0 : 16}px">
                     <table border="0" cellpadding="0" cellspacing="0" align="center"
                       style="display:table;width:100%;max-width:100%;table-layout:fixed;margin:0 auto">
                       <tbody><tr><td>

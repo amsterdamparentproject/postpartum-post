@@ -62,6 +62,7 @@ await send("match-reveal", () =>
     "Alex",
     "Sarah",
     "van der Berg",
+    "sarah.vanderberg@example.com",
     "coffee",
     "https://postpartumpost.com/matches/preview",
     "https://postpartumpost.com/matches",
