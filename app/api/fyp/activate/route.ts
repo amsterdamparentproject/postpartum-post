@@ -146,7 +146,13 @@ async function getOrCreateBundleCoupon(
   }
   const coupon = await stripe.coupons.create({
     id,
-    name: `Postpartum Post for FYP bundle — ${months} months`,
+    // Stripe caps coupon `name` at 40 characters — the original
+    // "Postpartum Post for FYP bundle — X months" template was 41+ chars
+    // even at a single digit, so every bundle activation 500'd here (see
+    // fyp-hub-auth memory / the "Invalid string ... must be at most 40
+    // characters" error). This shorter form stays under the limit through
+    // double-digit month counts.
+    name: `Postpartum Post — FYP bundle (${months}mo)`,
     percent_off: 100,
     duration: "repeating",
     duration_in_months: months,

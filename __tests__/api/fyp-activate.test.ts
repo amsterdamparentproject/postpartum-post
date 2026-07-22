@@ -516,11 +516,12 @@ describe("POST /api/fyp/activate", () => {
     expect(mockCouponsCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         id: couponId,
-        name: `Postpartum Post for FYP bundle — ${months} months`,
+        name: `Postpartum Post — FYP bundle (${months}mo)`,
         percent_off: 100,
         duration: "repeating",
         duration_in_months: months,
         applies_to: { products: ["prod_standard_monthly"] },
+        metadata: { product: "fyp_bundle_comp" },
       }),
     );
 
