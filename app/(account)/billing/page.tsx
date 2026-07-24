@@ -29,7 +29,7 @@ function formatDate(unixTimestamp: number) {
 }
 
 function BillingContent() {
-  const { loading, member } = useAccount();
+  const { loading, member, accessToken } = useAccount();
   const searchParams = useSearchParams();
   const optinParam = searchParams.get("optin");
   const [showSkipBanner, setShowSkipBanner] = useState(optinParam === "skip" || optinParam === "already_skip");
@@ -40,14 +40,14 @@ function BillingContent() {
   const [isCancelPending, startCancelTransition] = useTransition();
 
   useEffect(() => {
-    if (member) {
+    if (member && accessToken) {
       setSubscriptionLoading(true);
-      getSubscriptionDetails(member.id).then((data) => {
+      getSubscriptionDetails(accessToken).then((data) => {
         setSubscription(data);
         setSubscriptionLoading(false);
       });
     }
-  }, [member]);
+  }, [member, accessToken]);
 
   function handleManageBilling() {
     if (!member?.stripe_customer_id) return;

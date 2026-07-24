@@ -7,12 +7,16 @@ import { getMemberProfile, type MemberProfile } from "@/app/actions/profile";
 type AccountContextValue = {
   loading: boolean;
   email: string | null;
+  /** Current session access token — pass to account server actions so they can
+   *  verify identity server-side rather than trusting a client-supplied id. */
+  accessToken: string | null;
   member: MemberProfile | null;
 };
 
 const AccountContext = createContext<AccountContextValue>({
   loading: true,
   email: null,
+  accessToken: null,
   member: null,
 });
 
@@ -23,6 +27,7 @@ export function useAccount() {
 export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [member, setMember] = useState<MemberProfile | null>(null);
 
   // Registers the auth listener. Deliberately does nothing but read the
@@ -47,6 +52,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const sessionEmail = session?.user?.email ?? null;
       setEmail(sessionEmail);
+      // access_token is available synchronously on the session object — safe to
+      // read here (no awaited Supabase call, so no onAuthStateChange deadlock).
+      setAccessToken(session?.access_token ?? null);
       if (!sessionEmail) {
         setMember(null);
         setLoading(false);
@@ -62,13 +70,13 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   // none is found — safely outside onAuthStateChange's callback (see
   // above). Re-runs whenever `email` changes.
   useEffect(() => {
-    if (!email) return;
+    if (!accessToken) return;
 
     let cancelled = false;
 
     (async () => {
       try {
-        const memberData = await getMemberProfile(email);
+        const memberData = await getMemberProfile(accessToken);
         if (cancelled) return;
         if (!memberData) {
           // Authenticated in Supabase but not in the members table.
@@ -91,10 +99,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [email]);
+  }, [accessToken]);
 
   return (
-    <AccountContext.Provider value={{ loading, email, member }}>
+    <AccountContext.Provider value={{ loading, email, accessToken, member }}>
       {children}
     </AccountContext.Provider>
   );

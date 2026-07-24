@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { geocodeZipcode } from "@/lib/matcher";
+import { requireMember } from "@/lib/require-member";
 
 export type Availability = {
   days: string[];
@@ -57,12 +58,17 @@ export async function checkMemberExists(email: string): Promise<boolean> {
   return data !== null;
 }
 
-export async function getMemberProfile(email: string): Promise<MemberProfile | null> {
+export async function getMemberProfile(accessToken: string): Promise<MemberProfile | null> {
+  // Identity comes from the verified session, never a client-supplied email
+  // (audit Finding 1) — this used to accept any email and return its full PII.
+  const authed = await requireMember(accessToken);
+  if (!authed) return null;
+
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("members")
     .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, consecutive_skips, availability, match_priority, children, open_to_second_match")
-    .eq("email", email.toLowerCase())
+    .eq("id", authed.memberId)
     .single();
   if (error && error.code !== "PGRST116") {
     // PGRST116 = "no rows returned" — expected for non-members. Anything else is a real error.
@@ -80,12 +86,15 @@ export async function getTopics(): Promise<Topic[]> {
   return data ?? [];
 }
 
-export async function getSubscriptionDetails(memberId: string): Promise<SubscriptionDetails | null> {
+export async function getSubscriptionDetails(accessToken: string): Promise<SubscriptionDetails | null> {
+  const authed = await requireMember(accessToken);
+  if (!authed) return null;
+
   const supabase = createAdminClient();
   const { data: sub } = await supabase
     .from("subscriptions")
     .select("status, stripe_subscription_id, stripe_price_id")
-    .eq("member_id", memberId)
+    .eq("member_id", authed.memberId)
     .neq("status", "canceled")
     .order("created_at", { ascending: false })
     .limit(1)

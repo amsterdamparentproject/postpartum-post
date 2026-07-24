@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { seedMember, cleanupMember, createTestSupabase } from "@tests/helpers";
+import { seedMember, cleanupMember, createTestSupabase, getAccessTokenForEmail, cleanupAuthUser } from "@tests/helpers";
 import { updateMemberProfile, getMemberProfile, checkMemberExists } from "@/app/actions/profile";
 import type { Availability, Child } from "@/app/actions/profile";
 
@@ -20,13 +20,20 @@ describe("email case-insensitivity", () => {
     if (memberId) await cleanupMember(memberId);
   });
 
-  it("getMemberProfile finds a member regardless of input casing", async () => {
+  it("getMemberProfile returns the member for a valid token, and null for an invalid one", async () => {
     const member = await seedMember();
     memberId = member.id;
 
-    const result = await getMemberProfile(member.email.toUpperCase());
-    expect(result).not.toBeNull();
-    expect(result?.id).toBe(memberId);
+    const token = await getAccessTokenForEmail(member.email);
+    try {
+      const result = await getMemberProfile(token);
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe(memberId);
+      // A bogus token must never resolve to anyone's profile (audit Finding 1).
+      expect(await getMemberProfile("not-a-real-token")).toBeNull();
+    } finally {
+      await cleanupAuthUser(member.email);
+    }
   });
 
   it("checkMemberExists returns true regardless of input casing", async () => {
@@ -136,15 +143,20 @@ describe("profile — matching fields", () => {
     memberId = member.id;
     memberEmail = member.email;
 
-    const profile = await getMemberProfile(memberEmail);
+    const token = await getAccessTokenForEmail(memberEmail);
+    try {
+      const profile = await getMemberProfile(token);
 
-    expect(profile?.zipcode).toBe("1054GH");
-    expect(profile?.children).toEqual([
-      { birth_month: 7, birth_year: 2023, expected: false },
-    ]);
-    expect(profile?.availability).toEqual({
-      days: ["friday"],
-      times: ["afternoon", "evening"],
-    });
+      expect(profile?.zipcode).toBe("1054GH");
+      expect(profile?.children).toEqual([
+        { birth_month: 7, birth_year: 2023, expected: false },
+      ]);
+      expect(profile?.availability).toEqual({
+        days: ["friday"],
+        times: ["afternoon", "evening"],
+      });
+    } finally {
+      await cleanupAuthUser(memberEmail);
+    }
   });
 });

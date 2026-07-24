@@ -473,8 +473,9 @@ async function assertPersonalizedMatchPage(
   // designated to go first — never the viewer's own address.
   await expect(page.locator(`a[href^="mailto:${other.email}"]`)).toBeVisible();
   await expect(page.locator(`a[href^="mailto:${viewer.email}"]`)).toHaveCount(0);
-  // The rematch link is stamped with the viewer's own member ID directly
-  // (no RematchSessionGate round-trip needed for this entry point).
+  // The rematch link is stamped with the viewer's own member ID directly —
+  // every /rematch entry point passes member_id, so the page needs no session
+  // lookup of its own.
   await expect(
     page.locator(`a[href^="/rematch?member_id=${viewer.id}&match_id=${matchId}"]`).first()
   ).toBeVisible();

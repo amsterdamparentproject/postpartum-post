@@ -42,7 +42,7 @@ export type MatchPageResult =
       viewerIsInitiator: boolean;
       /** The signed-in viewer's own member ID — lets the page link straight
        *  into /rematch?member_id=...&match_id=... without an extra session
-       *  lookup (see components/RematchSessionGate.tsx for the fallback path). */
+       *  lookup — every /rematch entry point passes member_id directly. */
       viewerMemberId: string;
       /** Shared topic (coffee/playdate) if both members agree, else null. */
       topic: string | null;
