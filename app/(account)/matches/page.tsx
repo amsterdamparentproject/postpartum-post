@@ -90,6 +90,7 @@ export default function MatchesPage() {
           exclusions={exclusions}
           onExclusionsChange={setExclusions}
           activeMatch={status?.type === "matched" ? status.matches.find((m) => !m.rematchRequested) ?? null : null}
+          hasAnyMatch={status?.type === "matched" || pastMatches.length > 0}
         />
       </div>
     </div>
@@ -105,11 +106,13 @@ function MatchAdmin({
   exclusions,
   onExclusionsChange,
   activeMatch,
+  hasAnyMatch,
 }: {
   memberId: string;
   exclusions: Exclusion[];
   onExclusionsChange: (e: Exclusion[]) => void;
   activeMatch: MatchEntry | null;
+  hasAnyMatch: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -146,6 +149,18 @@ function MatchAdmin({
 
   return (
     <div className="space-y-3">
+      {hasAnyMatch && (
+        <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-2">
+          <h2 className="font-semibold text-dark text-sm">Match feedback</h2>
+          <p className="text-xs text-muted">Met up with your match? We&apos;d love to hear how it went.</p>
+          <Link
+            href="/feedback"
+            className="inline-block w-full text-center rounded-lg bg-dark text-white text-sm py-2 font-medium hover:opacity-80 transition-opacity"
+          >
+            Share feedback
+          </Link>
+        </div>
+      )}
       {activeMatch && (() => {
         const beforeCutoff = new Date().getDate() <= 14;
         return (
