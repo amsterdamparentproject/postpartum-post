@@ -3,7 +3,8 @@
 import { useState, useTransition, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useRouter } from "next/navigation";
 import { getOnboardingSignInLink } from "@/app/actions/auth";
-import { updateMemberProfile, type MemberProfile, type Availability, type Child } from "@/app/actions/profile";
+import { updateMemberProfile, updateOnboardingProfile, type MemberProfile, type Availability, type Child } from "@/app/actions/profile";
+import { createBrowserClient } from "@/lib/supabase";
 import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 
@@ -169,7 +170,6 @@ function arrEq(a: string[], b: string[]) {
 }
 
 type Props = {
-  memberId: string;
   initialData: Partial<MemberProfile>;
 
   mode: "onboarding" | "profile";
@@ -193,7 +193,7 @@ const SECTION_TITLES: Record<string, string> = {
 };
 
 const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
-  { memberId, initialData, mode, section, sessionId }: Props,
+  { initialData, mode, section, sessionId }: Props,
   ref,
 ) {
   const [firstName, setFirstName] = useState(initialData.first_name ?? "");
@@ -310,16 +310,26 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
 
     startTransition(async () => {
       try {
-        await updateMemberProfile(memberId, initialData.email ?? email, updates);
-        setSaved(true);
         if (mode === "onboarding") {
-          // Sign the new member in as themselves via a magic link derived from
-          // their verified Stripe checkout session — never from a client-supplied
-          // email (audit S1 PP twin). Falls back to /profile if unverifiable.
+          // Onboarding: no auth session exists yet — both the update and the
+          // sign-in link are authorized by the verified Stripe checkout session,
+          // never a client-supplied id/email (audit Finding 1 / S1 PP twin).
+          await updateOnboardingProfile(sessionId ?? "", updates);
+          setSaved(true);
           const link = await getOnboardingSignInLink(sessionId ?? "");
           router.push(link);
           return;
         }
+
+        // Authenticated profile edit — identity comes from the live session
+        // token, verified server-side; no client-supplied member id.
+        const { data: { session } } = await createBrowserClient().auth.getSession();
+        if (!session) {
+          setSaveError("Your session has expired. Please sign in again.");
+          return;
+        }
+        await updateMemberProfile(session.access_token, updates);
+        setSaved(true);
         setSnapshot({
           firstName, lastName, email, zipcode,
           languages: [...languages], parentType: (parentType || "anyone") as "mom" | "dad" | "anyone",

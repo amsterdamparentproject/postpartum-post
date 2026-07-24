@@ -156,21 +156,29 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
   };
 }
 
-export async function updateMemberProfile(
+type ProfileUpdates = Partial<{
+  first_name: string;
+  last_name: string;
+  email: string;
+  zipcode: string | null;
+  language: string[] | null;
+  parent_type: "mom" | "dad" | "anyone";
+  availability: Availability | null;
+  match_priority: "age" | "proximity" | null;
+  children: Child[] | null;
+  open_to_second_match: boolean;
+}>;
+
+/**
+ * Applies a profile update for an already-resolved member. Callers MUST resolve
+ * the member id from a verified identity first (never a client-supplied id) —
+ * see updateMemberProfile (authed session) and updateOnboardingProfile (Stripe
+ * checkout session). Internal helper — not a callable server action.
+ */
+async function applyMemberProfileUpdate(
   memberId: string,
   currentEmail: string,
-  updates: Partial<{
-    first_name: string;
-    last_name: string;
-    email: string;
-    zipcode: string | null;
-    language: string[] | null;
-    parent_type: "mom" | "dad" | "anyone";
-    availability: Availability | null;
-    match_priority: "age" | "proximity" | null;
-    children: Child[] | null;
-    open_to_second_match: boolean;
-  }>
+  updates: ProfileUpdates
 ) {
   const supabase = createAdminClient();
 
@@ -240,6 +248,56 @@ export async function updateMemberProfile(
         .then(() => {}, (e) => console.error("Failed to clear geocoords:", e));
     }
   }
+}
+
+/**
+ * Authenticated profile edit (the /profile page). Identity comes from the
+ * verified session token — the client-supplied member id is gone (audit
+ * Finding 1).
+ */
+export async function updateMemberProfile(
+  accessToken: string,
+  updates: ProfileUpdates
+) {
+  const authed = await requireMember(accessToken);
+  if (!authed) throw new Error("Not signed in");
+  return applyMemberProfileUpdate(authed.memberId, authed.email, updates);
+}
+
+/**
+ * Onboarding profile save (the /success page). No auth session exists yet, so
+ * identity is proven by the Stripe Checkout Session id (present only in the
+ * member's own return URL) rather than a client-supplied id — same anchor as
+ * getOnboardingSignInLink.
+ */
+export async function updateOnboardingProfile(
+  sessionId: string,
+  updates: ProfileUpdates
+) {
+  const supabase = createAdminClient();
+
+  let memberId: string | undefined;
+  let email = "";
+  try {
+    const session = await getStripe().checkout.sessions.retrieve(sessionId);
+    const verified =
+      session.status === "complete" || session.payment_status === "paid";
+    const id = session.metadata?.member_id;
+    if (verified && id) {
+      memberId = id;
+      const { data: m } = await supabase
+        .from("members")
+        .select("email")
+        .eq("id", id)
+        .single();
+      email = m?.email?.toLowerCase() ?? "";
+    }
+  } catch (e) {
+    console.error("[updateOnboardingProfile] session verification failed:", e);
+  }
+
+  if (!memberId) throw new Error("Could not verify checkout session");
+  return applyMemberProfileUpdate(memberId, email, updates);
 }
 
 export async function getCustomerPortalUrl(stripeCustomerId: string): Promise<string> {

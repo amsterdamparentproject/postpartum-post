@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase";
+import { requireMember } from "@/lib/require-member";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { generateMatchToken } from "@/lib/match-token";
 
@@ -19,7 +20,10 @@ export type AddExclusionResult =
   | { success: true; exclusion: Exclusion }
   | { success: false; error: "not_found" | "already_excluded" | "self" };
 
-export async function getExclusions(memberId: string): Promise<Exclusion[]> {
+export async function getExclusions(accessToken: string): Promise<Exclusion[]> {
+  const authed = await requireMember(accessToken);
+  if (!authed) return [];
+  const memberId = authed.memberId;
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -52,9 +56,12 @@ export async function getExclusions(memberId: string): Promise<Exclusion[]> {
 }
 
 export async function addExclusion(
-  memberId: string,
+  accessToken: string,
   email: string,
 ): Promise<AddExclusionResult> {
+  const authed = await requireMember(accessToken);
+  if (!authed) return { success: false, error: "not_found" };
+  const memberId = authed.memberId;
   const supabase = createAdminClient();
 
   // Look up the target member by email
@@ -105,9 +112,12 @@ export async function addExclusion(
 }
 
 export async function addExclusionByMemberId(
-  memberId: string,
+  accessToken: string,
   targetMemberId: string,
 ): Promise<{ success: boolean }> {
+  const authed = await requireMember(accessToken);
+  if (!authed) return { success: false };
+  const memberId = authed.memberId;
   const supabase = createAdminClient();
 
   // Check first — the unique index is order-independent (least/greatest),
@@ -136,9 +146,12 @@ export async function addExclusionByMemberId(
 }
 
 export async function deleteExclusion(
-  memberId: string,
+  accessToken: string,
   exclusionId: string,
 ): Promise<{ success: boolean }> {
+  const authed = await requireMember(accessToken);
+  if (!authed) return { success: false };
+  const memberId = authed.memberId;
   const supabase = createAdminClient();
 
   // Only allow deletion if this member is one of the pair
@@ -175,7 +188,10 @@ export type MatchStatus =
  * Returns all matches for a member across all time, plus current-month status.
  * A match is active when it's from the current month AND has no rematch request.
  */
-export async function getMatchStatus(memberId: string): Promise<MatchStatus> {
+export async function getMatchStatus(accessToken: string): Promise<MatchStatus> {
+  const authed = await requireMember(accessToken);
+  if (!authed) return { type: "none", pastMatches: [] };
+  const memberId = authed.memberId;
   const supabase = createAdminClient();
   const monthDate = monthToDate(currentMonth());
 
@@ -284,13 +300,16 @@ export type OptInResult =
 const OPTIN_DEADLINE_DAY = 5;
 
 export async function optInFromMatches(
-  memberId: string,
+  accessToken: string,
   action: OptInAction
 ): Promise<OptInResult> {
   if (new Date().getDate() > OPTIN_DEADLINE_DAY) {
     return { success: false, error: "closed" };
   }
 
+  const authed = await requireMember(accessToken);
+  if (!authed) return { success: false, error: "server_error" };
+  const memberId = authed.memberId;
   const supabase = createAdminClient();
   const monthDate = monthToDate(currentMonth());
 

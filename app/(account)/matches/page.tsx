@@ -20,16 +20,16 @@ import {
 const OPTIN_DEADLINE_DAY = 5;
 
 export default function MatchesPage() {
-  const { loading, member } = useAccount();
+  const { loading, member, accessToken } = useAccount();
   const [status, setStatus] = useState<MatchStatus | null>(null);
   const [exclusions, setExclusions] = useState<Exclusion[]>([]);
 
   useEffect(() => {
-    if (member) {
-      getMatchStatus(member.id).then(setStatus);
-      getExclusions(member.id).then(setExclusions);
+    if (member && accessToken) {
+      getMatchStatus(accessToken).then(setStatus);
+      getExclusions(accessToken).then(setExclusions);
     }
-  }, [member]);
+  }, [member, accessToken]);
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!member) return <MagicLinkRequest />;
@@ -50,7 +50,8 @@ export default function MatchesPage() {
               key={m.matchId}
               match={m}
               memberId={member.id}
-              onExclusionAdded={() => getExclusions(member.id).then(setExclusions)}
+              accessToken={accessToken ?? ""}
+              onExclusionAdded={() => getExclusions(accessToken ?? "").then(setExclusions)}
             />
           ))}
           {status?.type === "pending" && <PendingCard topic={status.topic} />}
@@ -58,8 +59,8 @@ export default function MatchesPage() {
           {status?.type === "none" && (
             new Date().getDate() <= OPTIN_DEADLINE_DAY ? (
               <OptInCard
-                memberId={member.id}
-                onOptIn={() => getMatchStatus(member.id).then(setStatus)}
+                accessToken={accessToken ?? ""}
+                onOptIn={() => getMatchStatus(accessToken ?? "").then(setStatus)}
               />
             ) : pastMatches.length === 0 ? (
               <EmptyCard />
@@ -76,7 +77,7 @@ export default function MatchesPage() {
               {pastMatches.length === 1 ? "Past match" : "Past matches"}
             </h2>
             {pastMatches.map((m) => (
-              <MatchedCard key={m.matchId} match={m} memberId={member.id} disabled />
+              <MatchedCard key={m.matchId} match={m} memberId={member.id} accessToken={accessToken ?? ""} disabled />
             ))}
           </section>
         )}
@@ -87,6 +88,7 @@ export default function MatchesPage() {
         <h2 className="text-base font-semibold text-dark pl-4 mb-4">Admin</h2>
         <MatchAdmin
           memberId={member.id}
+          accessToken={accessToken ?? ""}
           exclusions={exclusions}
           onExclusionsChange={setExclusions}
           activeMatch={status?.type === "matched" ? status.matches.find((m) => !m.rematchRequested) ?? null : null}
@@ -103,12 +105,14 @@ export default function MatchesPage() {
 
 function MatchAdmin({
   memberId,
+  accessToken,
   exclusions,
   onExclusionsChange,
   activeMatch,
   hasAnyMatch,
 }: {
   memberId: string;
+  accessToken: string;
   exclusions: Exclusion[];
   onExclusionsChange: (e: Exclusion[]) => void;
   activeMatch: MatchEntry | null;
@@ -122,7 +126,7 @@ function MatchAdmin({
     e.preventDefault();
     setFeedback(null);
     startTransition(async () => {
-      const result = await addExclusion(memberId, email);
+      const result = await addExclusion(accessToken, email);
       if (result.success) {
         setEmail("");
         setFeedback({ type: "success", message: `${result.exclusion.otherMemberName} added to your exclusion list.` });
@@ -140,7 +144,7 @@ function MatchAdmin({
 
   function handleDelete(exclusionId: string) {
     startTransition(async () => {
-      const result = await deleteExclusion(memberId, exclusionId);
+      const result = await deleteExclusion(accessToken, exclusionId);
       if (result.success) {
         onExclusionsChange(exclusions.filter((ex) => ex.id !== exclusionId));
       }
@@ -259,11 +263,13 @@ function MatchAdmin({
 function MatchedCard({
   match,
   memberId,
+  accessToken,
   disabled = false,
   onExclusionAdded,
 }: {
   match: MatchEntry;
   memberId: string;
+  accessToken: string;
   disabled?: boolean;
   onExclusionAdded?: () => void;
 }) {
@@ -278,7 +284,7 @@ function MatchedCard({
 
   function handleAddToDoNotMatch() {
     startTransition(async () => {
-      await addExclusionByMemberId(memberId, matchMemberId);
+      await addExclusionByMemberId(accessToken, matchMemberId);
       setShowConfirm(false);
       setIsExcluded(true);
       onExclusionAdded?.();
@@ -443,7 +449,7 @@ function SkippedCard({ month }: { month: string }) {
   );
 }
 
-function OptInCard({ memberId, onOptIn }: { memberId: string; onOptIn: () => void }) {
+function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () => void }) {
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<OptInAction | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -452,7 +458,7 @@ function OptInCard({ memberId, onOptIn }: { memberId: string; onOptIn: () => voi
     setError(null);
     setPendingAction(action);
     startTransition(async () => {
-      const result = await optInFromMatches(memberId, action);
+      const result = await optInFromMatches(accessToken, action);
       if (result.success) {
         onOptIn();
       } else {

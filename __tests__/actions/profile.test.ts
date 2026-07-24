@@ -49,16 +49,20 @@ describe("email case-insensitivity", () => {
 
 describe("profile — geocoding on save", () => {
   let memberId: string;
+  let memberEmail: string;
 
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
+    if (memberEmail) await cleanupAuthUser(memberEmail);
   });
 
   it("writes lat/lng after a zipcode is saved", async () => {
     const member = await seedMember();
     memberId = member.id;
+    memberEmail = member.email;
 
-    await updateMemberProfile(memberId, member.email, { zipcode: "1012AB" });
+    const token = await getAccessTokenForEmail(member.email);
+    await updateMemberProfile(token, { zipcode: "1012AB" });
 
     const supabase = createTestSupabase();
     await vi.waitFor(async () => {
@@ -75,12 +79,14 @@ describe("profile — geocoding on save", () => {
   it("clears lat/lng when zipcode is set to null", async () => {
     const member = await seedMember({ zipcode: "1012AB" });
     memberId = member.id;
+    memberEmail = member.email;
 
     // Seed existing coords directly
     const supabase = createTestSupabase();
     await supabase.from("members").update({ lat: 52.374, lng: 4.89 }).eq("id", memberId);
 
-    await updateMemberProfile(memberId, member.email, { zipcode: null });
+    const token = await getAccessTokenForEmail(member.email);
+    await updateMemberProfile(token, { zipcode: null });
 
     await vi.waitFor(async () => {
       const { data } = await supabase
@@ -100,6 +106,7 @@ describe("profile — matching fields", () => {
 
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
+    if (memberEmail) await cleanupAuthUser(memberEmail);
   });
 
   it("persists zipcode, children, and availability to the DB", async () => {
@@ -116,7 +123,8 @@ describe("profile — matching fields", () => {
       times: ["morning"],
     };
 
-    await updateMemberProfile(memberId, memberEmail, {
+    const token = await getAccessTokenForEmail(memberEmail);
+    await updateMemberProfile(token, {
       zipcode: newZipcode,
       children: newChildren,
       availability: newAvailability,

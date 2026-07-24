@@ -18,6 +18,14 @@ import {
   type MatchCandidate,
 } from "@/lib/matcher";
 
+// addExclusion() now derives the member from a verified token via
+// requireMember. In these stubbed unit tests the "token" IS the member id;
+// requireMember's real verification is covered by __tests__/actions/profile.test.ts.
+vi.mock("@/lib/require-member", () => ({
+  requireMember: (token: string) =>
+    Promise.resolve(token ? { memberId: token, email: `${token}@test.com` } : null),
+}));
+
 // ---------------------------------------------------------------------------
 // Shared test helpers
 // ---------------------------------------------------------------------------

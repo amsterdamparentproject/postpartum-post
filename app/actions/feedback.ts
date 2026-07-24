@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase";
+import { requireMember } from "@/lib/require-member";
 
 // ---------------------------------------------------------------------------
 // Feedback context — used to label the form with the member's most recent
@@ -16,7 +17,10 @@ export type FeedbackContext = {
   monthLabel: string | null;
 };
 
-export async function getFeedbackContext(memberId: string): Promise<FeedbackContext> {
+export async function getFeedbackContext(accessToken: string): Promise<FeedbackContext> {
+  const authed = await requireMember(accessToken);
+  if (!authed) return { matchIds: [], monthLabel: null };
+  const memberId = authed.memberId;
   const supabase = createAdminClient();
 
   const { data } = await supabase
@@ -58,10 +62,14 @@ function inRange(n: number): boolean {
 }
 
 export async function submitMatchFeedback(
-  memberId: string,
+  accessToken: string,
   matchIds: string[],
   input: SubmitFeedbackInput,
 ): Promise<{ success: boolean }> {
+  const authed = await requireMember(accessToken);
+  if (!authed) throw new Error("Not signed in");
+  const memberId = authed.memberId;
+
   if (
     !inRange(input.happyWithMatch) ||
     !inRange(input.matchingProcessRating) ||

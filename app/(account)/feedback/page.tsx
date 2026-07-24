@@ -8,12 +8,12 @@ import { useAccount } from "@/app/(account)/AccountContext";
 import { getFeedbackContext, type FeedbackContext } from "@/app/actions/feedback";
 
 export default function FeedbackPage() {
-  const { loading, member } = useAccount();
+  const { loading, member, accessToken } = useAccount();
   const [context, setContext] = useState<FeedbackContext | null>(null);
 
   useEffect(() => {
-    if (member) getFeedbackContext(member.id).then(setContext);
-  }, [member]);
+    if (member && accessToken) getFeedbackContext(accessToken).then(setContext);
+  }, [member, accessToken]);
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!member) return <MagicLinkRequest redirectTo="/feedback" />;
@@ -39,7 +39,7 @@ export default function FeedbackPage() {
       </div>
 
       <FeedbackForm
-        memberId={member.id}
+        accessToken={accessToken ?? ""}
         matchIds={context?.matchIds ?? []}
         monthLabel={context?.monthLabel ?? null}
       />

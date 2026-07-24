@@ -29,6 +29,14 @@ vi.mock("@/lib/stripe", () => ({
   }),
 }));
 
+// In these unit tests the "token" passed to an action IS the member id —
+// requireMember's real token→member verification is covered separately by
+// __tests__/actions/profile.test.ts.
+vi.mock("@/lib/require-member", () => ({
+  requireMember: (token: string) =>
+    Promise.resolve(token ? { memberId: token, email: `${token}@test.com` } : null),
+}));
+
 function stripeMonthlySubResponse() {
   return {
     items: {

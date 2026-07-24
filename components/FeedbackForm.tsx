@@ -53,11 +53,11 @@ function RatingScale({
 }
 
 export default function FeedbackForm({
-  memberId,
+  accessToken,
   matchIds,
   monthLabel,
 }: {
-  memberId: string;
+  accessToken: string;
   matchIds: string[];
   monthLabel: string | null;
 }) {
@@ -86,7 +86,7 @@ export default function FeedbackForm({
     setError(null);
     startTransition(async () => {
       try {
-        await submitMatchFeedback(memberId, matchIds, {
+        await submitMatchFeedback(accessToken, matchIds, {
           happyWithMatch: ratings.happyWithMatch!,
           matchingProcessRating: ratings.matchingProcessRating!,
           matchPageHelpful: ratings.matchPageHelpful!,

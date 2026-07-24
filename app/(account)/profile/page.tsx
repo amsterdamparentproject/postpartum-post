@@ -73,7 +73,6 @@ export default function ProfilePage() {
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <ProfileForm
             ref={personalRef}
-            memberId={member.id}
             initialData={member}
 
             mode="profile"
@@ -84,7 +83,6 @@ export default function ProfilePage() {
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <ProfileForm
             ref={prefsRef}
-            memberId={member.id}
             initialData={member}
 
             mode="profile"
@@ -98,7 +96,6 @@ export default function ProfilePage() {
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <ProfileForm
             ref={detailsRef}
-            memberId={member.id}
             initialData={member}
 
             mode="profile"

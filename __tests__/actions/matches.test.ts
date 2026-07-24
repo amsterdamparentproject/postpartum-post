@@ -16,6 +16,13 @@ vi.mock("@/lib/tokens", () => ({
   currentMonth: () => "2026-06",
   monthToDate: () => "2026-06-01",
 }));
+// In these unit tests the "token" passed to an action IS the member id —
+// requireMember's real token→member verification is covered separately by
+// __tests__/actions/profile.test.ts.
+vi.mock("@/lib/require-member", () => ({
+  requireMember: (token: string) =>
+    Promise.resolve(token ? { memberId: token, email: `${token}@test.com` } : null),
+}));
 
 const MEMBER_A = "aaaaaaaa-0000-0000-0000-000000000000";
 const MEMBER_B = "bbbbbbbb-0000-0000-0000-000000000000";
