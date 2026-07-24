@@ -63,7 +63,8 @@ export default async function Success({
             <ProfileForm
               memberId={member.id}
               initialData={member}
-mode="onboarding"
+              mode="onboarding"
+              sessionId={session_id}
             />
           </div>
         ) : (

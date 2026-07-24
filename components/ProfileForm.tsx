@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useRouter } from "next/navigation";
-import { generateMagicLink } from "@/app/actions/auth";
+import { getOnboardingSignInLink } from "@/app/actions/auth";
 import { updateMemberProfile, type MemberProfile, type Availability, type Child } from "@/app/actions/profile";
 import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
@@ -174,6 +174,10 @@ type Props = {
 
   mode: "onboarding" | "profile";
   section?: "personal" | "details" | "preferences";
+  /** Stripe Checkout Session id (onboarding only). Used to mint the
+   *  post-checkout sign-in link against a verified session rather than a
+   *  client-supplied email — see app/actions/auth.ts (audit S1 PP twin). */
+  sessionId?: string;
 };
 
 export type ProfileFormHandle = {
@@ -189,7 +193,7 @@ const SECTION_TITLES: Record<string, string> = {
 };
 
 const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
-  { memberId, initialData, mode, section }: Props,
+  { memberId, initialData, mode, section, sessionId }: Props,
   ref,
 ) {
   const [firstName, setFirstName] = useState(initialData.first_name ?? "");
@@ -309,9 +313,10 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         await updateMemberProfile(memberId, initialData.email ?? email, updates);
         setSaved(true);
         if (mode === "onboarding") {
-          // Generate a magic link so the new member is signed in as themselves,
-          // regardless of who (if anyone) is currently authenticated in this browser.
-          const link = await generateMagicLink(initialData.email ?? email);
+          // Sign the new member in as themselves via a magic link derived from
+          // their verified Stripe checkout session — never from a client-supplied
+          // email (audit S1 PP twin). Falls back to /profile if unverifiable.
+          const link = await getOnboardingSignInLink(sessionId ?? "");
           router.push(link);
           return;
         }
