@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { verifyAdminSessionToken } from "@/lib/admin-session";
 
 const ADMIN_COOKIE = "admin_session";
 
 /**
  * Protects all /admin/* routes with a token-based session cookie.
- * The cookie is set by POST /api/admin/login and contains the ADMIN_SECRET.
- * If missing or invalid, redirect to /admin/login.
+ * The cookie is set by POST /api/admin/login to a derived, expiring token
+ * (see lib/admin-session.ts) — never the raw ADMIN_SECRET. If missing,
+ * invalid, or expired, redirect to /admin/login.
  */
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow the login page and login API through unconditionally
@@ -15,14 +17,13 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const secret = process.env.ADMIN_SECRET;
-  if (!secret) {
+  if (!process.env.ADMIN_SECRET) {
     // Misconfigured — block access
     return NextResponse.redirect(new URL("/admin/login", req.url));
   }
 
   const cookie = req.cookies.get(ADMIN_COOKIE)?.value;
-  if (cookie !== secret) {
+  if (!verifyAdminSessionToken(cookie)) {
     return NextResponse.redirect(new URL("/admin/login", req.url));
   }
 

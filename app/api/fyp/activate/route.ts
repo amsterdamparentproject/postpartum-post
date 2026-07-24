@@ -202,8 +202,8 @@ async function resolveCouponId(
 
 // Subscription-row statuses that mean "no live Stripe subscription exists
 // for this member" — see app/actions/profile.ts's status union and
-// app/api/monthly-response/route.ts / e2e/abandoned-checkout.spec.ts for
-// where each of these gets set. Anything NOT in this set (active, paused,
+// e2e/abandoned-checkout.spec.ts for where each of these gets set. Anything
+// NOT in this set (active, paused,
 // canceling, pending, ...) is treated as still-live: safer to attempt an
 // update (which fails loudly if that assumption is ever wrong) than to risk
 // creating a second, duplicate-billing subscription for the same customer.

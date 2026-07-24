@@ -24,9 +24,9 @@ export type ExtensionResult = { previousDate: Date; newDate: Date };
  * Shared by every place that needs to push a subscription's next charge out
  * by one cycle: member-initiated skips (app/actions/skip.ts and the
  * match-response flows in app/api/optin/route.ts,
- * app/(account)/matches/actions.ts, app/api/monthly-response/route.ts),
- * free-month grants (lib/free-month-grants.ts), and the signup-time
- * billing-anchor correction (app/api/webhooks/stripe/route.ts).
+ * app/(account)/matches/actions.ts), free-month grants
+ * (lib/free-month-grants.ts), and the signup-time billing-anchor correction
+ * (app/api/webhooks/stripe/route.ts).
  */
 export async function extendSubscriptionToNext5th(
   subscriptionId: string,
