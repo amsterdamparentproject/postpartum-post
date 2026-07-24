@@ -341,14 +341,12 @@ function MatchPageReady({
 
           {/* Feedback */}
           <div className="text-center">
-            <a
-              href="https://docs.google.com/forms/d/e/1FAIpQLScslq1CKK6FCg6jMyNaPBKn1xCwMT44y-yQb5KOS_K3FSLHzQ/viewform?usp=dialog"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/feedback"
               className="inline-block bg-coral text-white text-sm font-medium rounded-lg px-5 py-2.5 hover:opacity-90 transition-opacity"
             >
               Leave match feedback
-            </a>
+            </Link>
           </div>
 
           {/* Rematch */}

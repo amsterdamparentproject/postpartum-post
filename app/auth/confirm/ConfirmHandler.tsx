@@ -24,39 +24,53 @@ export default function ConfirmHandler({ next }: { next: string }) {
   const [status, setStatus] = useState<Status>("loading");
 
   useEffect(() => {
-    const tokenHash = searchParams.get("token_hash");
-    const type = searchParams.get("type");
+    const supabase = createBrowserClient();
 
-    // PKCE flow: token_hash arrives as a query param (standard magic link emails)
-    if (tokenHash && type) {
-      verifyMagicLinkToken(tokenHash, type).then((errorMessage) => {
-        if (errorMessage) {
-          console.error("[auth/confirm] verifyOtp error:", errorMessage);
-          setStatus("error");
-        } else {
-          setStatus("success");
-          router.replace(next);
-        }
-      });
-      return;
-    }
+    // Already signed in — e.g. this exact link was already clicked and
+    // verified once earlier. Tokens are single-use, so re-verifying would
+    // just fail with "expired"; if a session already exists, skip straight
+    // to the destination instead of showing that error to someone who's
+    // still validly logged in.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setStatus("success");
+        router.replace(next);
+        return;
+      }
 
-    // Implicit flow: access_token arrives in the hash fragment (admin.generateLink)
-    if (window.location.hash.includes("access_token")) {
-      const supabase = createBrowserClient();
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "SIGNED_IN") {
-          subscription.unsubscribe();
-          setStatus("success");
-          router.replace(next);
-        }
-      });
-      // Trigger the Supabase client to process the hash
-      supabase.auth.getSession();
-      return;
-    }
+      const tokenHash = searchParams.get("token_hash");
+      const type = searchParams.get("type");
 
-    setStatus("invalid");
+      // PKCE flow: token_hash arrives as a query param (standard magic link emails)
+      if (tokenHash && type) {
+        verifyMagicLinkToken(tokenHash, type).then((errorMessage) => {
+          if (errorMessage) {
+            console.error("[auth/confirm] verifyOtp error:", errorMessage);
+            setStatus("error");
+          } else {
+            setStatus("success");
+            router.replace(next);
+          }
+        });
+        return;
+      }
+
+      // Implicit flow: access_token arrives in the hash fragment (admin.generateLink)
+      if (window.location.hash.includes("access_token")) {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+          if (event === "SIGNED_IN") {
+            subscription.unsubscribe();
+            setStatus("success");
+            router.replace(next);
+          }
+        });
+        // Trigger the Supabase client to process the hash
+        supabase.auth.getSession();
+        return;
+      }
+
+      setStatus("invalid");
+    });
   }, [router, searchParams, next]);
 
   if (status === "loading" || status === "success") {

@@ -5,11 +5,17 @@
  * A match is skipped if:
  *   - a rematch was requested for it (partner info was already removed), or
  *   - it's flagged for review (safety concern), or
- *   - either member's status is no longer 'active' (paused/inactive/canceled since matching)
+ *   - either member's status is no longer 'active'/'canceling' (paused/inactive
+ *     since matching — 'canceling' still has paid access through the period
+ *     end and stays eligible, same treatment as scripts/send-member-update.mts)
  *
  * The "Tell us how it went" button links to /feedback via a Supabase magic
  * link, since that page is scoped to logged-in members — clicking it signs
  * the recipient straight in instead of dropping them at a sign-in prompt.
+ * The link routes through /auth/confirm?next=/feedback (same pattern as
+ * signInAndRedirect in app/api/optin/route.ts) rather than redirecting to
+ * /feedback directly, so an expired or already-used link shows a proper
+ * "This link has expired" message instead of silently landing signed out.
  *
  * Usage:
  *   yarn meetup-reminder:test              # runs against .env.test (amsterdamparentproject@gmail.com only)
@@ -40,6 +46,7 @@ config({ path: resolve(process.cwd(), envFile) });
 const TEST_EMAIL = "amsterdamparentproject@gmail.com";
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 const FEEDBACK_URL = `${SITE_URL}/feedback`;
+const FEEDBACK_CONFIRM_URL = `${SITE_URL}/auth/confirm?next=${encodeURIComponent("/feedback")}`;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -60,16 +67,31 @@ type MemberRow = {
   status: string;
 };
 
-/** Magic link straight to /feedback; falls back to a plain link if generation fails. */
+/** Statuses still eligible for the reminder — 'canceling' keeps access through period end. */
+const ELIGIBLE_STATUSES = ["active", "canceling"];
+
+/**
+ * Magic link through /auth/confirm?next=/feedback; falls back to a plain
+ * /feedback link (no auto sign-in) if generation fails.
+ *
+ * Built from hashed_token + type ourselves (postpartumpost.com/auth/confirm),
+ * rather than using the returned action_link directly — action_link points
+ * at <project-ref>.supabase.co/auth/v1/verify first, which is a working
+ * link but shows the raw Supabase project URL in the email before it
+ * redirects. Same reasoning as verifyMagicLinkToken's docblock in
+ * lib/auth-confirm.ts, applied here for the admin.generateLink caller too.
+ */
 async function feedbackMagicLink(email: string): Promise<string> {
   try {
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo: FEEDBACK_URL },
+      options: { redirectTo: FEEDBACK_CONFIRM_URL },
     });
-    if (!error && data?.properties?.action_link) {
-      return data.properties.action_link;
+    const hashedToken = data?.properties?.hashed_token;
+    if (!error && hashedToken) {
+      const next = encodeURIComponent("/feedback");
+      return `${SITE_URL}/auth/confirm?token_hash=${hashedToken}&type=magiclink&next=${next}`;
     }
   } catch (err) {
     console.error("[send-meetup-reminder] generateLink failed for", email, err);
@@ -118,7 +140,7 @@ for (const match of matches) {
     continue;
   }
 
-  if (m1.status !== "active" || m2.status !== "active") {
+  if (!ELIGIBLE_STATUSES.includes(m1.status) || !ELIGIBLE_STATUSES.includes(m2.status)) {
     console.log(`- Match ${match.id}: skipped (${m1.first_name} status=${m1.status}, ${m2.first_name} status=${m2.status})`);
     skipped++;
     continue;
