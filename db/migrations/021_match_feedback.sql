@@ -2,8 +2,7 @@
 -- match_ids is best-effort (all matches sharing the member's most recent
 -- matched_on date — usually one, but two for a double-matched month) and may
 -- be null/empty if the member has never been matched; feedback is still
--- accepted. Plain array, not a foreign key — Postgres doesn't support array
--- FKs, so referential integrity here is informational only.
+-- accepted.
 create table postpartumpost.match_feedback (
   id                       uuid primary key default gen_random_uuid(),
   member_id                uuid not null references postpartumpost.members(id) on delete cascade,

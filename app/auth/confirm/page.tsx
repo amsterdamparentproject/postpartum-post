@@ -1,99 +1,29 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { verifyMagicLinkToken } from "@/lib/auth-confirm";
-import { createBrowserClient } from "@/lib/supabase";
-import MagicLinkRequest from "@/components/MagicLinkRequest";
-import PageLayout from "@/components/PageLayout";
-import CalloutBox from "@/components/CalloutBox";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import ConfirmHandler, { Spinner } from "./ConfirmHandler";
 
-type Status = "loading" | "success" | "error" | "invalid";
-
-function ConfirmHandler() {
-  const router = useRouter();
+// Bare route — still reads `next` from a `?next=` query param here (unlike
+// /auth/confirm/[next], which takes it as a path segment). That's
+// intentional, not leftover: app/api/optin/route.ts's signInAndRedirect
+// builds exactly this shape (`/auth/confirm?next=...`) via
+// admin.generateLink(), which redirects through Supabase's own hosted
+// verify endpoint with the session in a hash fragment — never through the
+// shared email template's `?token_hash=...` concatenation, so there's no
+// collision risk for that caller. Only the signInWithOtp-based flows
+// (MagicLinkRequest, SkipReAuthButton) needed to move off query params —
+// see /auth/confirm/[next]/page.tsx's docblock.
+function ConfirmPageInner() {
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<Status>("loading");
-
-  useEffect(() => {
-    const tokenHash = searchParams.get("token_hash");
-    const type = searchParams.get("type");
-    const next = searchParams.get("next") ?? "/profile";
-
-    // PKCE flow: token_hash arrives as a query param (standard magic link emails)
-    if (tokenHash && type) {
-      verifyMagicLinkToken(tokenHash, type).then((errorMessage) => {
-        if (errorMessage) {
-          console.error("[auth/confirm] verifyOtp error:", errorMessage);
-          setStatus("error");
-        } else {
-          setStatus("success");
-          router.replace(next);
-        }
-      });
-      return;
-    }
-
-    // Implicit flow: access_token arrives in the hash fragment (admin.generateLink)
-    if (window.location.hash.includes("access_token")) {
-      const supabase = createBrowserClient();
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "SIGNED_IN") {
-          subscription.unsubscribe();
-          setStatus("success");
-          router.replace(next);
-        }
-      });
-      // Trigger the Supabase client to process the hash
-      supabase.auth.getSession();
-      return;
-    }
-
-    setStatus("invalid");
-  }, [router, searchParams]);
-
-  if (status === "loading" || status === "success") {
-    return <Spinner />;
-  }
-
-  // Link was expired, already used, or token is missing entirely
-  const isExpired = status === "error";
-
-  return (
-    <PageLayout>
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
-        <CalloutBox className="max-w-sm w-full">
-          <div className="text-4xl mb-4">{isExpired ? "⏱️" : "🔗"}</div>
-          <h2
-            className="text-2xl text-dark mb-2"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            {isExpired ? "This link has expired" : "Invalid sign-in link"}
-          </h2>
-          <p className="text-muted text-sm leading-relaxed mb-6">
-            {isExpired
-              ? "Sign-in links expire after 24 hours and can only be used once. Request a new one below."
-              : "This link doesn't look right. Try requesting a fresh sign-in link."}
-          </p>
-          <MagicLinkRequest />
-        </CalloutBox>
-      </main>
-    </PageLayout>
-  );
-}
-
-function Spinner() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-muted text-sm">Signing you in…</p>
-    </div>
-  );
+  const next = searchParams.get("next") ?? "/profile";
+  return <ConfirmHandler next={next} />;
 }
 
 export default function AuthConfirmPage() {
   return (
     <Suspense fallback={<Spinner />}>
-      <ConfirmHandler />
+      <ConfirmPageInner />
     </Suspense>
   );
 }

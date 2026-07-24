@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@/lib/supabase";
+import { encodeNextParam } from "@/lib/next-param";
 
 export default function SkipReAuthButton({ email }: { email: string }) {
   const router = useRouter();
@@ -22,9 +23,15 @@ export default function SkipReAuthButton({ email }: { email: string }) {
     startTransition(async () => {
       const supabase = createBrowserClient();
       await supabase.auth.signOut();
+      // Route through /auth/confirm/[next], not straight to /billing — see
+      // components/MagicLinkRequest.tsx's comment for why, and why `next`
+      // is base64url-encoded (lib/next-param.ts) rather than a `?next=`
+      // query param or a plain encodeURIComponent path segment.
       await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${window.location.origin}/billing` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm/${encodeNextParam("/billing")}`,
+        },
       });
       setSent(true);
     });

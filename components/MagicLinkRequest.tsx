@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { createBrowserClient } from "@/lib/supabase";
 import { checkMemberExists } from "@/app/actions/profile";
 import { getSignupMeta, type SignupMeta } from "@/app/actions/signup";
+import { encodeNextParam } from "@/lib/next-param";
 import CalloutBox from "@/components/CalloutBox";
 import SignupForm from "@/components/SignupForm";
 import EnvelopeLogo from "./EnvelopeLogo";
@@ -47,9 +48,28 @@ export default function MagicLinkRequest({
       }
       setState("sending");
       const supabase = createBrowserClient();
+      // Always route through /auth/confirm/[next], never straight to the
+      // final destination — the shared email template
+      // (site/emails/shared/signin.html) links with a bare token_hash query
+      // param, not Supabase's own hosted {{ .ConfirmationURL }}
+      // verify-then-redirect endpoint, so *something* has to call
+      // verifyOtp() before any session exists. Only /auth/confirm does
+      // that; /profile, /billing, /matches etc. don't and never have.
+      //
+      // `next` goes in the PATH, not a `?next=` query param — the template
+      // appends its own `?token_hash=...&type=...` to whatever this
+      // resolves to, and a query param here would collide with that (two
+      // bare `?`s in one URL, only the first is real — token_hash/type end
+      // up swallowed into next's own value instead of their own params).
+      // base64url (not encodeURIComponent) — see lib/next-param.ts for why
+      // a %2F-containing segment isn't safe either. See
+      // app/auth/confirm/[next]/page.tsx's docblock.
+      const next = encodeNextParam(redirectTo ?? "/profile");
       await supabase.auth.signInWithOtp({
         email: normalizedEmail,
-        options: { emailRedirectTo: `${window.location.origin}${redirectTo ?? "/profile"}` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm/${next}`,
+        },
       });
       setState("sent");
     });
