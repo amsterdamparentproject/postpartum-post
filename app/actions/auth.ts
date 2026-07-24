@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase";
+import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 
 /**
  * Generate a Supabase magic link for the given email.
@@ -11,17 +12,12 @@ export async function generateMagicLink(email: string): Promise<string> {
   const supabase = createAdminClient();
   const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}/profile`;
 
-  const { data, error } = await supabase.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-    options: { redirectTo },
-  });
-
-  if (error || !data.properties?.action_link) {
-    console.error("[generateMagicLink] failed:", error?.message);
+  const result = await generateMagicLinkWithRetry(supabase, email, redirectTo);
+  if (!result.success) {
+    console.error("[generateMagicLink] failed:", result.error);
     // Fall back to plain profile URL — they can sign in from there
     return redirectTo;
   }
 
-  return data.properties.action_link;
+  return result.url;
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { verifyOptinToken, type OptinAction } from "@/lib/optin-token";
 import { monthToDate } from "@/lib/tokens";
+import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 
 /**
  * GET /api/optin?member={memberId}&month={YYYY-MM}&action={coffee|playdate|skip}&token={hmac}
@@ -159,19 +160,11 @@ async function signInAndRedirect(supabase: any, email: string, redirectTo: strin
   const next = redirectTo.startsWith(origin) ? redirectTo.slice(origin.length) : redirectTo;
   const confirmUrl = `${origin}/auth/confirm?next=${encodeURIComponent(next)}`;
 
-  try {
-    const { data, error } = await supabase.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-      options: { redirectTo: confirmUrl },
-    });
-
-    if (!error && data?.properties?.action_link) {
-      return NextResponse.redirect(data.properties.action_link);
-    }
-  } catch (err) {
-    console.error("[optin] Failed to generate magic link:", err);
+  const result = await generateMagicLinkWithRetry(supabase, email, confirmUrl);
+  if (result.success) {
+    return NextResponse.redirect(result.url);
   }
+  console.error("[optin] Failed to generate magic link:", result.error);
 
   // Fallback — member lands on profile but may need to sign in manually
   return NextResponse.redirect(redirectTo);

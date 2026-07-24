@@ -30,6 +30,7 @@ import { currentMonth, monthToDate } from "@/lib/tokens";
 import { generateMatchToken } from "@/lib/match-token";
 import { isMember1Initiator } from "@/lib/match-initiator";
 import { sendMatchRevealEmail } from "@/lib/emails";
+import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
@@ -173,18 +174,11 @@ export async function POST(req: NextRequest) {
     // link if link generation fails, so the recipient can still sign in
     // manually from the resulting page.
     async function magicLink(email: string, redirectTo: string): Promise<string> {
-      try {
-        const { data, error } = await supabase.auth.admin.generateLink({
-          type: "magiclink",
-          email,
-          options: { redirectTo },
-        });
-        if (!error && data?.properties?.action_link) {
-          return data.properties.action_link;
-        }
-      } catch (err) {
-        console.error("[send-match-emails] generateLink failed for", email, err);
+      const result = await generateMagicLinkWithRetry(supabase, email, redirectTo);
+      if (result.success) {
+        return result.url;
       }
+      console.error("[send-match-emails] generateLink failed for", email, result.error);
       return redirectTo;
     }
 

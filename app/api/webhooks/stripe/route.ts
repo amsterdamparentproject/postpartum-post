@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
 import { extendSubscriptionToNext5th } from "@/lib/subscription-utils";
 import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
+import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -97,15 +98,11 @@ export async function POST(req: NextRequest) {
     const firstName = session.customer_details?.name?.split(" ")[0] ?? "there";
     const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}/profile`;
     let profileLink = redirectTo;
-    try {
-      const { data: linkData } = await supabase.auth.admin.generateLink({
-        type: "magiclink",
-        email,
-        options: { redirectTo },
-      });
-      profileLink = linkData?.properties?.action_link ?? redirectTo;
-    } catch (e) {
-      console.error("[webhook] generateLink failed, falling back to plain profile URL:", e);
+    const linkResult = await generateMagicLinkWithRetry(supabase, email, redirectTo);
+    if (linkResult.success) {
+      profileLink = linkResult.url;
+    } else {
+      console.error("[webhook] generateLink failed, falling back to plain profile URL:", linkResult.error);
     }
 
     // Derive human-readable plan label and next billing date for the welcome email.

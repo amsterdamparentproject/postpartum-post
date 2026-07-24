@@ -20,7 +20,12 @@ import { test, expect } from "@playwright/test";
 import { generateMagicLink, signInAs } from "./helpers/auth";
 import { cleanupMemberByEmail } from "./helpers/db";
 
-const TEST_EMAIL = `e2e-signup-${Date.now()}@example.com`;
+// Real, deliverable domain — this flow follows a real magic link generated
+// via supabase.auth.admin.generateLink() (step 5 above). @example.com gets
+// a hard SMTP rejection from Supabase's mail relay, which otherwise
+// surfaces here as a confusing "unrecognized JWT kid" failure. See
+// e2e/helpers/db.ts's testEmail() docblock for the full diagnosis.
+const TEST_EMAIL = `amsterdamparentproject+e2e-signup-${Date.now()}@gmail.com`;
 
 test.afterAll(async () => {
   await cleanupMemberByEmail(TEST_EMAIL);

@@ -20,22 +20,45 @@ function adminClient() {
 /**
  * Generate a Supabase magic link for the given email.
  * Returns the action_link URL — navigate to it in Playwright to sign in.
+ *
+ * Retries a couple of times on failure: diagnosed 2026-07-24, this project's
+ * admin.generateLink() intermittently fails with "unrecognized JWT kid
+ * <nil> for algorithm ES256" — a token with no `kid` header failing to
+ * match the project's single active ECC signing key. Not caused by an
+ * @example.com-domain email (Supabase's mail relay rejects that outright
+ * with a different, unambiguous SMTP error — test emails here already use a
+ * real gmail.com address, see e2e/helpers/db.ts) — this recurs even with a
+ * real, deliverable email. Looks like a Supabase-side quirk specific to
+ * this one Admin API endpoint rather than anything fixable here, so this
+ * retries around it rather than papering over it silently: a genuine,
+ * persistent failure (bad project config, wrong keys, etc.) still exhausts
+ * the retries and throws.
  */
 export async function generateMagicLink(email: string): Promise<string> {
   const supabase = adminClient();
   const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/profile`;
 
-  const { data, error } = await supabase.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-    options: { redirectTo },
-  });
+  const maxAttempts = 3;
+  let lastError: string | undefined;
 
-  if (error || !data.properties?.action_link) {
-    throw new Error(`generateMagicLink failed: ${error?.message ?? "no action_link returned"}`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+      options: { redirectTo },
+    });
+
+    if (!error && data.properties?.action_link) {
+      return data.properties.action_link;
+    }
+
+    lastError = error?.message ?? "no action_link returned";
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 500 * attempt));
+    }
   }
 
-  return data.properties.action_link;
+  throw new Error(`generateMagicLink failed after ${maxAttempts} attempts: ${lastError}`);
 }
 
 /**

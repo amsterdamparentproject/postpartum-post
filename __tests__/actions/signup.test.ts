@@ -384,7 +384,13 @@ describe("Billing flow — E2E", () => {
   });
 
   it("signup creates a pending member; webhook activates it and creates a subscription row", async () => {
-    const testEmail = `e2e-billing-${crypto.randomUUID()}@example.com`;
+    // Real, deliverable domain — this test drives the actual webhook route,
+    // which now generates a magic link (supabase.auth.admin.generateLink)
+    // for the welcome email. An @example.com address gets a hard SMTP
+    // rejection from Supabase's mail relay, which otherwise surfaces here as
+    // a confusing "unrecognized JWT kid" failure unrelated to what's under
+    // test. See lib/supabase/generate-magic-link.ts for the full diagnosis.
+    const testEmail = `amsterdamparentproject+e2e-billing-${crypto.randomUUID()}@gmail.com`;
 
     // ── Step 1: user submits the signup form ─────────────────────────────
     await signup({

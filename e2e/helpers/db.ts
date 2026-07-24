@@ -25,6 +25,25 @@ function stripe() {
   return new Stripe(key);
 }
 
+/**
+ * Builds a synthetic-but-real test email via Gmail's `+` addressing — all
+ * mail still lands in the same real inbox (or nowhere, if unread), but the
+ * domain is genuinely deliverable.
+ *
+ * Diagnosed 2026-07-24 (same root cause hit in the site repo): `@example.com`
+ * (RFC 2606's reserved example domain, previously used here) gets a hard
+ * SMTP 550 from Supabase's mail relay — "Invalid `to` field. Please use our
+ * testing email address instead of domains like `example.com`." Every e2e
+ * test that signs in via signInAs() (auth.ts) reaches
+ * supabase.auth.admin.generateLink(), which attempts this send as a side
+ * effect regardless of whether the link is actually followed — and that
+ * send failing surfaces as a confusing, unrelated-looking "unrecognized JWT
+ * kid" signature-verification error, not the real cause.
+ */
+function testEmail(label: string): string {
+  return `amsterdamparentproject+${label}@gmail.com`;
+}
+
 // ---------------------------------------------------------------------------
 // Member helpers
 // ---------------------------------------------------------------------------
@@ -44,7 +63,7 @@ export async function seedMember(
 ): Promise<SeededMember> {
   const db = supabase();
   const id = crypto.randomUUID();
-  const email = overrides.email ?? `e2e-${id.slice(0, 8)}@example.com`;
+  const email = overrides.email ?? testEmail(`e2e-${id.slice(0, 8)}`);
   const stripeCustomerId = `cus_e2e_${id.slice(0, 8)}`;
 
   const { error } = await db.from("members").insert({
@@ -98,7 +117,7 @@ export async function seedMemberWithSubscription(
 
   // Create a real Stripe customer so cancellation works end-to-end
   const id = crypto.randomUUID();
-  const email = overrides.email ?? `e2e-cancel-${id.slice(0, 8)}@example.com`;
+  const email = overrides.email ?? testEmail(`e2e-cancel-${id.slice(0, 8)}`);
 
   const customer = await s.customers.create({
     email,

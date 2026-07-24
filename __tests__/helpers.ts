@@ -33,6 +33,27 @@ export interface TestMember {
   children: Child[] | null;
 }
 
+/**
+ * Builds a synthetic-but-real test email via Gmail's `+` addressing — all
+ * mail still lands in the same real inbox (or nowhere, if unread), but the
+ * domain is genuinely deliverable.
+ *
+ * Diagnosed 2026-07-24 (same root cause hit in the site repo): `@example.com`
+ * (RFC 2606's reserved example domain, previously used here) gets a hard
+ * SMTP 550 from Supabase's mail relay — "Invalid `to` field. Please use our
+ * testing email address instead of domains like `example.com`." Every test
+ * that reaches supabase.auth.admin.generateLink() (getAccessTokenForEmail
+ * below, or any code path it exercises indirectly) hits this: despite
+ * generateLink()'s whole point being to grab the returned link without
+ * needing a real inbox, Supabase still attempts to send the email as a side
+ * effect, and that send failing surfaces as a confusing, unrelated-looking
+ * "unrecognized JWT kid" signature-verification error — a red herring, not
+ * the real cause.
+ */
+function testEmail(label: string): string {
+  return `amsterdamparentproject+${label}@gmail.com`;
+}
+
 export async function seedMember(
   overrides: Partial<TestMember> = {}
 ): Promise<TestMember> {
@@ -40,7 +61,7 @@ export async function seedMember(
   const id = crypto.randomUUID();
   const member: TestMember = {
     id,
-    email: `test-${id}@example.com`,
+    email: testEmail(`test-${id}`),
     first_name: "Test",
     last_name: "Member",
     status: "active",
@@ -103,12 +124,31 @@ export async function cleanupMember(memberId: string) {
  */
 export async function getAccessTokenForEmail(email: string): Promise<string> {
   const admin = createTestSupabase();
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-  });
-  if (error || !data?.properties?.hashed_token) {
-    throw new Error(`getAccessTokenForEmail: generateLink failed: ${error?.message}`);
+
+  // Retries: diagnosed 2026-07-24 (same root cause hit in the site repo),
+  // this project's admin.generateLink() intermittently mints a JWT with no
+  // `kid` header for a brand-new auth user, which fails downstream
+  // verification with "unrecognized JWT kid <nil> for algorithm ES256" — a
+  // Supabase-side quirk, not caused by the @example.com domain issue (fixed
+  // separately, see testEmail() above) since it recurs for real, deliverable
+  // addresses too. See lib/supabase/generate-magic-link.ts for the full
+  // diagnosis. Retrying tends to succeed on a later attempt.
+  const maxAttempts = 3;
+  let data: Awaited<ReturnType<typeof admin.auth.admin.generateLink>>["data"] | undefined;
+  let lastError: string | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = await admin.auth.admin.generateLink({ type: "magiclink", email });
+    if (!result.error && result.data?.properties?.hashed_token) {
+      data = result.data;
+      break;
+    }
+    lastError = result.error?.message ?? "no hashed_token returned";
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, 500 * attempt));
+    }
+  }
+  if (!data?.properties?.hashed_token) {
+    throw new Error(`getAccessTokenForEmail: generateLink failed after ${maxAttempts} attempts: ${lastError}`);
   }
 
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
