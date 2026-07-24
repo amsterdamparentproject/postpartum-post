@@ -1,21 +1,11 @@
 /**
  * One-off script — sends the "one week left to meet up" reminder to both
- * members of every active match in the current month's round.
+ * members of every eligible match in the current month's round.
  *
- * A match is skipped if:
- *   - a rematch was requested for it (partner info was already removed), or
- *   - it's flagged for review (safety concern), or
- *   - either member's status is no longer 'active'/'canceling' (paused/inactive
- *     since matching — 'canceling' still has paid access through the period
- *     end and stays eligible, same treatment as scripts/send-member-update.mts)
- *
- * The "Tell us how it went" button links to /feedback via a Supabase magic
- * link, since that page is scoped to logged-in members — clicking it signs
- * the recipient straight in instead of dropping them at a sign-in prompt.
- * The link routes through /auth/confirm?next=/feedback (same pattern as
- * signInAndRedirect in app/api/optin/route.ts) rather than redirecting to
- * /feedback directly, so an expired or already-used link shows a proper
- * "This link has expired" message instead of silently landing signed out.
+ * Eligibility rules, magic-link generation, and the send loop all live in
+ * lib/meetup-reminder.ts (shared with POST /api/send-meetup-reminder, the
+ * route n8n's daily cron calls) — this file only handles env selection and
+ * console output for a human running it manually.
  *
  * Usage:
  *   yarn meetup-reminder:test              # runs against .env.test (amsterdamparentproject@gmail.com only)
@@ -25,9 +15,6 @@
 
 import { config } from "dotenv";
 import { resolve } from "path";
-import { createClient } from "@supabase/supabase-js";
-import { sendMeetupReminderEmail } from "../lib/emails/meetup-reminder.ts";
-import { currentMonth, monthToDate } from "../lib/tokens.ts";
 
 const env = process.argv[2];
 const dryRun = process.argv.includes("--dry-run");
@@ -44,125 +31,37 @@ if (env === "test") {
 config({ path: resolve(process.cwd(), envFile) });
 
 const TEST_EMAIL = "amsterdamparentproject@gmail.com";
-const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
-const FEEDBACK_URL = `${SITE_URL}/feedback`;
-const FEEDBACK_CONFIRM_URL = `${SITE_URL}/auth/confirm?next=${encodeURIComponent("/feedback")}`;
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!supabaseUrl || !serviceRoleKey) {
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.error(`Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in ${envFile}`);
   process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
-  db: { schema: "postpartumpost" },
-});
-
-type MemberRow = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  status: string;
-};
-
-/** Statuses still eligible for the reminder — 'canceling' keeps access through period end. */
-const ELIGIBLE_STATUSES = ["active", "canceling"];
-
-/**
- * Magic link through /auth/confirm?next=/feedback; falls back to a plain
- * /feedback link (no auto sign-in) if generation fails.
- *
- * Built from hashed_token + type ourselves (postpartumpost.com/auth/confirm),
- * rather than using the returned action_link directly — action_link points
- * at <project-ref>.supabase.co/auth/v1/verify first, which is a working
- * link but shows the raw Supabase project URL in the email before it
- * redirects. Same reasoning as verifyMagicLinkToken's docblock in
- * lib/auth-confirm.ts, applied here for the admin.generateLink caller too.
- */
-async function feedbackMagicLink(email: string): Promise<string> {
-  try {
-    const { data, error } = await supabase.auth.admin.generateLink({
-      type: "magiclink",
-      email,
-      options: { redirectTo: FEEDBACK_CONFIRM_URL },
-    });
-    const hashedToken = data?.properties?.hashed_token;
-    if (!error && hashedToken) {
-      const next = encodeURIComponent("/feedback");
-      return `${SITE_URL}/auth/confirm?token_hash=${hashedToken}&type=magiclink&next=${next}`;
-    }
-  } catch (err) {
-    console.error("[send-meetup-reminder] generateLink failed for", email, err);
-  }
-  return FEEDBACK_URL;
-}
-
-const monthDate = monthToDate(currentMonth());
-
-const { data: matches, error } = await supabase
-  .from("matches")
-  .select(`
-    id,
-    member1:member_id_1 ( id, first_name, last_name, email, status ),
-    member2:member_id_2 ( id, first_name, last_name, email, status )
-  `)
-  .eq("matched_on", monthDate)
-  .eq("rematch_requested", false)
-  .eq("flagged_for_review", false);
+// Imported after dotenv config runs, so lib/supabase.ts's createAdminClient()
+// picks up the right env vars for the chosen environment.
+const { runMeetupReminder } = await import("../lib/meetup-reminder.ts");
 
 if (dryRun) console.log("DRY RUN — sending to amsterdamparentproject@gmail.com only");
 
-if (error) {
-  console.error("Failed to fetch matches:", error.message);
-  process.exit(1);
-}
+const result = await runMeetupReminder(env === "test" || dryRun ? TEST_EMAIL : undefined);
 
-if (!matches?.length) {
-  console.log(`No active matches found for ${monthDate}.`);
+if (result.totalMatches === 0) {
+  console.log(`No active matches found for ${result.month}.`);
   process.exit(0);
 }
 
-console.log(`Found ${matches.length} active match(es) for ${monthDate}.`);
+console.log(`Found ${result.totalMatches} active match(es) for ${result.month}.`);
 
-let sent = 0;
-let failed = 0;
-let skipped = 0;
-
-for (const match of matches) {
-  const m1 = (Array.isArray(match.member1) ? match.member1[0] : match.member1) as MemberRow | null;
-  const m2 = (Array.isArray(match.member2) ? match.member2[0] : match.member2) as MemberRow | null;
-
-  if (!m1 || !m2) {
-    console.error(`✗ Match ${match.id}: missing member data`);
-    failed++;
-    continue;
-  }
-
-  if (!ELIGIBLE_STATUSES.includes(m1.status) || !ELIGIBLE_STATUSES.includes(m2.status)) {
-    console.log(`- Match ${match.id}: skipped (${m1.first_name} status=${m1.status}, ${m2.first_name} status=${m2.status})`);
-    skipped++;
-    continue;
-  }
-
-  const recipients: [MemberRow, MemberRow][] = [
-    [m1, m2],
-    [m2, m1],
-  ];
-
-  for (const [recipient, partner] of recipients) {
-    if ((env === "test" || dryRun) && recipient.email !== TEST_EMAIL) continue;
-    try {
-      const feedbackUrl = await feedbackMagicLink(recipient.email);
-      await sendMeetupReminderEmail(recipient.email, recipient.first_name, partner.first_name, partner.email, feedbackUrl);
-      console.log(`✓ ${recipient.email} (match with ${partner.first_name})`);
-      sent++;
-    } catch (e: unknown) {
-      console.error(`✗ ${recipient.email}:`, e instanceof Error ? e.message : e);
-      failed++;
+for (const detail of result.details) {
+  if (detail.status === "sent") {
+    for (const email of detail.recipients) {
+      console.log(`✓ ${email}`);
     }
+  } else if (detail.status === "skipped") {
+    console.log(`- Match ${detail.matchId}: skipped (${detail.reason})`);
+  } else {
+    console.error(`✗ Match ${detail.matchId}: ${detail.reason}`);
   }
 }
 
-console.log(`\nDone: ${sent} sent, ${skipped} match(es) skipped, ${failed} failed`);
+console.log(`\nDone: ${result.sent} sent, ${result.skipped} match(es) skipped, ${result.failed} failed`);

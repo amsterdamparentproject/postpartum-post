@@ -146,6 +146,38 @@
           "name": "Postpartum Post API - Auth"
         }
       }
+    },
+    {
+      "parameters": {},
+      "id": "b1b2c3d4-0005-0005-0005-000000000001",
+      "name": "5. Send meetup reminder",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 900]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/send-meetup-reminder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": "{\"dryRun\": true}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b1b2c3d4-0005-0005-0005-000000000002",
+      "name": "POST /api/send-meetup-reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 900],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
     }
   ],
   "connections": {
@@ -163,6 +195,9 @@
     },
     "4. Lock round": {
       "main": [[{ "node": "POST /api/lock-matches", "type": "main", "index": 0 }]]
+    },
+    "5. Send meetup reminder": {
+      "main": [[{ "node": "POST /api/send-meetup-reminder", "type": "main", "index": 0 }]]
     }
   },
   "active": false,

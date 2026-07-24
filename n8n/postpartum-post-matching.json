@@ -3,35 +3,24 @@
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 9 1 * *"
-            }
-          ]
-        }
-      },
-      "id": "a1b2c3d4-0001-0001-0001-000000000001",
-      "name": "1st, 9am — Send opt-in email",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [240, 100]
-    },
-    {
-      "parameters": {
         "method": "POST",
         "url": "https://postpartumpost.com/api/send-optin-email",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": { "timeout": 30000 }
+        "options": {
+          "timeout": 30000
+        }
       },
-      "id": "a1b2c3d4-0001-0001-0001-000000000002",
+      "id": "b4e3f037-f13d-42c7-bc5b-ae6cacea6e1e",
       "name": "POST /api/send-optin-email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [460, 100],
-      "credentials": { "httpHeaderAuth": { "name": "Postpartum Post API" } }
+      "position": [224, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
     },
     {
       "parameters": {
@@ -39,16 +28,16 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 0 6 * *"
+              "expression": "0 0 0 6 * *"
             }
           ]
         }
       },
-      "id": "a1b2c3d4-0002-0002-0002-000000000001",
+      "id": "09cc949b-c11d-408f-b567-a14e5408f207",
       "name": "6th, midnight — Run matcher",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [240, 300]
+      "position": [0, 208]
     },
     {
       "parameters": {
@@ -57,33 +46,23 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
-        "contentType": "json",
-        "body": "{\"dryRun\": false}",
-        "options": { "timeout": 60000 }
+        "bodyParameters": {
+          "parameters": [{}]
+        },
+        "options": {
+          "timeout": 60000
+        }
       },
-      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "id": "4f9de6bb-5070-4ef9-8fb7-a7be75de71ac",
       "name": "POST /api/run-matcher",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [460, 300],
-      "credentials": { "httpHeaderAuth": { "name": "Postpartum Post API" } }
-    },
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 9 7 * *"
-            }
-          ]
+      "position": [224, 208],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
         }
-      },
-      "id": "a1b2c3d4-0003-0003-0003-000000000001",
-      "name": "7th, 9am — Commit + send emails",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [240, 500]
+      }
     },
     {
       "parameters": {
@@ -91,14 +70,20 @@
         "url": "https://postpartumpost.com/api/commit-matches",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": { "timeout": 30000 }
+        "options": {
+          "timeout": 30000
+        }
       },
-      "id": "a1b2c3d4-0003-0003-0003-000000000002",
+      "id": "cd009d3a-3c60-4813-8018-6235331c6bce",
       "name": "POST /api/commit-matches",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [460, 500],
-      "credentials": { "httpHeaderAuth": { "name": "Postpartum Post API" } }
+      "position": [224, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
     },
     {
       "parameters": {
@@ -106,31 +91,20 @@
         "url": "https://postpartumpost.com/api/send-match-emails",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": { "timeout": 60000 }
+        "options": {
+          "timeout": 60000
+        }
       },
-      "id": "a1b2c3d4-0003-0003-0003-000000000003",
+      "id": "b6d7a522-6c9a-4030-8f8b-2931f1aa9b2b",
       "name": "POST /api/send-match-emails",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 500],
-      "credentials": { "httpHeaderAuth": { "name": "Postpartum Post API" } }
-    },
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 12 7 * *"
-            }
-          ]
+      "position": [224, 608],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
         }
-      },
-      "id": "a1b2c3d4-0004-0004-0004-000000000001",
-      "name": "7th, 12pm — Lock round",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [240, 700]
+      }
     },
     {
       "parameters": {
@@ -138,34 +112,174 @@
         "url": "https://postpartumpost.com/api/lock-matches",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": { "timeout": 30000 }
+        "options": {
+          "timeout": 30000
+        }
       },
-      "id": "a1b2c3d4-0004-0004-0004-000000000002",
+      "id": "a1189320-9996-4816-879b-cc43565305f9",
       "name": "POST /api/lock-matches",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [460, 700],
-      "credentials": { "httpHeaderAuth": { "name": "Postpartum Post API" } }
+      "position": [448, 608],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 12 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "75fb1e9b-27c0-48b6-9c52-d1fe82914a17",
+      "name": "1st, 12pm — Send opt-in email",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, -192],
+      "id": "84abda82-c6d7-4bdb-9ac4-288dadadff61",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://postpartumpost.com/api/send-optin-email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"testMode\": true}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "09c35606-b00b-4ce3-9e35-61c60d2a3cfe",
+      "name": "TEST POST /api/send-optin-email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [224, -192],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 8 7 * *"
+            }
+          ]
+        }
+      },
+      "id": "fd70dde4-8220-45d2-aa5e-de8a74808200",
+      "name": "7th, 8am — Send emails & lock round",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 608]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 7 7 * *"
+            }
+          ]
+        }
+      },
+      "id": "eb23b178-48a6-4661-9430-b0857e986788",
+      "name": "7th, 7am — Commit",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 9 23 * *"
+            }
+          ]
+        }
+      },
+      "id": "5ac0f888-0c09-421f-8477-a6aed9607ad6",
+      "name": "23rd, 9am — Reminder",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 832]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://postpartumpost.com/api/send-meetup-reminder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "2c544b63-c8c8-4a1b-8d4c-93a398de3aff",
+      "name": "POST /api/send-meetup-reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [224, 832],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Postpartum Post API - Auth"
+        }
+      }
     }
   ],
+  "pinData": {},
   "connections": {
-    "1st, 9am — Send opt-in email": {
-      "main": [[{ "node": "POST /api/send-optin-email", "type": "main", "index": 0 }]]
-    },
     "6th, midnight — Run matcher": {
       "main": [[{ "node": "POST /api/run-matcher", "type": "main", "index": 0 }]]
     },
-    "7th, 9am — Commit + send emails": {
-      "main": [[{ "node": "POST /api/commit-matches", "type": "main", "index": 0 }]]
-    },
     "POST /api/commit-matches": {
+      "main": [[]]
+    },
+    "1st, 12pm — Send opt-in email": {
+      "main": [[{ "node": "POST /api/send-optin-email", "type": "main", "index": 0 }]]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [[{ "node": "TEST POST /api/send-optin-email", "type": "main", "index": 0 }]]
+    },
+    "POST /api/lock-matches": {
+      "main": [[]]
+    },
+    "POST /api/send-match-emails": {
+      "main": [[{ "node": "POST /api/lock-matches", "type": "main", "index": 0 }]]
+    },
+    "7th, 8am — Send emails & lock round": {
       "main": [[{ "node": "POST /api/send-match-emails", "type": "main", "index": 0 }]]
     },
-    "7th, 12pm — Lock round": {
-      "main": [[{ "node": "POST /api/lock-matches", "type": "main", "index": 0 }]]
+    "7th, 7am — Commit": {
+      "main": [[{ "node": "POST /api/commit-matches", "type": "main", "index": 0 }]]
+    },
+    "23rd, 9am — Reminder": {
+      "main": [[{ "node": "POST /api/send-meetup-reminder", "type": "main", "index": 0 }]]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "timezone": "Europe/Amsterdam"
