@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getDemographicStats } from "@/app/admin/stats/actions";
 import AdminNav from "@/app/admin/AdminNav";
 import MemberMapClient from "@/components/MemberMapClient";
+import { verifyAdminSessionToken } from "@/lib/admin-session";
 
 function BarChart({ buckets }: { buckets: { label: string; count: number; expected?: true }[] }) {
   const max = Math.max(...buckets.map((b) => b.count), 1);
@@ -35,8 +36,7 @@ function BarChart({ buckets }: { buckets: { label: string; count: number; expect
 export default async function DemographicsPage() {
   const cookieStore = await cookies();
   const session = cookieStore.get("admin_session");
-  const secret = process.env.ADMIN_SECRET;
-  if (!session || !secret || session.value !== secret) redirect("/admin/login");
+  if (!verifyAdminSessionToken(session?.value)) redirect("/admin/login");
 
   const { locations, ageBuckets, availabilityDays, parentTypes } = await getDemographicStats();
   const totalChildren = ageBuckets.reduce((sum, b) => sum + b.count, 0);

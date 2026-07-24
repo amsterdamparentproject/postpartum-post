@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getBaseStats, getMonthlyRevenue, getMatchRoundStats } from "./stats/actions";
+import { verifyAdminSessionToken } from "@/lib/admin-session";
 
 function pct(n: number, total: number) {
   if (total === 0) return 0;
@@ -37,8 +38,7 @@ function RoundRow({ label, count, total, sub }: { label: string; count: number; 
 export default async function AdminStatsPage() {
   const cookieStore = await cookies();
   const session = cookieStore.get("admin_session");
-  const secret = process.env.ADMIN_SECRET;
-  if (!session || !secret || session.value !== secret) redirect("/admin/login");
+  if (!verifyAdminSessionToken(session?.value)) redirect("/admin/login");
 
   const [base, revenue, round] = await Promise.all([
     getBaseStats(),
