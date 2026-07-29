@@ -32,7 +32,9 @@ function formatRelativeTime(date: Date): string {
   return `${days} ${days === 1 ? "day" : "days"} ago`;
 }
 
-async function getActiveMemberStats(): Promise<{ count: number; lastJoinedAt: Date | null; recentCount: number } | null> {
+type HappinessStat = { value: number; label: string };
+
+async function getActiveMemberStats(): Promise<{ count: number; lastJoinedAt: Date | null; recentCount: number; happinessStat: HappinessStat | null } | null> {
   try {
     const supabase = createAdminClient();
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -40,16 +42,29 @@ async function getActiveMemberStats(): Promise<{ count: number; lastJoinedAt: Da
       { count, error: countError },
       { data, error: lastError },
       { count: recentCount, error: recentError },
+      { data: feedbackData, error: feedbackError },
     ] = await Promise.all([
       supabase.from("members").select("id", { count: "exact", head: true }).eq("status", "active"),
       supabase.from("members").select("created_at").eq("status", "active").order("created_at", { ascending: false }).limit(1).single(),
       supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").gte("created_at", thirtyDaysAgo),
+      supabase.from("match_feedback").select("happy_with_match, matching_process_rating"),
     ]);
     if (countError) return null;
+    let happinessStat: HappinessStat | null = null;
+    if (!feedbackError && feedbackData?.length) {
+      const avgMatchHappy = feedbackData.reduce((sum, r) => sum + r.happy_with_match, 0) / feedbackData.length;
+      const avgProcessRating = feedbackData.reduce((sum, r) => sum + r.matching_process_rating, 0) / feedbackData.length;
+      if (avgMatchHappy > avgProcessRating && avgMatchHappy > 4.5) {
+        happinessStat = { value: avgMatchHappy, label: "match happiness" };
+      } else if (avgProcessRating > 4.5) {
+        happinessStat = { value: avgProcessRating, label: "matching happiness" };
+      }
+    }
     return {
       count: count ?? 0,
       lastJoinedAt: data?.created_at && !lastError ? new Date(data.created_at) : null,
       recentCount: recentError ? 0 : (recentCount ?? 0),
+      happinessStat,
     };
   } catch {
     return null;
@@ -188,7 +203,7 @@ export default async function Home() {
                 <EnvelopeLogo width={22} height={16} className="shrink-0" />
                 <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.count} {memberStats.count === 1 ? "member" : "members"}</span> getting a match next month</span>
               </li>
-              {memberStats.lastJoinedAt && (
+              {memberStats.lastJoinedAt && Date.now() - memberStats.lastJoinedAt.getTime() < 10 * 24 * 60 * 60 * 1000 && (
                 <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0" />
                   <span>Last member joined <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(175, 153, 255, 0.45)" }}>{formatRelativeTime(memberStats.lastJoinedAt)}</span></span>
@@ -198,6 +213,12 @@ export default async function Home() {
                 <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0" />
                   <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 163, 115, 0.55)" }}>{memberStats.recentCount} joined</span> in the last month</span>
+                </li>
+              )}
+              {memberStats.happinessStat && (
+                <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
+                  <EnvelopeLogo width={22} height={16} className="shrink-0" />
+                  <span>The average {memberStats.happinessStat.label} rating is <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.happinessStat.value.toFixed(1)} out of 5 stars</span></span>
                 </li>
               )}
             </ul>
