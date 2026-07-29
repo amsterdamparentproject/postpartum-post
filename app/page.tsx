@@ -55,9 +55,9 @@ async function getActiveMemberStats(): Promise<{ count: number; lastJoinedAt: Da
       const avgMatchHappy = feedbackData.reduce((sum, r) => sum + r.happy_with_match, 0) / feedbackData.length;
       const avgProcessRating = feedbackData.reduce((sum, r) => sum + r.matching_process_rating, 0) / feedbackData.length;
       if (avgMatchHappy > avgProcessRating && avgMatchHappy > 4.5) {
-        happinessStat = { value: avgMatchHappy, label: "match happiness" };
+        happinessStat = { value: avgMatchHappy, label: "Match happiness" };
       } else if (avgProcessRating > 4.5) {
-        happinessStat = { value: avgProcessRating, label: "matching happiness" };
+        happinessStat = { value: avgProcessRating, label: "Happiness" };
       }
     }
     return {
@@ -218,7 +218,7 @@ export default async function Home() {
               {memberStats.happinessStat && (
                 <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0" />
-                  <span>The average {memberStats.happinessStat.label} rating is <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.happinessStat.value.toFixed(1)} out of 5 stars</span></span>
+                  <span>{memberStats.happinessStat.label} rating is <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.happinessStat.value.toFixed(1)} out of 5 stars</span></span>
                 </li>
               )}
             </ul>
