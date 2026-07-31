@@ -19,6 +19,8 @@
     "member-update:prod": "NODE_ENV=production tsx scripts/send-member-update.mts prod",
     "meetup-reminder:test": "tsx scripts/send-meetup-reminder.mts test",
     "meetup-reminder:prod": "NODE_ENV=production tsx scripts/send-meetup-reminder.mts prod",
+    "pending-followup:test": "tsx scripts/send-pending-followup.mts test",
+    "pending-followup:prod": "NODE_ENV=production tsx scripts/send-pending-followup.mts prod",
     "consent-link": "tsx scripts/gen-consent-link.mts",
     "confirm-member": "tsx scripts/confirm-member.mts",
     "reset-consent": "tsx scripts/reset-consent.mts",

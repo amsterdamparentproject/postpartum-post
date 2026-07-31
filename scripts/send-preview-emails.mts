@@ -14,6 +14,7 @@ import { sendMatchRevealEmail } from "../lib/emails/match-reveal.ts";
 import { sendRematchConfirmationEmail } from "../lib/emails/rematch-confirmation.ts";
 import { sendMemberUpdateEmail } from "../lib/emails/member-update.ts";
 import { sendMeetupReminderEmail } from "../lib/emails/meetup-reminder.ts";
+import { sendPendingFollowupEmail } from "../lib/emails/pending-followup.ts";
 
 const args = process.argv.slice(2);
 const isEmail = (s: string) => s.includes("@");
@@ -83,8 +84,12 @@ await send("meetup-reminder", () =>
   sendMeetupReminderEmail(TO, "Alex", "Sarah", "sarah.vanderberg@example.com", "https://postpartumpost.com/feedback")
 );
 
+await send("pending-followup", () =>
+  sendPendingFollowupEmail(TO, "Alex", "Test")
+);
+
 if (results.length === 0 && filter) {
-  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, auto-pause, optin, match-reveal, rematch-confirmation, member-update, meetup-reminder`);
+  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, auto-pause, optin, match-reveal, rematch-confirmation, member-update, meetup-reminder, pending-followup`);
   process.exit(1);
 }
 

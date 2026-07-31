@@ -48,7 +48,7 @@ export async function sendMemberUpdateEmail(
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `${subjectPrefix()}Postpartum Post: First matches tomorrow! 💌`,
+    subject: `${subjectPrefix()}First matches tomorrow! 💌`,
     html: memberUpdateHtml(firstName, confirmUrl),
   });
   if (error) {

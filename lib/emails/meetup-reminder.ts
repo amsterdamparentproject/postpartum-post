@@ -41,7 +41,7 @@ export async function sendMeetupReminderEmail(
     from: FROM,
     to: recipientEmail,
     replyTo: matchEmail,
-    subject: `${subjectPrefix()}Postpartum Post: One week left to meet up! ⏰`,
+    subject: `${subjectPrefix()}One week left to meet up! ⏰`,
     html: meetupReminderHtml(recipientFirstName, matchFirstName, matchEmail, feedbackUrl),
   });
   if (error) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { signup, type SignupFormData } from "@/app/actions/signup";
 import { PLANS, resolvePlans, defaultPlan } from "@/lib/plans";
 
@@ -40,6 +40,29 @@ export default function SignupForm({
   const [error, setError] = useState<string | null>(null);
   const [eligibilityConfirmed, setEligibilityConfirmed] = useState(false);
   const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
+  const firstNameInputRef = useRef<HTMLInputElement>(null);
+  const lastNameInputRef = useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  // Prefill from ?email=&firstName=&lastName= (e.g. links from follow-up
+  // emails). Read via window.location directly, not useSearchParams — this
+  // page is statically prerendered, and useSearchParams would force it into
+  // dynamic rendering.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const prefillFirstName = params.get("firstName");
+    const prefillLastName = params.get("lastName");
+    const prefillEmail = params.get("email");
+    if (prefillFirstName && firstNameInputRef.current) {
+      firstNameInputRef.current.value = prefillFirstName;
+    }
+    if (prefillLastName && lastNameInputRef.current) {
+      lastNameInputRef.current.value = prefillLastName;
+    }
+    if (prefillEmail && emailInputRef.current) {
+      emailInputRef.current.value = prefillEmail;
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -85,6 +108,7 @@ export default function SignupForm({
             type="text"
             required
             autoComplete="given-name"
+            ref={firstNameInputRef}
             className={inputClass}
           />
         </div>
@@ -98,6 +122,7 @@ export default function SignupForm({
             type="text"
             required
             autoComplete="family-name"
+            ref={lastNameInputRef}
             className={inputClass}
           />
         </div>
@@ -113,6 +138,7 @@ export default function SignupForm({
           type="email"
           required
           autoComplete="email"
+          ref={emailInputRef}
           onChange={() => setEmailError(null)}
           onBlur={(e) => {
             if (e.target.value && !EMAIL_RE.test(e.target.value)) {

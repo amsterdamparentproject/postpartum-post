@@ -360,11 +360,18 @@ describe("Scenario 8: Children age gap scoring", () => {
   const curMonth = now.getMonth() + 1;
   const curYear = now.getFullYear();
 
-  // A child born 25 months ago
-  const farPast = new Date(now);
-  farPast.setMonth(farPast.getMonth() - 25);
-  const farPastMonth = farPast.getMonth() + 1;
-  const farPastYear = farPast.getFullYear();
+  // A child born well over MAX_CHILD_AGE_GAP_MONTHS (24) ago — 30 months back.
+  // Computed via calendar-month arithmetic rather than `Date.setMonth` on a
+  // copy of `now`: setMonth silently overflows into the next month whenever
+  // `now`'s day-of-month (e.g. the 31st) doesn't exist in the target month,
+  // which shrinks the intended gap by up to a month depending on what day
+  // this suite happens to run. ageInMonths (lib/matcher.ts) also floors a
+  // days/30.44 approximation rather than counting exact calendar months, so
+  // the fixture uses a wide margin above 24 (not exactly 25) to stay clear
+  // of that rounding noise on every day of the year.
+  const farPastTotalMonths = curYear * 12 + (curMonth - 1) - 30;
+  const farPastYear = Math.floor(farPastTotalMonths / 12);
+  const farPastMonth = farPastTotalMonths - farPastYear * 12 + 1;
 
   it("scores near-maximum when both members have same-month children (gap = 0)", () => {
     const a = member({
@@ -379,7 +386,7 @@ describe("Scenario 8: Children age gap scoring", () => {
     expect(scorePair(a, b, NO_COORDS).breakdown.children).toBe(75);
   });
 
-  it("scores 0 when the closest child pair is 25+ months apart", () => {
+  it("scores 0 when the closest child pair is well over 24 months apart", () => {
     const a = member({
       id: "a",
       children: [{ birth_month: curMonth, birth_year: curYear, expected: false }],
@@ -388,7 +395,7 @@ describe("Scenario 8: Children age gap scoring", () => {
       id: "b",
       children: [{ birth_month: farPastMonth, birth_year: farPastYear, expected: false }],
     });
-    // gap=25 months >= MAX(24) → rawScore=0 → breakdown.children = 0
+    // gap=~30 months >= MAX(24) → rawScore=0 → breakdown.children = 0
     expect(scorePair(a, b, NO_COORDS).breakdown.children).toBe(0);
   });
 
