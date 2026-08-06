@@ -126,6 +126,43 @@ function childrenDot(a: DraftMember, b: DraftMember, score: number): DotColor {
   return "red";
 }
 
+/** Age in months as of now. Expected (unborn) children yield a negative number from their due date. */
+function ageInMonths(c: { birth_month: number; birth_year: number; expected: boolean }): number {
+  const now = new Date();
+  const birthDate = new Date(c.birth_year, c.birth_month - 1, 1);
+  const diffMs = now.getTime() - birthDate.getTime();
+  return Math.floor(diffMs / (1_000 * 60 * 60 * 24 * 30.44));
+}
+
+/** Smallest age gap (in months) between any of member a's kids and any of member b's kids. */
+function minChildAgeGapMonths(a: DraftMember, b: DraftMember): number | null {
+  if (!a.children?.length || !b.children?.length) return null;
+  const agesA = a.children.map(ageInMonths);
+  const agesB = b.children.map(ageInMonths);
+  let minGap = Infinity;
+  for (const aa of agesA) {
+    for (const ab of agesB) {
+      minGap = Math.min(minGap, Math.abs(aa - ab));
+    }
+  }
+  return minGap;
+}
+
+function formatAgeGap(gapMonths: number | null): string {
+  if (gapMonths === null) return "N/A";
+  if (gapMonths < 1) return "<1mo";
+  if (gapMonths < 24) return `${gapMonths}mo`;
+  return `${(gapMonths / 12).toFixed(1)}y`;
+}
+
+/** Green under 6mo, yellow 6–12mo, red over 12mo. */
+function ageGapDot(gapMonths: number | null): DotColor {
+  if (gapMonths === null) return "gray";
+  if (gapMonths < 6) return "green";
+  if (gapMonths <= 12) return "yellow";
+  return "red";
+}
+
 // ---------------------------------------------------------------------------
 // Score color by tier
 // ---------------------------------------------------------------------------
@@ -196,6 +233,11 @@ function MemberDetailCard({
       label: "Children",
       value: member.children?.length ? member.children.map(formatChildAge).join(", ") : "N/A",
       dot: childrenDot(member, other, breakdown.children),
+    },
+    {
+      label: "Age gap",
+      value: formatAgeGap(minChildAgeGapMonths(member, other)),
+      dot: ageGapDot(minChildAgeGapMonths(member, other)),
     },
   ];
 
