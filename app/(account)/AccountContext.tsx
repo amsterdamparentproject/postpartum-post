@@ -76,7 +76,38 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
     (async () => {
       try {
-        const memberData = await getMemberProfile(accessToken);
+        // A freshly-minted access token can fail server-side verification
+        // even for a genuinely active member — see the kid-less JWT issue
+        // documented in lib/supabase/generate-magic-link.ts, which hits
+        // requireMember()'s auth.getUser() call and makes getMemberProfile
+        // return null exactly as if no member row existed. Diagnosed 2026-08
+        // after a gift-card recipient's opt-in click landed on "isn't
+        // associated with a subscription" despite her members/subscriptions
+        // rows being entirely correct.
+        //
+        // Retrying with the SAME token would do nothing for that case — a
+        // structurally malformed JWT verifies identically (and fails
+        // identically) on every attempt, since nothing about the token
+        // changes between calls. So each retry instead calls
+        // refreshSession() first to mint a genuinely new access/refresh
+        // token pair from GoTrue before trying the lookup again — this is
+        // the part that can actually turn a failure into a success. It also
+        // still covers the other plausible cause (transient backend/cache
+        // lag) for free, since a fresh token re-verifies from scratch either
+        // way. Safe to call here (not inside onAuthStateChange's callback —
+        // see that effect's docblock on the deadlock this would otherwise risk).
+        let token = accessToken;
+        let memberData: MemberProfile | null = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          memberData = await getMemberProfile(token);
+          if (memberData || cancelled) break;
+          if (attempt < 3) {
+            await new Promise((r) => setTimeout(r, 400 * attempt));
+            const { data: refreshed, error: refreshError } = await createBrowserClient().auth.refreshSession();
+            if (refreshError || !refreshed.session?.access_token) break; // no new token to try — further attempts would be identical
+            token = refreshed.session.access_token;
+          }
+        }
         if (cancelled) return;
         if (!memberData) {
           // Authenticated in Supabase but not in the members table.

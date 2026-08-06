@@ -25,6 +25,17 @@ export async function requireMember(
 
   const supabase = createAdminClient();
   const { data, error } = await supabase.auth.getUser(accessToken);
+  if (error) {
+    // Logged distinctly from "no matching member" below — a getUser() failure
+    // means the token itself couldn't be verified (expired, malformed, or the
+    // kid-less-JWT issue documented in lib/supabase/generate-magic-link.ts for
+    // brand-new magic links), not that the person isn't a member. Callers that
+    // collapse this into "not a member" (e.g. AccountContext signing the user
+    // out and showing NotSubscribedView) can otherwise mislabel a transient
+    // auth glitch as "your email isn't associated with a subscription" for a
+    // genuinely active member — see the 2026-08 gift-card-opt-in report.
+    console.error("[requireMember] auth.getUser failed:", error.message);
+  }
   const email = data?.user?.email?.toLowerCase();
   if (error || !email) return null;
 
