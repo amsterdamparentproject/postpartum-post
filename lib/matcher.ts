@@ -284,39 +284,49 @@ function rawProximityScore(
   return Math.max(0, 1 - dist / MAX_PROXIMITY_KM);
 }
 
-/** Returns 0–1. One member without children → 0.5 (half points). */
+function ageInMonths(c: {
+  birth_month: number;
+  birth_year: number;
+  expected: boolean;
+}): number {
+  const birthDate = new Date(c.birth_year, c.birth_month - 1, 1);
+  const diffMs = Date.now() - birthDate.getTime();
+  return Math.floor(diffMs / (1_000 * 60 * 60 * 24 * 30.44));
+}
+
+// Applied when comparing an expected (unborn) child against a born child.
+// Due-date-to-actual-age closeness is still useful signal (an expecting
+// parent can learn plenty from a parent of a 3-month-old), but it's a softer
+// match than two children at the same life stage (both expected, both born)
+// — so the raw score is capped below what an equivalent same-status gap would get.
+const MIXED_CHILD_AGE_DISCOUNT = 0.75;
+
+/**
+ * Returns 0–1. One member without children → 0.5 (half points).
+ *
+ * Every child pair is compared (due date stands in as age for expected/
+ * unborn children — closer due dates score higher, same as closer birth
+ * dates), and the best-scoring pair wins. Expected-vs-born pairs are
+ * discounted relative to same-status pairs — see MIXED_CHILD_AGE_DISCOUNT.
+ */
 function rawChildrenScore(a: MatchCandidate, b: MatchCandidate): number {
-  const aHas = (a.children?.length ?? 0) > 0;
-  const bHas = (b.children?.length ?? 0) > 0;
+  const childrenA = a.children ?? [];
+  const childrenB = b.children ?? [];
+  const aHas = childrenA.length > 0;
+  const bHas = childrenB.length > 0;
   if (!aHas && !bHas) return 0;
   if (!aHas || !bHas) return 0.5;
 
-  const now = new Date();
-
-  function ageInMonths(c: {
-    birth_month: number;
-    birth_year: number;
-    expected: boolean;
-  }): number {
-    // For expected children, birth_month/birth_year is the due date.
-    // Computing age from it yields a negative number (e.g. due in 2 months → −2),
-    // which ranks closer due dates as more similar to each other and to newborns.
-    const birthDate = new Date(c.birth_year, c.birth_month - 1, 1);
-    const diffMs = now.getTime() - birthDate.getTime();
-    return Math.floor(diffMs / (1_000 * 60 * 60 * 24 * 30.44));
-  }
-
-  const agesA = a.children!.map(ageInMonths);
-  const agesB = b.children!.map(ageInMonths);
-
-  let minGap = Infinity;
-  for (const aa of agesA) {
-    for (const ab of agesB) {
-      minGap = Math.min(minGap, Math.abs(aa - ab));
+  let best = 0;
+  for (const ca of childrenA) {
+    for (const cb of childrenB) {
+      const gap = Math.abs(ageInMonths(ca) - ageInMonths(cb));
+      let raw = Math.max(0, 1 - gap / MAX_CHILD_AGE_GAP_MONTHS);
+      if (ca.expected !== cb.expected) raw *= MIXED_CHILD_AGE_DISCOUNT;
+      best = Math.max(best, raw);
     }
   }
-
-  return Math.max(0, 1 - minGap / MAX_CHILD_AGE_GAP_MONTHS);
+  return best;
 }
 
 // ---------------------------------------------------------------------------
@@ -468,6 +478,45 @@ export async function getRecentlyMatchedPairs(
 
 function pairKey(a: MatchCandidate, b: MatchCandidate): string {
   return [a.id, b.id].sort().join(":");
+}
+
+// ---------------------------------------------------------------------------
+// Last-matched lookup — admin UI "recent match" confirmation
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a map of pair key ("id1:id2", sorted) → most recent matched_on
+ * date (YYYY-MM-DD) for that pair, looking back up to 12 months.
+ *
+ * Wider window than the matcher's 6-month exclusion — this powers an admin
+ * UI confirmation row ("last matched" / "matched Xmo ago"), which wants to
+ * show *how* recent a match was, not just whether it falls inside the
+ * exclusion window.
+ */
+export async function getLastMatchedMap(
+  supabase: AnySupabaseClient
+): Promise<Map<string, string>> {
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+  const { data, error } = await supabase
+    .from("matches")
+    .select("member_id_1, member_id_2, matched_on")
+    .gte("matched_on", twelveMonthsAgo.toISOString().split("T")[0])
+    .order("matched_on", { ascending: true });
+
+  if (error) {
+    console.error("[matcher] Failed to fetch last matched dates:", error);
+    return new Map();
+  }
+
+  const map = new Map<string, string>();
+  for (const row of data ?? []) {
+    // Ascending order means later rows (more recent matches) overwrite earlier ones.
+    const key = [row.member_id_1, row.member_id_2].sort().join(":");
+    map.set(key, row.matched_on);
+  }
+  return map;
 }
 
 // ---------------------------------------------------------------------------

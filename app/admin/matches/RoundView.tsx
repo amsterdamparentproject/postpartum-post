@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteDraftPair, createDraftPair, computeCandidateScores, type RoundData, type DraftMember, type DraftPair, type CandidateScore } from "./actions";
+import { deleteDraftPair, createDraftPair, computeCandidateScores, type RoundData, type DraftMember, type DraftPair, type CandidateScore, type RecentMatchInfo } from "./actions";
 import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 // ---------------------------------------------------------------------------
@@ -10,6 +10,13 @@ import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 function fullName(m: DraftMember) {
   return `${m.first_name} ${m.last_name}`;
+}
+
+const DAY_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+
+/** Displays availability days Mon→Sun regardless of the order they were saved in. */
+function sortDays(days: string[]): string[] {
+  return [...days].sort((a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b));
 }
 
 function haversineKm(
@@ -97,9 +104,26 @@ function fromOverlap(a: string[], b: string[]): DotColor {
   return score >= 0.7 ? "green" : "yellow";
 }
 
+/**
+ * Green: 2+ shared days, or a 100% match (the shared day covers everything
+ * one side listed). Yellow: exactly 1 shared day that isn't a full match for
+ * either side. Red: no overlap at all.
+ */
 function daysDot(a: DraftMember, b: DraftMember): DotColor {
   if (!a.availability || !b.availability) return "gray";
-  return fromOverlap(a.availability.days, b.availability.days);
+  const daysA = a.availability.days;
+  const daysB = b.availability.days;
+  const setA = new Set(daysA);
+  const setB = new Set(daysB);
+  const intersectCount = [...setA].filter((d) => setB.has(d)).length;
+
+  if (intersectCount === 0) {
+    // Neither side listed any days = no conflict; one side listed none while the other did = no evidence of overlap.
+    return daysA.length === 0 && daysB.length === 0 ? "green" : "red";
+  }
+  if (intersectCount >= 2) return "green";
+  // Exactly 1 shared day — still green if that's a full match for a side with only 1 day total.
+  return daysA.length === 1 || daysB.length === 1 ? "green" : "yellow";
 }
 
 function timesDot(a: DraftMember, b: DraftMember): DotColor {
@@ -119,13 +143,6 @@ function proximityDot(a: DraftMember, b: DraftMember, distKm: number | null): Do
   return "red";
 }
 
-function childrenDot(a: DraftMember, b: DraftMember, score: number): DotColor {
-  if (!a.children?.length || !b.children?.length) return "gray";
-  if (score >= 50) return "green";
-  if (score >= 25) return "yellow";
-  return "red";
-}
-
 /** Age in months as of now. Expected (unborn) children yield a negative number from their due date. */
 function ageInMonths(c: { birth_month: number; birth_year: number; expected: boolean }): number {
   const now = new Date();
@@ -134,33 +151,64 @@ function ageInMonths(c: { birth_month: number; birth_year: number; expected: boo
   return Math.floor(diffMs / (1_000 * 60 * 60 * 24 * 30.44));
 }
 
-/** Smallest age gap (in months) between any of member a's kids and any of member b's kids. */
-function minChildAgeGapMonths(a: DraftMember, b: DraftMember): number | null {
-  if (!a.children?.length || !b.children?.length) return null;
-  const agesA = a.children.map(ageInMonths);
-  const agesB = b.children.map(ageInMonths);
-  let minGap = Infinity;
-  for (const aa of agesA) {
-    for (const ab of agesB) {
-      minGap = Math.min(minGap, Math.abs(aa - ab));
+// Mirrors lib/matcher.ts's rawChildrenScore — keep these two in sync.
+const MAX_CHILD_AGE_GAP_MONTHS = 24;
+const MIXED_CHILD_AGE_DISCOUNT = 0.75; // expected-vs-born pairs score lower than a same-status pair
+
+type ChildGap = { gapMonths: number; mixed: boolean };
+
+/**
+ * Picks the best child pair the same way the matcher scores it — every pair
+ * compared, expected (due date) vs born allowed but discounted, highest
+ * resulting score wins. Returns that pair's raw gap for display.
+ */
+function bestChildGap(a: DraftMember, b: DraftMember): ChildGap | null {
+  const childrenA = a.children ?? [];
+  const childrenB = b.children ?? [];
+  if (!childrenA.length || !childrenB.length) return null;
+
+  let best: { score: number; gap: ChildGap } | null = null;
+  for (const ca of childrenA) {
+    for (const cb of childrenB) {
+      const gapMonths = Math.abs(ageInMonths(ca) - ageInMonths(cb));
+      const mixed = ca.expected !== cb.expected;
+      const raw = Math.max(0, 1 - gapMonths / MAX_CHILD_AGE_GAP_MONTHS) * (mixed ? MIXED_CHILD_AGE_DISCOUNT : 1);
+      if (!best || raw > best.score) best = { score: raw, gap: { gapMonths, mixed } };
     }
   }
-  return minGap;
+  return best?.gap ?? null;
 }
 
-function formatAgeGap(gapMonths: number | null): string {
-  if (gapMonths === null) return "N/A";
-  if (gapMonths < 1) return "<1mo";
-  if (gapMonths < 24) return `${gapMonths}mo`;
-  return `${(gapMonths / 12).toFixed(1)}y`;
+function formatAgeGap(gap: ChildGap | null): string {
+  if (!gap) return "N/A";
+  if (gap.gapMonths < 1) return "<1mo";
+  return `${gap.gapMonths}mo`;
 }
 
-/** Green under 6mo, yellow 6–12mo, red over 12mo. */
-function ageGapDot(gapMonths: number | null): DotColor {
-  if (gapMonths === null) return "gray";
-  if (gapMonths < 6) return "green";
-  if (gapMonths <= 12) return "yellow";
+/**
+ * Green under 6mo, yellow 6–12mo, red over 12mo — capped at yellow for a
+ * mixed expected/born pair, since the matcher never scores those as high as
+ * a same-status match even at the same literal gap.
+ */
+function ageGapDot(gap: ChildGap | null): DotColor {
+  if (!gap) return "gray";
+  if (gap.gapMonths < 6) return gap.mixed ? "yellow" : "green";
+  if (gap.gapMonths <= 12) return "yellow";
   return "red";
+}
+
+/** Green when never matched or last matched 3+ months ago, red when inside the 3-month window. */
+function recentMatchDot(recentMatch: RecentMatchInfo): DotColor {
+  return recentMatch.withinThreeMonths ? "red" : "green";
+}
+
+function formatRecentMatch(recentMatch: RecentMatchInfo): string {
+  if (!recentMatch.lastMatchedOn || !recentMatch.withinThreeMonths) return "None";
+  const diffDays = Math.floor(
+    (Date.now() - new Date(recentMatch.lastMatchedOn).getTime()) / (24 * 60 * 60 * 1000)
+  );
+  if (diffDays < 31) return `${Math.max(1, Math.round(diffDays / 7))}w ago`;
+  return `${Math.round(diffDays / 30.44)}mo ago`;
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +227,7 @@ function MemberDetailCard({
   member,
   other,
   breakdown,
+  recentMatch,
   isDouble,
   locked,
   onRemove,
@@ -187,6 +236,7 @@ function MemberDetailCard({
   member: DraftMember;
   other: DraftMember;
   breakdown: DraftPair["breakdown"];
+  recentMatch: RecentMatchInfo;
   isDouble: boolean;
   locked: boolean;
   onRemove: () => void;
@@ -200,6 +250,11 @@ function MemberDetailCard({
 
   const fields = [
     {
+      label: "Last match",
+      value: formatRecentMatch(recentMatch),
+      dot: recentMatchDot(recentMatch),
+    },
+    {
       label: "Language",
       value: member.language?.length ? member.language.map((l) => l.charAt(0).toUpperCase() + l.slice(1)).join(", ") : "N/A",
       dot: languageDot(member, other, breakdown.language),
@@ -211,7 +266,7 @@ function MemberDetailCard({
     },
     {
       label: "Days",
-      value: member.availability?.days?.length ? member.availability.days.map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ") : "N/A",
+      value: member.availability?.days?.length ? sortDays(member.availability.days).map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ") : "N/A",
       dot: daysDot(member, other),
     },
     ...(ENABLE_TIME_OF_DAY ? [{
@@ -230,14 +285,11 @@ function MemberDetailCard({
       dot: proximityDot(member, other, proximityKm),
     },
     {
-      label: "Children",
-      value: member.children?.length ? member.children.map(formatChildAge).join(", ") : "N/A",
-      dot: childrenDot(member, other, breakdown.children),
-    },
-    {
       label: "Age gap",
-      value: formatAgeGap(minChildAgeGapMonths(member, other)),
-      dot: ageGapDot(minChildAgeGapMonths(member, other)),
+      value: member.children?.length
+        ? `${formatAgeGap(bestChildGap(member, other))} (${member.children.map(formatChildAge).join(", ")})`
+        : "N/A",
+      dot: ageGapDot(bestChildGap(member, other)),
     },
   ];
 
@@ -319,7 +371,7 @@ function MemberProfileFields({ member }: { member: DraftMember }) {
     },
     {
       label: "Days",
-      value: member.availability?.days?.length ? member.availability.days.map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ") : "N/A",
+      value: member.availability?.days?.length ? sortDays(member.availability.days).map((d) => d.charAt(0).toUpperCase() + d.slice(1, 3)).join(", ") : "N/A",
     },
     ...(ENABLE_TIME_OF_DAY ? [{
       label: "Time",
@@ -491,6 +543,7 @@ function NeedsMatchCard({
               member={member}
               other={current.member}
               breakdown={current.breakdown}
+              recentMatch={current.recentMatch}
               isDouble={false}
               locked
               onRemove={() => {}}
@@ -500,6 +553,7 @@ function NeedsMatchCard({
               member={current.member}
               other={member}
               breakdown={current.breakdown}
+              recentMatch={current.recentMatch}
               isDouble={current.isAlreadyMatched}
               locked
               onRemove={() => {}}
@@ -649,6 +703,7 @@ function PairCard({
           member={pair.member1}
           other={pair.member2}
           breakdown={pair.breakdown}
+          recentMatch={pair.recentMatch}
           isDouble={doubleMatchedIds.has(pair.member1.id)}
           locked={locked}
           onRemove={handleRemove}
@@ -658,6 +713,7 @@ function PairCard({
           member={pair.member2}
           other={pair.member1}
           breakdown={pair.breakdown}
+          recentMatch={pair.recentMatch}
           isDouble={doubleMatchedIds.has(pair.member2.id)}
           locked={locked}
           onRemove={handleRemove}

@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { sendOptinEmail } from "@/lib/emails";
 import { generateOptinToken } from "@/lib/optin-token";
 import { currentMonth, monthToDate } from "@/lib/tokens";
-import { scorePair, parentTypeCompatible, maxAchievableScore, qualityTier, type MatchCandidate } from "@/lib/matcher";
+import { scorePair, parentTypeCompatible, maxAchievableScore, qualityTier, getLastMatchedMap, type MatchCandidate } from "@/lib/matcher";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +29,12 @@ export type DraftMember = {
   open_to_second_match: boolean;
 };
 
+/** Whether/when this pair was last matched, for the admin "recent match" confirmation row. */
+export type RecentMatchInfo = {
+  withinThreeMonths: boolean;
+  lastMatchedOn: string | null;
+};
+
 export type DraftPair = {
   id: string;
   member1: DraftMember;
@@ -43,6 +49,7 @@ export type DraftPair = {
     children: number;
   };
   quality_tier: "great" | "good" | "needs_work";
+  recentMatch: RecentMatchInfo;
 };
 
 export type RoundData = {
@@ -119,6 +126,24 @@ async function fetchTopicIds(
   return map;
 }
 
+/** Looks up a pair's last-matched info from a pairKey → date map (see getLastMatchedMap). */
+function recentMatchInfo(
+  lastMatchedMap: Map<string, string>,
+  id1: string,
+  id2: string
+): RecentMatchInfo {
+  const lastMatchedOn = lastMatchedMap.get([id1, id2].sort().join(":")) ?? null;
+  if (!lastMatchedOn) return { withinThreeMonths: false, lastMatchedOn: null };
+
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+  return {
+    withinThreeMonths: new Date(lastMatchedOn) >= threeMonthsAgo,
+    lastMatchedOn,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // getRoundData
 // ---------------------------------------------------------------------------
@@ -188,6 +213,8 @@ export async function getRoundData(month?: string): Promise<RoundData | null> {
 
   if (draftsError) return null;
 
+  const lastMatchedMap = await getLastMatchedMap(supabase);
+
   // Count how many times each member appears (for double-match badge)
   const memberAppearances = new Map<string, number>();
   for (const d of drafts ?? []) {
@@ -205,6 +232,7 @@ export async function getRoundData(month?: string): Promise<RoundData | null> {
     score: Math.round(d.score),
     breakdown: d.breakdown as DraftPair["breakdown"],
     quality_tier: (d.quality_tier ?? "needs_work") as DraftPair["quality_tier"],
+    recentMatch: recentMatchInfo(lastMatchedMap, d.member_id_1, d.member_id_2),
   }));
 
   const matchedIds = new Set(pairs.flatMap((p) => [p.member1.id, p.member2.id]));
@@ -452,6 +480,7 @@ export type CandidateScore = {
   score: number;
   breakdown: DraftPair["breakdown"];
   isAlreadyMatched: boolean;
+  recentMatch: RecentMatchInfo;
 };
 
 export async function computeCandidateScores(
@@ -515,6 +544,8 @@ export async function computeCandidateScores(
     .eq("round_id", roundId);
   const matchedIds = new Set((drafts ?? []).flatMap((d) => [d.member_id_1, d.member_id_2]));
 
+  const lastMatchedMap = await getLastMatchedMap(supabase);
+
   // Build coord map
   const coordMap = new Map<string, { lat: number; lng: number }>();
   for (const m of members) {
@@ -547,9 +578,17 @@ export async function computeCandidateScores(
         score: Math.round(scored.score),
         breakdown: scored.breakdown,
         isAlreadyMatched: matchedIds.has(candidate.id),
+        recentMatch: recentMatchInfo(lastMatchedMap, orphanId, candidate.id),
       };
     })
-    .sort((a, b) => b.score - a.score);
+    // Not-yet-matched candidates first (highest → lowest score), then
+    // candidates who'd become a second match (highest → lowest score).
+    .sort((a, b) => {
+      if (a.isAlreadyMatched !== b.isAlreadyMatched) {
+        return a.isAlreadyMatched ? 1 : -1;
+      }
+      return b.score - a.score;
+    });
 }
 
 // ---------------------------------------------------------------------------

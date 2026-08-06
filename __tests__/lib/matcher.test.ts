@@ -415,9 +415,10 @@ describe("Scenario 8: Children age gap scoring", () => {
     expect(scorePair(a, b, NO_COORDS).breakdown.children).toBe(0);
   });
 
-  it("treats expected children as younger than same-month newborns (due date used as age)", () => {
-    // Due next month → age ≈ −1. Newborn → age ≈ 0. Gap = 1 month.
-    // rawScore = 1 − 1/24 ≈ 0.958. × 75 ≈ 71.9 — high but slightly below 75.
+  it("scores expected-vs-born pairs lower than an equivalent same-status pair (mixed discount)", () => {
+    // Due next month → age ≈ −1. Newborn → age ≈ 0. Gap ≈ 1 month.
+    // rawScore ≈ 1 − 1/24 ≈ 0.958, discounted ×0.75 (mixed expected/born) ≈ 0.719.
+    // × mid weight 75 ≈ 53.9 — clearly above the 37.5 "no data" floor, clearly below a full/near-full 75.
     const nextMonth = curMonth === 12 ? 1 : curMonth + 1;
     const nextMonthYear = curMonth === 12 ? curYear + 1 : curYear;
     const a = member({
@@ -429,16 +430,15 @@ describe("Scenario 8: Children age gap scoring", () => {
       children: [{ birth_month: curMonth, birth_year: curYear, expected: false }],
     });
     const score = scorePair(a, b, NO_COORDS).breakdown.children;
-    expect(score).toBeGreaterThan(0);
-    expect(score).toBeLessThan(75); // slightly penalised vs same-month
+    expect(score).toBeGreaterThan(37.5); // more informative than "no children set"
+    expect(score).toBeLessThan(75);      // but discounted below a same-status match
   });
 
-  it("ranks two pregnant members with close due dates higher than those with distant due dates", () => {
-    // Close pair: both due next month → gap = 0 → score = 75
+  it("ranks two pregnant members with close due dates higher than those with distant due dates, at full (undiscounted) weight", () => {
+    // Both expected → same status → no mixed-pair discount applies.
     const nextMonth = curMonth === 12 ? 1 : curMonth + 1;
     const nextMonthYear = curMonth === 12 ? curYear + 1 : curYear;
 
-    // Distant pair: one due next month, one due in 7 months → gap = 6 months
     const farDate = new Date(now);
     farDate.setMonth(farDate.getMonth() + 7);
     const farMonth = farDate.getMonth() + 1;
@@ -460,6 +460,7 @@ describe("Scenario 8: Children age gap scoring", () => {
     const closePairScore = scorePair(dueSoon1, dueSoon2, NO_COORDS).breakdown.children;
     const distantPairScore = scorePair(dueSoon1, dueLater, NO_COORDS).breakdown.children;
 
+    expect(closePairScore).toBe(75); // gap=0, same status → full mid weight, no discount
     expect(closePairScore).toBeGreaterThan(distantPairScore);
   });
 });
