@@ -8,8 +8,8 @@ import { monthlyFeature } from "@/lib/monthly-feature";
 export default function MonthlyWhimsy() {
   if (!monthlyFeature) return null;
 
-  const { imageSrc, imageAlt, title, author, authorAge, featuredMonth, description } = monthlyFeature;
-  const monthLabel = new Date(featuredMonth + "-01").toLocaleString("en-US", {
+  const { imageSrc, imageAlt, title, author, authorAge, createdMonth, description } = monthlyFeature;
+  const monthLabel = new Date(createdMonth + "-01").toLocaleString("en-US", {
     month: "long",
     year: "numeric",
   });
@@ -43,13 +43,13 @@ export default function MonthlyWhimsy() {
           border: "1.5px solid var(--coral)",
         }}
       >
-        <div className="relative w-full aspect-[4/3] overflow-hidden rounded-xl bg-border/30">
+        <div className="relative w-full h-[420px] overflow-hidden rounded-xl bg-dark">
           <Image
             src={imageSrc}
             alt={imageAlt}
             fill
             sizes="(min-width: 768px) 672px, 100vw"
-            className="object-cover"
+            className="object-contain"
           />
         </div>
         <div>
