@@ -24,7 +24,8 @@
     "consent-link": "tsx scripts/gen-consent-link.mts",
     "confirm-member": "tsx scripts/confirm-member.mts",
     "reset-consent": "tsx scripts/reset-consent.mts",
-    "grant-free-month": "tsx scripts/grant-free-month.mts"
+    "grant-free-month": "tsx scripts/grant-free-month.mts",
+    "add-match": "tsx scripts/add-match.mts"
   },
   "dependencies": {
     "@beehiiv/sdk": "^0.1.9",
