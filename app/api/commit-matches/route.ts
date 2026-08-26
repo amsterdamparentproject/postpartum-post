@@ -29,6 +29,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { currentMonth, monthToDate } from "@/lib/tokens";
+import { recordEntitlement } from "@/lib/match-ledger";
 
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
@@ -116,7 +117,10 @@ export async function POST(req: NextRequest) {
     matched_on: monthDate,
   }));
 
-  const { error: insertError } = await supabase.from("matches").insert(matchRows);
+  const { data: insertedMatches, error: insertError } = await supabase
+    .from("matches")
+    .insert(matchRows)
+    .select("id, member_id_1, member_id_2");
 
   if (insertError) {
     console.error("[commit-matches] Failed to insert matches:", insertError);
@@ -138,6 +142,91 @@ export async function POST(req: NextRequest) {
       "[commit-matches] Matches written but failed to update round status:",
       updateError
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Track B4 (billing simplification, __claude__/billing-simplification-plan.md
+  // §3.2): decrement the ledger. This is supplementary to matching — a
+  // failure here is logged but doesn't fail the response, since matches and
+  // the round are already committed and rolling either back would be worse
+  // than a member's counter being briefly out of sync (nothing reads it yet).
+  // -------------------------------------------------------------------------
+  try {
+    // One decrement per member per round, not per match row — a double
+    // match or rematch this month costs nothing. record_entitlement's
+    // one-decrement-per-member-per-month guard (migration 022) would catch
+    // a second attempt anyway, but dedup here too so it's not relying on
+    // that as the only line of defense.
+    const firstMatchIdByMember = new Map<string, string>();
+    for (const m of insertedMatches ?? []) {
+      if (!firstMatchIdByMember.has(m.member_id_1)) firstMatchIdByMember.set(m.member_id_1, m.id);
+      if (!firstMatchIdByMember.has(m.member_id_2)) firstMatchIdByMember.set(m.member_id_2, m.id);
+    }
+
+    for (const [memberId, matchId] of firstMatchIdByMember) {
+      try {
+        await recordEntitlement(supabase, {
+          memberId,
+          event: "match_delivered",
+          delta: -1,
+          month: monthDate,
+          matchId,
+        });
+      } catch (e) {
+        console.error(`[commit-matches] record_entitlement (match_delivered) failed for ${memberId}:`, e);
+      }
+    }
+
+    // "Neither" (§3.2): a currently-paying member — active, or canceling
+    // (paid through period end and still eligible for matching, migration
+    // 020) — who this round neither opted in nor explicitly skipped.
+    // Paused members are excluded entirely by the status filter; they keep
+    // what they hold. Matched members are already excluded here too, since
+    // being matched requires having opted in.
+    const { data: billableMembers, error: billableError } = await supabase
+      .from("members")
+      .select("id")
+      .in("status", ["active", "canceling"]);
+
+    const { data: participation, error: participationError } = await supabase
+      .from("monthly_participation")
+      .select("member_id")
+      .eq("month", monthDate);
+
+    const { data: skips, error: skipsError } = await supabase
+      .from("monthly_skips")
+      .select("member_id")
+      .eq("month", monthDate);
+
+    if (billableError || participationError || skipsError) {
+      console.error("[commit-matches] failed to load no_response population:", {
+        billableError,
+        participationError,
+        skipsError,
+      });
+    } else {
+      const participatedIds = new Set((participation ?? []).map((p) => p.member_id));
+      const skippedIds = new Set((skips ?? []).map((s) => s.member_id));
+
+      const noResponseIds = (billableMembers ?? [])
+        .map((m) => m.id)
+        .filter((id) => !participatedIds.has(id) && !skippedIds.has(id));
+
+      for (const memberId of noResponseIds) {
+        try {
+          await recordEntitlement(supabase, {
+            memberId,
+            event: "no_response",
+            delta: -1,
+            month: monthDate,
+          });
+        } catch (e) {
+          console.error(`[commit-matches] record_entitlement (no_response) failed for ${memberId}:`, e);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[commit-matches] ledger decrement step failed (non-fatal):", e);
   }
 
   return NextResponse.json({
