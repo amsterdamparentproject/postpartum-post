@@ -40,6 +40,12 @@
  *   5. The manually-built invoice's amount matches the plan price exactly,
  *      with no proration line item sneaking in.
  *
+ * First real run (2026-08-26) surfaced one more thing: invoiceItems.create's
+ * `pricing.price` param only accepts one-time prices — it rejects a
+ * subscription's own recurring price with "this field only accepts prices
+ * with type=one_time". Cases 2/3/5 now bill the same amount directly via
+ * `amount` + `currency` instead of referencing the price by ID.
+ *
  * Case 6 (SEPA's async settlement) and case 7 (portal doesn't offer pause
  * to a member) are deliberately NOT in this script:
  *   - Case 7 is already answered — the account's default portal config has
@@ -106,13 +112,13 @@ async function advanceClock(clockId: string, toUnix: number, label: string): Pro
   await pollClockReady(clockId, label);
 }
 
-async function getPriceId(): Promise<{ id: string; unitAmount: number | null }> {
+async function getPriceId(): Promise<{ id: string; unitAmount: number | null; currency: string }> {
   const prices = await stripe.prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 });
   const price = prices.data[0];
   if (!price) {
     throw new Error(`No active price found for lookup_key "${lookupKey}" in this account.`);
   }
-  return { id: price.id, unitAmount: price.unit_amount };
+  return { id: price.id, unitAmount: price.unit_amount, currency: price.currency };
 }
 
 async function newClock(name: string) {
@@ -229,7 +235,7 @@ async function caseOne(priceId: string) {
 // pending invoice item for the price, then create+finalize an invoice that
 // includes it. This is what Track E's refill step needs to do explicitly.
 // ---------------------------------------------------------------------------
-async function caseTwo(priceId: string) {
+async function caseTwo(priceId: string, unitAmount: number, currency: string) {
   const label = "case 2";
   const { clock, customer, sub, pastNaturalEnd } = await pausedPastNaturalEnd(priceId, label, "case-2");
 
@@ -237,10 +243,16 @@ async function caseTwo(priceId: string) {
   await stripe.subscriptions.update(sub.id, { pause_collection: null });
   log(label, `cleared pause_collection at ${new Date(resumeCalledAt * 1000).toISOString()}`);
 
+  // invoiceItems.create's `pricing.price` only accepts one-time prices —
+  // it rejects the subscription's own recurring price with "this field
+  // only accepts prices with type=one_time" (confirmed on the first real
+  // run). Bill the same amount directly via amount + currency instead.
   const item = await stripe.invoiceItems.create({
     customer: customer.id,
     subscription: sub.id,
-    pricing: { price: priceId },
+    amount: unitAmount,
+    currency,
+    description: `Track D rehearsal refill (${lookupKey})`,
   });
   log(label, `created a pending invoice item (${item.id}) for the subscription's own price`);
 
@@ -271,7 +283,7 @@ async function caseTwo(priceId: string) {
 // renew-check job needs to watch for — most likely the invoice's own
 // status (`open` retrying, or `uncollectible`), not the subscription's.
 // ---------------------------------------------------------------------------
-async function caseThree(priceId: string) {
+async function caseThree(priceId: string, unitAmount: number, currency: string) {
   const label = "case 3";
   const { clock, customer, sub, pastNaturalEnd } = await pausedPastNaturalEnd(priceId, label, "case-3");
 
@@ -290,7 +302,9 @@ async function caseThree(priceId: string) {
   const item = await stripe.invoiceItems.create({
     customer: customer.id,
     subscription: sub.id,
-    pricing: { price: priceId },
+    amount: unitAmount,
+    currency,
+    description: `Track D rehearsal refill (${lookupKey})`,
   });
   const invoice = await stripe.invoices.create({
     customer: customer.id,
@@ -360,7 +374,7 @@ async function caseFour(priceId: string) {
 // using) — the invoice item is created directly from the price, so this
 // confirms that comes through clean.
 // ---------------------------------------------------------------------------
-async function caseFive(priceId: string, expectedUnitAmount: number | null) {
+async function caseFive(priceId: string, expectedUnitAmount: number, currency: string) {
   const label = "case 5";
   const { clock, customer, sub, pastNaturalEnd } = await pausedPastNaturalEnd(priceId, label, "case-5");
 
@@ -368,7 +382,9 @@ async function caseFive(priceId: string, expectedUnitAmount: number | null) {
   const item = await stripe.invoiceItems.create({
     customer: customer.id,
     subscription: sub.id,
-    pricing: { price: priceId },
+    amount: expectedUnitAmount,
+    currency,
+    description: `Track D rehearsal refill (${lookupKey})`,
   });
   const invoice = await stripe.invoices.create({
     customer: customer.id,
@@ -390,7 +406,7 @@ async function caseFive(priceId: string, expectedUnitAmount: number | null) {
 
   log(label, `invoice total=${finalInvoice.total}, expected plan unit_amount=${expectedUnitAmount}, proration lines=${prorationLines.length}`);
 
-  if (prorationLines.length === 0 && expectedUnitAmount !== null && finalInvoice.total === expectedUnitAmount) {
+  if (prorationLines.length === 0 && finalInvoice.total === expectedUnitAmount) {
     log(label, "✓ CASE 5: refill invoice total matches the plan price exactly, no proration lines.");
   } else if (prorationLines.length === 0) {
     log(label, `? CASE 5: no proration lines, but total (${finalInvoice.total}) doesn't match expected (${expectedUnitAmount}) — worth a look (tax/discount could explain it).`);
@@ -403,15 +419,18 @@ async function caseFive(priceId: string, expectedUnitAmount: number | null) {
 
 async function main() {
   console.log(`Track D rehearsal — plan: ${lookupKey}\n`);
-  const { id: priceId, unitAmount } = await getPriceId();
-  log("setup", `resolved lookup_key "${lookupKey}" → price ${priceId} (unit_amount=${unitAmount})`);
+  const { id: priceId, unitAmount, currency } = await getPriceId();
+  if (unitAmount === null) {
+    throw new Error(`Price ${priceId} has no unit_amount (tiered/graduated pricing?) — this script assumes a simple per-unit price and can't build a matching invoice item.`);
+  }
+  log("setup", `resolved lookup_key "${lookupKey}" → price ${priceId} (unit_amount=${unitAmount} ${currency})`);
 
   const cases: Array<[string, () => Promise<void>]> = [
     ["case 1", () => caseOne(priceId)],
-    ["case 2", () => caseTwo(priceId)],
-    ["case 3", () => caseThree(priceId)],
+    ["case 2", () => caseTwo(priceId, unitAmount, currency)],
+    ["case 3", () => caseThree(priceId, unitAmount, currency)],
     ["case 4", () => caseFour(priceId)],
-    ["case 5", () => caseFive(priceId, unitAmount)],
+    ["case 5", () => caseFive(priceId, unitAmount, currency)],
   ];
 
   for (const [name, run] of cases) {
