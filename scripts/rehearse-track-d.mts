@@ -72,8 +72,11 @@
  * collected outside Stripe.js (mandate_data.customer_acceptance.type:
  * "offline", via a SetupIntent): docs.stripe.com/payments/ach-direct-debit/
  * migrating-from-charges. That doc's example is ACH-specific — SEPA isn't
- * separately confirmed to accept the same shape, so this is the most
- * likely first thing to need fixing once this case actually runs.
+ * separately confirmed to accept the same shape, so this remains the
+ * likeliest next thing to need fixing once this case gets past PaymentMethod
+ * creation. First real run (2026-08-26) hit an earlier issue instead:
+ * `paymentMethods.create` for `sepa_debit` requires `billing_details.email`
+ * (card PMs don't) — fixed by passing the customer's own email through.
  * Deliberately routes the subscription's own *initial* payment through the
  * card PM already on the customer, and only switches the default payment
  * method to SEPA before the refill — mirrors a real member's iDEAL-then-
@@ -233,12 +236,16 @@ async function newCustomerOnClock(clockId: string, email: string, paymentMethod:
  * path (no browser/Stripe.js in this script to collect it the normal way).
  * Confirmed for ACH (docs.stripe.com/payments/ach-direct-debit/migrating-
  * from-charges); NOT separately confirmed for SEPA — this is the most
- * likely first thing to need fixing once case 6 actually runs. */
-async function newSepaPaymentMethod(customerId: string, iban: string) {
+ * likely first thing to need fixing once case 6 actually runs.
+ *
+ * First real run (2026-08-26): `paymentMethods.create` for `sepa_debit`
+ * rejects a missing `billing_details.email` ("Missing required param:
+ * billing_details[email]") — unlike card PMs, which don't need one. */
+async function newSepaPaymentMethod(customerId: string, email: string, iban: string) {
   const pm = await stripe.paymentMethods.create({
     type: "sepa_debit",
     sepa_debit: { iban },
-    billing_details: { name: "Track D Rehearsal" },
+    billing_details: { name: "Track D Rehearsal", email },
   });
   await stripe.paymentMethods.attach(pm.id, { customer: customerId });
   await stripe.setupIntents.create({
@@ -321,12 +328,13 @@ async function pausedPastNaturalEnd(priceId: string, label: string, emailTag: st
  * SEPA. */
 async function pausedPastNaturalEndSepa(priceId: string, label: string, emailTag: string, iban: string) {
   const clock = await newClock(`rehearse-${emailTag}`);
-  const customer = await newCustomerOnClock(clock.id, `d-rehearsal-${emailTag}+${clock.id}@example.test`, "pm_card_visa");
+  const email = `d-rehearsal-${emailTag}+${clock.id}@example.test`;
+  const customer = await newCustomerOnClock(clock.id, email, "pm_card_visa");
   const sub = await newSubscription(customer.id, priceId);
   const naturalPeriodEnd = sub.items.data[0].current_period_end;
   log(label, `subscription ${sub.id} created (card), status=${sub.status}, natural current_period_end=${new Date(naturalPeriodEnd * 1000).toISOString()}`);
 
-  const sepaPm = await newSepaPaymentMethod(customer.id, iban);
+  const sepaPm = await newSepaPaymentMethod(customer.id, email, iban);
   await stripe.customers.update(customer.id, {
     invoice_settings: { default_payment_method: sepaPm.id },
   });
