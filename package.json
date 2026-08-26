@@ -28,7 +28,8 @@
     "reset-consent": "tsx scripts/reset-consent.mts",
     "grant-free-month": "tsx scripts/grant-free-month.mts",
     "add-match": "tsx scripts/add-match.mts",
-    "backfill-match-entitlements": "tsx scripts/backfill-match-entitlements.mts"
+    "backfill-match-entitlements": "tsx scripts/backfill-match-entitlements.mts",
+    "verify-portal-subscription-update": "tsx scripts/verify-portal-subscription-update.mts"
   },
   "dependencies": {
     "@beehiiv/sdk": "^0.1.9",
