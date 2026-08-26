@@ -71,12 +71,19 @@
  * uses the API-only path Stripe's own migration docs use for ACH mandates
  * collected outside Stripe.js (mandate_data.customer_acceptance.type:
  * "offline", via a SetupIntent): docs.stripe.com/payments/ach-direct-debit/
- * migrating-from-charges. That doc's example is ACH-specific — SEPA isn't
- * separately confirmed to accept the same shape, so this remains the
- * likeliest next thing to need fixing once this case gets past PaymentMethod
- * creation. First real run (2026-08-26) hit an earlier issue instead:
- * `paymentMethods.create` for `sepa_debit` requires `billing_details.email`
- * (card PMs don't) — fixed by passing the customer's own email through.
+ * migrating-from-charges. That doc's example is ACH-specific — SEPA wasn't
+ * separately confirmed to accept the same shape, but the second real run
+ * (2026-08-26) got past the mandate SetupIntent cleanly, so this shape
+ * appears to work for SEPA too. First real run hit an earlier issue
+ * instead: `paymentMethods.create` for `sepa_debit` requires
+ * `billing_details.email` (card PMs don't) — fixed by passing the
+ * customer's own email through. Second real run then surfaced that the
+ * invoice itself never left "draft" after 6 minutes of real-time polling —
+ * auto_advance's finalization (draft → open → submitted) is scheduled
+ * relative to the customer's TEST CLOCK, same as every other case's ~1
+ * hour lag, not real time; only the SEPA settlement *after* submission
+ * runs on a real background timer. Fixed by advancing the test clock (as
+ * cases 1/2/3/5 already do) before polling for settlement.
  * Deliberately routes the subscription's own *initial* payment through the
  * card PM already on the customer, and only switches the default payment
  * method to SEPA before the refill — mirrors a real member's iDEAL-then-
@@ -586,7 +593,7 @@ async function caseFive(priceId: string, expectedUnitAmount: number, currency: s
 // ---------------------------------------------------------------------------
 async function caseSixTiming(priceId: string, unitAmount: number, currency: string) {
   const label = "case 6a";
-  const { customer, sub } = await pausedPastNaturalEndSepa(priceId, label, "case-6a", SEPA_TEST_IBANS.successDelayed);
+  const { clock, customer, sub, pastNaturalEnd } = await pausedPastNaturalEndSepa(priceId, label, "case-6a", SEPA_TEST_IBANS.successDelayed);
 
   await stripe.subscriptions.update(sub.id, { pause_collection: null });
   const item = await stripe.invoiceItems.create({
@@ -603,10 +610,18 @@ async function caseSixTiming(priceId: string, unitAmount: number, currency: stri
   });
   log(label, `created invoice ${invoice.id} against a SEPA-funded default payment method (successDelayed IBAN), item ${item.id}`);
 
-  // Give Stripe a moment to finalize + submit the invoice before the first
-  // check — auto_advance's own finalization can itself take a little real
-  // time, separate from the SEPA settlement delay being tested here.
-  await new Promise((r) => setTimeout(r, 15000));
+  // auto_advance's own finalization (draft → open → submitted) is
+  // scheduled relative to the customer's TEST CLOCK, not real time — same
+  // "~1 hour of clock time" lag noted in case 1 — so it needs the clock
+  // pushed forward, exactly like cases 1/2/3/5. Confirmed the hard way:
+  // the first real run of this case polled 6 real minutes with the
+  // invoice stuck in "draft" because the clock was never advanced. Only
+  // AFTER that (once the PaymentIntent is actually submitted, entering
+  // "processing") does the SEPA settlement delay run on a real wall-clock
+  // timer independent of the test clock — that's what pollInvoiceUntilSettled
+  // below is actually measuring.
+  const checkpoint = pastNaturalEnd + 3 * 60 * 60;
+  await advanceClock(clock.id, checkpoint, label);
 
   const submitted = await stripe.invoices.retrieve(invoice.id!);
   log(label, `at submission: status=${submitted.status}, attempted=${submitted.attempted}`);
@@ -631,7 +646,7 @@ async function caseSixTiming(priceId: string, unitAmount: number, currency: stri
 // ---------------------------------------------------------------------------
 async function caseSixFailure(priceId: string, unitAmount: number, currency: string) {
   const label = "case 6b";
-  const { customer, sub } = await pausedPastNaturalEndSepa(priceId, label, "case-6b", SEPA_TEST_IBANS.failedDelayed);
+  const { clock, customer, sub, pastNaturalEnd } = await pausedPastNaturalEndSepa(priceId, label, "case-6b", SEPA_TEST_IBANS.failedDelayed);
 
   await stripe.subscriptions.update(sub.id, { pause_collection: null });
   const item = await stripe.invoiceItems.create({
@@ -648,7 +663,10 @@ async function caseSixFailure(priceId: string, unitAmount: number, currency: str
   });
   log(label, `created invoice ${invoice.id} against a SEPA-funded default payment method (failedDelayed IBAN), item ${item.id}`);
 
-  await new Promise((r) => setTimeout(r, 15000));
+  // Same fix as case 6a: finalization needs the test clock advanced, not
+  // real time — see the comment there for the full story.
+  const checkpoint = pastNaturalEnd + 3 * 60 * 60;
+  await advanceClock(clock.id, checkpoint, label);
   const settled = await pollInvoiceUntilSettled(invoice.id!, label, 6 * 60 * 1000, 20000);
   const subAfter = await stripe.subscriptions.retrieve(sub.id);
 
