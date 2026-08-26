@@ -10,15 +10,7 @@ import {
   type SubscriptionDetails,
 } from "@/app/actions/profile";
 import { unsubscribe } from "@/app/actions/unsubscribe";
-
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  active: { label: "Active", className: "bg-green-100 text-green-700" },
-  trialing: { label: "Trial", className: "bg-blue-100 text-blue-700" },
-  past_due: { label: "Past due", className: "bg-yellow-100 text-yellow-700" },
-  incomplete: { label: "Incomplete", className: "bg-yellow-100 text-yellow-700" },
-  unpaid: { label: "Unpaid", className: "bg-red-100 text-red-700" },
-  canceled: { label: "Canceled", className: "bg-gray-100 text-gray-500" },
-};
+import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES } from "@/lib/member-status";
 
 function formatDate(unixTimestamp: number) {
   return new Date(unixTimestamp * 1000).toLocaleDateString("en-NL", {
@@ -69,9 +61,15 @@ function BillingContent() {
       ? "Monthly (€12/mo)"
       : null;
 
-  const statusInfo = subscription
-    ? STATUS_LABELS[subscription.status] ?? { label: subscription.status, className: "bg-gray-100 text-gray-500" }
-    : null;
+  const statusMessage =
+    subscription && member
+      ? deriveMemberStatusMessage({
+          stripeStatus: subscription.status,
+          priceLookupKey: subscription.price_lookup_key,
+          intervalCount: subscription.interval_count,
+          matchesRemaining: member.matches_remaining,
+        })
+      : null;
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!member) return <MagicLinkRequest />;
@@ -116,7 +114,7 @@ function BillingContent() {
               Your membership is active — you&apos;ll keep receiving matches and won&apos;t be charged again.
             </p>
           ) : (
-            <p className="text-sm text-muted">No active subscription found.</p>
+            <p className="text-sm text-muted">Membership ended.</p>
           )
         ) : (
           <>
@@ -131,8 +129,8 @@ function BillingContent() {
 
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted">Status</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo?.className}`}>
-                {statusInfo?.label}
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusMessage ? STATUS_TONE_CLASSNAMES[statusMessage.tone] : "bg-gray-100 text-gray-500"}`}>
+                {statusMessage?.label}
               </span>
             </div>
 

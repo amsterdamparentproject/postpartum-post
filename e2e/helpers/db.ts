@@ -144,6 +144,12 @@ export async function seedMemberWithSubscription(
     status: "active",
     stripe_customer_id: customer.id,
     consecutive_skips: 0,
+    // commitment_3mo has interval_count = 3 — this mirrors what B3's
+    // invoice.payment_succeeded handler would actually credit on a real
+    // first charge, so the billing page's Track C1 status badge shows
+    // realistic copy ("Active — 3 matches left") instead of the
+    // zero-matches renewal copy a genuinely fresh signup would never see.
+    matches_remaining: 3,
   });
   if (memberError) throw new Error(`seedMemberWithSubscription member insert failed: ${memberError.message}`);
 

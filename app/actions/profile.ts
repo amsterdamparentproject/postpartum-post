@@ -32,6 +32,8 @@ export type MemberProfile = {
   match_priority: "age" | "proximity" | null;
   children: Child[] | null;
   open_to_second_match: boolean;
+  // Track C1: the counter Track B introduced, now actually read.
+  matches_remaining: number;
 };
 
 export type Topic = {
@@ -51,6 +53,10 @@ export type SubscriptionDetails = {
   // determines whether they're skipping, regardless of how Stripe's side
   // of the pause is implemented today or after Track E's cutover.
   is_skipping_this_month: boolean;
+  // Track C1: distinguishes a bundle (matches-remaining counter is
+  // meaningful) from a monthly plan (interval_count === 1, counter reads
+  // 1-or-0 forever). null if the live Stripe fetch below failed.
+  interval_count: number | null;
 };
 
 export async function checkMemberExists(email: string): Promise<boolean> {
@@ -72,7 +78,7 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("members")
-    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, consecutive_skips, availability, match_priority, children, open_to_second_match")
+    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, consecutive_skips, availability, match_priority, children, open_to_second_match, matches_remaining")
     .eq("id", authed.memberId)
     .single();
   if (error && error.code !== "PGRST116") {
@@ -110,6 +116,12 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
   let current_period_end: number | null = null;
   let cancel_at_period_end = false;
   let price_lookup_key: string | null = null;
+  let interval_count: number | null = null;
+  // Track C1: prefer the live Stripe status over the local DB mirror — it's
+  // what actually determines the member-facing vocabulary below, and the
+  // live fetch can be fresher than whatever the last webhook wrote. Falls
+  // back to the DB value if the Stripe fetch itself fails.
+  let status: string = sub.status;
 
   // Track C2: whether they're skipping this calendar month is our own data
   // (monthly_skips), not Stripe's pause_collection — query it up front so a
@@ -131,8 +143,10 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
       { expand: ["items.data.price"] }
     );
     const item = stripeSub.items.data[0];
+    status = stripeSub.status;
     cancel_at_period_end = stripeSub.cancel_at_period_end;
     price_lookup_key = item.price.lookup_key ?? null;
+    interval_count = item.price.recurring?.interval_count ?? null;
 
     // During a trial, current_period_end = trial_end (the first charge date).
     // For the renewal case, show trial_end + interval so "Next billing date"
@@ -160,13 +174,14 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
   }
 
   return {
-    status: sub.status,
+    status,
     stripe_subscription_id: sub.stripe_subscription_id,
     stripe_price_id: sub.stripe_price_id,
     price_lookup_key,
     current_period_end,
     cancel_at_period_end,
     is_skipping_this_month,
+    interval_count,
   };
 }
 
