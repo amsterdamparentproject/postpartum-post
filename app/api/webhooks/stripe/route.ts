@@ -6,7 +6,7 @@ import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
 import { extendSubscriptionToNext5th } from "@/lib/subscription-utils";
 import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
-import { recordEntitlement, FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
+import { recordEntitlement, FYP_LOOKUP_KEYS, GIFT_ENTITLEMENT_NOTE } from "@/lib/match-ledger";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -181,7 +181,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: true });
       }
 
-      const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId, {
+        expand: ["discounts.source.coupon"],
+      });
       const price = stripeSubscription.items.data[0]?.price;
       const lookupKey = price?.lookup_key ?? "";
 
@@ -193,13 +195,41 @@ export async function POST(req: NextRequest) {
 
       const matchesPerTerm = price?.recurring?.interval_count ?? 1;
 
+      // Track C4: was this term covered by a gift coupon? Checked against
+      // the discount's coupon metadata (metadata.product === "gift_card",
+      // set by createGiftCard — the only coupon type this app creates)
+      // rather than against duration/percent_off, so it can't misfire on
+      // some future unrelated coupon. Falls back to an explicit
+      // coupons.retrieve() if the expand above didn't resolve the coupon
+      // object for whatever reason — this only ever runs for the rare
+      // subscription that actually has an active discount, so the extra
+      // round trip is cheap.
+      async function isGiftDiscount(discount: Stripe.Discount): Promise<boolean> {
+        const couponRef = discount.source?.coupon;
+        if (!couponRef) return false;
+        const coupon = typeof couponRef === "string"
+          ? await stripe.coupons.retrieve(couponRef)
+          : couponRef;
+        return coupon.metadata?.product === "gift_card";
+      }
+
+      let hasGiftDiscount = false;
+      for (const d of stripeSubscription.discounts ?? []) {
+        if (typeof d === "string") continue; // expand above should prevent this
+        if (await isGiftDiscount(d)) {
+          hasGiftDiscount = true;
+          break;
+        }
+      }
+
       const applied = await recordEntitlement(supabase, {
         memberId: sub.member_id,
         event: "term_payment",
         delta: matchesPerTerm,
         stripeInvoiceId: invoice.id,
+        note: hasGiftDiscount ? GIFT_ENTITLEMENT_NOTE : undefined,
       });
-      console.log("[webhook] invoice.payment_succeeded", { subscriptionId, matchesPerTerm, applied });
+      console.log("[webhook] invoice.payment_succeeded", { subscriptionId, matchesPerTerm, applied, gift: hasGiftDiscount });
     } catch (e) {
       console.error("[webhook] invoice.payment_succeeded handler failed (non-fatal):", e);
     }

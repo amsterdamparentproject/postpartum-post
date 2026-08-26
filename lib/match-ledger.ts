@@ -59,6 +59,17 @@ export async function recordEntitlement(
 export const FYP_LOOKUP_KEYS = new Set(["fyp_monthly_single", "fyp_monthly_multi"]);
 
 /**
+ * match_entitlements.note value written by the invoice.payment_succeeded
+ * handler when a term_payment's invoice was gift-covered (Track C4) — a
+ * 100%-off coupon tagged metadata.product === "gift_card" by
+ * createGiftCard(), the only coupon type this app creates. Read back by
+ * send-match-emails to tell "first real charge after a gift" apart from
+ * an ordinary bundle running out (billing plan §3.3's notice-volume
+ * table) — purely from this ledger, no Stripe calls at reveal time.
+ */
+export const GIFT_ENTITLEMENT_NOTE = "gift";
+
+/**
  * Counts round dates (the "5th" of each month — matching match_rounds'
  * first-of-month `month` convention) in the half-open interval
  * [today, termEnd). See plan §4 — this is the forward derivation used to

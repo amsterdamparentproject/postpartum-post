@@ -6,11 +6,12 @@ import { sendWelcomeEmail, sendGiftCardEmail } from "@/lib/emails";
 
 // --- Mocks ---
 
-const { mockConstructEvent, mockRetrieve, mockUpdate, mockCreateCoupon, mockCreatePromotionCode, mockRetrievePrice } = vi.hoisted(() => ({
+const { mockConstructEvent, mockRetrieve, mockUpdate, mockCreateCoupon, mockRetrieveCoupon, mockCreatePromotionCode, mockRetrievePrice } = vi.hoisted(() => ({
   mockConstructEvent: vi.fn(),
   mockRetrieve: vi.fn(),
   mockUpdate: vi.fn().mockResolvedValue({}),
   mockCreateCoupon: vi.fn().mockResolvedValue({ id: "coupon_test" }),
+  mockRetrieveCoupon: vi.fn(),
   mockCreatePromotionCode: vi.fn().mockResolvedValue({ id: "promo_test" }),
   mockRetrievePrice: vi.fn().mockResolvedValue({ product: "prod_test" }),
 }));
@@ -19,7 +20,7 @@ vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({
     webhooks: { constructEvent: mockConstructEvent },
     subscriptions: { retrieve: mockRetrieve, update: mockUpdate },
-    coupons: { create: mockCreateCoupon },
+    coupons: { create: mockCreateCoupon, retrieve: mockRetrieveCoupon },
     promotionCodes: { create: mockCreatePromotionCode },
     prices: { retrieve: mockRetrievePrice },
   }),
@@ -47,6 +48,7 @@ describe("Stripe webhook", () => {
     vi.clearAllMocks();
     mockUpdate.mockResolvedValue({});
     mockRetrievePrice.mockResolvedValue({ product: "prod_test" });
+    mockRetrieveCoupon.mockReset();
   });
 
   afterEach(async () => {
@@ -440,7 +442,8 @@ describe("Stripe webhook", () => {
   // once a renew-check job exists that could actually resume it.
   describe("invoice.payment_succeeded", () => {
     async function seedMemberWithSubscription(
-      overrides: { lookupKey?: string; intervalCount?: number } = {}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      overrides: { lookupKey?: string; intervalCount?: number; discounts?: any[] } = {}
     ) {
       const member = await seedMember();
       const supabase = createTestSupabase();
@@ -462,8 +465,20 @@ describe("Stripe webhook", () => {
             },
           ],
         },
+        discounts: overrides.discounts,
       });
       return { member, stripeSubId };
+    }
+
+    // A discount object shaped like Stripe's real "discounts.source.coupon"
+    // expansion (Track C4) — coupon may arrive already expanded, or as a
+    // bare string id (exercising the coupons.retrieve() fallback).
+    function giftDiscount(coupon: unknown = { metadata: { product: "gift_card" } }) {
+      return { source: { type: "coupon", coupon } };
+    }
+
+    function nonGiftDiscount() {
+      return { source: { type: "coupon", coupon: { metadata: {} } } };
     }
 
     function makeInvoiceEvent(
@@ -611,6 +626,85 @@ describe("Stripe webhook", () => {
 
       const res = await POST(makeRequest("{}"));
       expect(res.status).toBe(200); // non-fatal — logged, not thrown
+    });
+
+    // ── Track C4: tagging gift-covered term_payment rows ──────────────────
+
+    it("tags the entitlement with note: gift when a gift coupon is active", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({
+        intervalCount: 3,
+        discounts: [giftDiscount()],
+      });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_gift_${member.id.slice(0, 8)}`, stripeSubId);
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: rows } = await supabase
+        .from("match_entitlements")
+        .select("note")
+        .eq("member_id", member.id);
+      expect(rows).toHaveLength(1);
+      expect(rows![0].note).toBe("gift");
+      expect(mockRetrieveCoupon).not.toHaveBeenCalled(); // already expanded — no fallback needed
+    });
+
+    it("falls back to coupons.retrieve when the coupon wasn't expanded", async () => {
+      mockRetrieveCoupon.mockResolvedValue({ metadata: { product: "gift_card" } });
+      const { member, stripeSubId } = await seedMemberWithSubscription({
+        intervalCount: 3,
+        discounts: [giftDiscount("coupon_unexpanded")],
+      });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_gift_fallback_${member.id.slice(0, 8)}`, stripeSubId);
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      expect(mockRetrieveCoupon).toHaveBeenCalledWith("coupon_unexpanded");
+      const supabase = createTestSupabase();
+      const { data: rows } = await supabase
+        .from("match_entitlements")
+        .select("note")
+        .eq("member_id", member.id);
+      expect(rows![0].note).toBe("gift");
+    });
+
+    it("does not tag a non-gift discount as a gift", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({
+        intervalCount: 1,
+        discounts: [nonGiftDiscount()],
+      });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_nongift_${member.id.slice(0, 8)}`, stripeSubId);
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: rows } = await supabase
+        .from("match_entitlements")
+        .select("note")
+        .eq("member_id", member.id);
+      expect(rows![0].note).toBeNull();
+    });
+
+    it("leaves note null when there's no discount at all", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 1 });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_nodiscount_${member.id.slice(0, 8)}`, stripeSubId);
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: rows } = await supabase
+        .from("match_entitlements")
+        .select("note")
+        .eq("member_id", member.id);
+      expect(rows![0].note).toBeNull();
     });
   });
 });
