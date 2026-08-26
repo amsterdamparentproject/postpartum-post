@@ -1,6 +1,6 @@
 /**
  * Track D rehearsal (billing-simplification-plan.md, §"Track D — rehearsal
- * (gates Track E)"). Runs cases 1-5 of the plan's 7-case table against a
+ * (gates Track E)"). Runs cases 1-6 of the plan's 7-case table against a
  * Stripe test clock in the sandbox account.
  *
  * v4 — the mechanism changed, not just the test. v1-v3 were built around
@@ -38,6 +38,10 @@
  *      credit while paused.
  *   5. The manually-built invoice's amount matches the plan price exactly,
  *      with no proration line item sneaking in.
+ *   6. SEPA-funded refills: does the invoice settle on *submission* or on
+ *      *settlement*, and does a failed SEPA charge leave the same
+ *      `past_due` signal as case 3's card? Both matter because most
+ *      members pay by SEPA (13 iDEAL→SEPA, 11 SEPA, vs 12 card).
  *
  * First real run (2026-08-26) surfaced one more thing: invoiceItems.create's
  * `pricing.price` param only accepts one-time prices — it rejects a
@@ -55,16 +59,35 @@
  * overwritten each run) alongside stdout, so results can be read back
  * directly from the repo instead of pasted from the terminal.
  *
- * Case 6 (SEPA's async settlement) and case 7 (portal doesn't offer pause
- * to a member) are deliberately NOT in this script:
- *   - Case 7 is already answered — the account's default portal config has
- *     subscription_pause.enabled: false (confirmed directly via the Stripe
- *     API during Track C3, and again in this account for the sandbox).
- *     That's the portal's own, separate, deprecated self-serve pause
- *     toggle — unrelated to the pause/resume endpoint question above.
- *   - Case 6 needs a SEPA test mandate/PaymentMethod flow, materially more
- *     involved than a card PM and worth its own script once 1-5 are
- *     confirmed working end-to-end.
+ * Case 6 (SEPA's async settlement, added 2026-08-26) uses Stripe's test
+ * IBANs for the Netherlands (docs.stripe.com/payments/sepa-debit/accept-a-
+ * payment#test-integration) — NL55RABO0300065267 to force a real delayed
+ * settlement (≥3 minutes of *wall-clock* time, not test-clock time — the
+ * "processing → succeeded" simulation for async payment methods runs on a
+ * real background timer independent of the customer's test clock) and
+ * NL28RABO0300065268 to force a real delayed failure. Building a SEPA
+ * PaymentMethod from a raw IBAN needs an explicit Mandate — there's no
+ * browser in this script to run Stripe.js's confirmSepaDebitSetup, so this
+ * uses the API-only path Stripe's own migration docs use for ACH mandates
+ * collected outside Stripe.js (mandate_data.customer_acceptance.type:
+ * "offline", via a SetupIntent): docs.stripe.com/payments/ach-direct-debit/
+ * migrating-from-charges. That doc's example is ACH-specific — SEPA isn't
+ * separately confirmed to accept the same shape, so this is the most
+ * likely first thing to need fixing once this case actually runs.
+ * Deliberately routes the subscription's own *initial* payment through the
+ * card PM already on the customer, and only switches the default payment
+ * method to SEPA before the refill — mirrors a real member's iDEAL-then-
+ * SEPA path (the 13 iDEAL→SEPA members the plan already accounts for) and
+ * keeps this case focused on what it's testing (the manually-built refill
+ * invoice's behavior under SEPA), not the separate, already-well-trodden
+ * question of an async *initial* subscription payment.
+ *
+ * Case 7 (portal doesn't offer resume on a paused sub) is deliberately NOT
+ * in this script — it's already answered: the account's default portal
+ * config has subscription_pause.enabled: false (confirmed directly via the
+ * Stripe API during Track C3, and again in this account for the sandbox).
+ * That's the portal's own, separate, deprecated self-serve pause toggle —
+ * unrelated to the pause/resume endpoint question above.
  *
  * This script is UNTESTED by the author (this session's tools can reach
  * neither Supabase nor api.stripe.com directly — see Appendix A) — it's
@@ -72,7 +95,10 @@
  * own type declarations, but it has never actually been run. Expect to
  * paste back whatever error surfaces on the first run so it can be fixed;
  * that's the normal way this migration's DB/Stripe-touching work has been
- * confirmed all along, not a special caveat for this file.
+ * confirmed all along, not a special caveat for this file. Case 6
+ * specifically can take several minutes of real wall-clock time to finish
+ * (it polls for a real, simulated SEPA settlement delay) — cases 1-5 are
+ * fast; don't be surprised if the run as a whole now takes 5-10 minutes.
  *
  * Usage:
  *   yarn rehearse-track-d                    # defaults to commitment_3mo
@@ -120,6 +146,16 @@ const stripe = getStripe();
 const lookupKey = process.argv[2] ?? "commitment_3mo";
 const DAY = 24 * 60 * 60;
 
+// Stripe's test IBANs for the Netherlands (docs.stripe.com/payments/sepa-
+// debit/accept-a-payment#test-integration). "Delayed" variants force a
+// real (wall-clock, not test-clock) ≥3-minute processing window instead of
+// resolving immediately — needed to actually observe the submission vs.
+// settlement distinction case 6 is checking.
+const SEPA_TEST_IBANS = {
+  successDelayed: "NL55RABO0300065267", // processing → succeeded, ≥3 real minutes
+  failedDelayed: "NL28RABO0300065268", // processing → requires_payment_method, ≥3 real minutes
+};
+
 function log(label: string, ...rest: unknown[]) {
   console.log(`[${label}]`, ...rest);
 }
@@ -139,6 +175,31 @@ async function pollClockReady(clockId: string, label: string): Promise<void> {
 async function advanceClock(clockId: string, toUnix: number, label: string): Promise<void> {
   await stripe.testHelpers.testClocks.advance(clockId, { frozen_time: toUnix });
   await pollClockReady(clockId, label);
+}
+
+/** Polls an invoice on REAL wall-clock time (not the test clock) until it
+ * settles (paid/uncollectible/void) or maxWaitMs elapses, logging every
+ * status change along the way. Async payment methods like SEPA resolve on
+ * a real background timer in test mode ("about 3 minutes" per Stripe's own
+ * testing docs) independent of the subscription's test clock, so this is
+ * the only way to actually observe the submission → settlement gap. */
+async function pollInvoiceUntilSettled(invoiceId: string, label: string, maxWaitMs: number, intervalMs: number) {
+  const start = Date.now();
+  let last = "";
+  while (Date.now() - start < maxWaitMs) {
+    const inv = await stripe.invoices.retrieve(invoiceId);
+    const snapshot = `status=${inv.status} attempted=${inv.attempted} attempt_count=${inv.attempt_count}`;
+    if (snapshot !== last) {
+      log(label, `  t+${Math.round((Date.now() - start) / 1000)}s real time: ${snapshot}`);
+      last = snapshot;
+    }
+    if (inv.status === "paid" || inv.status === "uncollectible" || inv.status === "void") {
+      return inv;
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  log(label, `⚠ gave up polling after ${Math.round(maxWaitMs / 1000)}s real time — still not settled`);
+  return await stripe.invoices.retrieve(invoiceId);
 }
 
 async function getPriceId(): Promise<{ id: string; unitAmount: number | null; currency: string }> {
@@ -165,6 +226,34 @@ async function newCustomerOnClock(clockId: string, email: string, paymentMethod:
     invoice_settings: { default_payment_method: paymentMethod },
   });
   return customer;
+}
+
+/** Builds a SEPA Direct Debit PaymentMethod from a test IBAN and attaches
+ * it to the customer with a Mandate, via the API-only "offline" acceptance
+ * path (no browser/Stripe.js in this script to collect it the normal way).
+ * Confirmed for ACH (docs.stripe.com/payments/ach-direct-debit/migrating-
+ * from-charges); NOT separately confirmed for SEPA — this is the most
+ * likely first thing to need fixing once case 6 actually runs. */
+async function newSepaPaymentMethod(customerId: string, iban: string) {
+  const pm = await stripe.paymentMethods.create({
+    type: "sepa_debit",
+    sepa_debit: { iban },
+    billing_details: { name: "Track D Rehearsal" },
+  });
+  await stripe.paymentMethods.attach(pm.id, { customer: customerId });
+  await stripe.setupIntents.create({
+    customer: customerId,
+    payment_method: pm.id,
+    payment_method_types: ["sepa_debit"],
+    mandate_data: {
+      customer_acceptance: {
+        type: "offline",
+        accepted_at: Math.floor(Date.now() / 1000),
+      },
+    },
+    confirm: true,
+  });
+  return pm;
 }
 
 async function newSubscription(customerId: string, priceId: string) {
@@ -220,6 +309,34 @@ async function pausedPastNaturalEnd(priceId: string, label: string, emailTag: st
   } else {
     log(label, "confirmed: nothing invoiced while paused, even past the natural period end.");
   }
+
+  return { clock, customer, sub, pastNaturalEnd };
+}
+
+/** Same as pausedPastNaturalEnd, but the subscription's own initial payment
+ * still goes through the card PM (mirrors a real member's iDEAL signup),
+ * and the customer's default payment method is switched to a SEPA Direct
+ * Debit PM (built from `iban`) right before pausing — so the manually-
+ * built refill invoice case 6 tests is the one that actually goes through
+ * SEPA. */
+async function pausedPastNaturalEndSepa(priceId: string, label: string, emailTag: string, iban: string) {
+  const clock = await newClock(`rehearse-${emailTag}`);
+  const customer = await newCustomerOnClock(clock.id, `d-rehearsal-${emailTag}+${clock.id}@example.test`, "pm_card_visa");
+  const sub = await newSubscription(customer.id, priceId);
+  const naturalPeriodEnd = sub.items.data[0].current_period_end;
+  log(label, `subscription ${sub.id} created (card), status=${sub.status}, natural current_period_end=${new Date(naturalPeriodEnd * 1000).toISOString()}`);
+
+  const sepaPm = await newSepaPaymentMethod(customer.id, iban);
+  await stripe.customers.update(customer.id, {
+    invoice_settings: { default_payment_method: sepaPm.id },
+  });
+  log(label, `switched default payment method to SEPA (${sepaPm.id}, iban ending ...${iban.slice(-4)})`);
+
+  await stripe.subscriptions.update(sub.id, { pause_collection: { behavior: "void" } });
+  log(label, "paused (void), open-ended — no resumes_at");
+
+  const pastNaturalEnd = naturalPeriodEnd + DAY;
+  await advanceClock(clock.id, pastNaturalEnd, label);
 
   return { clock, customer, sub, pastNaturalEnd };
 }
@@ -447,6 +564,107 @@ async function caseFive(priceId: string, expectedUnitAmount: number, currency: s
 }
 
 // ---------------------------------------------------------------------------
+// Case 6a — does the manually-built refill invoice settle on SUBMISSION
+// (the PaymentIntent entering "processing") or on SETTLEMENT (it reaching
+// "succeeded")? Uses the "successDelayed" test IBAN to force a real ≥3-
+// minute gap between the two, so the difference is actually observable —
+// an immediate-success IBAN would resolve too fast to tell them apart.
+//
+// This is the open question from the plan's Track D case 6 writeup and
+// directly decides E1/E2's design: if invoices settle on submission, "the
+// 15th" is close enough to a real trigger date; if on settlement (as every
+// other Stripe doc on delayed-notification methods implies), Track E must
+// key strictly off invoice.paid / the webhook, never the calendar date.
+// ---------------------------------------------------------------------------
+async function caseSixTiming(priceId: string, unitAmount: number, currency: string) {
+  const label = "case 6a";
+  const { customer, sub } = await pausedPastNaturalEndSepa(priceId, label, "case-6a", SEPA_TEST_IBANS.successDelayed);
+
+  await stripe.subscriptions.update(sub.id, { pause_collection: null });
+  const item = await stripe.invoiceItems.create({
+    customer: customer.id,
+    subscription: sub.id,
+    amount: unitAmount,
+    currency,
+    description: `Track D rehearsal refill (${lookupKey}) — SEPA`,
+  });
+  const invoice = await stripe.invoices.create({
+    customer: customer.id,
+    subscription: sub.id,
+    auto_advance: true,
+  });
+  log(label, `created invoice ${invoice.id} against a SEPA-funded default payment method (successDelayed IBAN), item ${item.id}`);
+
+  // Give Stripe a moment to finalize + submit the invoice before the first
+  // check — auto_advance's own finalization can itself take a little real
+  // time, separate from the SEPA settlement delay being tested here.
+  await new Promise((r) => setTimeout(r, 15000));
+
+  const submitted = await stripe.invoices.retrieve(invoice.id!);
+  log(label, `at submission: status=${submitted.status}, attempted=${submitted.attempted}`);
+  if (submitted.status === "paid") {
+    log(label, `✗ CASE 6a: invoice already shows "paid" immediately at submission — that would mean invoice.paid fires on SUBMISSION, not settlement. Surprising; double check the Dashboard for this test clock.`);
+    return;
+  }
+
+  const settled = await pollInvoiceUntilSettled(invoice.id!, label, 6 * 60 * 1000, 20000);
+  if (settled.status === "paid") {
+    log(label, `✓ CASE 6a: invoice stayed unpaid through submission and only reached "paid" after a real settlement delay — confirms invoice.paid fires on SETTLEMENT, not submission. E1/E2 must key off the webhook, not the calendar date (as the plan already assumes).`);
+  } else {
+    log(label, `? CASE 6a: invoice ended at status=${settled.status}, not "paid" — look closer before relying on this timing in Track E.`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Case 6b — does a SEPA charge that fails leave the same `past_due` signal
+// case 3 confirmed for cards? Uses the "failedDelayed" test IBAN so the
+// failure also goes through a real processing window first, matching how
+// a real SEPA decline actually arrives.
+// ---------------------------------------------------------------------------
+async function caseSixFailure(priceId: string, unitAmount: number, currency: string) {
+  const label = "case 6b";
+  const { customer, sub } = await pausedPastNaturalEndSepa(priceId, label, "case-6b", SEPA_TEST_IBANS.failedDelayed);
+
+  await stripe.subscriptions.update(sub.id, { pause_collection: null });
+  const item = await stripe.invoiceItems.create({
+    customer: customer.id,
+    subscription: sub.id,
+    amount: unitAmount,
+    currency,
+    description: `Track D rehearsal refill (${lookupKey}) — SEPA`,
+  });
+  const invoice = await stripe.invoices.create({
+    customer: customer.id,
+    subscription: sub.id,
+    auto_advance: true,
+  });
+  log(label, `created invoice ${invoice.id} against a SEPA-funded default payment method (failedDelayed IBAN), item ${item.id}`);
+
+  await new Promise((r) => setTimeout(r, 15000));
+  const settled = await pollInvoiceUntilSettled(invoice.id!, label, 6 * 60 * 1000, 20000);
+  const subAfter = await stripe.subscriptions.retrieve(sub.id);
+
+  log(label, `subscription status after the failed SEPA charge: ${subAfter.status}`);
+  log(label, `invoice status after the failed SEPA charge: ${settled.status} (attempted=${settled.attempted}, attempt_count=${settled.attempt_count})`);
+
+  if (subAfter.status === "past_due" && settled.status === "open") {
+    log(label, `✓ CASE 6b: SEPA fails the same way card does — subscription flips to "past_due", same signal as case 3. Confirms "SEPA behaves like card" for the failure path.`);
+  } else {
+    log(label, `? CASE 6b: subscription=${subAfter.status}, invoice=${settled.status} — doesn't match case 3's card-failure shape. Worth a look before assuming SEPA and card failures are interchangeable in Track E.`);
+  }
+}
+
+async function caseSix(priceId: string, unitAmount: number, currency: string) {
+  const label = "case 6";
+  if (currency !== "eur") {
+    log(label, `⚠ SKIPPED — SEPA Direct Debit only accepts EUR, this plan's price is ${currency}. Re-run against a EUR plan to exercise case 6.`);
+    return;
+  }
+  await caseSixTiming(priceId, unitAmount, currency);
+  await caseSixFailure(priceId, unitAmount, currency);
+}
+
+// ---------------------------------------------------------------------------
 
 async function main() {
   console.log(`Track D rehearsal — plan: ${lookupKey}\n`);
@@ -462,6 +680,7 @@ async function main() {
     ["case 3", () => caseThree(priceId, unitAmount, currency)],
     ["case 4", () => caseFour(priceId)],
     ["case 5", () => caseFive(priceId, unitAmount, currency)],
+    ["case 6", () => caseSix(priceId, unitAmount, currency)],
   ];
 
   for (const [name, run] of cases) {
