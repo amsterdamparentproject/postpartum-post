@@ -172,3 +172,27 @@ export async function fetchBillingNoticeContext(
     lastTermPaymentNote: lastTermPayment?.note ?? null,
   };
 }
+
+/**
+ * Combines fetchBillingNoticeContext()'s possibly-null result with
+ * deriveBillingNotice(). A member with no non-canceled subscription row
+ * gets { kind: "none" } explicitly here, rather than letting
+ * deriveBillingNotice guess from null/null inputs — which would otherwise
+ * fall through to the monthly "quiet" branch (isBundle defaults to false
+ * when intervalCount is null), wrongly telling a member with no
+ * subscription at all that they're renewing.
+ */
+export function resolveBillingNotice(
+  context: BillingNoticeContext | null,
+  matchesRemaining: number,
+  today?: Date
+): BillingNotice {
+  if (!context) return { kind: "none" };
+  return deriveBillingNotice({
+    priceLookupKey: context.priceLookupKey,
+    intervalCount: context.intervalCount,
+    matchesRemaining,
+    lastTermPaymentNote: context.lastTermPaymentNote,
+    today,
+  });
+}

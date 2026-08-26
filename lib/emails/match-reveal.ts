@@ -1,4 +1,54 @@
 import { FROM, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
+import type { BillingNotice } from "@/lib/billing-notice";
+
+/**
+ * Track C4 — billing plan §3.3's notice-volume table, rendered. Returns ""
+ * for { kind: "none" } (comped/FYP members — no billing content at all).
+ *
+ * Phrasing for "counter" deliberately mirrors deriveMemberStatusMessage's
+ * /billing copy (Track C1) at matchesRemaining === 1 ("Last match of your
+ * bundle. Renews after this one.") — same fact, same words, wherever a
+ * member reads it.
+ */
+function billingNoticeHtml(notice: BillingNotice): string {
+  if (notice.kind === "none") {
+    return "";
+  }
+
+  if (notice.kind === "counter") {
+    const line =
+      notice.matchesRemaining >= 2
+        ? `You have <b>${notice.matchesRemaining} matches left</b> in your bundle.`
+        : `<b>Last match of your bundle.</b> Renews after this one.`;
+    return bodySection(`
+                                    <tr><td dir="ltr" style="font-size:14px;color:#666666;text-align:left;padding:0;line-height:1.4;mso-line-height-alt:19.6px">
+                                      ${line}
+                                    </td></tr>`);
+  }
+
+  if (notice.kind === "quiet") {
+    const amountSuffix = notice.amount ? ` — ${notice.amount}` : "";
+    return bodySection(`
+                                    <tr><td dir="ltr" style="font-size:14px;color:#666666;text-align:left;padding:0;line-height:1.4;mso-line-height-alt:19.6px">
+                                      Renews ${notice.renewDate}${amountSuffix}.
+                                    </td></tr>`);
+  }
+
+  // notice.kind === "loud" — end of a bundle term, or first real charge
+  // after a gift. Both get the full treatment (date, amount, cancel link);
+  // only the opening line differs.
+  const amountSuffix = notice.amount ? ` ${notice.amount}` : "";
+  const intro = notice.isFirstAfterGift
+    ? `Your gift got you this far — that was your last free match.`
+    : `You've used all the matches in your bundle.`;
+  return (
+    bodySection(`
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      ${intro} To keep matching, you'll be charged${amountSuffix} on ${notice.renewDate}.
+                                    </td></tr>`, true) +
+    ctaButton("Manage your membership", notice.cancelUrl)
+  );
+}
 
 function matchRevealHtml(
   recipientFirstName: string,
@@ -10,6 +60,7 @@ function matchRevealHtml(
   matchesLink: string,
   isDoubleMatch: boolean,
   isRecipientInitiator: boolean,
+  billingNotice: BillingNotice,
 ): string {
   const mailtoSubject = encodeURIComponent(`Let's meet for a ${topic || "hang"}! (Postpartum Post)`);
   const mailtoBody = encodeURIComponent(`Hi ${matchFirstName},`);
@@ -39,7 +90,8 @@ function matchRevealHtml(
                                     </td></tr>
                                     ${isDoubleMatch ? `<tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 8px;line-height:1.4;mso-line-height-alt:22.4px">
                                       A quick note: Due to your profile preferences and our odd-numbered parent pool this month, we matched you twice! We hope you enjoy your extra connection ❤️ If you don't want 2 matches next month, make sure to change the setting in your profile.
-                                    </td></tr>` : ""}`);
+                                    </td></tr>` : ""}`) +
+    billingNoticeHtml(billingNotice);
   return baseEmail(content);
 }
 
@@ -54,6 +106,11 @@ export async function sendMatchRevealEmail(
   matchesLink: string,
   isDoubleMatch = false,
   isRecipientInitiator = false,
+  // Track C4 — appended rather than inserted earlier in the list so
+  // existing positional-arg test assertions (topic at index 5) don't shift.
+  // Defaults to "none" so every other caller/test not yet passing this
+  // stays exactly as it behaved before C4.
+  billingNotice: BillingNotice = { kind: "none" },
 ): Promise<void> {
   const resend = getResend();
   const { error } = await resend.emails.send({
@@ -73,6 +130,7 @@ export async function sendMatchRevealEmail(
       matchesLink,
       isDoubleMatch,
       isRecipientInitiator,
+      billingNotice,
     ),
   });
   if (error) {
