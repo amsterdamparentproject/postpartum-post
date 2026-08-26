@@ -7,7 +7,9 @@
 
 LOG_FILE="test-output.log"
 
-vitest run "$@" 2>&1 | tee "$LOG_FILE" | grep --line-buffered -E "✓|❯|×|FAIL|Test Files|Tests |Duration|Start at"
+# vitest disables its color output as soon as stdout isn't a TTY (which it
+# never is once piped into tee/grep below) — force it back on.
+FORCE_COLOR=1 vitest run "$@" 2>&1 | tee "$LOG_FILE" | grep --line-buffered -E "✓|❯|×|FAIL|Test Files|Tests |Duration|Start at"
 STATUS=${PIPESTATUS[0]}
 
 echo ""
