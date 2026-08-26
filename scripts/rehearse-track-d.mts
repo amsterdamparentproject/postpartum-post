@@ -46,6 +46,16 @@
  * with type=one_time". Cases 2/3/5 now bill the same amount directly via
  * `amount` + `currency` instead of referencing the price by ID.
  *
+ * Second real run surfaced another: invoices.create rejects
+ * `pending_invoice_items_behavior` and `subscription` together ("You may
+ * only specify one of these parameters"). Per the SDK's own doc comment,
+ * `subscription` alone already means "include all pending invoice items
+ * for that subscription" — the behavior flag was redundant. Dropped it.
+ *
+ * Output is now also written to scripts/rehearse-track-d.log (gitignored,
+ * overwritten each run) alongside stdout, so results can be read back
+ * directly from the repo instead of pasted from the terminal.
+ *
  * Case 6 (SEPA's async settlement) and case 7 (portal doesn't offer pause
  * to a member) are deliberately NOT in this script:
  *   - Case 7 is already answered — the account's default portal config has
@@ -82,8 +92,28 @@
 
 import { config } from "dotenv";
 import { resolve } from "path";
+import { writeFileSync, appendFileSync } from "fs";
 
 config({ path: resolve(process.cwd(), ".env.local") });
+
+// Mirror everything to a log file alongside stdout, so results can be read
+// back from disk (e.g. via the device bridge) instead of pasted from the
+// terminal. Overwritten at the start of each run.
+const LOG_FILE = resolve(process.cwd(), "scripts/rehearse-track-d.log");
+writeFileSync(LOG_FILE, "");
+const rawLog = console.log.bind(console);
+const rawError = console.error.bind(console);
+function toLine(args: unknown[]): string {
+  return args.map((a) => (a instanceof Error ? (a.stack ?? a.message) : typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+}
+console.log = (...args: unknown[]) => {
+  rawLog(...args);
+  appendFileSync(LOG_FILE, toLine(args) + "\n");
+};
+console.error = (...args: unknown[]) => {
+  rawError(...args);
+  appendFileSync(LOG_FILE, toLine(args) + "\n");
+};
 
 const { getStripe } = await import("../lib/stripe.ts");
 const stripe = getStripe();
@@ -260,7 +290,6 @@ async function caseTwo(priceId: string, unitAmount: number, currency: string) {
     customer: customer.id,
     subscription: sub.id,
     auto_advance: true,
-    pending_invoice_items_behavior: "include",
   });
   log(label, `created invoice ${invoice.id}, status=${invoice.status}, auto_advance=${invoice.auto_advance}`);
 
@@ -310,7 +339,6 @@ async function caseThree(priceId: string, unitAmount: number, currency: string) 
     customer: customer.id,
     subscription: sub.id,
     auto_advance: true,
-    pending_invoice_items_behavior: "include",
   });
   log(label, `created invoice ${invoice.id} against the bad card, item ${item.id}`);
 
@@ -390,7 +418,6 @@ async function caseFive(priceId: string, expectedUnitAmount: number, currency: s
     customer: customer.id,
     subscription: sub.id,
     auto_advance: true,
-    pending_invoice_items_behavior: "include",
   });
   log(label, `created invoice ${invoice.id} from item ${item.id}`);
 
