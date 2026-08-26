@@ -6,6 +6,7 @@ import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
 import { extendSubscriptionToNext5th } from "@/lib/subscription-utils";
 import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
+import { recordEntitlement, FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -147,6 +148,60 @@ export async function POST(req: NextRequest) {
       console.error("[webhook] unhandled error in checkout.session.completed handler:", e);
       // Return 200 so Stripe doesn't retry — manual investigation needed.
       return NextResponse.json({ received: true, error: "handler_error" });
+    }
+  }
+
+  if (event.type === "invoice.payment_succeeded") {
+    // Track B (billing simplification, __claude__/billing-simplification-plan.md
+    // §3.2): every successful payment — the first one at signup and every
+    // renewal after — grants matchesPerTerm to the member's counter. This is
+    // write-only for now: nothing reads matches_remaining yet, and this does
+    // NOT pause the subscription (that's E2, once a renew-check job exists
+    // that can actually resume it — pausing here with nothing to un-pause it
+    // would strand every subscription the first time it renews).
+    try {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionRef = invoice.parent?.subscription_details?.subscription;
+      const subscriptionId = typeof subscriptionRef === "string" ? subscriptionRef : subscriptionRef?.id;
+
+      if (!subscriptionId) {
+        // Not a subscription invoice (e.g. a one-off) — nothing to credit.
+        return NextResponse.json({ received: true });
+      }
+
+      const supabase = createAdminClient();
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("member_id")
+        .eq("stripe_subscription_id", subscriptionId)
+        .maybeSingle();
+
+      if (!sub) {
+        console.error("[webhook] invoice.payment_succeeded: no local subscription for", subscriptionId);
+        return NextResponse.json({ received: true });
+      }
+
+      const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const price = stripeSubscription.items.data[0]?.price;
+      const lookupKey = price?.lookup_key ?? "";
+
+      if (FYP_LOOKUP_KEYS.has(lookupKey)) {
+        // FYP's own product shares this Stripe account but is out of scope
+        // for the counter (plan §4, §5).
+        return NextResponse.json({ received: true });
+      }
+
+      const matchesPerTerm = price?.recurring?.interval_count ?? 1;
+
+      const applied = await recordEntitlement(supabase, {
+        memberId: sub.member_id,
+        event: "term_payment",
+        delta: matchesPerTerm,
+        stripeInvoiceId: invoice.id,
+      });
+      console.log("[webhook] invoice.payment_succeeded", { subscriptionId, matchesPerTerm, applied });
+    } catch (e) {
+      console.error("[webhook] invoice.payment_succeeded handler failed (non-fatal):", e);
     }
   }
 

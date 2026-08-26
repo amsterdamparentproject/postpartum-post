@@ -432,4 +432,185 @@ describe("Stripe webhook", () => {
       .single();
     expect(updatedMember?.status).toBe("inactive");
   });
+
+  // ── invoice.payment_succeeded — Track B3: refill ──────────────────────
+  //
+  // Ledger write + counter bump only. Deliberately does NOT pause the
+  // Stripe subscription here (see the handler's own comment) — that's E2,
+  // once a renew-check job exists that could actually resume it.
+  describe("invoice.payment_succeeded", () => {
+    async function seedMemberWithSubscription(
+      overrides: { lookupKey?: string; intervalCount?: number } = {}
+    ) {
+      const member = await seedMember();
+      const supabase = createTestSupabase();
+      const stripeSubId = `sub_test_${member.id.slice(0, 8)}`;
+      await supabase.from("subscriptions").insert({
+        member_id: member.id,
+        stripe_subscription_id: stripeSubId,
+        stripe_price_id: "price_test",
+        status: "active",
+      });
+      mockRetrieve.mockResolvedValue({
+        items: {
+          data: [
+            {
+              price: {
+                lookup_key: overrides.lookupKey ?? "standard_monthly",
+                recurring: { interval_count: overrides.intervalCount ?? 1 },
+              },
+            },
+          ],
+        },
+      });
+      return { member, stripeSubId };
+    }
+
+    function makeInvoiceEvent(
+      invoiceId: string,
+      subscriptionId: string,
+      extra: Record<string, unknown> = {}
+    ) {
+      mockConstructEvent.mockReturnValue({
+        type: "invoice.payment_succeeded",
+        data: {
+          object: {
+            id: invoiceId,
+            parent: { subscription_details: { subscription: subscriptionId } },
+            ...extra,
+          },
+        },
+      });
+    }
+
+    it("grants matchesPerTerm to the member's counter", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 3 });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_${member.id.slice(0, 8)}`, stripeSubId);
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: updated } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", member.id)
+        .single();
+      expect(updated?.matches_remaining).toBe(3);
+
+      const { data: rows } = await supabase
+        .from("match_entitlements")
+        .select("event, delta, stripe_invoice_id")
+        .eq("member_id", member.id);
+      expect(rows).toHaveLength(1);
+      expect(rows![0].event).toBe("term_payment");
+      expect(rows![0].delta).toBe(3);
+    });
+
+    it("does not double-count a replayed invoice", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 1 });
+      memberId = member.id;
+      const invoiceId = `in_test_replay_${member.id.slice(0, 8)}`;
+      makeInvoiceEvent(invoiceId, stripeSubId);
+
+      await POST(makeRequest("{}"));
+      const res = await POST(makeRequest("{}")); // same invoice id, replayed
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: updated } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", member.id)
+        .single();
+      expect(updated?.matches_remaining).toBe(1); // not 2
+
+      const { data: rows } = await supabase
+        .from("match_entitlements")
+        .select("id")
+        .eq("member_id", member.id);
+      expect(rows).toHaveLength(1);
+    });
+
+    it("still refills on a €0 invoice", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 1 });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_zero_${member.id.slice(0, 8)}`, stripeSubId, { amount_paid: 0 });
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: updated } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", member.id)
+        .single();
+      expect(updated?.matches_remaining).toBe(1);
+    });
+
+    it("grants nothing on invoice.created", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription();
+      memberId = member.id;
+      mockConstructEvent.mockReturnValue({
+        type: "invoice.created",
+        data: {
+          object: {
+            id: `in_test_created_${member.id.slice(0, 8)}`,
+            parent: { subscription_details: { subscription: stripeSubId } },
+          },
+        },
+      });
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: updated } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", member.id)
+        .single();
+      expect(updated?.matches_remaining).toBe(0);
+    });
+
+    it("excludes FYP's own products from the counter", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({ lookupKey: "fyp_monthly_single" });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_fyp_${member.id.slice(0, 8)}`, stripeSubId);
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: updated } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", member.id)
+        .single();
+      expect(updated?.matches_remaining).toBe(0);
+
+      const { data: rows } = await supabase
+        .from("match_entitlements")
+        .select("id")
+        .eq("member_id", member.id);
+      expect(rows).toHaveLength(0);
+    });
+
+    it("no-ops when there's no local subscription for the Stripe subscription id", async () => {
+      mockConstructEvent.mockReturnValue({
+        type: "invoice.payment_succeeded",
+        data: {
+          object: {
+            id: "in_test_orphan",
+            parent: { subscription_details: { subscription: "sub_does_not_exist_locally" } },
+          },
+        },
+      });
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200); // non-fatal — logged, not thrown
+    });
+  });
 });
