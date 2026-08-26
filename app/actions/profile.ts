@@ -148,27 +148,21 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
     price_lookup_key = item.price.lookup_key ?? null;
     interval_count = item.price.recurring?.interval_count ?? null;
 
-    // During a trial, current_period_end = trial_end (the first charge date).
-    // For the renewal case, show trial_end + interval so "Next billing date"
-    // reflects when the subscription auto-renews, not when the first payment hits.
-    // Exception: if cancel_at_period_end, the subscription cancels at trial_end —
-    // keep that as-is so "Cancels on" shows the actual end date.
-    if (
-      stripeSub.status === "trialing" &&
-      stripeSub.trial_end &&
-      !stripeSub.cancel_at_period_end
-    ) {
-      const recurring = item.price.recurring;
-      if (recurring?.interval === "month") {
-        const renewal = new Date(stripeSub.trial_end * 1000);
-        renewal.setUTCMonth(renewal.getUTCMonth() + (recurring.interval_count ?? 1));
-        current_period_end = Math.floor(renewal.getTime() / 1000);
-      } else {
-        current_period_end = item.current_period_end;
-      }
-    } else {
-      current_period_end = item.current_period_end;
-    }
+    // Bugfix (billing-simplification-plan.md, Appendix A): this app never gives a
+    // member a genuine pre-payment Stripe trial — checkout never sets
+    // subscription_data.trial_period_days (app/actions/signup.ts). The only
+    // way a subscription's status is ever "trialing" here is
+    // extendSubscriptionToNext5th() (lib/subscription-utils.ts) pushing
+    // trial_end forward on an already-paying subscription — the signup-time
+    // billing-anchor correction, a member skip, a match opt-in, or a
+    // free-month grant. In every one of those cases trial_end already IS
+    // the member's next real charge, not a "first payment" to project past.
+    // Stripe mirrors that onto item.current_period_end while trialing, so
+    // no special-casing is needed — a previous version of this code added
+    // trial_end + one more full interval on top, overstating "Next billing
+    // date" by an entire term (up to 6 months for commitment_6mo) for any
+    // member currently sitting in one of these trial_end windows.
+    current_period_end = item.current_period_end;
   } catch (e) {
     console.error("Failed to fetch subscription from Stripe:", e);
   }
