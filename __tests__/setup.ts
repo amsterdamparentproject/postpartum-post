@@ -1,4 +1,4 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 
-config({ path: resolve(process.cwd(), ".env.test"), override: true });
+config({ path: resolve(process.cwd(), ".env.test"), override: true, quiet: true });
