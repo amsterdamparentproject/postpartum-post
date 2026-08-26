@@ -32,7 +32,9 @@ function BillingContent() {
   const { loading, member, accessToken } = useAccount();
   const searchParams = useSearchParams();
   const optinParam = searchParams.get("optin");
-  const [showSkipBanner, setShowSkipBanner] = useState(optinParam === "skip" || optinParam === "already_skip");
+  const [showSkipBanner, setShowSkipBanner] = useState(
+    optinParam === "skip" || optinParam === "already_skip" || optinParam === "skip_failed"
+  );
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -77,9 +79,17 @@ function BillingContent() {
   return (
     <div className="space-y-6">
       {showSkipBanner && (
-        <div className="bg-[#caadff]/30 border border-[#caadff] rounded-2xl px-5 py-4 flex items-start justify-between gap-4">
-          <p className="text-sm text-dark leading-relaxed">
-            {optinParam === "already_skip"
+        <div
+          className={
+            optinParam === "skip_failed"
+              ? "bg-red-50 border border-red-200 rounded-2xl px-5 py-4 flex items-start justify-between gap-4"
+              : "bg-[#caadff]/30 border border-[#caadff] rounded-2xl px-5 py-4 flex items-start justify-between gap-4"
+          }
+        >
+          <p className={`text-sm leading-relaxed ${optinParam === "skip_failed" ? "text-red-800" : "text-dark"}`}>
+            {optinParam === "skip_failed"
+              ? <>Something went wrong recording your skip for this month, so we couldn&apos;t confirm it — you may still be matched or charged as usual. Please try the link from your email again, or contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a> and we&apos;ll sort it out.</>
+              : optinParam === "already_skip"
               ? <>You&apos;ve already chosen to skip this month. If you&apos;d like to rejoin the match pool, please contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a>.</>
               : "You're skipping your match this month — all good! We've automatically adjusted your billing cycle so that you're not charged this month. See you next month 💌"
             }

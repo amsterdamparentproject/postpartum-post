@@ -262,6 +262,70 @@ describe("GET /api/optin", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it("skip (write fails) — redirects to /billing with a loud error instead of silently going home (Track C5)", async () => {
+    const member = await seedMember({ consecutive_skips: 0 });
+    memberId = member.id;
+    await seedSubscription(memberId);
+    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
+
+    // Wrap the real admin client so only this member's monthly_skips insert
+    // fails — everything else (member lookup, magic link generation) goes
+    // through against the real test Supabase project, same as every other
+    // test in this file.
+    vi.doMock("@/lib/supabase", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("@/lib/supabase")>();
+      return {
+        ...actual,
+        createAdminClient: () => {
+          const real = actual.createAdminClient();
+          const originalFrom = real.from.bind(real);
+          (real as unknown as { from: typeof real.from }).from = ((table: string) => {
+            const qb = originalFrom(table);
+            if (table === "monthly_skips") {
+              const originalInsert = qb.insert.bind(qb);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (qb as any).insert = (row: { member_id: string }) => {
+                if (row?.member_id === memberId) {
+                  return Promise.resolve({ data: null, error: { message: "forced test failure" } });
+                }
+                return originalInsert(row);
+              };
+            }
+            return qb;
+          }) as typeof real.from;
+          return real;
+        },
+      };
+    });
+
+    const { GET: GET_withForcedFailure } = await import("@/app/api/optin/route");
+
+    const token = generateOptinToken(memberId, MONTH, "skip");
+    const res = await GET_withForcedFailure(makeRequest(memberId, MONTH, "skip", token));
+
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=skip_failed");
+
+    // No monthly_skips row was written — the member wasn't silently marked
+    // as skipped despite the loud-failure redirect.
+    const supabase = createTestSupabase();
+    const { data: rows } = await supabase
+      .from("monthly_skips")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE);
+    expect(rows).toHaveLength(0);
+
+    // consecutive_skips was not bumped either — the write genuinely failed.
+    const { data: updated } = await supabase
+      .from("members")
+      .select("consecutive_skips")
+      .eq("id", memberId)
+      .single();
+    expect(updated?.consecutive_skips).toBe(0);
+
+    vi.doUnmock("@/lib/supabase");
+  });
+
   it("skip after coffee — removes the existing participation row", async () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;

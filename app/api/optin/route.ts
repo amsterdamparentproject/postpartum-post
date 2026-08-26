@@ -72,7 +72,11 @@ export async function GET(request: NextRequest) {
 
     if (skipError) {
       console.error("[optin] Failed to record skip:", skipError);
-      return NextResponse.redirect(`${origin}/`);
+      // Loud failure (Track C5): a silent redirect to "/" here would leave the
+      // member thinking their skip went through when it didn't — they'd be
+      // billed/matched as if they'd done nothing. Send them to /billing with
+      // a visible error banner instead so they know to retry or contact us.
+      return signInAndRedirect(supabase, memberRow.email, `${origin}/billing?optin=skip_failed`, origin);
     }
 
     // Remove any existing participation row so they're not included in the match run
