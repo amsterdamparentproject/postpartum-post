@@ -14,8 +14,13 @@
  *
  * Prints one line per subscription either way. Pass --write to actually
  * commit the manual_backfill rows; without it, nothing is written. Skips
- * (rather than double-seeds) any member who already has a manual_backfill
- * row, so it's safe to re-run after a partial write.
+ * anyone who already has ANY match_entitlements row — not just a prior
+ * manual_backfill, but also a real term_payment captured by the B3 webhook
+ * handler in the meantime (e.g. a subscription that renewed between this
+ * migration landing and this script actually being run). Backfilling on
+ * top of a live ledger would double-credit them; if the webhook is already
+ * tracking someone accurately, they don't need seeding at all. Also safe
+ * to re-run after a partial write.
  *
  * Usage:
  *   yarn backfill-match-entitlements              # dry run — prints rows, writes nothing
@@ -113,17 +118,17 @@ async function main() {
   for (const r of rows) {
     const { data: existing, error: checkError } = await supabase
       .from("match_entitlements")
-      .select("id")
+      .select("id, event")
       .eq("member_id", r.memberId)
-      .eq("event", "manual_backfill")
+      .limit(1)
       .maybeSingle();
 
     if (checkError) {
-      console.error(`  ✗ ${r.email}: failed to check for an existing backfill row: ${checkError.message}`);
+      console.error(`  ✗ ${r.email}: failed to check for existing ledger rows: ${checkError.message}`);
       continue;
     }
     if (existing) {
-      console.log(`  – ${r.email}: already has a manual_backfill row, skipping`);
+      console.log(`  – ${r.email}: already has ledger history (${existing.event}), skipping`);
       continue;
     }
 
