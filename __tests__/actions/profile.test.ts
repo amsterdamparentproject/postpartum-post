@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { seedMember, cleanupMember, createTestSupabase, getAccessTokenForEmail, cleanupAuthUser } from "@tests/helpers";
-import { updateMemberProfile, getMemberProfile, checkMemberExists } from "@/app/actions/profile";
+import { seedMember, seedSubscription, cleanupMember, createTestSupabase, getAccessTokenForEmail, cleanupAuthUser } from "@tests/helpers";
+import { updateMemberProfile, getMemberProfile, checkMemberExists, getSubscriptionDetails } from "@/app/actions/profile";
 import type { Availability, Child } from "@/app/actions/profile";
+import { currentMonth, monthToDate } from "@/lib/tokens";
+
+const { mockRetrieve } = vi.hoisted(() => ({
+  mockRetrieve: vi.fn(),
+}));
 
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({
     customers: { update: vi.fn().mockResolvedValue({}) },
+    subscriptions: { retrieve: mockRetrieve },
   }),
 }));
 
@@ -166,5 +172,90 @@ describe("profile — matching fields", () => {
     } finally {
       await cleanupAuthUser(memberEmail);
     }
+  });
+});
+
+describe("getSubscriptionDetails — is_skipping_this_month (Track C2)", () => {
+  let memberId: string;
+  let memberEmail: string;
+
+  function stripeSubResponse() {
+    return {
+      status: "active",
+      cancel_at_period_end: false,
+      trial_end: null,
+      current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400,
+      items: {
+        data: [
+          {
+            price: {
+              lookup_key: "standard_monthly",
+              recurring: { interval: "month", interval_count: 1 },
+            },
+            current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400,
+          },
+        ],
+      },
+    };
+  }
+
+  afterEach(async () => {
+    if (memberId) await cleanupMember(memberId);
+    if (memberEmail) await cleanupAuthUser(memberEmail);
+    mockRetrieve.mockReset();
+  });
+
+  it("is true when a monthly_skips row exists for the current calendar month", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+    memberEmail = member.email;
+    await seedSubscription(memberId);
+    mockRetrieve.mockResolvedValue(stripeSubResponse());
+
+    const supabase = createTestSupabase();
+    const { error } = await supabase
+      .from("monthly_skips")
+      .insert({ member_id: memberId, month: monthToDate(currentMonth()) });
+    if (error) throw new Error(`seed monthly_skips failed: ${error.message}`);
+
+    const token = await getAccessTokenForEmail(memberEmail);
+    const details = await getSubscriptionDetails(token);
+
+    expect(details?.is_skipping_this_month).toBe(true);
+    // pause_collection should be gone entirely, not just falsy.
+    expect(details).not.toHaveProperty("pause_collection");
+  });
+
+  it("is false when no monthly_skips row exists for the current month", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+    memberEmail = member.email;
+    await seedSubscription(memberId);
+    mockRetrieve.mockResolvedValue(stripeSubResponse());
+
+    const token = await getAccessTokenForEmail(memberEmail);
+    const details = await getSubscriptionDetails(token);
+
+    expect(details?.is_skipping_this_month).toBe(false);
+  });
+
+  it("is false for a skip recorded in a different month", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+    memberEmail = member.email;
+    await seedSubscription(memberId);
+    mockRetrieve.mockResolvedValue(stripeSubResponse());
+
+    // A month far in the past — never the current month.
+    const supabase = createTestSupabase();
+    const { error } = await supabase
+      .from("monthly_skips")
+      .insert({ member_id: memberId, month: "2199-01-01" });
+    if (error) throw new Error(`seed monthly_skips failed: ${error.message}`);
+
+    const token = await getAccessTokenForEmail(memberEmail);
+    const details = await getSubscriptionDetails(token);
+
+    expect(details?.is_skipping_this_month).toBe(false);
   });
 });

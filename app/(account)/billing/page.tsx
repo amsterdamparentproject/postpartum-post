@@ -120,15 +120,12 @@ function BillingContent() {
           )
         ) : (
           <>
-            {/* Skip this month banner */}
-            {subscription.pause_collection && (
+            {/* Skip this month banner (Track C2: sourced from monthly_skips,
+                not Stripe's pause_collection — see "Next billing date" below
+                for when billing actually resumes) */}
+            {subscription.is_skipping_this_month && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
                 <span className="font-medium">Skipping this month</span>
-                {subscription.pause_collection.resumes_at && (
-                  <span className="text-amber-700">
-                    {" "}— billing resumes {formatDate(subscription.pause_collection.resumes_at)}
-                  </span>
-                )}
               </div>
             )}
 

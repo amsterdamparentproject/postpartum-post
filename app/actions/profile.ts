@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { geocodeZipcode } from "@/lib/matcher";
 import { requireMember } from "@/lib/require-member";
+import { currentMonth, monthToDate } from "@/lib/tokens";
 
 export type Availability = {
   days: string[];
@@ -45,7 +46,11 @@ export type SubscriptionDetails = {
   price_lookup_key: string | null;
   current_period_end: number | null;
   cancel_at_period_end: boolean;
-  pause_collection: { behavior: string; resumes_at: number | null } | null;
+  // Track C2: sourced from our own monthly_skips table, not Stripe's
+  // pause_collection — this is our data, and it's the thing that actually
+  // determines whether they're skipping, regardless of how Stripe's side
+  // of the pause is implemented today or after Track E's cutover.
+  is_skipping_this_month: boolean;
 };
 
 export async function checkMemberExists(email: string): Promise<boolean> {
@@ -105,7 +110,19 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
   let current_period_end: number | null = null;
   let cancel_at_period_end = false;
   let price_lookup_key: string | null = null;
-  let pause_collection: { behavior: string; resumes_at: number | null } | null = null;
+
+  // Track C2: whether they're skipping this calendar month is our own data
+  // (monthly_skips), not Stripe's pause_collection — query it up front so a
+  // Stripe fetch failure below (caught and logged, non-fatal) doesn't also
+  // take this down with it.
+  const monthDate = monthToDate(currentMonth());
+  const { data: skipRow } = await supabase
+    .from("monthly_skips")
+    .select("id")
+    .eq("member_id", authed.memberId)
+    .eq("month", monthDate)
+    .maybeSingle();
+  const is_skipping_this_month = skipRow !== null;
 
   try {
     const stripe = getStripe();
@@ -116,9 +133,6 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
     const item = stripeSub.items.data[0];
     cancel_at_period_end = stripeSub.cancel_at_period_end;
     price_lookup_key = item.price.lookup_key ?? null;
-    pause_collection = stripeSub.pause_collection
-      ? { behavior: stripeSub.pause_collection.behavior, resumes_at: stripeSub.pause_collection.resumes_at ?? null }
-      : null;
 
     // During a trial, current_period_end = trial_end (the first charge date).
     // For the renewal case, show trial_end + interval so "Next billing date"
@@ -152,7 +166,7 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
     price_lookup_key,
     current_period_end,
     cancel_at_period_end,
-    pause_collection,
+    is_skipping_this_month,
   };
 }
 
