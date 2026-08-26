@@ -271,7 +271,12 @@ describe("GET /api/optin", () => {
     // Wrap the real admin client so only this member's monthly_skips insert
     // fails — everything else (member lookup, magic link generation) goes
     // through against the real test Supabase project, same as every other
-    // test in this file.
+    // test in this file. GET is statically imported at the top of this file,
+    // so the route module (and its `@/lib/supabase` import) is already
+    // cached — vi.resetModules() clears that cache so the dynamic import
+    // below actually re-evaluates route.ts against the mocked module
+    // instead of silently reusing the already-cached real one.
+    vi.resetModules();
     vi.doMock("@/lib/supabase", async (importOriginal) => {
       const actual = await importOriginal<typeof import("@/lib/supabase")>();
       return {
@@ -324,6 +329,7 @@ describe("GET /api/optin", () => {
     expect(updated?.consecutive_skips).toBe(0);
 
     vi.doUnmock("@/lib/supabase");
+    vi.resetModules();
   });
 
   it("skip after coffee — removes the existing participation row", async () => {
