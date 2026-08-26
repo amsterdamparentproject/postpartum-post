@@ -44,10 +44,18 @@ export type MemberStatusInput = {
 // the same hardcoded lookup-key -> price mapping already used elsewhere
 // (the webhook's welcome-email planLabel, the billing page's own
 // planLabel) rather than fetching the live Stripe price on every render.
-const TERM_AMOUNTS: Record<string, string> = {
+// Exported for Track C4 (lib/billing-notice.ts) to reuse — same map, same
+// staleness tradeoff already accepted here, rather than a second source of
+// truth for the amount.
+export const TERM_AMOUNTS: Record<string, string> = {
   founding_member: "€15",
   commitment_3mo: "€24",
   standard_monthly: "€12",
+  // Archived price (its one subscriber predates the archival — confirmed
+  // live via Stripe 2026-08-26: price_1TWiRZQXyrloqZVhmqAwNp3g,
+  // unit_amount 4800 = €48 billed every 6 months). Archived only means it
+  // can't be sold again, not that the number changed.
+  commitment_6mo: "€48",
 };
 
 const PAYMENT_FAILED_STRIPE_STATUSES = new Set([

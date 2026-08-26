@@ -78,6 +78,17 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
     });
     expect(result.label).toContain("€15");
   });
+
+  it("uses the right per-term amount for commitment_6mo, an archived price with a live subscriber", () => {
+    const result = deriveMemberStatusMessage({
+      stripeStatus: "active",
+      priceLookupKey: "commitment_6mo",
+      intervalCount: 6,
+      matchesRemaining: 0,
+      today: new Date("2026-08-01T00:00:00Z"),
+    });
+    expect(result.label).toContain("€48");
+  });
 });
 
 describe("deriveMemberStatusMessage — monthly plan (Track C1)", () => {
