@@ -339,4 +339,39 @@ describe("getSubscriptionDetails — current_period_end while trialing (bugfix)"
 
     expect(details?.current_period_end).toBe(trialEnd);
   });
+
+  // Positive control: the two tests above only prove the bug (trial_end +
+  // interval) is gone. This proves the ordinary, by-far-most-common case —
+  // a normal active subscription, never trialing — still reports the right
+  // date: item.current_period_end passed straight through, untouched.
+  it("passes item.current_period_end straight through for a normal active subscription", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+    memberEmail = member.email;
+    await seedSubscription(memberId);
+
+    const periodEnd = Math.floor(Date.now() / 1000) + 25 * 86400;
+    mockRetrieve.mockResolvedValue({
+      status: "active",
+      cancel_at_period_end: false,
+      trial_end: null,
+      items: {
+        data: [
+          {
+            price: {
+              lookup_key: "commitment_3mo",
+              recurring: { interval: "month", interval_count: 3 },
+            },
+            current_period_end: periodEnd,
+          },
+        ],
+      },
+    });
+
+    const token = await getAccessTokenForEmail(memberEmail);
+    const details = await getSubscriptionDetails(token);
+
+    expect(details?.current_period_end).toBe(periodEnd);
+    expect(details?.status).toBe("active");
+  });
 });
