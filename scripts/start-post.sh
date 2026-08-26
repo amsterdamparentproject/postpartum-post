@@ -8,6 +8,9 @@
 # see __claude__/local-testing-guide.md. Update STRIPE_WEBHOOK_SECRET in
 # .env.local with the whsec_... this prints if it differs from what's
 # there now.
+#
+# Written against plain /bin/bash (macOS ships 3.2, no `wait -n`) — polls
+# instead of using bash 4.3+'s wait -n, so it stops cleanly either way.
 
 PORT=3001
 
@@ -27,5 +30,9 @@ DEV_PID=$!
 stripe listen --forward-to "localhost:$PORT/api/webhooks/stripe" &
 STRIPE_PID=$!
 
-wait -n "$DEV_PID" "$STRIPE_PID"
+# Poll rather than `wait -n` (bash 4.3+ only) so either process exiting on
+# its own — not just Ctrl-C — brings down the other and returns control.
+while kill -0 "$DEV_PID" 2>/dev/null && kill -0 "$STRIPE_PID" 2>/dev/null; do
+  sleep 1
+done
 cleanup
