@@ -96,6 +96,25 @@
  * real behavioral difference — fixed the poll to watch the subscription
  * directly (pollSepaFailureUntilResolved) instead of only the invoice, and
  * widened the window to 8 minutes to find out.
+ *
+ * Fourth real run confirmed it's a real difference, not just slower:
+ * subscription.status flipped to "canceled" at t+381s, NOT "past_due".
+ * Fetched the actual PaymentIntent from Stripe directly to understand why
+ * (docs.stripe.com doesn't cover this): last_payment_error shows
+ * failure_code="incorrect_account_holder_name", network_decline_code="RR01"
+ * — the "failedDelayed" test IBAN (NL28RABO0300065268) simulates a SEPA
+ * R-transaction reject for a mandate/account-holder mismatch, not a
+ * transient decline like case 3's card ("your card was declined, try
+ * again"). Stripe's own message: "Collect a new mandate... After this, you
+ * can attempt the transaction again" — it judges the existing mandate
+ * unusable and cancels the subscription outright instead of scheduling a
+ * retry: status=canceled, cancellation_details.reason="payment_failed",
+ * next_payment_attempt=null. Confirms "SEPA behaves like card" is WRONG for
+ * the failure path — updated plan §Track D case 6 accordingly (2026-08-26).
+ * Not yet confirmed whether every SEPA decline reason cancels outright or
+ * only mandate-level rejects like this one — Stripe has other SEPA test
+ * IBANs (insufficient funds, disputed, etc.) not exercised here that would
+ * settle that if it matters before Track E ships.
  * Deliberately routes the subscription's own *initial* payment through the
  * card PM already on the customer, and only switches the default payment
  * method to SEPA before the refill — mirrors a real member's iDEAL-then-
