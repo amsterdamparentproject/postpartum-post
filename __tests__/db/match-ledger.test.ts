@@ -8,8 +8,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { seedMember, cleanupMember, createTestSupabase } from "@tests/helpers";
 
-const TEST_MONTH = "2099-02-01"; // far future — avoid colliding with real data
-const OTHER_MONTH = "2099-03-01";
+const TEST_MONTH = "2199-02-01"; // far future — avoid colliding with real data
+const OTHER_MONTH = "2199-03-01";
 
 async function recordEntitlement(params: {
   memberId: string;
@@ -250,7 +250,7 @@ describe("match_ledger view", () => {
   }
 
   it("does not surface `unmatched` for a draft or committed round", async () => {
-    const month = "2099-04-01";
+    const month = "2199-04-01";
     const member = await seedMember();
     memberIds.push(member.id);
 
@@ -261,17 +261,21 @@ describe("match_ledger view", () => {
       topic_id: (await supabase.from("topics").select("id").limit(1).single()).data!.id,
     });
 
-    await seedRound(month, "draft");
+    const draftRoundId = await seedRound(month, "draft");
     expect(await ledgerEvents(member.id)).not.toContain("unmatched");
 
-    roundIds = [];
-    await supabase.from("match_rounds").delete().eq("month", month);
+    // Swap the round to committed rather than resetting roundIds wholesale —
+    // if anything below throws, afterEach can still find and clean up
+    // whichever round is currently live instead of leaking it.
+    await supabase.from("match_rounds").delete().eq("id", draftRoundId);
+    roundIds = roundIds.filter((id) => id !== draftRoundId);
+
     await seedRound(month, "committed");
     expect(await ledgerEvents(member.id)).not.toContain("unmatched");
   });
 
   it("surfaces `unmatched` only once the round is locked and the member was never paired", async () => {
-    const month = "2099-05-01";
+    const month = "2199-05-01";
     const member = await seedMember();
     memberIds.push(member.id);
 
@@ -284,7 +288,7 @@ describe("match_ledger view", () => {
   });
 
   it("does not surface `unmatched` for a locked round when the member was paired", async () => {
-    const month = "2099-06-01";
+    const month = "2199-06-01";
     const a = await seedMember();
     const b = await seedMember();
     memberIds.push(a.id, b.id);
@@ -303,7 +307,7 @@ describe("match_ledger view", () => {
   });
 
   it("surfaces `second_match` for the second match in a month, not the first", async () => {
-    const month = "2099-07-01";
+    const month = "2199-07-01";
     const a = await seedMember();
     const b = await seedMember();
     const c = await seedMember();
@@ -319,7 +323,7 @@ describe("match_ledger view", () => {
   });
 
   it("passes through opted_in and skipped as-is", async () => {
-    const month = "2099-08-01";
+    const month = "2199-08-01";
     const member = await seedMember();
     memberIds.push(member.id);
 
