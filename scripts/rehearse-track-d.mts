@@ -84,6 +84,18 @@
  * hour lag, not real time; only the SEPA settlement *after* submission
  * runs on a real background timer. Fixed by advancing the test clock (as
  * cases 1/2/3/5 already do) before polling for settlement.
+ * Third real run (2026-08-26, with that fix in place): case 6a fully
+ * passed — the invoice stayed unpaid through submission (status=open,
+ * attempted=true) and only reached "paid" after 264s of real settlement
+ * time, confirming invoice.paid fires on SETTLEMENT. Case 6b (the failure
+ * path) polled the invoice alone for the full 360s and never saw it leave
+ * "open" — expected, since a declined invoice legitimately stays "open"
+ * forever, same as case 3's card failure — but the subscription itself
+ * also never left "active", unlike case 3's immediate flip to "past_due".
+ * Not yet confirmed whether that's just slower for an async failure or a
+ * real behavioral difference — fixed the poll to watch the subscription
+ * directly (pollSepaFailureUntilResolved) instead of only the invoice, and
+ * widened the window to 8 minutes to find out.
  * Deliberately routes the subscription's own *initial* payment through the
  * card PM already on the customer, and only switches the default payment
  * method to SEPA before the refill — mirrors a real member's iDEAL-then-
@@ -210,6 +222,38 @@ async function pollInvoiceUntilSettled(invoiceId: string, label: string, maxWait
   }
   log(label, `⚠ gave up polling after ${Math.round(maxWaitMs / 1000)}s real time — still not settled`);
   return await stripe.invoices.retrieve(invoiceId);
+}
+
+/** Like pollInvoiceUntilSettled, but for the SEPA-failure case: a declined
+ * invoice attempt legitimately stays "open" forever (same as case 3's card
+ * failure — it never becomes paid/void/uncollectible on its own), so the
+ * real signal to wait for is the subscription itself flipping to
+ * "past_due". Polls both together on real wall-clock time so it's
+ * possible to see exactly when (if ever) that happens, rather than
+ * inferring it from a fixed timeout. Case 6b's first real run polled the
+ * invoice alone for 360s (longer than case 6a's 264s success settlement)
+ * and never saw the subscription move off "active" — this widens the
+ * window and watches the subscription directly to find out whether it's
+ * just slower than the success path, or genuinely doesn't flip the same
+ * way an async failure does. */
+async function pollSepaFailureUntilResolved(invoiceId: string, subscriptionId: string, label: string, maxWaitMs: number, intervalMs: number) {
+  const start = Date.now();
+  let last = "";
+  while (Date.now() - start < maxWaitMs) {
+    const [inv, sub] = await Promise.all([stripe.invoices.retrieve(invoiceId), stripe.subscriptions.retrieve(subscriptionId)]);
+    const snapshot = `invoice.status=${inv.status} attempted=${inv.attempted} attempt_count=${inv.attempt_count} | subscription.status=${sub.status}`;
+    if (snapshot !== last) {
+      log(label, `  t+${Math.round((Date.now() - start) / 1000)}s real time: ${snapshot}`);
+      last = snapshot;
+    }
+    if (sub.status === "past_due" || inv.status === "paid" || inv.status === "uncollectible" || inv.status === "void") {
+      return { invoice: inv, subscription: sub };
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  log(label, `⚠ gave up polling after ${Math.round(maxWaitMs / 1000)}s real time — still not resolved`);
+  const [inv, sub] = await Promise.all([stripe.invoices.retrieve(invoiceId), stripe.subscriptions.retrieve(subscriptionId)]);
+  return { invoice: inv, subscription: sub };
 }
 
 async function getPriceId(): Promise<{ id: string; unitAmount: number | null; currency: string }> {
@@ -667,8 +711,15 @@ async function caseSixFailure(priceId: string, unitAmount: number, currency: str
   // real time — see the comment there for the full story.
   const checkpoint = pastNaturalEnd + 3 * 60 * 60;
   await advanceClock(clock.id, checkpoint, label);
-  const settled = await pollInvoiceUntilSettled(invoice.id!, label, 6 * 60 * 1000, 20000);
-  const subAfter = await stripe.subscriptions.retrieve(sub.id);
+
+  // A declined invoice legitimately stays "open" forever (same as case 3's
+  // card failure), so pollInvoiceUntilSettled's own exit condition
+  // (paid/void/uncollectible) never fires here — the first real run of
+  // this fix polled the invoice alone for 360s and it just sat at "open"
+  // the whole time with no visibility into whether the subscription had
+  // moved. Poll both directly instead, and use a wider window (case 6a's
+  // success settled at 264s; this gives real margin above that).
+  const { invoice: settled, subscription: subAfter } = await pollSepaFailureUntilResolved(invoice.id!, sub.id, label, 8 * 60 * 1000, 15000);
 
   log(label, `subscription status after the failed SEPA charge: ${subAfter.status}`);
   log(label, `invoice status after the failed SEPA charge: ${settled.status} (attempted=${settled.attempted}, attempt_count=${settled.attempt_count})`);
