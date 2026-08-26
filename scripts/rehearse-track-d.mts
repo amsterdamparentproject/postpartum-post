@@ -27,10 +27,13 @@
  * that's the normal way this migration's DB/Stripe-touching work has been
  * confirmed all along, not a special caveat for this file.
  *
- * Deliberately mirrors the *actual* pause/resume mechanism this app uses —
- * pause_collection with behavior: "void" and an explicit resumes_at (see
- * app/actions/skip.ts, lib/free-month-grants.ts) — not a hypothetical one,
- * so what this rehearses is what Track E would actually call.
+ * Uses the same pause_collection field this app already calls (see
+ * app/actions/skip.ts, lib/free-month-grants.ts), but cases 1-3 pause
+ * open-ended and resume by explicitly clearing pause_collection in code —
+ * not via pause_collection's own `resumes_at` — because plan §6 already
+ * flags that distinction ("Only resume bills immediately") as the one
+ * that matters for Track E. v1 of this script got that wrong; see the
+ * per-case comments below.
  *
  * Usage:
  *   yarn rehearse-track-d                    # defaults to commitment_3mo
@@ -131,34 +134,84 @@ async function newestInvoicesSince(customerId: string, sinceUnix: number, label:
 // ---------------------------------------------------------------------------
 // Cases 1 & 2 — does resume generate *and finalize* an invoice immediately,
 // and what's auto_advance on it?
+//
+// v2: the first version of this test used pause_collection's own
+// `resumes_at` to auto-clear the pause, 2 days out. That's the wrong
+// mechanism for what Track E actually needs — `resumes_at` only voids
+// invoices that would otherwise fire *during* the paused window; it
+// doesn't invoice anything at resumes_at itself if the subscription's own
+// natural period end is further out (which it always will be for a
+// 3-month+ bundle plan paused for just a couple of days). Track E's own
+// decision log already flags this distinction (plan §6: "Only resume
+// bills immediately") — the mechanism that matters is an EXPLICIT resume
+// (clearing pause_collection via code) after the natural period has
+// already elapsed while paused, not Stripe's own scheduled auto-clear.
+// This version tests that instead: pause open-ended, advance the clock
+// past the subscription's natural current_period_end while still paused,
+// then explicitly clear pause_collection and see what happens.
 // ---------------------------------------------------------------------------
 async function casesOneAndTwo(priceId: string) {
   const label = "case 1+2";
   const clock = await newClock("rehearse-cases-1-2");
   const customer = await newCustomerOnClock(clock.id, `d-rehearsal-1-2+${clock.id}@example.test`, "pm_card_visa");
   const sub = await newSubscription(customer.id, priceId);
-  log(label, `subscription ${sub.id} created, status=${sub.status}`);
-
-  const clockNow = clock.frozen_time;
-  const resumesAt = clockNow + 2 * DAY;
+  const naturalPeriodEnd = sub.items.data[0].current_period_end;
+  log(label, `subscription ${sub.id} created, status=${sub.status}, natural current_period_end=${new Date(naturalPeriodEnd * 1000).toISOString()}`);
 
   await stripe.subscriptions.update(sub.id, {
-    pause_collection: { behavior: "void", resumes_at: resumesAt },
+    pause_collection: { behavior: "void" },
   });
-  log(label, `paused (void), resumes_at=${new Date(resumesAt * 1000).toISOString()}`);
+  log(label, "paused (void), open-ended — no resumes_at");
 
-  // Advance well past resumes_at — invoice finalization can lag the
-  // triggering event by up to ~1 hour of clock time even inside a test
-  // clock, per Stripe's own test-clock guidance.
-  const checkpoint = resumesAt + 3 * 60 * 60;
+  // Advance past the natural period end (+1 day buffer) while still
+  // paused — simulates a member coasting on banked matches past their
+  // normal billing date, which pause_collection is specifically meant to
+  // prevent Stripe from invoicing for on its own.
+  const pastNaturalEnd = naturalPeriodEnd + DAY;
+  await advanceClock(clock.id, pastNaturalEnd, label);
+  const invoicesWhilePaused = await newestInvoicesSince(customer.id, naturalPeriodEnd, label);
+  if (invoicesWhilePaused.length > 0) {
+    log(label, `⚠ ${invoicesWhilePaused.length} invoice(s) appeared while still paused, past the natural period end — pause_collection may not be voiding as expected.`);
+  } else {
+    log(label, "confirmed: nothing invoiced while paused, even past the natural period end.");
+  }
+
+  // The actual thing Track E depends on: explicitly clearing
+  // pause_collection (the "resume" action), not the clock reaching some
+  // scheduled resumes_at.
+  const resumeCalledAt = pastNaturalEnd;
+  await stripe.subscriptions.update(sub.id, { pause_collection: null });
+  log(label, `explicitly resumed (cleared pause_collection) at ${new Date(resumeCalledAt * 1000).toISOString()}`);
+
+  // Advance a small buffer past the resume call — invoice finalization
+  // can lag the triggering event by up to ~1 hour of clock time even
+  // inside a test clock, per Stripe's own test-clock guidance.
+  const checkpoint = resumeCalledAt + 3 * 60 * 60;
   await advanceClock(clock.id, checkpoint, label);
   log(label, `clock advanced to ${new Date(checkpoint * 1000).toISOString()}`);
 
-  const freshInvoices = await newestInvoicesSince(customer.id, resumesAt, label);
+  const freshInvoices = await newestInvoicesSince(customer.id, resumeCalledAt, label);
   const resumeInvoice = freshInvoices.find((inv) => inv.status !== "draft") ?? freshInvoices[0];
 
   if (!resumeInvoice) {
-    log(label, "✗ CASE 1 FAILED: no invoice was generated at all after resumes_at.");
+    log(label, "✗ CASE 1 FAILED: no invoice was generated at all after the explicit resume.");
+
+    // Fallback probe: if plain resume doesn't invoice a stale period, does
+    // pairing it with billing_cycle_anchor: "now" (case 5's mechanism) force
+    // one? Worth knowing in the same run rather than a separate round trip,
+    // since this is the natural next question if resume alone comes up empty.
+    const probeAt = checkpoint;
+    await stripe.subscriptions.update(sub.id, { billing_cycle_anchor: "now", proration_behavior: "none" });
+    log(label, "fallback probe: also reset billing_cycle_anchor: now — checking again");
+    const probeCheckpoint = probeAt + 3 * 60 * 60;
+    await advanceClock(clock.id, probeCheckpoint, label);
+    const probeInvoices = await newestInvoicesSince(customer.id, probeAt, label);
+    const probeInvoice = probeInvoices.find((inv) => inv.status !== "draft") ?? probeInvoices[0];
+    if (probeInvoice && probeInvoice.status !== "draft") {
+      log(label, `  → billing_cycle_anchor: "now" DOES force an invoice (${probeInvoice.id}, status=${probeInvoice.status}) where plain resume didn't. Track E likely needs both, not resume alone.`);
+    } else {
+      log(label, `  → still nothing, even with billing_cycle_anchor: "now". Needs a closer look at the Dashboard for this test clock (${clock.id}).`);
+    }
   } else if (resumeInvoice.status === "draft") {
     log(label, `✗ CASE 1 FAILED: invoice ${resumeInvoice.id} exists but is still "draft" — not finalized.`);
   } else {
@@ -173,35 +226,45 @@ async function casesOneAndTwo(priceId: string) {
 // ---------------------------------------------------------------------------
 // Case 3 — failed resume: does the subscription land in "paused" or
 // "past_due"? This is the failure mode Track E's design relies on.
+//
+// v2: same fix as cases 1+2 — pause open-ended, advance past the natural
+// current_period_end while paused, THEN swap to a bad card and explicitly
+// resume. The v1 version resumed via resumes_at before anything was ever
+// due, so no charge was attempted and this case couldn't have failed in
+// the way it's meant to test.
 // ---------------------------------------------------------------------------
 async function caseThree(priceId: string) {
   const label = "case 3";
   const clock = await newClock("rehearse-case-3");
   const customer = await newCustomerOnClock(clock.id, `d-rehearsal-3+${clock.id}@example.test`, "pm_card_visa");
   const sub = await newSubscription(customer.id, priceId);
-  log(label, `subscription ${sub.id} created, status=${sub.status}`);
+  const naturalPeriodEnd = sub.items.data[0].current_period_end;
+  log(label, `subscription ${sub.id} created, status=${sub.status}, natural current_period_end=${new Date(naturalPeriodEnd * 1000).toISOString()}`);
+
+  await stripe.subscriptions.update(sub.id, { pause_collection: { behavior: "void" } });
+  log(label, "paused (void), open-ended");
+
+  const pastNaturalEnd = naturalPeriodEnd + DAY;
+  await advanceClock(clock.id, pastNaturalEnd, label);
 
   // Swap the default payment method to one that attaches fine but declines
   // on every subsequent charge attempt — simulates a real member's card
-  // silently going bad between paying today and their resume charge later.
+  // silently going bad while they were coasting on banked matches.
   const badPm = await stripe.paymentMethods.attach("pm_card_chargeCustomerFail", { customer: customer.id });
   await stripe.customers.update(customer.id, {
     invoice_settings: { default_payment_method: badPm.id },
   });
   log(label, `swapped default payment method to a will-fail-to-charge card (${badPm.id})`);
 
-  const clockNow = clock.frozen_time;
-  const resumesAt = clockNow + 2 * DAY;
-  await stripe.subscriptions.update(sub.id, {
-    pause_collection: { behavior: "void", resumes_at: resumesAt },
-  });
-  log(label, `paused (void), resumes_at=${new Date(resumesAt * 1000).toISOString()}`);
+  const resumeCalledAt = pastNaturalEnd;
+  await stripe.subscriptions.update(sub.id, { pause_collection: null });
+  log(label, `explicitly resumed (cleared pause_collection) at ${new Date(resumeCalledAt * 1000).toISOString()}`);
 
-  const checkpoint = resumesAt + 3 * 60 * 60;
+  const checkpoint = resumeCalledAt + 3 * 60 * 60;
   await advanceClock(clock.id, checkpoint, label);
 
   const subAfter = await stripe.subscriptions.retrieve(sub.id);
-  const freshInvoices = await newestInvoicesSince(customer.id, resumesAt, label);
+  const freshInvoices = await newestInvoicesSince(customer.id, resumeCalledAt, label);
 
   if (subAfter.status === "paused") {
     log(label, `✓ CASE 3: subscription stayed "paused" after the resume charge failed (as the plan assumes).`);
@@ -251,6 +314,12 @@ async function caseFour(priceId: string) {
 // ---------------------------------------------------------------------------
 // Case 5 — billing_cycle_anchor: "now" with proration_behavior: "none":
 // does it give a clean term with no proration line items?
+//
+// v2: the marker used to check "invoices since" was captured before the
+// subscription even existed, so it caught the subscription's own normal
+// initial invoice (which trivially has no proration) instead of isolating
+// whatever the billing_cycle_anchor reset itself produces. Marker now
+// starts right after subscription creation.
 // ---------------------------------------------------------------------------
 async function caseFive(priceId: string) {
   const label = "case 5";
@@ -259,7 +328,9 @@ async function caseFive(priceId: string) {
   const sub = await newSubscription(customer.id, priceId);
   log(label, `subscription ${sub.id} created, status=${sub.status}`);
 
-  const markerTime = clock.frozen_time;
+  // +1s so the initial subscription-creation invoice (created at the same
+  // instant) isn't picked up by the >= filter below.
+  const markerTime = clock.frozen_time + 1;
   await stripe.subscriptions.update(sub.id, {
     billing_cycle_anchor: "now",
     proration_behavior: "none",
