@@ -31,10 +31,9 @@
  *      the negative, since Track E must not accidentally rely on this.
  *   2. The manually-built refill invoice (invoiceItems.create +
  *      invoices.create) reaches "paid" on its own.
- *   3. A card that fails on that invoice leaves the subscription/invoice
- *      in a state Track E's renew-check job can actually detect — there's
- *      no dedicated `paused` status to fall back on with this mechanism,
- *      so this case is about finding out what the real signal is.
+ *   3. A card that fails on that invoice flips subscription.status to
+ *      `past_due` — confirmed 2026-08-26 — a real, usable signal that
+ *      maps directly onto the app's own `payment_failed` status.
  *   4. Pausing right after payment creates no stray invoice or proration
  *      credit while paused.
  *   5. The manually-built invoice's amount matches the plan price exactly,
@@ -306,11 +305,16 @@ async function caseTwo(priceId: string, unitAmount: number, currency: string) {
 
 // ---------------------------------------------------------------------------
 // Case 3 — a card that fails on the manually-built refill invoice: what
-// state does that leave things in? There's no dedicated `paused` status to
-// fall back on with this mechanism (the subscription never leaves
-// `active`), so this is about finding the real signal Track E's
-// renew-check job needs to watch for — most likely the invoice's own
-// status (`open` retrying, or `uncollectible`), not the subscription's.
+// state does that leave things in?
+//
+// Confirmed (2026-08-26, real run): subscription.status flips to
+// `past_due`, even though this mechanism never touches pause_collection
+// and isn't part of the subscription's natural billing cycle — Stripe
+// treats any invoice linked via `subscription:` as part of that
+// subscription's own dunning state. Reverses the original assumption (that
+// only the invoice's own status would move) — past_due is a real, usable
+// signal after all, and maps directly onto the app's own `payment_failed`
+// status (plan §3.3's "0 | payment failed" row).
 // ---------------------------------------------------------------------------
 async function caseThree(priceId: string, unitAmount: number, currency: string) {
   const label = "case 3";
@@ -351,10 +355,10 @@ async function caseThree(priceId: string, unitAmount: number, currency: string) 
   log(label, `subscription status after the failed charge: ${subAfter.status}`);
   log(label, `invoice status after the failed charge: ${finalInvoice.status} (attempted=${finalInvoice.attempted}, attempt_count=${finalInvoice.attempt_count})`);
 
-  if (subAfter.status === "active" && (finalInvoice.status === "open" || finalInvoice.status === "uncollectible")) {
-    log(label, `✓ CASE 3: subscription stays "active" (as expected — pause_collection was already cleared, and this mechanism never sets a subscription-level "paused" status); invoice status "${finalInvoice.status}" is the real signal Track E's renew-check job should watch for a stuck refill, not subscription.status.`);
+  if (subAfter.status === "past_due" && finalInvoice.status === "open") {
+    log(label, `✓ CASE 3: subscription flips to "past_due" (invoice stays "open", retrying) — this is the real signal Track E's renew-check job should watch, and maps cleanly onto our own "payment_failed" status.`);
   } else {
-    log(label, `? CASE 3: subscription=${subAfter.status}, invoice=${finalInvoice.status} — doesn't match the expected shape above. Needs a look before Track E's failure-detection design is finalized.`);
+    log(label, `? CASE 3: subscription=${subAfter.status}, invoice=${finalInvoice.status} — doesn't match the now-confirmed shape (past_due / open). Needs a look before Track E's failure-detection design is finalized.`);
   }
 }
 
