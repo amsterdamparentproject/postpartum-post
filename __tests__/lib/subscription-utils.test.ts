@@ -89,9 +89,15 @@ describe("extendSubscriptionToNext5th", () => {
 });
 
 describe("cancelSubscription", () => {
-  it("sets cancel_at_period_end on the subscription", async () => {
-    mockUpdate.mockResolvedValue({});
-    await cancelSubscription("sub_test");
-    expect(mockUpdate).toHaveBeenCalledWith("sub_test", { cancel_at_period_end: true });
+  it("sets cancel_at_period_end and returns the period-end date", async () => {
+    mockUpdate.mockResolvedValue(stripeSubResponse("2026-09-10T00:00:00Z"));
+
+    const result = await cancelSubscription("sub_test");
+
+    expect(mockUpdate).toHaveBeenCalledWith("sub_test", {
+      cancel_at_period_end: true,
+      expand: ["items"],
+    });
+    expect(result.periodEnd.toISOString()).toBe("2026-09-10T00:00:00.000Z");
   });
 });
