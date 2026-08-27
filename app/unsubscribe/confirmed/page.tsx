@@ -1,7 +1,20 @@
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 
-export default function UnsubscribeConfirmed() {
+function formatDate(iso: string): string | null {
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+export default async function UnsubscribeConfirmed({
+  searchParams,
+}: {
+  searchParams: Promise<{ until?: string }>;
+}) {
+  const { until } = await searchParams;
+  const untilText = until ? formatDate(until) : null;
+
   return (
     <PageLayout>
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -14,7 +27,15 @@ export default function UnsubscribeConfirmed() {
             You&apos;ve been unsubscribed
           </h1>
           <p className="text-muted leading-relaxed mb-8">
-            Your subscription has been canceled. You won't be charged again, and you won't receive any more matches.
+            Your subscription has been canceled. You won&apos;t be charged again
+            {untilText ? (
+              <>
+                , and your access remains active until <strong>{untilText}</strong>
+              </>
+            ) : (
+              ", and you won't receive any more matches"
+            )}
+            . We&apos;ve also sent you a confirmation email.
           </p>
           <p className="text-muted text-sm leading-relaxed mb-10">
             We hope you found value in Postpartum Post! If you ever want to come back — whether your little one is 3 months or 3 years old — the door is always open.
