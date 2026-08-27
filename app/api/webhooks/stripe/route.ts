@@ -3,7 +3,6 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
-import { extendSubscriptionToNext5th } from "@/lib/subscription-utils";
 import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 import { recordEntitlement, FYP_LOOKUP_KEYS, GIFT_ENTITLEMENT_NOTE } from "@/lib/match-ledger";
@@ -75,25 +74,14 @@ export async function POST(req: NextRequest) {
     );
     console.log("[webhook] subscription upsert", { error: subError?.message });
 
-    // Align billing to the next match day (the 5th) when the subscription's
-    // natural anchor (signup date + plan interval, as Stripe computed it at
-    // checkout) doesn't already land there — e.g. a 3-month plan signed up
-    // on the 6th would otherwise renew on the 6th too, leaving only ~1 day
-    // of buffer after that cycle's 3rd match. Gate on the natural anchor's
-    // calendar day directly (not on today's date) so an already-aligned
-    // subscription is left untouched — no trial_end update, no "trialing"
-    // status. Safe to apply post-checkout because extendSubscriptionToNext5th
-    // only ever pushes the period end later, never earlier — see
-    // __claude__/billing-extension-bugfix-plan.md.
-    const naturalAnchor = new Date(stripeSubscription.items.data[0].current_period_end * 1000);
-    if (naturalAnchor.getUTCDate() !== 5) {
-      try {
-        const { newDate } = await extendSubscriptionToNext5th(session.subscription as string);
-        console.log("[webhook] billing extended to next 5th-of-month:", newDate.toISOString());
-      } catch (e) {
-        console.error("[webhook] billing extension failed (non-fatal):", e);
-      }
-    }
+    // Track E4: billing used to be realigned here to the next match day (the
+    // 5th) whenever Stripe's natural signup anchor didn't already land
+    // there. That's no longer needed — Track E2 now pauses every
+    // subscription immediately after each successful payment (including
+    // this first one), so a subscription never bills on its own natural
+    // Stripe schedule again after signup; only the renew-check job (E1,
+    // fixed at the 10th) ever collects again. See
+    // __claude__/billing-simplification-plan.md, Track E.
 
     // Generate a magic link so the welcome email signs the user straight into their profile
     const firstName = session.customer_details?.name?.split(" ")[0] ?? "there";
@@ -152,13 +140,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (event.type === "invoice.payment_succeeded") {
-    // Track B (billing simplification, __claude__/billing-simplification-plan.md
-    // §3.2): every successful payment — the first one at signup and every
-    // renewal after — grants matchesPerTerm to the member's counter. This is
-    // write-only for now: nothing reads matches_remaining yet, and this does
-    // NOT pause the subscription (that's E2, once a renew-check job exists
-    // that can actually resume it — pausing here with nothing to un-pause it
-    // would strand every subscription the first time it renews).
+    // Track B/E (billing simplification, __claude__/billing-simplification-plan.md
+    // §3.2, Track E2): every successful payment — the first one at signup
+    // and every renewal after — grants matchesPerTerm to the member's
+    // counter, then immediately pauses the subscription. It sits paused
+    // (pause_collection: void) until Track E1's renew-check job (the 10th
+    // of the month) clears the pause and submits the next charge — so a
+    // subscription is never billable except for the instant it renews.
     try {
       const invoice = event.data.object as Stripe.Invoice;
       const subscriptionRef = invoice.parent?.subscription_details?.subscription;
@@ -230,6 +218,22 @@ export async function POST(req: NextRequest) {
         note: hasGiftDiscount ? GIFT_ENTITLEMENT_NOTE : undefined,
       });
       console.log("[webhook] invoice.payment_succeeded", { subscriptionId, matchesPerTerm, applied, gift: hasGiftDiscount });
+
+      // Track E2: pause right after a fresh grant, never on a replay
+      // (applied === false — nothing changed, no reason to re-issue the
+      // Stripe call). This now also fires on a member's very first payment
+      // at signup, which is deliberate now that E1 exists to unpause it —
+      // see the handler comment above.
+      if (applied) {
+        try {
+          await stripe.subscriptions.update(subscriptionId, {
+            pause_collection: { behavior: "void" },
+          });
+          console.log("[webhook] paused subscription after grant", { subscriptionId });
+        } catch (e) {
+          console.error("[webhook] pause_collection update failed (non-fatal):", e);
+        }
+      }
     } catch (e) {
       console.error("[webhook] invoice.payment_succeeded handler failed (non-fatal):", e);
     }

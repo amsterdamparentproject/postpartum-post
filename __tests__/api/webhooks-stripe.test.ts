@@ -191,42 +191,29 @@ describe("Stripe webhook", () => {
     );
   });
 
-  // ── Billing extension tests ──────────────────────────────────────────────
-  // The webhook realigns a subscription's next charge to match day (the 5th)
-  // whenever the natural anchor Stripe already assigned at checkout (signup
-  // date + plan interval) doesn't land there. Driven entirely by the fetched
-  // subscription's current_period_end — not by "now" — since Stripe has
-  // already computed the natural anchor by the time the webhook runs.
+  // ── Billing extension removed (Track E4) ─────────────────────────────────
+  // checkout.session.completed used to realign a subscription's next charge
+  // to match day (the 5th) whenever Stripe's natural signup anchor didn't
+  // land there. That block was deleted once Track E2 made it moot — every
+  // subscription now pauses right after each successful payment (including
+  // this first one), so it never bills on its own natural Stripe schedule
+  // again. Regression guard: checkout.session.completed should never call
+  // subscriptions.update at all any more, regardless of the natural anchor.
 
   it.each([
-    // Case A: signup Aug 1, 3mo plan → natural anchor Nov 1 → extend to Nov 5.
-    ["Nov 1 (Case A)", "2026-11-01T10:00:00Z", "2026-11-05T00:00:00Z", true],
-    // Case B: signup Aug 6, 3mo plan → natural anchor Nov 6 → extend to Dec 5.
-    ["Nov 6 (Case B)", "2026-11-06T10:00:00Z", "2026-12-05T00:00:00Z", true],
-    // Natural anchor already lands on the 5th → already aligned, no extension.
-    ["Aug 5 (aligned)", "2026-08-05T14:32:00Z", null, false],
+    ["Nov 1 (would have been Case A)", "2026-11-01T10:00:00Z"],
+    ["Nov 6 (would have been Case B)", "2026-11-06T10:00:00Z"],
+    ["Aug 5 (already aligned)", "2026-08-05T14:32:00Z"],
   ])(
-    "billing extension when natural anchor is %s: extends=%s",
-    async (_label, currentPeriodEndISO, expectedNewEnd, shouldExtend) => {
+    "checkout.session.completed never extends billing any more (%s)",
+    async (_label, currentPeriodEndISO) => {
       const member = await seedMember({ status: "pending" });
       memberId = member.id;
       makeCheckoutEvent(memberId, member.email, "commitment_3mo", currentPeriodEndISO);
 
       const res = await POST(makeRequest("{}"));
       expect(res.status).toBe(200);
-
-      if (shouldExtend) {
-        const expected = Math.floor(new Date(expectedNewEnd!).getTime() / 1000);
-        expect(mockUpdate).toHaveBeenCalledWith(
-          expect.any(String),
-          expect.objectContaining({
-            trial_end: expected,
-            proration_behavior: "none",
-          })
-        );
-      } else {
-        expect(mockUpdate).not.toHaveBeenCalled();
-      }
+      expect(mockUpdate).not.toHaveBeenCalled();
     }
   );
 
@@ -523,13 +510,29 @@ describe("Stripe webhook", () => {
       expect(rows![0].delta).toBe(3);
     });
 
-    it("does not double-count a replayed invoice", async () => {
+    // ── Track E2: pause right after a fresh grant ──────────────────────────
+
+    it("pauses the subscription immediately after a fresh grant", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 1 });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_pause_${member.id.slice(0, 8)}`, stripeSubId);
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      expect(mockUpdate).toHaveBeenCalledWith(stripeSubId, {
+        pause_collection: { behavior: "void" },
+      });
+    });
+
+    it("does not double-count a replayed invoice, and does not re-issue the pause call", async () => {
       const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 1 });
       memberId = member.id;
       const invoiceId = `in_test_replay_${member.id.slice(0, 8)}`;
       makeInvoiceEvent(invoiceId, stripeSubId);
 
       await POST(makeRequest("{}"));
+      mockUpdate.mockClear();
       const res = await POST(makeRequest("{}")); // same invoice id, replayed
       expect(res.status).toBe(200);
 
@@ -546,6 +549,10 @@ describe("Stripe webhook", () => {
         .select("id")
         .eq("member_id", member.id);
       expect(rows).toHaveLength(1);
+
+      // A replay is a no-op grant (applied === false) — no reason to
+      // re-issue the pause_collection call.
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
 
     it("still refills on a €0 invoice", async () => {
