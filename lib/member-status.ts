@@ -4,22 +4,23 @@ import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
  * Our own member-facing billing-status vocabulary — billing plan §3.3,
  * Track C1. "Stripe's subscription status is never shown to a member."
  *
- * Stripe's raw subscription status is still read here (it's the only place
- * that knows about payment health before Track E's cutover replaces
- * `subscriptions.status` with our own active/payment_failed/canceled
- * lifecycle) but it never reaches the member directly — this function is
- * the one translation point from Stripe's vocabulary to ours.
+ * Stripe's raw subscription status is still read here — it's the source of
+ * truth for payment health — but it never reaches the member directly; this
+ * function is the one translation point from Stripe's vocabulary to ours.
  *
- * Zero-counter renewal date (interim, pre-Track E): this used to compute a
- * fabricated date from a hardcoded "20th of the month" formula describing
- * Track E1's renew-check job — but that job doesn't exist yet, and won't
- * until Track E ships (held back pending Track B5's real-data check).
- * Until then, a subscription still renews on Stripe's own natural billing
- * cycle, so this shows that real date (currentPeriodEnd, the same Stripe
- * value already used a few rows down on /billing for "Next billing date")
- * instead. Once Track E1 exists and explicitly owns renewal timing, this
- * goes back to a predictable calendar-based date — see the held-back
- * feature/match-counter-subscriptions branch for that version.
+ * Track E1's renew-check job runs monthly on the 10th (revised from the
+ * plan's original 15th once Track D's SEPA rehearsal showed the 15th left
+ * almost no runway for settlement — see
+ * __claude__/billing-simplification-plan.md, Track E "Renewal timing"). A
+ * member sitting at zero matches before the 10th is "pending" a renewal
+ * check; on/after the 10th they're "resuming."
+ *
+ * Track E2 also added a distinct "payment processing" state — a submitted-
+ * but-not-yet-settled renewal charge (invoice.status === "open" &&
+ * invoice.attempted === true, exactly what Track D observed a SEPA-funded
+ * charge sit in for up to ~3 weeks) — and a distinct state for a
+ * subscription Stripe canceled outright after a rejected SEPA mandate
+ * (Track D case 6b), separate from a member's own cancellation.
  */
 
 export type StatusTone = "active" | "info" | "warning" | "muted";
@@ -47,6 +48,12 @@ export type MemberStatusInput = {
   /** Raw Stripe subscription status (active/trialing/past_due/incomplete/
    *  incomplete_expired/unpaid/canceled) — read but never surfaced as-is. */
   stripeStatus: string;
+  /** Stripe's cancellation_details.reason, only meaningful when
+   *  stripeStatus === "canceled". Distinguishes a member-initiated
+   *  cancellation from Stripe canceling the subscription outright after a
+   *  rejected SEPA mandate (Track D case 6b) — a member in that second case
+   *  didn't choose to leave, so it gets its own message. */
+  cancellationReason?: string | null;
   priceLookupKey: string | null;
   /** Stripe price recurring.interval_count. >1 means a bundle, where the
    *  matches-remaining counter is meaningful; 1 (or unknown) means a
@@ -54,11 +61,11 @@ export type MemberStatusInput = {
    *  therefore not shown as a number (billing plan §3.3). */
   intervalCount: number | null;
   matchesRemaining: number;
-  /** Stripe's real current_period_end (unix seconds) — the actual next
-   *  charge date under Stripe's own natural billing cycle. Interim source
-   *  for the zero-counter renewal date until Track E1's renew-check job
-   *  exists and takes over scheduling renewals explicitly. */
-  currentPeriodEnd?: number | null;
+  /** True when the member's latest invoice has been submitted but hasn't
+   *  settled yet (invoice.status === "open" && invoice.attempted === true).
+   *  Track E2 — surfaced so a mid-settlement SEPA charge reads as an honest
+   *  "still processing" rather than a stale renewal date. */
+  latestInvoiceOpenAndAttempted?: boolean;
   /** Injectable for tests — defaults to now. */
   today?: Date;
 };
@@ -97,10 +104,36 @@ function formatFullDate(date: Date): string {
   });
 }
 
+/**
+ * The 10th of the current month if it hasn't passed yet, otherwise the
+ * 10th of next month (rolling into next year in December) — mirrors
+ * Track E1's renew-check job, which runs monthly on the 10th.
+ */
+export function nextRenewCheckDate(today: Date): Date {
+  const year = today.getUTCFullYear();
+  const month = today.getUTCMonth();
+  const day = today.getUTCDate();
+  const targetMonth = day < 10 ? month : month + 1;
+  return new Date(Date.UTC(year, targetMonth, 10));
+}
+
 export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatusMessage {
-  const { stripeStatus, priceLookupKey, intervalCount, matchesRemaining, currentPeriodEnd } = input;
+  const { stripeStatus, cancellationReason, priceLookupKey, intervalCount, matchesRemaining, latestInvoiceOpenAndAttempted } = input;
+  const today = input.today ?? new Date();
 
   if (stripeStatus === "canceled") {
+    if (cancellationReason === "payment_failed") {
+      // Track D case 6b: Stripe canceled the subscription outright after
+      // judging a SEPA mandate/account mismatch unusable, rather than
+      // retrying like it does for a card decline. A member here didn't
+      // choose to leave, so this is deliberately not "Membership ended."
+      // Flagged for product review (billing-simplification-plan.md, Track
+      // E2) — this wording is a first draft, not signed off.
+      return {
+        label: "We couldn't process your renewal — please update your payment details or contact us.",
+        tone: "warning",
+      };
+    }
     // A self-cancellation normally only reaches Stripe's "canceled" status
     // once the billing period actually ends, by which point a bundle
     // member has used every match in the term. But an immediately-
@@ -135,26 +168,24 @@ export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatu
     return { label: `Active — ${matchesRemaining} matches left`, tone: "active" };
   }
   if (isBundle && matchesRemaining === 1) {
-    const dateTooltip = currentPeriodEnd
-      ? `Your subscription will renew on ${formatFullDate(new Date(currentPeriodEnd * 1000))} so that you continue receiving matches.`
-      : `Your subscription will renew so that you continue receiving matches.`;
+    const dateTooltip = `Your subscription will renew on ${formatFullDate(nextRenewCheckDate(today))} so that you continue receiving matches.`;
     return { label: "Active — 1 match left", tone: "active", dateTooltip };
   }
   if (matchesRemaining >= 1) {
     return { label: "Active", tone: "active" };
   }
 
-  // matchesRemaining <= 0 — the renew-at-zero pause, ahead of Track E's
-  // actual cutover machinery. Shows Stripe's real currentPeriodEnd (see
-  // the type comment above) rather than a fabricated date.
-  if (currentPeriodEnd) {
+  // matchesRemaining <= 0 — the renew-at-zero window.
+  if (latestInvoiceOpenAndAttempted) {
+    return {
+      label: "Payment processing — you'll be matched once it clears (can take a few weeks for bank transfers)",
+      tone: "info",
+    };
+  }
+  if (today.getUTCDate() < 10) {
+    const renewDate = nextRenewCheckDate(today);
     const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] : undefined;
-    const dateLabel = new Date(currentPeriodEnd * 1000).toLocaleDateString("en-NL", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      timeZone: "UTC",
-    });
+    const dateLabel = formatFullDate(renewDate);
     return {
       label: amount ? `Renews ${dateLabel} — ${amount}` : `Renews ${dateLabel}`,
       tone: "info",

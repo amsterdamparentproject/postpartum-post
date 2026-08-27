@@ -1,11 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { deriveMemberStatusMessage } from "@/lib/member-status";
+import { deriveMemberStatusMessage, nextRenewCheckDate } from "@/lib/member-status";
 
-// Fixed Stripe unix timestamps used across the zero-counter tests below —
-// 2026-08-20T00:00:00Z and 2026-09-05T00:00:00Z — chosen just to be
-// distinct, readable dates; the interim currentPeriodEnd-based renewal
-// date doesn't care about "today" any more (see lib/member-status.ts).
-const AUG_20_2026 = Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000);
+describe("nextRenewCheckDate", () => {
+  it("returns this month's 10th when today is before it", () => {
+    const result = nextRenewCheckDate(new Date("2026-08-05T00:00:00Z"));
+    expect(result.toISOString()).toBe("2026-08-10T00:00:00.000Z");
+  });
+
+  it("returns next month's 10th when today is on or after it", () => {
+    expect(nextRenewCheckDate(new Date("2026-08-10T00:00:00Z")).toISOString()).toBe(
+      "2026-09-10T00:00:00.000Z"
+    );
+    expect(nextRenewCheckDate(new Date("2026-08-25T00:00:00Z")).toISOString()).toBe(
+      "2026-09-10T00:00:00.000Z"
+    );
+  });
+
+  it("rolls over into next year in December", () => {
+    const result = nextRenewCheckDate(new Date("2026-12-25T00:00:00Z"));
+    expect(result.toISOString()).toBe("2027-01-10T00:00:00.000Z");
+  });
+});
 
 describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
   const base = {
@@ -25,43 +40,49 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
     });
   });
 
-  it("shows the last-match copy at exactly 1, with a tooltip explaining the renewal", () => {
-    expect(deriveMemberStatusMessage({ ...base, matchesRemaining: 1 })).toEqual({
-      label: "Active — 1 match left",
-      tone: "active",
-      dateTooltip: "Your subscription will renew so that you continue receiving matches.",
-    });
-  });
-
-  it("includes the real renewal date in the last-match tooltip when currentPeriodEnd is known", () => {
+  it("shows the last-match copy at exactly 1, with a tooltip naming the next renewal check date", () => {
     const result = deriveMemberStatusMessage({
       ...base,
       matchesRemaining: 1,
-      currentPeriodEnd: AUG_20_2026,
+      today: new Date("2026-08-05T00:00:00Z"),
     });
-    expect(result.dateTooltip).toBe(
-      "Your subscription will renew on 20 August 2026 so that you continue receiving matches."
-    );
+    expect(result).toEqual({
+      label: "Active — 1 match left",
+      tone: "active",
+      dateTooltip: "Your subscription will renew on 10 August 2026 so that you continue receiving matches.",
+    });
   });
 
-  it("shows the real Stripe renewal date with amount when currentPeriodEnd is known", () => {
+  it("shows the dated renewal with amount before the 10th", () => {
     const result = deriveMemberStatusMessage({
       ...base,
       matchesRemaining: 0,
-      currentPeriodEnd: AUG_20_2026,
+      today: new Date("2026-08-05T00:00:00Z"),
     });
     expect(result).toEqual({
-      label: "Renews 20 August 2026 — €24",
+      label: "Renews 10 August 2026 — €24",
       tone: "info",
     });
   });
 
-  it("falls back to 'Renewing soon' when currentPeriodEnd isn't known (e.g. the Stripe fetch failed)", () => {
+  it("shows 'Renewing soon' on or after the 10th", () => {
     expect(
-      deriveMemberStatusMessage({ ...base, matchesRemaining: 0, currentPeriodEnd: null })
+      deriveMemberStatusMessage({ ...base, matchesRemaining: 0, today: new Date("2026-08-10T00:00:00Z") })
     ).toEqual({ label: "Renewing soon", tone: "info" });
-    expect(deriveMemberStatusMessage({ ...base, matchesRemaining: 0 })).toEqual({
-      label: "Renewing soon",
+    expect(
+      deriveMemberStatusMessage({ ...base, matchesRemaining: 0, today: new Date("2026-08-27T00:00:00Z") })
+    ).toEqual({ label: "Renewing soon", tone: "info" });
+  });
+
+  it("shows 'payment processing' when the renewal invoice is submitted but unsettled, even before the 10th", () => {
+    const result = deriveMemberStatusMessage({
+      ...base,
+      matchesRemaining: 0,
+      today: new Date("2026-08-05T00:00:00Z"),
+      latestInvoiceOpenAndAttempted: true,
+    });
+    expect(result).toEqual({
+      label: "Payment processing — you'll be matched once it clears (can take a few weeks for bank transfers)",
       tone: "info",
     });
   });
@@ -72,7 +93,7 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
       priceLookupKey: "founding_member",
       intervalCount: 3,
       matchesRemaining: 0,
-      currentPeriodEnd: AUG_20_2026,
+      today: new Date("2026-08-01T00:00:00Z"),
     });
     expect(result.label).toContain("€15");
   });
@@ -83,7 +104,7 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
       priceLookupKey: "commitment_6mo",
       intervalCount: 6,
       matchesRemaining: 0,
-      currentPeriodEnd: AUG_20_2026,
+      today: new Date("2026-08-01T00:00:00Z"),
     });
     expect(result.label).toContain("€48");
   });
@@ -107,9 +128,9 @@ describe("deriveMemberStatusMessage — monthly plan (Track C1)", () => {
     const result = deriveMemberStatusMessage({
       ...base,
       matchesRemaining: 0,
-      currentPeriodEnd: AUG_20_2026,
+      today: new Date("2026-08-05T00:00:00Z"),
     });
-    expect(result).toEqual({ label: "Renews 20 August 2026 — €12", tone: "info" });
+    expect(result).toEqual({ label: "Renews 10 August 2026 — €12", tone: "info" });
   });
 });
 
@@ -158,6 +179,35 @@ describe("deriveMemberStatusMessage — terminal and payment states (Track C1)",
       tone: "active",
       planTooltip: "Included with your First Year Program plan",
     });
+  });
+
+  // Track D case 6b: Stripe cancels a subscription outright — rather than
+  // going past_due and retrying, like it does for a card — when it judges a
+  // SEPA mandate/account mismatch unusable. A member here didn't choose to
+  // leave, so this gets its own message distinct from a self-cancellation.
+  it("a mandate-failure cancellation gets its own message, not 'Membership ended'", () => {
+    const result = deriveMemberStatusMessage({
+      stripeStatus: "canceled",
+      cancellationReason: "payment_failed",
+      priceLookupKey: "standard_monthly",
+      intervalCount: 1,
+      matchesRemaining: 0,
+    });
+    expect(result).toEqual({
+      label: "We couldn't process your renewal — please update your payment details or contact us.",
+      tone: "warning",
+    });
+  });
+
+  it("a self-cancellation (no payment_failed reason) still shows 'Membership ended'", () => {
+    const result = deriveMemberStatusMessage({
+      stripeStatus: "canceled",
+      cancellationReason: "cancellation_requested",
+      priceLookupKey: "standard_monthly",
+      intervalCount: 1,
+      matchesRemaining: 0,
+    });
+    expect(result).toEqual({ label: "Membership ended", tone: "muted" });
   });
 
   it("comped (FYP) members show a plain Active pill with an explanatory plan tooltip, regardless of the counter", () => {
