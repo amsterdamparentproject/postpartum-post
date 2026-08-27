@@ -8,7 +8,7 @@ function unsubscribedHtml(firstName: string): string {
                                       Hi ${firstName},
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Your Postpartum Post subscription has been canceled. No more charges will be made, and your current period runs until the end of the billing cycle.
+                                      Your Postpartum Post access has now ended, as confirmed when you canceled. No more charges will be made.
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       I'm sorry to see you go. I hope Postpartum Post brought you at least one meaningful connection — that was always the goal.
