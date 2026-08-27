@@ -465,6 +465,7 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         const messages: Record<string, string> = {
           closed: "The opt-in window for this month has closed.",
           already_responded: "You've already responded for this month.",
+          no_balance: "You're between terms right now — check your billing page for when you'll be matched again.",
           server_error: "Something went wrong. Please try again.",
         };
         setError(messages[result.error] ?? "Something went wrong.");

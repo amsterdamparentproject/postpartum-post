@@ -157,6 +157,50 @@ describe("GET /api/optin", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // No balance (Track E3)
+  // ---------------------------------------------------------------------------
+
+  it("coffee with no balance — redirects to /billing?optin=no_balance and writes no participation row", async () => {
+    const member = await seedMember({ matches_remaining: 0 });
+    memberId = member.id;
+
+    const token = generateOptinToken(memberId, MONTH, "coffee");
+    const res = await GET(makeRequest(memberId, MONTH, "coffee", token));
+
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=no_balance");
+
+    const supabase = createTestSupabase();
+    const { data: participation } = await supabase
+      .from("monthly_participation")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(participation).toBeNull();
+  });
+
+  it("skip with no balance — still allowed (skipping stays free regardless of balance)", async () => {
+    const member = await seedMember({ matches_remaining: 0, consecutive_skips: 0 });
+    memberId = member.id;
+    await seedSubscription(memberId);
+    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
+
+    const token = generateOptinToken(memberId, MONTH, "skip");
+    const res = await GET(makeRequest(memberId, MONTH, "skip", token));
+
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=skip");
+
+    const supabase = createTestSupabase();
+    const { data: skip } = await supabase
+      .from("monthly_skips")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(skip).not.toBeNull();
+  });
+
+  // ---------------------------------------------------------------------------
   // Upsert — changing topic choice
   // ---------------------------------------------------------------------------
 

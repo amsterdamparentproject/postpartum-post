@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   // Fetch member email (needed for magic link generation)
   const { data: memberRow } = await supabase
     .from("members")
-    .select("email, consecutive_skips")
+    .select("email, consecutive_skips, matches_remaining")
     .eq("id", memberId)
     .single();
 
@@ -107,6 +107,14 @@ export async function GET(request: NextRequest) {
   }
 
   // coffee or playdate
+  // Track E3: gate on the counter — a member with nothing left to spend
+  // isn't enrolled in the round (they still get the opt-in email; the gate
+  // is only at the click). Skipping stays free regardless of balance, so
+  // this check only applies here, not in the "skip" branch above.
+  if ((memberRow.matches_remaining ?? 0) <= 0) {
+    return signInAndRedirect(supabase, memberRow.email, `${origin}/billing?optin=no_balance`, origin);
+  }
+
   const monthDate = monthToDate(month);
 
   // Block if they've already skipped this month

@@ -226,6 +226,54 @@ describe("optInFromMatches", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // No balance (Track E3)
+  // ---------------------------------------------------------------------------
+
+  it("coffee with no balance — returns 'no_balance' and writes no participation row", async () => {
+    const member = await seedMember({ matches_remaining: 0 });
+    memberId = member.id;
+
+    const result = await optInFromMatches(memberId, "coffee");
+    expect(result).toEqual({ success: false, error: "no_balance" });
+
+    const supabase = createTestSupabase();
+    const { data: participation } = await supabase
+      .from("monthly_participation")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", monthDate)
+      .maybeSingle();
+    expect(participation).toBeNull();
+  });
+
+  it("playdate with no balance — also returns 'no_balance'", async () => {
+    const member = await seedMember({ matches_remaining: 0 });
+    memberId = member.id;
+
+    const result = await optInFromMatches(memberId, "playdate");
+    expect(result).toEqual({ success: false, error: "no_balance" });
+  });
+
+  it("skip with no balance — still allowed (skipping stays free regardless of balance)", async () => {
+    const member = await seedMember({ matches_remaining: 0, consecutive_skips: 0 });
+    memberId = member.id;
+    await seedSubscription(memberId);
+    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
+
+    const result = await optInFromMatches(memberId, "skip");
+    expect(result).toEqual({ success: true });
+
+    const supabase = createTestSupabase();
+    const { data: skip } = await supabase
+      .from("monthly_skips")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", monthDate)
+      .maybeSingle();
+    expect(skip).not.toBeNull();
+  });
+
+  // ---------------------------------------------------------------------------
   // Already responded — no silent overwrite
   // ---------------------------------------------------------------------------
 
