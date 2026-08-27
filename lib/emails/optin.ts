@@ -4,8 +4,22 @@ function optinHtml(
   firstName: string,
   coffeeUrl: string,
   playdateUrl: string,
-  skipUrl: string
+  skipUrl: string,
+  lastMatchNotice: boolean
 ): string {
+  // Billing plan §"Renewal timing" (Track E, 2026-08-26): the soft half of
+  // the two-tier renewal notice. Fires a cycle earlier than the loud
+  // match-reveal notice (lib/billing-notice.ts, Track C4) — while this
+  // member still has one match left, not once they've already hit zero —
+  // so a bundle member sees this coming before the (now 3-day, moved
+  // earlier specifically to give SEPA settlement enough runway to clear
+  // before the following round) gap between match reveal and the charge.
+  const lastMatchLine = lastMatchNotice
+    ? `<tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      Heads up — this may be your last match in your current bundle. If so, we'll let you know the renewal date and amount as soon as it's matched.
+                                    </td></tr>`
+    : "";
+
   const content = emailHeader() + bodySection(`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       Hi ${firstName},
@@ -15,12 +29,13 @@ function optinHtml(
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       You have until the <span style="font-weight:700">5th of the month</span> to respond. You'll receive your introduction on the 7th 💌
-                                    </td></tr>`) +
+                                    </td></tr>
+                                    ${lastMatchLine}`) +
     ctaButton("☕ Meet for coffee", coffeeUrl) +
     ctaButton("🛝 Meet for a playdate", playdateUrl) +
     bodySection(`
                                     <tr><td dir="ltr" style="font-size:13px;text-align:center;color:#666666;line-height:1.4;mso-line-height-alt:18.2px">
-                                      Need a break? <a href="${skipUrl}" style="color:#666666;text-decoration:underline">Skip this month</a> and your subscription will be extended automatically, for free. If we don't hear from you, we'll assume you don't want to be matched but your subscription will continue.
+                                      Need a break? <a href="${skipUrl}" style="color:#666666;text-decoration:underline">Skip this month</a> for free — you'll keep your match, and we'll try again next month. If we don't hear from you, we'll assume you don't want to be matched this month.
                                     </td></tr>`);
 
   return baseEmail(content);
@@ -31,14 +46,15 @@ export async function sendOptinEmail(
   firstName: string,
   coffeeUrl: string,
   playdateUrl: string,
-  skipUrl: string
+  skipUrl: string,
+  lastMatchNotice = false
 ) {
   const resend = getResend();
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
     subject: `${subjectPrefix()}Let's meet this month! 💌`,
-    html: optinHtml(firstName, coffeeUrl, playdateUrl, skipUrl),
+    html: optinHtml(firstName, coffeeUrl, playdateUrl, skipUrl, lastMatchNotice),
   });
   if (error) {
     console.error("[resend] sendOptinEmail error:", error);

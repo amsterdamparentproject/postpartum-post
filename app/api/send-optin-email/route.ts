@@ -15,6 +15,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { generateOptinToken } from "@/lib/optin-token";
 import { currentMonth } from "@/lib/tokens";
 import { sendOptinEmail } from "@/lib/emails";
+import { fetchBillingNoticeContext } from "@/lib/billing-notice";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient();
   const { data: members, error } = await supabase
     .from("members")
-    .select("id, first_name, email")
+    .select("id, first_name, email, matches_remaining")
     .in("status", ["active", "canceling"]);
 
   if (error) {
@@ -82,12 +83,30 @@ export async function POST(req: NextRequest) {
     };
 
     try {
+      // Track E "Renewal timing" (billing-simplification-plan.md): the
+      // soft half of the two-tier renewal notice — a bundle member with
+      // exactly one match left going into this round may be about to hit
+      // zero. Same isBundle && matchesRemaining === 1 condition
+      // lib/member-status.ts already uses for its "Last match of your
+      // bundle" state, surfaced a cycle earlier. A billing-notice Stripe
+      // lookup failure here is non-fatal — the email still sends without
+      // the soft notice rather than blocking the whole send.
+      let lastMatchNotice = false;
+      try {
+        const context = await fetchBillingNoticeContext(supabase, member.id);
+        const isBundle = (context?.intervalCount ?? 1) > 1;
+        lastMatchNotice = isBundle && member.matches_remaining === 1;
+      } catch (e) {
+        console.error(`[send-optin-email] billing-notice lookup failed for ${member.email} (non-fatal):`, e);
+      }
+
       await sendOptinEmail(
         member.email,
         member.first_name,
         buildUrl("coffee"),
         buildUrl("playdate"),
-        buildUrl("skip")
+        buildUrl("skip"),
+        lastMatchNotice
       );
       sent++;
     } catch (err) {
