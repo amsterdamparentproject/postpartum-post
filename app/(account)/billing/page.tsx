@@ -53,7 +53,7 @@ function BillingContent() {
   const searchParams = useSearchParams();
   const optinParam = searchParams.get("optin");
   const [showSkipBanner, setShowSkipBanner] = useState(
-    optinParam === "skip" || optinParam === "already_skip" || optinParam === "skip_failed"
+    optinParam === "skip" || optinParam === "already_skip" || optinParam === "skip_failed" || optinParam === "no_balance"
   );
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
@@ -96,10 +96,11 @@ function BillingContent() {
     subscription && member
       ? deriveMemberStatusMessage({
           stripeStatus: subscription.status,
+          cancellationReason: subscription.cancellation_reason,
           priceLookupKey: subscription.price_lookup_key,
           intervalCount: subscription.interval_count,
           matchesRemaining: member.matches_remaining,
-          currentPeriodEnd: subscription.current_period_end,
+          latestInvoiceOpenAndAttempted: subscription.latest_invoice_open_and_attempted,
         })
       : null;
 
@@ -121,6 +122,8 @@ function BillingContent() {
               ? <>Something went wrong recording your skip for this month, so we couldn&apos;t confirm it — you may still be matched or charged as usual. Please try the link from your email again, or contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a> and we&apos;ll sort it out.</>
               : optinParam === "already_skip"
               ? <>You&apos;ve already chosen to skip this month. If you&apos;d like to rejoin the match pool, please contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a>.</>
+              : optinParam === "no_balance"
+              ? "You're between terms right now, so this month's match is on pause — check your status below for when you'll be matched again."
               : "You're skipping your match this month — all good! We've automatically adjusted your billing cycle so that you're not charged this month. See you next month 💌"
             }
           </p>
