@@ -10,12 +10,16 @@ import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
  * lifecycle) but it never reaches the member directly — this function is
  * the one translation point from Stripe's vocabulary to ours.
  *
- * Two of the five §3.3 states below — "renew check pending" and
- * "resuming" — don't have real backing machinery yet (that's Track E1's
- * renew-check job). Until then they're derived from the calendar: E1 runs
- * on the 20th of the month, so a member sitting at zero matches before the
- * 20th is "pending" a renewal check, and on/after the 20th they're
- * "resuming" (or should be, once E1 actually exists).
+ * Zero-counter renewal date (interim, pre-Track E): this used to compute a
+ * fabricated date from a hardcoded "20th of the month" formula describing
+ * Track E1's renew-check job — but that job doesn't exist yet, and won't
+ * until Track E ships (held back pending Track B5's real-data check).
+ * Until then, a subscription still renews on Stripe's own natural billing
+ * cycle, so this shows that real date (currentPeriodEnd, the same Stripe
+ * value already used a few rows down on /billing for "Next billing date")
+ * instead. Once Track E1 exists and explicitly owns renewal timing, this
+ * goes back to a predictable calendar-based date — see the held-back
+ * feature/match-counter-subscriptions branch for that version.
  */
 
 export type StatusTone = "active" | "info" | "warning" | "muted";
@@ -36,6 +40,11 @@ export type MemberStatusInput = {
    *  therefore not shown as a number (billing plan §3.3). */
   intervalCount: number | null;
   matchesRemaining: number;
+  /** Stripe's real current_period_end (unix seconds) — the actual next
+   *  charge date under Stripe's own natural billing cycle. Interim source
+   *  for the zero-counter renewal date until Track E1's renew-check job
+   *  exists and takes over scheduling renewals explicitly. */
+  currentPeriodEnd?: number | null;
   /** Injectable for tests — defaults to now. */
   today?: Date;
 };
@@ -65,22 +74,8 @@ const PAYMENT_FAILED_STRIPE_STATUSES = new Set([
   "incomplete_expired",
 ]);
 
-/**
- * The 20th of the current month if it hasn't passed yet, otherwise the
- * 20th of next month (rolling into next year in December) — mirrors
- * Track E1's renew-check job, which runs monthly on the 20th.
- */
-export function nextRenewCheckDate(today: Date): Date {
-  const year = today.getUTCFullYear();
-  const month = today.getUTCMonth();
-  const day = today.getUTCDate();
-  const targetMonth = day < 20 ? month : month + 1;
-  return new Date(Date.UTC(year, targetMonth, 20));
-}
-
 export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatusMessage {
-  const { stripeStatus, priceLookupKey, intervalCount, matchesRemaining } = input;
-  const today = input.today ?? new Date();
+  const { stripeStatus, priceLookupKey, intervalCount, matchesRemaining, currentPeriodEnd } = input;
 
   if (stripeStatus === "canceled") {
     return { label: "Membership ended", tone: "muted" };
@@ -107,11 +102,11 @@ export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatu
   }
 
   // matchesRemaining <= 0 — the renew-at-zero pause, ahead of Track E's
-  // actual cutover machinery.
-  if (today.getUTCDate() < 20) {
-    const renewDate = nextRenewCheckDate(today);
+  // actual cutover machinery. Shows Stripe's real currentPeriodEnd (see
+  // the type comment above) rather than a fabricated date.
+  if (currentPeriodEnd) {
     const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] : undefined;
-    const dateLabel = renewDate.toLocaleDateString("en-NL", {
+    const dateLabel = new Date(currentPeriodEnd * 1000).toLocaleDateString("en-NL", {
       day: "numeric",
       month: "long",
       year: "numeric",
@@ -122,7 +117,7 @@ export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatu
       tone: "info",
     };
   }
-  return { label: "Renewing now", tone: "info" };
+  return { label: "Renewing soon", tone: "info" };
 }
 
 export const STATUS_TONE_CLASSNAMES: Record<StatusTone, string> = {

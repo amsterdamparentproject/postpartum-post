@@ -1,26 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { deriveMemberStatusMessage, nextRenewCheckDate } from "@/lib/member-status";
+import { deriveMemberStatusMessage } from "@/lib/member-status";
 
-describe("nextRenewCheckDate", () => {
-  it("returns this month's 20th when today is before it", () => {
-    const result = nextRenewCheckDate(new Date("2026-08-05T00:00:00Z"));
-    expect(result.toISOString()).toBe("2026-08-20T00:00:00.000Z");
-  });
-
-  it("returns next month's 20th when today is on or after it", () => {
-    expect(nextRenewCheckDate(new Date("2026-08-20T00:00:00Z")).toISOString()).toBe(
-      "2026-09-20T00:00:00.000Z"
-    );
-    expect(nextRenewCheckDate(new Date("2026-08-25T00:00:00Z")).toISOString()).toBe(
-      "2026-09-20T00:00:00.000Z"
-    );
-  });
-
-  it("rolls over into next year in December", () => {
-    const result = nextRenewCheckDate(new Date("2026-12-25T00:00:00Z"));
-    expect(result.toISOString()).toBe("2027-01-20T00:00:00.000Z");
-  });
-});
+// Fixed Stripe unix timestamps used across the zero-counter tests below —
+// 2026-08-20T00:00:00Z and 2026-09-05T00:00:00Z — chosen just to be
+// distinct, readable dates; the interim currentPeriodEnd-based renewal
+// date doesn't care about "today" any more (see lib/member-status.ts).
+const AUG_20_2026 = Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000);
 
 describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
   const base = {
@@ -47,11 +32,11 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
     });
   });
 
-  it("shows the dated renewal with amount before the 20th", () => {
+  it("shows the real Stripe renewal date with amount when currentPeriodEnd is known", () => {
     const result = deriveMemberStatusMessage({
       ...base,
       matchesRemaining: 0,
-      today: new Date("2026-08-10T00:00:00Z"),
+      currentPeriodEnd: AUG_20_2026,
     });
     expect(result).toEqual({
       label: "Renews 20 August 2026 — €24",
@@ -59,13 +44,14 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
     });
   });
 
-  it("shows 'Renewing now' on or after the 20th", () => {
+  it("falls back to 'Renewing soon' when currentPeriodEnd isn't known (e.g. the Stripe fetch failed)", () => {
     expect(
-      deriveMemberStatusMessage({ ...base, matchesRemaining: 0, today: new Date("2026-08-20T00:00:00Z") })
-    ).toEqual({ label: "Renewing now", tone: "info" });
-    expect(
-      deriveMemberStatusMessage({ ...base, matchesRemaining: 0, today: new Date("2026-08-27T00:00:00Z") })
-    ).toEqual({ label: "Renewing now", tone: "info" });
+      deriveMemberStatusMessage({ ...base, matchesRemaining: 0, currentPeriodEnd: null })
+    ).toEqual({ label: "Renewing soon", tone: "info" });
+    expect(deriveMemberStatusMessage({ ...base, matchesRemaining: 0 })).toEqual({
+      label: "Renewing soon",
+      tone: "info",
+    });
   });
 
   it("uses the right per-term amount for founding_member", () => {
@@ -74,7 +60,7 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
       priceLookupKey: "founding_member",
       intervalCount: 3,
       matchesRemaining: 0,
-      today: new Date("2026-08-01T00:00:00Z"),
+      currentPeriodEnd: AUG_20_2026,
     });
     expect(result.label).toContain("€15");
   });
@@ -85,7 +71,7 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
       priceLookupKey: "commitment_6mo",
       intervalCount: 6,
       matchesRemaining: 0,
-      today: new Date("2026-08-01T00:00:00Z"),
+      currentPeriodEnd: AUG_20_2026,
     });
     expect(result.label).toContain("€48");
   });
@@ -109,7 +95,7 @@ describe("deriveMemberStatusMessage — monthly plan (Track C1)", () => {
     const result = deriveMemberStatusMessage({
       ...base,
       matchesRemaining: 0,
-      today: new Date("2026-08-05T00:00:00Z"),
+      currentPeriodEnd: AUG_20_2026,
     });
     expect(result).toEqual({ label: "Renews 20 August 2026 — €12", tone: "info" });
   });

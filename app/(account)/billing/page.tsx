@@ -68,6 +68,7 @@ function BillingContent() {
           priceLookupKey: subscription.price_lookup_key,
           intervalCount: subscription.interval_count,
           matchesRemaining: member.matches_remaining,
+          currentPeriodEnd: subscription.current_period_end,
         })
       : null;
 

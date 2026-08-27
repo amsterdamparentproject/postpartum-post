@@ -38,11 +38,11 @@ describe("deriveBillingNotice — bundle plans", () => {
     });
   });
 
-  it("goes loud when the counter hits zero, with date and amount", () => {
+  it("goes loud when the counter hits zero, with the real Stripe date and amount", () => {
     const result = deriveBillingNotice({
       ...base,
       matchesRemaining: 0,
-      today: new Date("2026-08-10T00:00:00Z"),
+      currentPeriodEnd: Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000),
     });
     expect(result).toEqual({
       kind: "loud",
@@ -53,12 +53,17 @@ describe("deriveBillingNotice — bundle plans", () => {
     });
   });
 
+  it("falls back to 'soon' when currentPeriodEnd isn't known", () => {
+    const result = deriveBillingNotice({ ...base, matchesRemaining: 0 });
+    expect((result as { renewDate: string }).renewDate).toBe("soon");
+  });
+
   it("marks isFirstAfterGift when the most recent term_payment was gift-covered", () => {
     const result = deriveBillingNotice({
       ...base,
       matchesRemaining: 0,
       lastTermPaymentNote: GIFT_ENTITLEMENT_NOTE,
-      today: new Date("2026-08-10T00:00:00Z"),
+      currentPeriodEnd: Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000),
     });
     expect(result.kind).toBe("loud");
     expect((result as { isFirstAfterGift: boolean }).isFirstAfterGift).toBe(true);
@@ -125,11 +130,11 @@ describe("deriveBillingNotice — monthly plan", () => {
     }
   });
 
-  it("carries the renewal date and amount but no cancel link or gift flag", () => {
+  it("carries the real renewal date and amount but no cancel link or gift flag", () => {
     const result = deriveBillingNotice({
       ...base,
       matchesRemaining: 0,
-      today: new Date("2026-08-05T00:00:00Z"),
+      currentPeriodEnd: Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000),
     });
     expect(result).toEqual({
       kind: "quiet",
@@ -205,6 +210,7 @@ describe("fetchBillingNoticeContext", () => {
       priceLookupKey: "commitment_3mo",
       intervalCount: 3,
       lastTermPaymentNote: null,
+      currentPeriodEnd: null,
     });
   });
 
@@ -241,6 +247,7 @@ describe("fetchBillingNoticeContext", () => {
       priceLookupKey: null,
       intervalCount: null,
       lastTermPaymentNote: null,
+      currentPeriodEnd: null,
     });
   });
 });

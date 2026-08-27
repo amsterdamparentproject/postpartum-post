@@ -27,7 +27,7 @@
  */
 
 import { FYP_LOOKUP_KEYS, GIFT_ENTITLEMENT_NOTE } from "@/lib/match-ledger";
-import { TERM_AMOUNTS, nextRenewCheckDate } from "@/lib/member-status";
+import { TERM_AMOUNTS } from "@/lib/member-status";
 import { getStripe } from "@/lib/stripe";
 import { SITE_URL } from "@/lib/emails/base";
 
@@ -63,7 +63,15 @@ export interface BillingNoticeInput {
   matchesRemaining: number;
   /** match_entitlements.note on the member's most recent term_payment row. */
   lastTermPaymentNote: string | null;
-  /** Injectable for tests — defaults to now. */
+  /** Stripe's real current_period_end (unix seconds) — see
+   *  lib/member-status.ts's MemberStatusInput.currentPeriodEnd for why:
+   *  interim source for the renewal date until Track E1's renew-check job
+   *  exists, since a fabricated calendar date doesn't match Stripe's own
+   *  natural billing cycle pre-Track E. */
+  currentPeriodEnd?: number | null;
+  /** Injectable for tests — defaults to now. Currently unused by
+   *  deriveBillingNotice's date logic (see currentPeriodEnd above); kept
+   *  for callers and to avoid churning every call site's shape. */
   today?: Date;
 }
 
@@ -85,15 +93,19 @@ function renewalNoticeCancelUrl(): string {
 }
 
 export function deriveBillingNotice(input: BillingNoticeInput): BillingNotice {
-  const { priceLookupKey, intervalCount, matchesRemaining, lastTermPaymentNote } = input;
-  const today = input.today ?? new Date();
+  const { priceLookupKey, intervalCount, matchesRemaining, lastTermPaymentNote, currentPeriodEnd } = input;
 
   if (priceLookupKey && FYP_LOOKUP_KEYS.has(priceLookupKey)) {
     return { kind: "none" };
   }
 
   const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] ?? null : null;
-  const renewDate = formatRenewDate(nextRenewCheckDate(today));
+  // Real Stripe date, not a fabricated one — see BillingNoticeInput's
+  // currentPeriodEnd doc comment. "soon" only shows up if the Stripe fetch
+  // that feeds this failed (fetchBillingNoticeContext below) — the "loud"
+  // bundle branch can't reach this fallback in practice, since that branch
+  // requires intervalCount, which comes from the very same Stripe call.
+  const renewDate = currentPeriodEnd ? formatRenewDate(new Date(currentPeriodEnd * 1000)) : "soon";
   const isBundle = (intervalCount ?? 1) > 1;
 
   if (isBundle) {
@@ -116,6 +128,7 @@ export interface BillingNoticeContext {
   priceLookupKey: string | null;
   intervalCount: number | null;
   lastTermPaymentNote: string | null;
+  currentPeriodEnd: number | null;
 }
 
 /**
@@ -145,6 +158,7 @@ export async function fetchBillingNoticeContext(
 
   let priceLookupKey: string | null = null;
   let intervalCount: number | null = null;
+  let currentPeriodEnd: number | null = null;
   try {
     const stripe = getStripe();
     const stripeSub = await stripe.subscriptions.retrieve(sub.stripe_subscription_id, {
@@ -153,6 +167,7 @@ export async function fetchBillingNoticeContext(
     const item = stripeSub.items.data[0];
     priceLookupKey = item?.price.lookup_key ?? null;
     intervalCount = item?.price.recurring?.interval_count ?? null;
+    currentPeriodEnd = item?.current_period_end ?? null;
   } catch (e) {
     console.error("[billing-notice] Stripe subscription fetch failed:", e);
   }
@@ -170,6 +185,7 @@ export async function fetchBillingNoticeContext(
     priceLookupKey,
     intervalCount,
     lastTermPaymentNote: lastTermPayment?.note ?? null,
+    currentPeriodEnd,
   };
 }
 
@@ -193,6 +209,7 @@ export function resolveBillingNotice(
     intervalCount: context.intervalCount,
     matchesRemaining,
     lastTermPaymentNote: context.lastTermPaymentNote,
+    currentPeriodEnd: context.currentPeriodEnd,
     today,
   });
 }
