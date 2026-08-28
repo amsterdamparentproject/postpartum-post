@@ -68,8 +68,19 @@ function stripeSubResponse(overrides: {
 describe("POST /api/renew-check", () => {
   let memberId: string;
 
+  // .env.test and .env.local point at the same Supabase project (no
+  // separate test DB), and scripts/test-quiet.sh reseeds a set of real
+  // reference members after every run — some of which may legitimately sit
+  // at matches_remaining <= 0. This route's candidate query is intentionally
+  // unscoped (it mirrors the real cron job), so those reference members show
+  // up as extra candidates alongside whatever this file seeds. mockRetrieve
+  // defaults to a safe, fully-eligible response for any subscription id it
+  // doesn't recognize, so those extra candidates get billed quietly instead
+  // of crashing on an unmocked call — every assertion below is scoped to
+  // this test's own member/subscription id rather than global response
+  // counts, so it doesn't care how many other candidates exist.
   beforeEach(() => {
-    mockRetrieve.mockReset();
+    mockRetrieve.mockReset().mockResolvedValue(stripeSubResponse());
     mockUpdate.mockReset().mockResolvedValue({});
     mockInvoiceItemCreate.mockReset().mockResolvedValue({});
     mockInvoiceCreate.mockReset().mockResolvedValue({});
@@ -92,78 +103,116 @@ describe("POST /api/renew-check", () => {
     const member = await seedMember({ status: "active", matches_remaining: 0 });
     memberId = member.id;
     const sub = await seedSubscription(memberId, { status: "active" });
-    mockRetrieve.mockResolvedValue(stripeSubResponse({ hasPaymentMethod: false }));
+    mockRetrieve.mockImplementation(async (subId: string) =>
+      subId === sub.stripe_subscription_id
+        ? stripeSubResponse({ hasPaymentMethod: false })
+        : stripeSubResponse()
+    );
 
     const res = await POST(makeRequest());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.skippedNoPaymentMethod).toBe(1);
-    expect(body.billed).toBe(0);
+    expect(body.skippedNoPaymentMethod).toBeGreaterThanOrEqual(1);
 
-    expect(mockUpdate).not.toHaveBeenCalled();
-    expect(mockInvoiceItemCreate).not.toHaveBeenCalled();
-    expect(mockInvoiceCreate).not.toHaveBeenCalled();
-    void sub;
+    expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+    expect(mockInvoiceItemCreate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: sub.stripe_subscription_id })
+    );
+    expect(mockInvoiceCreate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: sub.stripe_subscription_id })
+    );
   });
 
   it("clears pause_collection and submits a flat-amount invoice for an eligible member", async () => {
     const member = await seedMember({ status: "active", matches_remaining: 0 });
     memberId = member.id;
     const sub = await seedSubscription(memberId, { status: "active" });
-    mockRetrieve.mockResolvedValue(stripeSubResponse({ unitAmount: 2400, currency: "eur" }));
+    mockRetrieve.mockImplementation(async (subId: string) =>
+      subId === sub.stripe_subscription_id
+        ? stripeSubResponse({ unitAmount: 2400, currency: "eur" })
+        : stripeSubResponse()
+    );
 
     const res = await POST(makeRequest());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.billed).toBe(1);
-    expect(body.skippedNoPaymentMethod).toBe(0);
-    expect(body.errors).toHaveLength(0);
+    expect(body.billed).toBeGreaterThanOrEqual(1);
+    expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
 
     expect(mockUpdate).toHaveBeenCalledWith(sub.stripe_subscription_id, { pause_collection: null });
+    // Idempotency keys (retry-safety, see the route's docblock): scoped to
+    // member + calendar month, distinct per Stripe call, so a retry within
+    // the same billing cycle can't double-invoice.
+    const cycleKey = new Date().toISOString().slice(0, 7);
     expect(mockInvoiceItemCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         customer: "cus_test",
         subscription: sub.stripe_subscription_id,
         amount: 2400,
         currency: "eur",
-      })
+      }),
+      { idempotencyKey: `renew-check-item-${member.id}-${cycleKey}` }
     );
     expect(mockInvoiceCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         customer: "cus_test",
         subscription: sub.stripe_subscription_id,
         auto_advance: true,
-      })
+      }),
+      { idempotencyKey: `renew-check-invoice-${member.id}-${cycleKey}` }
     );
+  });
+
+  it("reuses the same idempotency key on a retry within the same billing cycle", async () => {
+    const member = await seedMember({ status: "active", matches_remaining: 0 });
+    memberId = member.id;
+    const sub = await seedSubscription(memberId, { status: "active" });
+
+    await POST(makeRequest());
+    await POST(makeRequest());
+
+    const itemKeys = mockInvoiceItemCreate.mock.calls
+      .filter((call) => call[0].subscription === sub.stripe_subscription_id)
+      .map((call) => call[1].idempotencyKey);
+    const invoiceKeys = mockInvoiceCreate.mock.calls
+      .filter((call) => call[0].subscription === sub.stripe_subscription_id)
+      .map((call) => call[1].idempotencyKey);
+
+    expect(itemKeys).toHaveLength(2);
+    expect(itemKeys[0]).toBe(itemKeys[1]);
+    expect(invoiceKeys).toHaveLength(2);
+    expect(invoiceKeys[0]).toBe(invoiceKeys[1]);
   });
 
   it("never touches a member who still has balance — not a candidate at all", async () => {
     const member = await seedMember({ status: "active", matches_remaining: 2 });
     memberId = member.id;
-    await seedSubscription(memberId, { status: "active" });
-    mockRetrieve.mockResolvedValue(stripeSubResponse());
+    const sub = await seedSubscription(memberId, { status: "active" });
 
     const res = await POST(makeRequest());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.checked).toBe(0);
-    expect(body.billed).toBe(0);
-    expect(mockRetrieve).not.toHaveBeenCalled();
+    expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+    expect(mockRetrieve).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+    expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
   });
 
   it("isolates a per-member Stripe failure — records the error without failing the batch", async () => {
     const member = await seedMember({ status: "active", matches_remaining: 0 });
     memberId = member.id;
-    await seedSubscription(memberId, { status: "active" });
-    mockRetrieve.mockRejectedValue(new Error("stripe unavailable"));
+    const sub = await seedSubscription(memberId, { status: "active" });
+    mockRetrieve.mockImplementation(async (subId: string) => {
+      if (subId === sub.stripe_subscription_id) throw new Error("stripe unavailable");
+      return stripeSubResponse();
+    });
 
     const res = await POST(makeRequest());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.billed).toBe(0);
-    expect(body.errors).toHaveLength(1);
-    expect(body.errors[0].memberId).toBe(member.id);
-    expect(body.errors[0].error).toContain("stripe unavailable");
+    expect(body.errors).toContainEqual(
+      expect.objectContaining({ memberId: member.id, error: expect.stringContaining("stripe unavailable") })
+    );
+    expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
   });
 
   it("skips a member with no live subscription row — no error, just no-op", async () => {
@@ -174,8 +223,6 @@ describe("POST /api/renew-check", () => {
     const res = await POST(makeRequest());
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.billed).toBe(0);
-    expect(body.errors).toHaveLength(0);
-    expect(mockRetrieve).not.toHaveBeenCalled();
+    expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
   });
 });
