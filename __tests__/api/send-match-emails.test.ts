@@ -261,6 +261,9 @@ describe("POST /api/send-match-emails — billing notice (Track C4)", () => {
     }
   });
 
+  // Copy pass, 2026-08-27: the monthly "quiet" renewal reminder is
+  // retired entirely — a monthly member's reveal email now carries no
+  // billing content at all, same as a comped member.
   it("gives a monthly member no notice, regardless of counter", async () => {
     const a = await seedMember();
     const b = await seedMember();
@@ -274,7 +277,7 @@ describe("POST /api/send-match-emails — billing notice (Track C4)", () => {
       await seedMatch(a.id, b.id);
       const res = await POST(makeRequest({ month: TEST_MONTH }));
       expect(res.status).toBe(200);
-      expect((noticeFor(a.email) as { kind: string }).kind).toBe("none");
+      expect(noticeFor(a.email)).toEqual({ kind: "none" });
     } finally {
       await cleanup([a.id, b.id]);
     }
