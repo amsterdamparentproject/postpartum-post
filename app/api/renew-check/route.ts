@@ -38,11 +38,139 @@
  *     skippedNoPaymentMethod: number,
  *     errors: Array<{ memberId: string, error: string }>
  *   }
+ *
+ * Concurrency: deployed on Netlify (not Vercel — a synchronous function's
+ * execution ceiling there is much tighter, and isn't fully in this route's
+ * control), so candidates are processed in concurrent batches
+ * (BATCH_CONCURRENCY below) rather than one at a time. At this project's
+ * scale (dozens of members, capped around a hundred for the foreseeable
+ * future — not the kind of volume that justifies a Netlify Background
+ * Function, which would also mean the n8n job calling this stops getting a
+ * real {checked, billed, errors} response body back), a handful of real
+ * Stripe calls per candidate run one after another regardless — it's the
+ * candidate *count* being processed serially that risked adding up past a
+ * ~10-26s window, not any one candidate being slow. Revisit if the billable
+ * population ever grows enough to change that math.
+ *
+ * Retry-safety: the n8n job calling this also has retryOnFail set, and a
+ * slow batch can still plausibly get cut off by either side's timeout even
+ * with the concurrency above — the per-candidate work already in flight
+ * keeps running and completes server-side regardless. A retry after that
+ * would re-query the same still-billable candidates (matches_remaining
+ * isn't reset until the invoice.payment_succeeded webhook fires later,
+ * Track E2) and, without the idempotency keys below, invoice them a second
+ * time. Scoped to member + calendar month, not any Stripe-side transaction
+ * id, so a genuine retry within the same billing cycle reuses the exact
+ * same key (Stripe returns the original result, not a duplicate) while
+ * next month's real invoice gets a fresh one.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
+
+// Processed in batches of this size rather than unbounded — plenty of
+// headroom over the current/expected member count to collapse total wall
+// time, while still capping how many concurrent Stripe/Supabase calls this
+// route ever opens at once.
+const BATCH_CONCURRENCY = 20;
+
+type RenewOutcome =
+  | { kind: "billed" }
+  | { kind: "skipped_no_payment_method" }
+  | { kind: "no_op" }
+  | { kind: "error"; memberId: string; error: string };
+
+async function renewMember(
+  member: { id: string },
+  supabase: ReturnType<typeof createAdminClient>,
+  stripe: ReturnType<typeof getStripe>,
+  cycleKey: string
+): Promise<RenewOutcome> {
+  try {
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("stripe_subscription_id")
+      .eq("member_id", member.id)
+      .neq("status", "canceled")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!sub?.stripe_subscription_id) {
+      // No live subscription to renew — nothing to do.
+      return { kind: "no_op" };
+    }
+
+    const stripeSub = await stripe.subscriptions.retrieve(sub.stripe_subscription_id, {
+      expand: ["items.data.price", "customer"],
+    });
+
+    const customer = stripeSub.customer;
+    const customerId = typeof customer === "string" ? customer : customer.id;
+    const defaultPaymentMethod =
+      typeof customer !== "string" && !customer.deleted
+        ? customer.invoice_settings?.default_payment_method
+        : undefined;
+
+    // Payment-method guard (plan §5 / Appendix A) — the FYP/comped
+    // population. Never pause or bill a subscription with no default
+    // payment method; it would strand them at zero silently.
+    if (!defaultPaymentMethod) {
+      return { kind: "skipped_no_payment_method" };
+    }
+
+    const price = stripeSub.items.data[0]?.price;
+    if (!price || price.unit_amount === null) {
+      return {
+        kind: "error",
+        memberId: member.id,
+        error: `Subscription ${sub.stripe_subscription_id} has no simple unit_amount price to bill`,
+      };
+    }
+
+    // Clear pause_collection first — building the invoice below does the
+    // actual charging; clearing pause_collection alone bills nothing
+    // (confirmed, Track D case 1).
+    await stripe.subscriptions.update(sub.stripe_subscription_id, {
+      pause_collection: null,
+    });
+
+    // Flat amount + currency, not a price reference — invoiceItems.create
+    // rejects a recurring price (confirmed, Track D). No
+    // pending_invoice_items_behavior — it conflicts with `subscription`
+    // on invoices.create (also confirmed, Track D); `subscription` alone
+    // already pulls in this item.
+    await stripe.invoiceItems.create(
+      {
+        customer: customerId,
+        subscription: sub.stripe_subscription_id,
+        amount: price.unit_amount,
+        currency: price.currency,
+        description: "Postpartum Post — renewal",
+      },
+      { idempotencyKey: `renew-check-item-${member.id}-${cycleKey}` }
+    );
+
+    await stripe.invoices.create(
+      {
+        customer: customerId,
+        subscription: sub.stripe_subscription_id,
+        auto_advance: true,
+      },
+      { idempotencyKey: `renew-check-invoice-${member.id}-${cycleKey}` }
+    );
+
+    return { kind: "billed" };
+  } catch (e) {
+    console.error(`[renew-check] Failed to renew member ${member.id}:`, e);
+    return {
+      kind: "error",
+      memberId: member.id,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
 
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
@@ -82,83 +210,20 @@ export async function POST(req: NextRequest) {
   let skippedNoPaymentMethod = 0;
   const errors: { memberId: string; error: string }[] = [];
 
-  for (const member of candidates ?? []) {
-    try {
-      const { data: sub } = await supabase
-        .from("subscriptions")
-        .select("stripe_subscription_id")
-        .eq("member_id", member.id)
-        .neq("status", "canceled")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  // See the retry-safety note in the docblock above.
+  const cycleKey = new Date().toISOString().slice(0, 7); // "YYYY-MM"
 
-      if (!sub?.stripe_subscription_id) {
-        // No live subscription to renew — nothing to do.
-        continue;
-      }
-
-      const stripeSub = await stripe.subscriptions.retrieve(sub.stripe_subscription_id, {
-        expand: ["items.data.price", "customer"],
-      });
-
-      const customer = stripeSub.customer;
-      const customerId = typeof customer === "string" ? customer : customer.id;
-      const defaultPaymentMethod =
-        typeof customer !== "string" && !customer.deleted
-          ? customer.invoice_settings?.default_payment_method
-          : undefined;
-
-      // Payment-method guard (plan §5 / Appendix A) — the FYP/comped
-      // population. Never pause or bill a subscription with no default
-      // payment method; it would strand them at zero silently.
-      if (!defaultPaymentMethod) {
-        skippedNoPaymentMethod++;
-        continue;
-      }
-
-      const price = stripeSub.items.data[0]?.price;
-      if (!price || price.unit_amount === null) {
-        errors.push({
-          memberId: member.id,
-          error: `Subscription ${sub.stripe_subscription_id} has no simple unit_amount price to bill`,
-        });
-        continue;
-      }
-
-      // Clear pause_collection first — building the invoice below does the
-      // actual charging; clearing pause_collection alone bills nothing
-      // (confirmed, Track D case 1).
-      await stripe.subscriptions.update(sub.stripe_subscription_id, {
-        pause_collection: null,
-      });
-
-      // Flat amount + currency, not a price reference — invoiceItems.create
-      // rejects a recurring price (confirmed, Track D). No
-      // pending_invoice_items_behavior — it conflicts with `subscription`
-      // on invoices.create (also confirmed, Track D); `subscription` alone
-      // already pulls in this item.
-      await stripe.invoiceItems.create({
-        customer: customerId,
-        subscription: sub.stripe_subscription_id,
-        amount: price.unit_amount,
-        currency: price.currency,
-        description: "Postpartum Post — renewal",
-      });
-
-      await stripe.invoices.create({
-        customer: customerId,
-        subscription: sub.stripe_subscription_id,
-        auto_advance: true,
-      });
-
-      billed++;
-    } catch (e) {
-      console.error(`[renew-check] Failed to renew member ${member.id}:`, e);
-      errors.push({
-        memberId: member.id,
-        error: e instanceof Error ? e.message : String(e),
-      });
+  const list = candidates ?? [];
+  for (let i = 0; i < list.length; i += BATCH_CONCURRENCY) {
+    const batch = list.slice(i, i + BATCH_CONCURRENCY);
+    const outcomes = await Promise.all(
+      batch.map((member) => renewMember(member, supabase, stripe, cycleKey))
+    );
+    for (const outcome of outcomes) {
+      if (outcome.kind === "billed") billed++;
+      else if (outcome.kind === "skipped_no_payment_method") skippedNoPaymentMethod++;
+      else if (outcome.kind === "error") errors.push({ memberId: outcome.memberId, error: outcome.error });
+      // "no_op" — no live subscription, nothing to count.
     }
   }
 
