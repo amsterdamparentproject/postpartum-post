@@ -11,6 +11,34 @@ import {
 } from "@/app/actions/profile";
 import { unsubscribe } from "@/app/actions/unsubscribe";
 import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES } from "@/lib/member-status";
+import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
+
+/** Alert icon + hover/focus tooltip, anchored next to a value that needs
+ *  more explanation than fits in the surrounding label. */
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex align-middle">
+      <svg
+        className="w-3.5 h-3.5 text-muted cursor-help"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        aria-hidden="true"
+        tabIndex={0}
+        role="img"
+        aria-label={text}
+      >
+        <path
+          fillRule="evenodd"
+          d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zM9 9a1 1 0 012 0v4a1 1 0 11-2 0V9zm1-4a1 1 0 100 2 1 1 0 000-2z"
+          clipRule="evenodd"
+        />
+      </svg>
+      <span className="pointer-events-none absolute right-0 bottom-full z-10 mb-2 w-56 rounded-lg bg-dark px-3 py-2 text-xs leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {text}
+      </span>
+    </span>
+  );
+}
 
 function formatDate(unixTimestamp: number) {
   return new Date(unixTimestamp * 1000).toLocaleDateString("en-NL", {
@@ -52,6 +80,7 @@ function BillingContent() {
   }
 
   const isFoundingMember = subscription?.price_lookup_key === "founding_member";
+  const isFypMember = !!subscription?.price_lookup_key && FYP_LOOKUP_KEYS.has(subscription.price_lookup_key);
   const planLabel =
     isFoundingMember
       ? "Founding member (€5/mo)"
@@ -59,6 +88,8 @@ function BillingContent() {
       ? "3-month commitment (€8/mo)"
       : subscription?.price_lookup_key === "standard_monthly"
       ? "Monthly (€12/mo)"
+      : isFypMember
+      ? "Monthly (€0/mo)"
       : null;
 
   const statusMessage =
@@ -138,7 +169,10 @@ function BillingContent() {
             {planLabel && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted">Plan</span>
-                <span className="text-dark font-medium">{planLabel}</span>
+                <span className="text-dark font-medium inline-flex items-center gap-1.5">
+                  {planLabel}
+                  {statusMessage?.planTooltip && <InfoTooltip text={statusMessage.planTooltip} />}
+                </span>
               </div>
             )}
 
@@ -147,8 +181,9 @@ function BillingContent() {
                 <span className="text-muted">
                   {subscription.cancel_at_period_end ? "Cancels on" : "Next billing date"}
                 </span>
-                <span className="text-dark font-medium">
+                <span className="text-dark font-medium inline-flex items-center gap-1.5">
                   {formatDate(subscription.current_period_end)}
+                  {statusMessage?.dateTooltip && <InfoTooltip text={statusMessage.dateTooltip} />}
                 </span>
               </div>
             )}

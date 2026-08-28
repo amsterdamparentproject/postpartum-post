@@ -27,6 +27,20 @@ export type StatusTone = "active" | "info" | "warning" | "muted";
 export type MemberStatusMessage = {
   label: string;
   tone: StatusTone;
+  /**
+   * Explanatory tooltip for an alert icon next to the "Next billing date"
+   * row on /billing. Currently populated only for the last-match-of-a-
+   * bundle state, where the short pill omits the "why"/"when" detail.
+   */
+  dateTooltip?: string;
+  /**
+   * Explanatory tooltip for an alert icon next to the /billing "Plan" row
+   * — currently just the FYP/comped state, where the pill itself reads a
+   * plain "Active" (matching every other active member) and the "this is
+   * a comped First Year Program plan" explanation moves to the Plan row
+   * instead.
+   */
+  planTooltip?: string;
 };
 
 export type MemberStatusInput = {
@@ -74,19 +88,45 @@ const PAYMENT_FAILED_STRIPE_STATUSES = new Set([
   "incomplete_expired",
 ]);
 
+function formatFullDate(date: Date): string {
+  return date.toLocaleDateString("en-NL", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatusMessage {
   const { stripeStatus, priceLookupKey, intervalCount, matchesRemaining, currentPeriodEnd } = input;
 
   if (stripeStatus === "canceled") {
-    return { label: "Membership ended", tone: "muted" };
+    // A self-cancellation normally only reaches Stripe's "canceled" status
+    // once the billing period actually ends, by which point a bundle
+    // member has used every match in the term. But an immediately-
+    // cancelling Stripe billing portal configuration (set in the Stripe
+    // Dashboard, outside this codebase) could in principle cancel mid-term
+    // with matches still owed — gate on the counter, not just the raw
+    // status, so that member still sees an accurate "Active — N left"
+    // rather than a premature "Membership ended."
+    if (matchesRemaining <= 0) {
+      return { label: "Membership ended", tone: "muted" };
+    }
   }
 
   if (priceLookupKey && FYP_LOOKUP_KEYS.has(priceLookupKey)) {
-    return { label: "Included with your First Year Program", tone: "info" };
+    // Reads as a plain "Active" now, like every other active member — the
+    // FYP explanation moved to annotate the Plan row instead (planTooltip),
+    // since it's a fact about the plan, not a different kind of "active."
+    return {
+      label: "Active",
+      tone: "active",
+      planTooltip: "Included with your First Year Program plan",
+    };
   }
 
   if (PAYMENT_FAILED_STRIPE_STATUSES.has(stripeStatus)) {
-    return { label: "Payment needed — update your card", tone: "warning" };
+    return { label: "Payment needed — Update your card", tone: "warning" };
   }
 
   const isBundle = (intervalCount ?? 1) > 1;
@@ -95,7 +135,10 @@ export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatu
     return { label: `Active — ${matchesRemaining} matches left`, tone: "active" };
   }
   if (isBundle && matchesRemaining === 1) {
-    return { label: "Last match of your bundle. Renews after this one.", tone: "active" };
+    const dateTooltip = currentPeriodEnd
+      ? `Your subscription will renew on ${formatFullDate(new Date(currentPeriodEnd * 1000))} so that you continue receiving matches.`
+      : `Your subscription will renew so that you continue receiving matches.`;
+    return { label: "Active — 1 match left", tone: "active", dateTooltip };
   }
   if (matchesRemaining >= 1) {
     return { label: "Active", tone: "active" };

@@ -25,11 +25,23 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
     });
   });
 
-  it("shows the last-match copy at exactly 1", () => {
+  it("shows the last-match copy at exactly 1, with a tooltip explaining the renewal", () => {
     expect(deriveMemberStatusMessage({ ...base, matchesRemaining: 1 })).toEqual({
-      label: "Last match of your bundle. Renews after this one.",
+      label: "Active — 1 match left",
       tone: "active",
+      dateTooltip: "Your subscription will renew so that you continue receiving matches.",
     });
+  });
+
+  it("includes the real renewal date in the last-match tooltip when currentPeriodEnd is known", () => {
+    const result = deriveMemberStatusMessage({
+      ...base,
+      matchesRemaining: 1,
+      currentPeriodEnd: AUG_20_2026,
+    });
+    expect(result.dateTooltip).toBe(
+      "Your subscription will renew on 20 August 2026 so that you continue receiving matches."
+    );
   });
 
   it("shows the real Stripe renewal date with amount when currentPeriodEnd is known", () => {
@@ -110,21 +122,45 @@ describe("deriveMemberStatusMessage — terminal and payment states (Track C1)",
         intervalCount: 1,
         matchesRemaining: 1,
       });
-      expect(result).toEqual({ label: "Payment needed — update your card", tone: "warning" });
+      expect(result).toEqual({ label: "Payment needed — Update your card", tone: "warning" });
     }
   });
 
-  it("canceled overrides everything else, including a comped lookup key", () => {
+  it("shows 'Membership ended' when canceled with no matches left", () => {
+    const result = deriveMemberStatusMessage({
+      stripeStatus: "canceled",
+      priceLookupKey: "standard_monthly",
+      intervalCount: 1,
+      matchesRemaining: 0,
+    });
+    expect(result).toEqual({ label: "Membership ended", tone: "muted" });
+  });
+
+  it("does not show 'Membership ended' if canceled but matches remain (e.g. an immediate-cancel billing portal config)", () => {
+    const result = deriveMemberStatusMessage({
+      stripeStatus: "canceled",
+      priceLookupKey: "commitment_3mo",
+      intervalCount: 3,
+      matchesRemaining: 2,
+    });
+    expect(result).toEqual({ label: "Active — 2 matches left", tone: "active" });
+  });
+
+  it("canceled with matches remaining still shows the comped FYP copy, not 'Membership ended'", () => {
     const result = deriveMemberStatusMessage({
       stripeStatus: "canceled",
       priceLookupKey: "fyp_monthly_single",
       intervalCount: 1,
       matchesRemaining: 5,
     });
-    expect(result).toEqual({ label: "Membership ended", tone: "muted" });
+    expect(result).toEqual({
+      label: "Active",
+      tone: "active",
+      planTooltip: "Included with your First Year Program plan",
+    });
   });
 
-  it("comped (FYP) members get their own copy regardless of the counter", () => {
+  it("comped (FYP) members show a plain Active pill with an explanatory plan tooltip, regardless of the counter", () => {
     for (const priceLookupKey of ["fyp_monthly_single", "fyp_monthly_multi"]) {
       const result = deriveMemberStatusMessage({
         stripeStatus: "active",
@@ -133,8 +169,9 @@ describe("deriveMemberStatusMessage — terminal and payment states (Track C1)",
         matchesRemaining: 0,
       });
       expect(result).toEqual({
-        label: "Included with your First Year Program",
-        tone: "info",
+        label: "Active",
+        tone: "active",
+        planTooltip: "Included with your First Year Program plan",
       });
     }
   });
@@ -146,6 +183,7 @@ describe("deriveMemberStatusMessage — terminal and payment states (Track C1)",
       intervalCount: 1,
       matchesRemaining: 0,
     });
-    expect(result.label).toBe("Included with your First Year Program");
+    expect(result.label).toBe("Active");
+    expect(result.planTooltip).toBe("Included with your First Year Program plan");
   });
 });
