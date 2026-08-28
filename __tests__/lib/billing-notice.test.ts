@@ -27,49 +27,45 @@ describe("deriveBillingNotice — bundle plans", () => {
     lastTermPaymentNote: null,
   };
 
-  it("shows the counter while matches remain", () => {
+  it("shows the counter while 2+ matches remain, with no renewDate", () => {
     expect(deriveBillingNotice({ ...base, matchesRemaining: 3 })).toEqual({
       kind: "counter",
       matchesRemaining: 3,
-    });
-    expect(deriveBillingNotice({ ...base, matchesRemaining: 2 })).toEqual({
-      kind: "counter",
-      matchesRemaining: 2,
+      renewDate: undefined,
     });
   });
 
-  it("includes the real renewal date at exactly 1 match left, when currentPeriodEnd is known", () => {
+  // Copy pass, 2026-08-27: at exactly 1 match left, the counter now also
+  // carries the date of the renew-check that actually applies to this
+  // member — next month's 10th (renewCheckDateAfterNextRound), not the
+  // sooner date nextRenewCheckDate would give, since their last match
+  // still gets used in next month's round before they hit zero.
+  it("includes next month's renew-check date at exactly 1 match left", () => {
     const result = deriveBillingNotice({
       ...base,
       matchesRemaining: 1,
-      currentPeriodEnd: Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000),
+      today: new Date("2026-08-07T00:00:00Z"),
     });
-    expect(result).toEqual({ kind: "counter", matchesRemaining: 1, renewDate: "20 August 2026" });
+    expect(result).toEqual({
+      kind: "counter",
+      matchesRemaining: 1,
+      renewDate: "10 September 2026",
+    });
   });
 
-  it("omits the renewal date at 1 match left when currentPeriodEnd isn't known", () => {
-    const result = deriveBillingNotice({ ...base, matchesRemaining: 1 });
-    expect(result).toEqual({ kind: "counter", matchesRemaining: 1 });
-  });
-
-  it("goes loud when the counter hits zero, with the real Stripe date and amount", () => {
+  it("goes loud when the counter hits zero, with date and amount", () => {
     const result = deriveBillingNotice({
       ...base,
       matchesRemaining: 0,
-      currentPeriodEnd: Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000),
+      today: new Date("2026-08-07T00:00:00Z"),
     });
     expect(result).toEqual({
       kind: "loud",
-      renewDate: "20 August 2026",
+      renewDate: "10 August 2026",
       amount: "€24",
       isFirstAfterGift: false,
       cancelUrl: expect.stringContaining("/billing"),
     });
-  });
-
-  it("falls back to 'soon' when currentPeriodEnd isn't known", () => {
-    const result = deriveBillingNotice({ ...base, matchesRemaining: 0 });
-    expect((result as { renewDate: string }).renewDate).toBe("soon");
   });
 
   it("marks isFirstAfterGift when the most recent term_payment was gift-covered", () => {
@@ -77,7 +73,7 @@ describe("deriveBillingNotice — bundle plans", () => {
       ...base,
       matchesRemaining: 0,
       lastTermPaymentNote: GIFT_ENTITLEMENT_NOTE,
-      currentPeriodEnd: Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000),
+      today: new Date("2026-08-10T00:00:00Z"),
     });
     expect(result.kind).toBe("loud");
     expect((result as { isFirstAfterGift: boolean }).isFirstAfterGift).toBe(true);
@@ -130,6 +126,10 @@ describe("deriveBillingNotice — bundle plans", () => {
   });
 });
 
+// Copy pass, 2026-08-27: the monthly "quiet" renewal reminder is retired
+// entirely (see lib/billing-notice.ts's doc comment) — a monthly member
+// already knows what they signed up for, so the reveal email carries no
+// billing content for them at all now, same as a comped member.
 describe("deriveBillingNotice — monthly plan", () => {
   const base = {
     priceLookupKey: "standard_monthly",
@@ -137,20 +137,11 @@ describe("deriveBillingNotice — monthly plan", () => {
     lastTermPaymentNote: null,
   };
 
-  it("never shows billing content, regardless of the counter value (the monthly reminder is retired)", () => {
+  it("shows nothing, regardless of the counter value", () => {
     for (const matchesRemaining of [0, 1, 2]) {
       const result = deriveBillingNotice({ ...base, matchesRemaining });
       expect(result).toEqual({ kind: "none" });
     }
-  });
-
-  it("stays none even when currentPeriodEnd is known", () => {
-    const result = deriveBillingNotice({
-      ...base,
-      matchesRemaining: 0,
-      currentPeriodEnd: Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000),
-    });
-    expect(result).toEqual({ kind: "none" });
   });
 
   it("treats null intervalCount as monthly (matches deriveMemberStatusMessage's convention)", () => {
@@ -220,7 +211,6 @@ describe("fetchBillingNoticeContext", () => {
       priceLookupKey: "commitment_3mo",
       intervalCount: 3,
       lastTermPaymentNote: null,
-      currentPeriodEnd: null,
     });
   });
 
@@ -257,7 +247,6 @@ describe("fetchBillingNoticeContext", () => {
       priceLookupKey: null,
       intervalCount: null,
       lastTermPaymentNote: null,
-      currentPeriodEnd: null,
     });
   });
 });

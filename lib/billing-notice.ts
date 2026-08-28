@@ -1,9 +1,11 @@
 /**
  * Track C4 — what the member-facing match-reveal email says about billing,
- * per billing plan §3.3's notice-volume table, since revised (copy pass) to
- * drop the monthly "quiet" renewal reminder entirely — a monthly member
- * already knows what they signed up for, and the disclosure requirement is
- * satisfied at signup, not by a recurring reminder:
+ * per billing plan §3.3's notice-volume table, since revised (copy pass,
+ * 2026-08-27) to drop the monthly "quiet" renewal reminder entirely — a
+ * monthly member already knows what they signed up for, and Dutch
+ * auto-renewal law's disclosure requirement is satisfied at signup, not
+ * by a recurring reminder (SEPA pre-notification is handled separately,
+ * by Stripe's own mandate mechanics, not this email):
  *
  *   | Situation                          | Notice                              |
  *   |-------------------------------------|--------------------------------------|
@@ -30,23 +32,23 @@
  */
 
 import { FYP_LOOKUP_KEYS, GIFT_ENTITLEMENT_NOTE } from "@/lib/match-ledger";
-import { TERM_AMOUNTS } from "@/lib/member-status";
+import { TERM_AMOUNTS, nextRenewCheckDate, renewCheckDateAfterNextRound } from "@/lib/member-status";
 import { getStripe } from "@/lib/stripe";
 import { SITE_URL } from "@/lib/emails/base";
 
 type AnySupabaseClient = import("@supabase/supabase-js").SupabaseClient<any, any, any>;
 
 export type BillingNotice =
-  // Comped (FYP) — no billing content in the reveal email at all. Also
-  // what a monthly member always gets now (see doc comment above).
+  // Comped (FYP) — no billing content in the reveal email at all.
   | { kind: "none" }
   // Bundle member with matches left this term — the always-shown counter
   // line, not a renewal notice. matchesRemaining is always >= 1 here.
-  // renewDate is set only at exactly 1 match left, and only when Stripe's
-  // currentPeriodEnd is known — the real date the subscription will next
-  // renew (interim source pre-Track E, same as lib/member-status.ts's
-  // last-match dateTooltip), so the footer notice can name a real date
-  // instead of vaguely gesturing at "soon."
+  // renewDate is set only at exactly 1 match left: the date the member's
+  // *next* renew-check will land on — next month's 10th, since their last
+  // match goes out in next month's round before they hit zero (see
+  // renewCheckDateAfterNextRound's doc comment) — surfaced so the
+  // last-match footer line can name a real date instead of vaguely
+  // gesturing at "after next month's match."
   | { kind: "counter"; matchesRemaining: number; renewDate?: string }
   // Bundle member whose counter just hit zero this round — the term is
   // over, they're about to be charged. isFirstAfterGift distinguishes "your
@@ -68,15 +70,7 @@ export interface BillingNoticeInput {
   matchesRemaining: number;
   /** match_entitlements.note on the member's most recent term_payment row. */
   lastTermPaymentNote: string | null;
-  /** Stripe's real current_period_end (unix seconds) — see
-   *  lib/member-status.ts's MemberStatusInput.currentPeriodEnd for why:
-   *  interim source for the renewal date until Track E1's renew-check job
-   *  exists, since a fabricated calendar date doesn't match Stripe's own
-   *  natural billing cycle pre-Track E. */
-  currentPeriodEnd?: number | null;
-  /** Injectable for tests — defaults to now. Currently unused by
-   *  deriveBillingNotice's date logic (see currentPeriodEnd above); kept
-   *  for callers and to avoid churning every call site's shape. */
+  /** Injectable for tests — defaults to now. */
   today?: Date;
 }
 
@@ -98,7 +92,8 @@ function renewalNoticeCancelUrl(): string {
 }
 
 export function deriveBillingNotice(input: BillingNoticeInput): BillingNotice {
-  const { priceLookupKey, intervalCount, matchesRemaining, lastTermPaymentNote, currentPeriodEnd } = input;
+  const { priceLookupKey, intervalCount, matchesRemaining, lastTermPaymentNote } = input;
+  const today = input.today ?? new Date();
 
   if (priceLookupKey && FYP_LOOKUP_KEYS.has(priceLookupKey)) {
     return { kind: "none" };
@@ -106,32 +101,25 @@ export function deriveBillingNotice(input: BillingNoticeInput): BillingNotice {
 
   const isBundle = (intervalCount ?? 1) > 1;
 
-  // Copy pass: the monthly renewal reminder is retired — a monthly member
-  // has nothing new to learn from an every-email "you'll be charged" line,
-  // and dropping it also drops a line of unnecessary noise from every
-  // single monthly member's reveal email.
+  // Copy pass, 2026-08-27: the monthly renewal reminder is retired — a
+  // monthly member has nothing new to learn from an every-email "you'll
+  // be charged" line, and dropping it also drops a line of legally
+  // unnecessary noise from every single monthly member's reveal email.
   if (!isBundle) {
     return { kind: "none" };
   }
 
   const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] ?? null : null;
-  // Real Stripe date, not a fabricated one — see BillingNoticeInput's
-  // currentPeriodEnd doc comment. Only defined when known; the "loud"
-  // branch falls back to "soon" itself, but the "counter" branch leaves it
-  // undefined so the footer notice can omit the date gracefully instead.
-  const periodEndDate = currentPeriodEnd ? formatRenewDate(new Date(currentPeriodEnd * 1000)) : undefined;
 
   if (matchesRemaining > 0) {
-    return {
-      kind: "counter",
-      matchesRemaining,
-      renewDate: matchesRemaining === 1 ? periodEndDate : undefined,
-    };
+    const renewDate =
+      matchesRemaining === 1 ? formatRenewDate(renewCheckDateAfterNextRound(today)) : undefined;
+    return { kind: "counter", matchesRemaining, renewDate };
   }
 
   return {
     kind: "loud",
-    renewDate: periodEndDate ?? "soon",
+    renewDate: formatRenewDate(nextRenewCheckDate(today)),
     amount,
     isFirstAfterGift: lastTermPaymentNote === GIFT_ENTITLEMENT_NOTE,
     cancelUrl: renewalNoticeCancelUrl(),
@@ -142,7 +130,6 @@ export interface BillingNoticeContext {
   priceLookupKey: string | null;
   intervalCount: number | null;
   lastTermPaymentNote: string | null;
-  currentPeriodEnd: number | null;
 }
 
 /**
@@ -172,7 +159,6 @@ export async function fetchBillingNoticeContext(
 
   let priceLookupKey: string | null = null;
   let intervalCount: number | null = null;
-  let currentPeriodEnd: number | null = null;
   try {
     const stripe = getStripe();
     const stripeSub = await stripe.subscriptions.retrieve(sub.stripe_subscription_id, {
@@ -181,7 +167,6 @@ export async function fetchBillingNoticeContext(
     const item = stripeSub.items.data[0];
     priceLookupKey = item?.price.lookup_key ?? null;
     intervalCount = item?.price.recurring?.interval_count ?? null;
-    currentPeriodEnd = item?.current_period_end ?? null;
   } catch (e) {
     console.error("[billing-notice] Stripe subscription fetch failed:", e);
   }
@@ -199,18 +184,18 @@ export async function fetchBillingNoticeContext(
     priceLookupKey,
     intervalCount,
     lastTermPaymentNote: lastTermPayment?.note ?? null,
-    currentPeriodEnd,
   };
 }
 
 /**
  * Combines fetchBillingNoticeContext()'s possibly-null result with
  * deriveBillingNotice(). A member with no non-canceled subscription row
- * gets { kind: "none" } explicitly here, rather than letting
- * deriveBillingNotice guess from null/null inputs — which would otherwise
- * fall through to the monthly "quiet" branch (isBundle defaults to false
- * when intervalCount is null), wrongly telling a member with no
- * subscription at all that they're renewing.
+ * gets { kind: "none" } explicitly here rather than letting
+ * deriveBillingNotice guess from null/null inputs — both paths land on
+ * "none" today (isBundle defaults to false when intervalCount is null,
+ * and non-bundle now always means "none"), but keeping the explicit check
+ * makes the "no subscription" case obvious at the call site rather than
+ * relying on that being deriveBillingNotice's current default behavior.
  */
 export function resolveBillingNotice(
   context: BillingNoticeContext | null,
@@ -223,7 +208,6 @@ export function resolveBillingNotice(
     intervalCount: context.intervalCount,
     matchesRemaining,
     lastTermPaymentNote: context.lastTermPaymentNote,
-    currentPeriodEnd: context.currentPeriodEnd,
     today,
   });
 }

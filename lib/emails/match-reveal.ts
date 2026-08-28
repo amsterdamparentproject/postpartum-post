@@ -3,29 +3,32 @@ import type { BillingNotice } from "@/lib/billing-notice";
 
 /**
  * Track C4 — billing plan §3.3's notice-volume table, rendered. Returns ""
- * for { kind: "none" } (comped/FYP members, and now every monthly member —
- * see lib/billing-notice.ts's doc comment) and for { kind: "counter" },
- * which moved out of the main body entirely — see
- * counterNoticeFooterHtml() below.
+ * for { kind: "none" } (comped/FYP members — no billing content at all)
+ * and for { kind: "counter" }, which moved out of the main body entirely
+ * — see counterNoticeFooterHtml() below.
  */
 /**
  * Track C4's "counter" tier — the always-shown, non-actionable bundle
  * match count. Moved out of the main body and into the footer's own
- * insertion point (base.ts's emailFooter `afterNonprofitBox`) per copy
- * review: as ambient status info (nothing to decide, nothing to click) it
- * was competing with the match-reveal narrative for attention up top, and
- * it's now positioned right above the footer's own "Manage subscription"
- * link instead of far away from it. Styled as plain black body text —
- * same weight as the footer's own "Happy connecting," row. "Loud" stays
- * in its pre-footer position — it already carries its own link and
- * arguably belongs in the main flow, not the footer, precisely because it
- * needs to be seen.
+ * insertion point (base.ts's emailFooter `afterNonprofitBox`) per product
+ * review 2026-08-27: as ambient status info (nothing to decide, nothing
+ * to click) it was competing with the match-reveal narrative for
+ * attention up top, and it's now positioned right above the footer's own
+ * "Manage subscription" link instead of far away from it. Styled as
+ * plain black body text — same weight as the footer's own "Happy
+ * connecting," row. "Loud" stays in its pre-footer position for now —
+ * it already carries its own CTA-style link and arguably belongs in the
+ * main flow, not the footer, precisely because it needs to be seen. (The
+ * monthly "quiet" tier this comment used to contrast against was retired
+ * outright in the same copy pass — see deriveBillingNotice's doc comment
+ * in lib/billing-notice.ts.)
  *
- * The last-match line names the real renewal date (notice.renewDate) when
- * Stripe's currentPeriodEnd is known, matching /billing's own last-match
- * dateTooltip wording (lib/member-status.ts) — same fact, same words,
- * wherever a member reads it — and falls back to "soon" otherwise, same
- * as the loud tier's fallback.
+ * The last-match copy below spells out the actual renew-check date
+ * (notice.renewDate — see renewCheckDateAfterNextRound()'s doc comment in
+ * lib/member-status.ts for why it's one full cycle out, not just "the
+ * 10th") rather than reusing /billing's shorter pill text — an email is
+ * read once, not revisited like a status page, so it carries the fact a
+ * member would otherwise have to click through to see.
  */
 function counterNoticeFooterHtml(notice: BillingNotice): string | undefined {
   if (notice.kind !== "counter") {
@@ -34,7 +37,7 @@ function counterNoticeFooterHtml(notice: BillingNotice): string | undefined {
   const line =
     notice.matchesRemaining >= 2
       ? `Note: You currently have <b>${notice.matchesRemaining} matches left</b> in your bundle.`
-      : `🔔 You currently have <b>1 match left</b> in your bundle. Your subscription will renew ${notice.renewDate ? `on ${notice.renewDate} ` : "soon "}so that you continue receiving matches.`;
+      : `🔔 You currently have <b>1 match left</b> in your bundle. Your subscription is scheduled to renew on ${notice.renewDate}, to keep matching after next month's match.`;
   return `
                   <tr><td dir="ltr" style="font-size:16px;color:#000000;text-align:left;padding:0 48px 16px;line-height:1.4;mso-line-height-alt:22.4px">
                     ${line}
@@ -48,10 +51,10 @@ function billingNoticeHtml(notice: BillingNotice): string {
 
   // notice.kind === "loud" — end of a bundle term, or first real charge
   // after a gift. Both get the full treatment (date, amount, a link to
-  // make changes); only the opening line differs. Copy pass: dropped the
-  // standalone "Manage your membership" CTA button in favor of one
-  // paragraph ending in an inline link — the button read as more of a
-  // hard sell than this notice (a factual heads-up, not an upsell)
+  // make changes); only the opening line differs. Copy pass 2026-08-27:
+  // dropped the standalone "Manage your membership" CTA button in favor
+  // of one paragraph ending in an inline link — the button read as more
+  // of a hard sell than this notice (a factual heads-up, not an upsell)
   // warranted.
   const amountSuffix = notice.amount ? ` ${notice.amount}` : "";
   const intro = notice.isFirstAfterGift
@@ -107,11 +110,11 @@ function matchRevealHtml(
                                     </td></tr>` : ""}`,
       // tightBottom drops this section's own bottom padding so it doesn't
       // stack with the loud notice's bodySection right below it — without
-      // it the two independently-padded sections leave a visibly oversized
+      // it the two independently-padded sections left a visibly oversized
       // gap between the Community Guidelines paragraph and "A note on your
-      // subscription:". Only for "loud": "counter" doesn't render inline
-      // at all (it's in the footer), so there's no adjacent section to
-      // collide with there.
+      // subscription:" (flagged from a live screenshot, 2026-08-27). Only
+      // for "loud": "counter" doesn't render inline at all (it's in the
+      // footer), so there's no adjacent section to collide with there.
       billingNotice.kind === "loud") +
     billingNoticeHtml(billingNotice);
   return baseEmail(content, "", { afterNonprofitBox: counterNoticeFooterHtml(billingNotice) });

@@ -75,14 +75,17 @@ export function emailHead(extraPreloads = ""): string {
 
 /**
  * Shared footer: APP + contact callout, social icons, copyright.
+ *
  * @param afterNonprofitBox  Extra row(s) inserted right after the green
- *   nonprofit callout box, before the social icons — used by the
- *   match-reveal email's bundle match-counter notice (moved here from the
- *   main body per copy review: as ambient status info with nothing to
- *   click, it competes less for attention here, right above the
- *   "Manage subscription" link this footer already carries). Kept as an
+ *   nonprofit callout box, before the social icons — currently used by
+ *   the match-reveal email's bundle match-counter notice (billing plan
+ *   §3.3's "counter" tier, moved here 2026-08-27 per product review: it
+ *   was sitting in the main body, competing for attention with the
+ *   match-reveal narrative and far from the "Manage subscription" link
+ *   this footer already carries in its copyright line). Kept as an
  *   insertion point rather than a required param so every other caller
- *   is unaffected.
+ *   (welcome, gift-card, cancellation-confirmed, unsubscribed) is
+ *   unaffected.
  */
 export function emailFooter({ afterNonprofitBox = "" }: { afterNonprofitBox?: string } = {}): string {
   return `
