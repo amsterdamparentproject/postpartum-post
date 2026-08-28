@@ -1,13 +1,16 @@
 /**
  * Track C4 — what the member-facing match-reveal email says about billing,
- * per billing plan §3.3's notice-volume table:
+ * per billing plan §3.3's notice-volume table, since revised (copy pass) to
+ * drop the monthly "quiet" renewal reminder entirely — a monthly member
+ * already knows what they signed up for, and the disclosure requirement is
+ * satisfied at signup, not by a recurring reminder:
  *
  *   | Situation                          | Notice                              |
  *   |-------------------------------------|--------------------------------------|
  *   | End of a bundle term                | Loud — counter, date, amount, cancel |
  *   | First charge after a gift           | Loud — their first real charge       |
- *   | Monthly member's ordinary renewal   | Quiet — no cancel CTA                |
- *   | Comped member                       | Neither                              |
+ *   | Monthly member's ordinary renewal   | None                                 |
+ *   | Comped member                       | None                                 |
  *
  * Split in two, same shape as lib/member-status.ts (Track C1):
  *
@@ -34,15 +37,17 @@ import { SITE_URL } from "@/lib/emails/base";
 type AnySupabaseClient = import("@supabase/supabase-js").SupabaseClient<any, any, any>;
 
 export type BillingNotice =
-  // Comped (FYP) — no billing content in the reveal email at all.
+  // Comped (FYP) — no billing content in the reveal email at all. Also
+  // what a monthly member always gets now (see doc comment above).
   | { kind: "none" }
   // Bundle member with matches left this term — the always-shown counter
   // line, not a renewal notice. matchesRemaining is always >= 1 here.
-  | { kind: "counter"; matchesRemaining: number }
-  // Monthly member — fires every reveal email, since a monthly counter is
-  // structurally 1-or-0 forever (billing plan §3.3) and therefore not
-  // itself informative. No cancel CTA.
-  | { kind: "quiet"; renewDate: string; amount: string | null }
+  // renewDate is set only at exactly 1 match left, and only when Stripe's
+  // currentPeriodEnd is known — the real date the subscription will next
+  // renew (interim source pre-Track E, same as lib/member-status.ts's
+  // last-match dateTooltip), so the footer notice can name a real date
+  // instead of vaguely gesturing at "soon."
+  | { kind: "counter"; matchesRemaining: number; renewDate?: string }
   // Bundle member whose counter just hit zero this round — the term is
   // over, they're about to be charged. isFirstAfterGift distinguishes "your
   // gift just ended, this is your first real charge" from an ordinary
@@ -99,29 +104,38 @@ export function deriveBillingNotice(input: BillingNoticeInput): BillingNotice {
     return { kind: "none" };
   }
 
-  const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] ?? null : null;
-  // Real Stripe date, not a fabricated one — see BillingNoticeInput's
-  // currentPeriodEnd doc comment. "soon" only shows up if the Stripe fetch
-  // that feeds this failed (fetchBillingNoticeContext below) — the "loud"
-  // bundle branch can't reach this fallback in practice, since that branch
-  // requires intervalCount, which comes from the very same Stripe call.
-  const renewDate = currentPeriodEnd ? formatRenewDate(new Date(currentPeriodEnd * 1000)) : "soon";
   const isBundle = (intervalCount ?? 1) > 1;
 
-  if (isBundle) {
-    if (matchesRemaining > 0) {
-      return { kind: "counter", matchesRemaining };
-    }
+  // Copy pass: the monthly renewal reminder is retired — a monthly member
+  // has nothing new to learn from an every-email "you'll be charged" line,
+  // and dropping it also drops a line of unnecessary noise from every
+  // single monthly member's reveal email.
+  if (!isBundle) {
+    return { kind: "none" };
+  }
+
+  const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] ?? null : null;
+  // Real Stripe date, not a fabricated one — see BillingNoticeInput's
+  // currentPeriodEnd doc comment. Only defined when known; the "loud"
+  // branch falls back to "soon" itself, but the "counter" branch leaves it
+  // undefined so the footer notice can omit the date gracefully instead.
+  const periodEndDate = currentPeriodEnd ? formatRenewDate(new Date(currentPeriodEnd * 1000)) : undefined;
+
+  if (matchesRemaining > 0) {
     return {
-      kind: "loud",
-      renewDate,
-      amount,
-      isFirstAfterGift: lastTermPaymentNote === GIFT_ENTITLEMENT_NOTE,
-      cancelUrl: renewalNoticeCancelUrl(),
+      kind: "counter",
+      matchesRemaining,
+      renewDate: matchesRemaining === 1 ? periodEndDate : undefined,
     };
   }
 
-  return { kind: "quiet", renewDate, amount };
+  return {
+    kind: "loud",
+    renewDate: periodEndDate ?? "soon",
+    amount,
+    isFirstAfterGift: lastTermPaymentNote === GIFT_ENTITLEMENT_NOTE,
+    cancelUrl: renewalNoticeCancelUrl(),
+  };
 }
 
 export interface BillingNoticeContext {

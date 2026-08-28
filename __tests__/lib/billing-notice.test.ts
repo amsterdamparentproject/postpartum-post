@@ -32,10 +32,24 @@ describe("deriveBillingNotice — bundle plans", () => {
       kind: "counter",
       matchesRemaining: 3,
     });
-    expect(deriveBillingNotice({ ...base, matchesRemaining: 1 })).toEqual({
+    expect(deriveBillingNotice({ ...base, matchesRemaining: 2 })).toEqual({
       kind: "counter",
-      matchesRemaining: 1,
+      matchesRemaining: 2,
     });
+  });
+
+  it("includes the real renewal date at exactly 1 match left, when currentPeriodEnd is known", () => {
+    const result = deriveBillingNotice({
+      ...base,
+      matchesRemaining: 1,
+      currentPeriodEnd: Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000),
+    });
+    expect(result).toEqual({ kind: "counter", matchesRemaining: 1, renewDate: "20 August 2026" });
+  });
+
+  it("omits the renewal date at 1 match left when currentPeriodEnd isn't known", () => {
+    const result = deriveBillingNotice({ ...base, matchesRemaining: 1 });
+    expect(result).toEqual({ kind: "counter", matchesRemaining: 1 });
   });
 
   it("goes loud when the counter hits zero, with the real Stripe date and amount", () => {
@@ -123,24 +137,20 @@ describe("deriveBillingNotice — monthly plan", () => {
     lastTermPaymentNote: null,
   };
 
-  it("is always quiet, regardless of the counter value", () => {
+  it("never shows billing content, regardless of the counter value (the monthly reminder is retired)", () => {
     for (const matchesRemaining of [0, 1, 2]) {
       const result = deriveBillingNotice({ ...base, matchesRemaining });
-      expect(result.kind).toBe("quiet");
+      expect(result).toEqual({ kind: "none" });
     }
   });
 
-  it("carries the real renewal date and amount but no cancel link or gift flag", () => {
+  it("stays none even when currentPeriodEnd is known", () => {
     const result = deriveBillingNotice({
       ...base,
       matchesRemaining: 0,
       currentPeriodEnd: Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000),
     });
-    expect(result).toEqual({
-      kind: "quiet",
-      renewDate: "20 August 2026",
-      amount: "€12",
-    });
+    expect(result).toEqual({ kind: "none" });
   });
 
   it("treats null intervalCount as monthly (matches deriveMemberStatusMessage's convention)", () => {
@@ -150,7 +160,7 @@ describe("deriveBillingNotice — monthly plan", () => {
       matchesRemaining: 0,
       lastTermPaymentNote: null,
     });
-    expect(result.kind).toBe("quiet");
+    expect(result).toEqual({ kind: "none" });
   });
 });
 

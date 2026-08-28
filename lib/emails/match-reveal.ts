@@ -3,51 +3,65 @@ import type { BillingNotice } from "@/lib/billing-notice";
 
 /**
  * Track C4 — billing plan §3.3's notice-volume table, rendered. Returns ""
- * for { kind: "none" } (comped/FYP members — no billing content at all).
- *
- * Phrasing for "counter" deliberately mirrors deriveMemberStatusMessage's
- * /billing copy (Track C1) at matchesRemaining === 1 ("Last match of your
- * bundle. Renews after this one.") — same fact, same words, wherever a
- * member reads it.
+ * for { kind: "none" } (comped/FYP members, and now every monthly member —
+ * see lib/billing-notice.ts's doc comment) and for { kind: "counter" },
+ * which moved out of the main body entirely — see
+ * counterNoticeFooterHtml() below.
  */
+/**
+ * Track C4's "counter" tier — the always-shown, non-actionable bundle
+ * match count. Moved out of the main body and into the footer's own
+ * insertion point (base.ts's emailFooter `afterNonprofitBox`) per copy
+ * review: as ambient status info (nothing to decide, nothing to click) it
+ * was competing with the match-reveal narrative for attention up top, and
+ * it's now positioned right above the footer's own "Manage subscription"
+ * link instead of far away from it. Styled as plain black body text —
+ * same weight as the footer's own "Happy connecting," row. "Loud" stays
+ * in its pre-footer position — it already carries its own link and
+ * arguably belongs in the main flow, not the footer, precisely because it
+ * needs to be seen.
+ *
+ * The last-match line names the real renewal date (notice.renewDate) when
+ * Stripe's currentPeriodEnd is known, matching /billing's own last-match
+ * dateTooltip wording (lib/member-status.ts) — same fact, same words,
+ * wherever a member reads it — and falls back to "soon" otherwise, same
+ * as the loud tier's fallback.
+ */
+function counterNoticeFooterHtml(notice: BillingNotice): string | undefined {
+  if (notice.kind !== "counter") {
+    return undefined;
+  }
+  const line =
+    notice.matchesRemaining >= 2
+      ? `Note: You currently have <b>${notice.matchesRemaining} matches left</b> in your bundle.`
+      : `🔔 You currently have <b>1 match left</b> in your bundle. Your subscription will renew ${notice.renewDate ? `on ${notice.renewDate} ` : "soon "}so that you continue receiving matches.`;
+  return `
+                  <tr><td dir="ltr" style="font-size:16px;color:#000000;text-align:left;padding:0 48px 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                    ${line}
+                  </td></tr>`;
+}
+
 function billingNoticeHtml(notice: BillingNotice): string {
-  if (notice.kind === "none") {
+  if (notice.kind === "none" || notice.kind === "counter") {
     return "";
   }
 
-  if (notice.kind === "counter") {
-    const line =
-      notice.matchesRemaining >= 2
-        ? `You have <b>${notice.matchesRemaining} matches left</b> in your bundle.`
-        : `<b>Last match of your bundle.</b> Renews after this one.`;
-    return bodySection(`
-                                    <tr><td dir="ltr" style="font-size:14px;color:#666666;text-align:left;padding:0;line-height:1.4;mso-line-height-alt:19.6px">
-                                      ${line}
-                                    </td></tr>`);
-  }
-
-  if (notice.kind === "quiet") {
-    const amountSuffix = notice.amount ? ` — ${notice.amount}` : "";
-    return bodySection(`
-                                    <tr><td dir="ltr" style="font-size:14px;color:#666666;text-align:left;padding:0;line-height:1.4;mso-line-height-alt:19.6px">
-                                      Renews ${notice.renewDate}${amountSuffix}.
-                                    </td></tr>`);
-  }
-
   // notice.kind === "loud" — end of a bundle term, or first real charge
-  // after a gift. Both get the full treatment (date, amount, cancel link);
-  // only the opening line differs.
+  // after a gift. Both get the full treatment (date, amount, a link to
+  // make changes); only the opening line differs. Copy pass: dropped the
+  // standalone "Manage your membership" CTA button in favor of one
+  // paragraph ending in an inline link — the button read as more of a
+  // hard sell than this notice (a factual heads-up, not an upsell)
+  // warranted.
   const amountSuffix = notice.amount ? ` ${notice.amount}` : "";
   const intro = notice.isFirstAfterGift
-    ? `Your gift got you this far — that was your last free match.`
+    ? `This was your last free match from your gifted subscription!`
     : `You've used all the matches in your bundle.`;
-  return (
-    bodySection(`
+  const billingPageLink = `<a href="${notice.cancelUrl}" style="color:#000000;text-decoration:underline;">Billing page</a>`;
+  return bodySection(`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      ${intro} To keep matching, you'll be charged${amountSuffix} on ${notice.renewDate}.
-                                    </td></tr>`, true) +
-    ctaButton("Manage your membership", notice.cancelUrl)
-  );
+                                      <b>A note on your subscription:</b> ${intro} To keep matching, you'll be charged${amountSuffix} on ${notice.renewDate}. If you'd like to make changes ahead of next month's match round, go to your ${billingPageLink}.
+                                    </td></tr>`);
 }
 
 function matchRevealHtml(
@@ -90,9 +104,17 @@ function matchRevealHtml(
                                     </td></tr>
                                     ${isDoubleMatch ? `<tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 8px;line-height:1.4;mso-line-height-alt:22.4px">
                                       A quick note: Due to your profile preferences and our odd-numbered parent pool this month, we matched you twice! We hope you enjoy your extra connection ❤️ If you don't want 2 matches next month, make sure to change the setting in your profile.
-                                    </td></tr>` : ""}`) +
+                                    </td></tr>` : ""}`,
+      // tightBottom drops this section's own bottom padding so it doesn't
+      // stack with the loud notice's bodySection right below it — without
+      // it the two independently-padded sections leave a visibly oversized
+      // gap between the Community Guidelines paragraph and "A note on your
+      // subscription:". Only for "loud": "counter" doesn't render inline
+      // at all (it's in the footer), so there's no adjacent section to
+      // collide with there.
+      billingNotice.kind === "loud") +
     billingNoticeHtml(billingNotice);
-  return baseEmail(content);
+  return baseEmail(content, "", { afterNonprofitBox: counterNoticeFooterHtml(billingNotice) });
 }
 
 export async function sendMatchRevealEmail(

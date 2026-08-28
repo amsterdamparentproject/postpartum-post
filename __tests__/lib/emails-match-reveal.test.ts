@@ -50,31 +50,26 @@ describe("match-reveal email — billing notice (Track C4)", () => {
     expect(html).not.toContain("Manage your membership");
   });
 
-  it("shows the counter line with 2+ matches remaining", async () => {
+  it("shows the counter line with 2+ matches remaining, in the footer rather than the main body", async () => {
     const html = await sendWithNotice({ kind: "counter", matchesRemaining: 3 });
     expect(html).toContain("3 matches left");
-    expect(html).not.toContain("Manage your membership");
+    expect(html.indexOf("3 matches left")).toBeGreaterThan(html.indexOf("Happy connecting"));
+    expect(html).not.toContain("A note on your subscription");
   });
 
-  it("shows the last-match copy at exactly 1, matching /billing's own wording", async () => {
+  it("shows the last-match copy at exactly 1, with the real renewal date when known", async () => {
+    const html = await sendWithNotice({ kind: "counter", matchesRemaining: 1, renewDate: "20 November 2026" });
+    expect(html).toContain("1 match left");
+    expect(html).toContain("Your subscription will renew on 20 November 2026");
+  });
+
+  it("falls back to generic phrasing at exactly 1 when no renewal date is known", async () => {
     const html = await sendWithNotice({ kind: "counter", matchesRemaining: 1 });
-    expect(html).toContain("Last match of your bundle.");
-    expect(html).toContain("Renews after this one.");
+    expect(html).toContain("1 match left");
+    expect(html).toContain("Your subscription will renew soon");
   });
 
-  it("shows the quiet monthly renewal line with no cancel CTA", async () => {
-    const html = await sendWithNotice({ kind: "quiet", renewDate: "20 November 2026", amount: "€12" });
-    expect(html).toContain("Renews 20 November 2026 — €12.");
-    expect(html).not.toContain("Manage your membership");
-  });
-
-  it("omits the amount from the quiet line gracefully when unknown", async () => {
-    const html = await sendWithNotice({ kind: "quiet", renewDate: "20 November 2026", amount: null });
-    expect(html).toContain("Renews 20 November 2026.");
-    expect(html).not.toContain("— null");
-  });
-
-  it("shows the loud end-of-bundle notice with date, amount, and a cancel link", async () => {
+  it("shows the loud end-of-bundle notice with date, amount, and a link to the billing page", async () => {
     const html = await sendWithNotice({
       kind: "loud",
       renewDate: "20 November 2026",
@@ -85,9 +80,10 @@ describe("match-reveal email — billing notice (Track C4)", () => {
     expect(html).toContain("You've used all the matches in your bundle.");
     expect(html).toContain("€24");
     expect(html).toContain("20 November 2026");
-    expect(html).toContain("Manage your membership");
+    expect(html).toContain("A note on your subscription:");
+    expect(html).toContain(">Billing page<");
     expect(html).toContain("https://postpartumpost.com/billing?utm_content=renewal-notice");
-    expect(html).not.toContain("Your gift got you this far");
+    expect(html).not.toContain("This was your last free match");
   });
 
   it("uses the gift-specific framing when isFirstAfterGift is true", async () => {
@@ -98,9 +94,9 @@ describe("match-reveal email — billing notice (Track C4)", () => {
       isFirstAfterGift: true,
       cancelUrl: "https://postpartumpost.com/billing?utm_content=renewal-notice",
     });
-    expect(html).toContain("Your gift got you this far — that was your last free match.");
+    expect(html).toContain("This was your last free match from your gifted subscription!");
     expect(html).not.toContain("You've used all the matches in your bundle.");
-    expect(html).toContain("Manage your membership");
+    expect(html).toContain(">Billing page<");
   });
 
   it("defaults to no billing content when the caller passes nothing (back-compat)", async () => {
@@ -116,6 +112,7 @@ describe("match-reveal email — billing notice (Track C4)", () => {
     );
     const html = mockSend.mock.calls[0][0].html as string;
     expect(html).not.toContain("Renews");
-    expect(html).not.toContain("Manage your membership");
+    expect(html).not.toContain("A note on your subscription");
+    expect(html).not.toContain("matches left");
   });
 });

@@ -73,8 +73,18 @@ export function emailHead(extraPreloads = ""): string {
 </head>`;
 }
 
-/** Shared footer: APP + contact callout, social icons, copyright. */
-export function emailFooter(): string {
+/**
+ * Shared footer: APP + contact callout, social icons, copyright.
+ * @param afterNonprofitBox  Extra row(s) inserted right after the green
+ *   nonprofit callout box, before the social icons — used by the
+ *   match-reveal email's bundle match-counter notice (moved here from the
+ *   main body per copy review: as ambient status info with nothing to
+ *   click, it competes less for attention here, right above the
+ *   "Manage subscription" link this footer already carries). Kept as an
+ *   insertion point rather than a required param so every other caller
+ *   is unaffected.
+ */
+export function emailFooter({ afterNonprofitBox = "" }: { afterNonprofitBox?: string } = {}): string {
   return `
                   <!-- Amsterdam Parent Project + contact -->
                   <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 48px 16px;line-height:1.4;mso-line-height-alt:22.4px">
@@ -101,6 +111,7 @@ export function emailFooter(): string {
                       </td></tr>
                     </table>
                   </td></tr>
+                  ${afterNonprofitBox}
 
                   <!-- Social icons -->
                   <tr><td style="padding:0 24px 16px">
@@ -279,7 +290,11 @@ export function bodySection(rows: string, tightBottom = false): string {
  * @param content  One or more <tr> rows (use bodySection / ctaButton helpers)
  * @param extraPreloads  Optional <link rel="preload"> tags for email-specific images
  */
-export function baseEmail(content: string, extraPreloads = ""): string {
+export function baseEmail(
+  content: string,
+  extraPreloads = "",
+  footerOpts: { afterNonprofitBox?: string } = {}
+): string {
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 ${emailHead(extraPreloads)}
@@ -303,7 +318,7 @@ ${emailHead(extraPreloads)}
                 style="color:#000;font-size:16px;line-height:1.4;text-align:left;font-family:Arial,Helvetica,sans-serif;border-collapse:collapse;word-wrap:break-word;word-break:break-word">
                 <tbody>
                   ${content}
-                  ${emailFooter()}
+                  ${emailFooter(footerOpts)}
                 </tbody>
               </table>
             </td></tr>
