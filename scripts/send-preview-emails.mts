@@ -68,6 +68,18 @@ await send("optin", () =>
   )
 );
 
+// Track E — the soft "last match" notice variant (lastMatchNotice=true).
+await send("optin-last-match", () =>
+  sendOptinEmail(
+    TO,
+    "Alex",
+    "https://postpartumpost.com/optin?action=coffee",
+    "https://postpartumpost.com/optin?action=playdate",
+    "https://postpartumpost.com/optin?action=skip",
+    true
+  )
+);
+
 // Track C4 — base args shared by every match-reveal variant below; only
 // the trailing BillingNotice differs. isRecipientInitiator pinned to
 // false explicitly (rather than relying on the default) so the tuple

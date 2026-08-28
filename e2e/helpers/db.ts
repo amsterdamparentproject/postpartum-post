@@ -59,7 +59,12 @@ export interface SeededMember {
  * Used by sign-in and cancel tests that need a pre-existing subscriber.
  */
 export async function seedMember(
-  overrides: { email?: string; firstName?: string; lastName?: string } = {}
+  overrides: {
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    matchesRemaining?: number;
+  } = {}
 ): Promise<SeededMember> {
   const db = supabase();
   const id = crypto.randomUUID();
@@ -74,6 +79,10 @@ export async function seedMember(
     status: "active",
     stripe_customer_id: stripeCustomerId,
     consecutive_skips: 0,
+    // Track E3: defaults to 1 (not the DB's own 0 default) so existing
+    // tests that don't care about balance aren't silently gated out of
+    // coffee/playdate opt-in — override to 0 to specifically test the gate.
+    matches_remaining: overrides.matchesRemaining ?? 1,
   });
 
   if (error) throw new Error(`seedMember failed: ${error.message}`);

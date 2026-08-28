@@ -6,11 +6,33 @@
 # Usage: yarn test [-- <vitest args>]   — e.g. yarn test -- __tests__/db
 
 LOG_FILE="test-output.log"
+PATTERN="✓|❯|×|FAIL|Test Files|Tests |Duration|Start at"
 
 # vitest disables its color output as soon as stdout isn't a TTY (which it
 # never is once piped into tee/grep below) — force it back on.
-FORCE_COLOR=1 vitest run "$@" 2>&1 | tee "$LOG_FILE" | grep --line-buffered -E "✓|❯|×|FAIL|Test Files|Tests |Duration|Start at"
-STATUS=${PIPESTATUS[0]}
+
+if [ "$#" -eq 0 ]; then
+  # __tests__/api/renew-check.test.ts queries the members table unscoped —
+  # mirrors the real cron job, which has no test-run id to filter by — so
+  # unlike every other file (scoped by member id, match id, or round month)
+  # it can transiently race any other file's test data that matches its
+  # candidate filter (status active/canceling, matches_remaining <= 0). Run
+  # it alone first; everything else is safe to run at full parallelism.
+  RENEW_CHECK="__tests__/api/renew-check.test.ts"
+
+  : > "$LOG_FILE"
+  FORCE_COLOR=1 vitest run "$RENEW_CHECK" 2>&1 | tee -a "$LOG_FILE" | grep --line-buffered -E "$PATTERN"
+  STATUS=${PIPESTATUS[0]}
+
+  FORCE_COLOR=1 vitest run --exclude "$RENEW_CHECK" 2>&1 | tee -a "$LOG_FILE" | grep --line-buffered -E "$PATTERN"
+  STATUS2=${PIPESTATUS[0]}
+  if [ "$STATUS2" -ne 0 ]; then
+    STATUS="$STATUS2"
+  fi
+else
+  FORCE_COLOR=1 vitest run "$@" 2>&1 | tee "$LOG_FILE" | grep --line-buffered -E "$PATTERN"
+  STATUS=${PIPESTATUS[0]}
+fi
 
 echo ""
 echo "Full output saved to $LOG_FILE"

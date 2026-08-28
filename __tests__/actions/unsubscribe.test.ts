@@ -4,8 +4,9 @@ import { unsubscribe } from "@/app/actions/unsubscribe";
 
 // --- Mocks ---
 
-const { mockUpdate } = vi.hoisted(() => ({
+const { mockUpdate, mockSendCancellationConfirmedEmail } = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
+  mockSendCancellationConfirmedEmail: vi.fn(),
 }));
 
 vi.mock("@/lib/stripe", () => ({
@@ -22,7 +23,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/emails", () => ({
-  sendCancellationConfirmedEmail: vi.fn(),
+  sendCancellationConfirmedEmail: mockSendCancellationConfirmedEmail,
 }));
 
 // Fixed period-end timestamp Stripe's mocked update() returns — cancelSubscription
@@ -41,6 +42,7 @@ describe("unsubscribe — integration", () => {
   beforeEach(() => {
     mockUpdate.mockReset();
     mockUpdate.mockResolvedValue(stripeCancelResponse());
+    mockSendCancellationConfirmedEmail.mockReset();
   });
 
   afterEach(async () => {
@@ -105,6 +107,7 @@ describe("unsubscribe — E2E", () => {
   beforeEach(() => {
     mockUpdate.mockReset();
     mockUpdate.mockResolvedValue(stripeCancelResponse());
+    mockSendCancellationConfirmedEmail.mockReset();
   });
 
   afterEach(async () => {
@@ -148,7 +151,6 @@ describe("unsubscribe — E2E", () => {
   });
 
   it("sends the immediate cancellation confirmation email with the correct access-until date", async () => {
-    const { sendCancellationConfirmedEmail } = await import("@/lib/emails");
     const member = await seedMember({ status: "active", email: "cancel-test@example.com", first_name: "Robin" });
     memberId = member.id;
     await seedSubscription(memberId, {
@@ -158,8 +160,8 @@ describe("unsubscribe — E2E", () => {
 
     await unsubscribe(memberId);
 
-    expect(sendCancellationConfirmedEmail).toHaveBeenCalledOnce();
-    expect(sendCancellationConfirmedEmail).toHaveBeenCalledWith(
+    expect(mockSendCancellationConfirmedEmail).toHaveBeenCalledOnce();
+    expect(mockSendCancellationConfirmedEmail).toHaveBeenCalledWith(
       "cancel-test@example.com",
       "Robin",
       new Date(FAKE_PERIOD_END * 1000)
