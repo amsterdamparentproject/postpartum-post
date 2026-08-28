@@ -64,7 +64,7 @@ describe("match_entitlements / record_entitlement", () => {
   });
 
   it("records a positive entitlement and bumps matches_remaining", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ matches_remaining: 0 });
     memberIds.push(member.id);
 
     const applied = await recordEntitlement({
@@ -79,7 +79,7 @@ describe("match_entitlements / record_entitlement", () => {
   });
 
   it("rejects a replayed stripe_invoice_id as a no-op", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ matches_remaining: 0 });
     memberIds.push(member.id);
     const invoiceId = `in_test_replay_${member.id.slice(0, 8)}`;
 
@@ -103,7 +103,7 @@ describe("match_entitlements / record_entitlement", () => {
   });
 
   it("rejects a second decrement for the same member in the same month — the double-match case", async () => {
-    const member = await seedMember({ /* start with a balance so the floor doesn't mask this */ });
+    const member = await seedMember({ matches_remaining: 0 /* start with a balance so the floor doesn't mask this */ });
     memberIds.push(member.id);
     await recordEntitlement({ memberId: member.id, event: "term_payment", delta: 3 });
 
@@ -128,7 +128,7 @@ describe("match_entitlements / record_entitlement", () => {
   });
 
   it("rejects no_response stacking on top of match_delivered in the same month", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ matches_remaining: 0 });
     memberIds.push(member.id);
     await recordEntitlement({ memberId: member.id, event: "term_payment", delta: 3 });
 
@@ -151,7 +151,7 @@ describe("match_entitlements / record_entitlement", () => {
   });
 
   it("allows a decrement in a different month for the same member", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ matches_remaining: 0 });
     memberIds.push(member.id);
     await recordEntitlement({ memberId: member.id, event: "term_payment", delta: 3 });
 
@@ -174,7 +174,7 @@ describe("match_entitlements / record_entitlement", () => {
   });
 
   it("floors matches_remaining at zero rather than going negative", async () => {
-    const member = await seedMember(); // matches_remaining starts at 0
+    const member = await seedMember({ matches_remaining: 0 });
     memberIds.push(member.id);
 
     const applied = await recordEntitlement({
@@ -189,7 +189,7 @@ describe("match_entitlements / record_entitlement", () => {
   });
 
   it("keeps sum(delta) per member equal to matches_remaining", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ matches_remaining: 0 });
     memberIds.push(member.id);
 
     await recordEntitlement({ memberId: member.id, event: "manual_backfill", delta: 2 });

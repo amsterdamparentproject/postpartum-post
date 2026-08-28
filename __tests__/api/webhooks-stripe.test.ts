@@ -432,7 +432,7 @@ describe("Stripe webhook", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       overrides: { lookupKey?: string; intervalCount?: number; discounts?: any[] } = {}
     ) {
-      const member = await seedMember();
+      const member = await seedMember({ matches_remaining: 0 });
       const supabase = createTestSupabase();
       const stripeSubId = `sub_test_${member.id.slice(0, 8)}`;
       await supabase.from("subscriptions").insert({

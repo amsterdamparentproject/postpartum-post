@@ -38,17 +38,19 @@ describe("opt-in email — soft last-match notice (Track E)", () => {
 
   it("includes the soft notice when lastMatchNotice is true", async () => {
     const html = await sendWithNotice(true);
-    expect(html).toContain("this may be your last match in your current bundle");
+    expect(html).toContain("Notice — 1 match left.");
+    expect(html).toContain("This may be your last match in your current bundle, and your bundle is set to renew next month.");
+    expect(html).toContain("/billing?utm_source=email&utm_campaign=transactional&utm_content=last-match-notice");
   });
 
   it("omits the soft notice when lastMatchNotice is false", async () => {
     const html = await sendWithNotice(false);
-    expect(html).not.toContain("this may be your last match");
+    expect(html).not.toContain("1 match left");
   });
 
   it("omits the soft notice by default when the argument is not passed", async () => {
     const html = await sendWithNotice(undefined);
-    expect(html).not.toContain("this may be your last match");
+    expect(html).not.toContain("1 match left");
   });
 
   it("still includes the ordinary opt-in content regardless of the notice", async () => {

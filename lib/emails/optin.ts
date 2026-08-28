@@ -1,4 +1,12 @@
-import { FROM, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
+import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
+
+// Distinct utm_content from the footer's own "Manage subscription" link
+// (lib/emails/base.ts's emailFooter) and from the match-reveal renewal
+// notice's link (lib/billing-notice.ts's renewalNoticeCancelUrl) — same
+// per-link-purpose tracking convention already used there.
+function lastMatchNoticeBillingUrl(): string {
+  return `${SITE_URL}/billing?utm_source=email&utm_campaign=transactional&utm_content=last-match-notice`;
+}
 
 function optinHtml(
   firstName: string,
@@ -16,7 +24,7 @@ function optinHtml(
   // before the following round) gap between match reveal and the charge.
   const lastMatchLine = lastMatchNotice
     ? `<tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Heads up — this may be your last match in your current bundle. If so, we'll let you know the renewal date and amount as soon as it's matched.
+                                      <strong>Notice — 1 match left.</strong> This may be your last match in your current bundle, and your bundle is set to renew next month. Go to your <a href="${lastMatchNoticeBillingUrl()}" style="color:#666666;text-decoration:underline">billing page</a> to make changes to your subscription.
                                     </td></tr>`
     : "";
 
