@@ -96,11 +96,59 @@ describe("POST /api/run-matcher", () => {
 
   beforeEach(async () => {
     memberIds = [];
-    // Purge any stale data for the current month left by previous runs or
-    // concurrent test files, so each test starts with a clean pool.
+    // Purge stale match_rounds/monthly_participation left by a crashed
+    // previous run of *this* suite, so each test starts with a clean pool.
+    //
+    // Scoped, not blanket-by-month: this test DB doubles as the shared dev
+    // DB (.env.local and .env.test point at the same Supabase project), so
+    // a plain `.delete().eq("month", THIS_MONTH_DATE)` here was silently
+    // wiping real opt-ins — including the reference members from
+    // scripts/seed-test-members.mts (Sofia, Daan, etc.) whenever any of
+    // them had opted in for the real current month. Only ever touch rows
+    // owned by this suite's own seedMember()/seedParticipation() calls
+    // (testEmail() in __tests__/helpers.ts always uses the
+    // "amsterdamparentproject+test-*@gmail.com" pattern — seeded reference
+    // members use their own first names, e.g. "+sofia@gmail.com", so they
+    // never match).
     const supabase = createTestSupabase();
-    await supabase.from("match_rounds").delete().eq("month", THIS_MONTH_DATE);
-    await supabase.from("monthly_participation").delete().eq("month", THIS_MONTH_DATE);
+
+    const { data: staleTestMembers } = await supabase
+      .from("members")
+      .select("id")
+      .like("email", "amsterdamparentproject+test-%@gmail.com");
+    const staleTestMemberIds = (staleTestMembers ?? []).map((m) => m.id);
+
+    if (staleTestMemberIds.length > 0) {
+      await supabase
+        .from("monthly_participation")
+        .delete()
+        .eq("month", THIS_MONTH_DATE)
+        .in("member_id", staleTestMemberIds);
+    }
+
+    // match_rounds isn't member-scoped, so apply the same principle at the
+    // round level: only purge an existing round for this month if every
+    // match_drafts row on it belongs to this suite's own test members (or
+    // it has none). Otherwise leave it alone — a test failing loudly beats
+    // silently deleting a real match round.
+    const { data: existingRound } = await supabase
+      .from("match_rounds")
+      .select("id")
+      .eq("month", THIS_MONTH_DATE)
+      .maybeSingle();
+
+    if (existingRound) {
+      const { data: drafts } = await supabase
+        .from("match_drafts")
+        .select("member_id_1, member_id_2")
+        .eq("round_id", existingRound.id);
+      const draftMemberIds = (drafts ?? []).flatMap((d) => [d.member_id_1, d.member_id_2]);
+      const allStaleTestOwned = draftMemberIds.every((id) => staleTestMemberIds.includes(id));
+
+      if (allStaleTestOwned) {
+        await supabase.from("match_rounds").delete().eq("id", existingRound.id);
+      }
+    }
   });
 
   afterEach(async () => {

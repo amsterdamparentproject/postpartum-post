@@ -14,4 +14,18 @@ STATUS=${PIPESTATUS[0]}
 
 echo ""
 echo "Full output saved to $LOG_FILE"
+
+# .env.test and .env.local point at the same Supabase project (no separate
+# test DB available), so a run here can leave the shared reference members
+# (Sofia, Daan, etc.) missing or stale even when every test itself cleans up
+# correctly — e.g. an interrupted run, or a test with a scoping bug like the
+# one fixed in run-matcher.test.ts on 2026-08-28. Reseed them unconditionally
+# after every run, pass or fail, so the DB always comes back to a known
+# state. Restores members + subscriptions only — see scripts/seed-test-members.mts.
+echo "Restoring reference member data..."
+tsx scripts/seed-test-members.mts
+if [ $? -ne 0 ]; then
+  echo "Warning: seed-test-members.mts failed — reference member data may be stale." >&2
+fi
+
 exit "$STATUS"
