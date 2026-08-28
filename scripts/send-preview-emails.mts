@@ -4,6 +4,15 @@
  * Default recipient: amsterdamparentproject@gmail.com
  * Pass an email name to send just that one (e.g. yarn emails:preview welcome)
  * Pass an email address first if you also want to filter (e.g. yarn emails:preview you@example.com welcome)
+ *
+ * match-reveal has 6 variants covering Track C4's billing-notice states
+ * (billing plan §3.3):
+ *   match-reveal             — no notice (comped/FYP member, or the pre-C4 default)
+ *   match-reveal-counter     — bundle member, 2+ matches left this term
+ *   match-reveal-last-match  — bundle member, exactly 1 match left
+ *   match-reveal-quiet       — monthly member's renewal one-liner
+ *   match-reveal-loud        — bundle member's counter just hit zero
+ *   match-reveal-loud-gift   — same, but the ending term was gift-covered
  */
 
 import { sendWelcomeEmail } from "../lib/emails/welcome.ts";
@@ -11,6 +20,7 @@ import { sendUnsubscribedEmail } from "../lib/emails/unsubscribed.ts";
 import { sendAutoPauseEmail } from "../lib/emails/auto-pause.ts";
 import { sendOptinEmail } from "../lib/emails/optin.ts";
 import { sendMatchRevealEmail } from "../lib/emails/match-reveal.ts";
+import type { BillingNotice } from "../lib/billing-notice.ts";
 import { sendRematchConfirmationEmail } from "../lib/emails/rematch-confirmation.ts";
 import { sendMemberUpdateEmail } from "../lib/emails/member-update.ts";
 import { sendMeetupReminderEmail } from "../lib/emails/meetup-reminder.ts";
@@ -58,18 +68,64 @@ await send("optin", () =>
   )
 );
 
+// Track C4 — base args shared by every match-reveal variant below; only
+// the trailing BillingNotice differs. isRecipientInitiator pinned to
+// false explicitly (rather than relying on the default) so the tuple
+// spread lines up 1:1 with sendMatchRevealEmail's 11 positional params.
+const matchRevealArgs = [
+  TO,
+  "Alex",
+  "Sarah",
+  "van der Berg",
+  "sarah.vanderberg@example.com",
+  "coffee",
+  "https://postpartumpost.com/matches/preview",
+  "https://postpartumpost.com/matches",
+  false,
+  false,
+] as const;
+
+const RENEWAL_CANCEL_URL =
+  "https://postpartumpost.com/billing?utm_source=email&utm_campaign=transactional&utm_content=renewal-notice";
+
 await send("match-reveal", () =>
-  sendMatchRevealEmail(
-    TO,
-    "Alex",
-    "Sarah",
-    "van der Berg",
-    "sarah.vanderberg@example.com",
-    "coffee",
-    "https://postpartumpost.com/matches/preview",
-    "https://postpartumpost.com/matches",
-    false
-  )
+  sendMatchRevealEmail(...matchRevealArgs, { kind: "none" } satisfies BillingNotice)
+);
+
+await send("match-reveal-counter", () =>
+  sendMatchRevealEmail(...matchRevealArgs, { kind: "counter", matchesRemaining: 2 } satisfies BillingNotice)
+);
+
+await send("match-reveal-last-match", () =>
+  sendMatchRevealEmail(...matchRevealArgs, { kind: "counter", matchesRemaining: 1 } satisfies BillingNotice)
+);
+
+await send("match-reveal-quiet", () =>
+  sendMatchRevealEmail(...matchRevealArgs, {
+    kind: "quiet",
+    renewDate: "20 September 2026",
+    amount: "€12",
+  } satisfies BillingNotice)
+);
+
+await send("match-reveal-loud", () =>
+  sendMatchRevealEmail(...matchRevealArgs, {
+    kind: "loud",
+    renewDate: "20 September 2026",
+    amount: "€24",
+    isFirstAfterGift: false,
+    cancelUrl: RENEWAL_CANCEL_URL,
+  } satisfies BillingNotice)
+);
+
+await send("match-reveal-loud-gift", () =>
+  sendMatchRevealEmail(...matchRevealArgs, {
+    kind: "loud",
+    renewDate: "20 September 2026",
+    amount: "€24",
+    isFirstAfterGift: true,
+    cancelUrl: RENEWAL_CANCEL_URL,
+  } satisfies BillingNotice)
 );
 
 await send("rematch-confirmation", () =>
@@ -89,7 +145,7 @@ await send("pending-followup", () =>
 );
 
 if (results.length === 0 && filter) {
-  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, auto-pause, optin, match-reveal, rematch-confirmation, member-update, meetup-reminder, pending-followup`);
+  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, auto-pause, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, member-update, meetup-reminder, pending-followup`);
   process.exit(1);
 }
 

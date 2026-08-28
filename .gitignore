@@ -13,6 +13,7 @@
 # testing
 /coverage
 test-output.log
+scripts/rehearse-track-d.log
 
 # next.js
 /.next/

@@ -12,18 +12,27 @@
 
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import { seedMember, cleanupMember, createTestSupabase } from "@tests/helpers";
+import { seedMember, seedSubscription, cleanupMember, createTestSupabase } from "@tests/helpers";
 import { POST } from "@/app/api/send-match-emails/route";
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 
-const { mockSend } = vi.hoisted(() => ({
+const { mockSend, mockRetrieve } = vi.hoisted(() => ({
   mockSend: vi.fn().mockResolvedValue(undefined),
+  mockRetrieve: vi.fn(),
 }));
 
 vi.mock("@/lib/emails", () => ({ sendMatchRevealEmail: mockSend }));
+
+// Track C4: fetchBillingNoticeContext (lib/billing-notice.ts) does a live
+// Stripe subscriptions.retrieve for any member with a subscription row —
+// mocked the same way __tests__/lib/billing-notice.test.ts does it, so
+// these tests don't need real Stripe access.
+vi.mock("@/lib/stripe", () => ({
+  getStripe: () => ({ subscriptions: { retrieve: mockRetrieve } }),
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -172,6 +181,116 @@ describe("POST /api/send-match-emails — topic resolution", () => {
         const topic = call[5];
         expect(topic).toBe("coffee");
       }
+    } finally {
+      await cleanup([a.id, b.id]);
+    }
+  });
+});
+
+describe("POST /api/send-match-emails — billing notice (Track C4)", () => {
+  afterEach(() => {
+    mockSend.mockClear();
+    mockRetrieve.mockClear();
+  });
+
+  // billingNotice is the 11th positional arg (index 10) — appended after
+  // the pre-existing 10 params so index 5 (topic, asserted on above) never
+  // moves. See lib/emails/match-reveal.ts.
+  function noticeFor(email: string): unknown {
+    return mockSend.mock.calls.find((call) => call[0] === email)?.[10];
+  }
+
+  it("gives a comped (FYP) member no notice at all, ignoring their counter", async () => {
+    const comped = await seedMember({ first_name: "Comp", last_name: "Member" });
+    const other = await seedMember({ first_name: "Regular", last_name: "Member" });
+    await seedSubscription(comped.id, { status: "active" });
+    mockRetrieve.mockResolvedValue({
+      items: { data: [{ price: { lookup_key: "fyp_monthly_single", recurring: { interval_count: 1 } } }] },
+    });
+
+    try {
+      await seedCommittedRound();
+      await seedMatch(comped.id, other.id);
+      const res = await POST(makeRequest({ month: TEST_MONTH }));
+      expect(res.status).toBe(200);
+      expect(noticeFor(comped.email)).toEqual({ kind: "none" });
+    } finally {
+      await cleanup([comped.id, other.id]);
+    }
+  });
+
+  it("gives a bundle member with matches left the counter tier", async () => {
+    const a = await seedMember();
+    const b = await seedMember();
+    await seedSubscription(a.id, { status: "active" });
+    await createTestSupabase().from("members").update({ matches_remaining: 2 }).eq("id", a.id);
+    mockRetrieve.mockResolvedValue({
+      items: { data: [{ price: { lookup_key: "commitment_3mo", recurring: { interval_count: 3 } } }] },
+    });
+
+    try {
+      await seedCommittedRound();
+      await seedMatch(a.id, b.id);
+      const res = await POST(makeRequest({ month: TEST_MONTH }));
+      expect(res.status).toBe(200);
+      expect(noticeFor(a.email)).toEqual({ kind: "counter", matchesRemaining: 2 });
+    } finally {
+      await cleanup([a.id, b.id]);
+    }
+  });
+
+  it("gives a bundle member whose counter hit zero the loud tier", async () => {
+    const a = await seedMember();
+    const b = await seedMember();
+    await seedSubscription(a.id, { status: "active" });
+    await createTestSupabase().from("members").update({ matches_remaining: 0 }).eq("id", a.id);
+    mockRetrieve.mockResolvedValue({
+      items: { data: [{ price: { lookup_key: "commitment_3mo", recurring: { interval_count: 3 } } }] },
+    });
+
+    try {
+      await seedCommittedRound();
+      await seedMatch(a.id, b.id);
+      const res = await POST(makeRequest({ month: TEST_MONTH }));
+      expect(res.status).toBe(200);
+      const notice = noticeFor(a.email) as { kind: string; isFirstAfterGift?: boolean };
+      expect(notice.kind).toBe("loud");
+      expect(notice.isFirstAfterGift).toBe(false);
+    } finally {
+      await cleanup([a.id, b.id]);
+    }
+  });
+
+  it("gives a monthly member no notice, regardless of counter", async () => {
+    const a = await seedMember();
+    const b = await seedMember();
+    await seedSubscription(a.id, { status: "active" });
+    mockRetrieve.mockResolvedValue({
+      items: { data: [{ price: { lookup_key: "standard_monthly", recurring: { interval_count: 1 } } }] },
+    });
+
+    try {
+      await seedCommittedRound();
+      await seedMatch(a.id, b.id);
+      const res = await POST(makeRequest({ month: TEST_MONTH }));
+      expect(res.status).toBe(200);
+      expect((noticeFor(a.email) as { kind: string }).kind).toBe("none");
+    } finally {
+      await cleanup([a.id, b.id]);
+    }
+  });
+
+  it("gives a member with no subscription row no notice, rather than guessing", async () => {
+    const a = await seedMember(); // no seedSubscription call
+    const b = await seedMember();
+
+    try {
+      await seedCommittedRound();
+      await seedMatch(a.id, b.id);
+      const res = await POST(makeRequest({ month: TEST_MONTH }));
+      expect(res.status).toBe(200);
+      expect(noticeFor(a.email)).toEqual({ kind: "none" });
+      expect(mockRetrieve).not.toHaveBeenCalled();
     } finally {
       await cleanup([a.id, b.id]);
     }

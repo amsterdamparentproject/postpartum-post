@@ -10,15 +10,35 @@ import {
   type SubscriptionDetails,
 } from "@/app/actions/profile";
 import { unsubscribe } from "@/app/actions/unsubscribe";
+import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES } from "@/lib/member-status";
+import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
 
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  active: { label: "Active", className: "bg-green-100 text-green-700" },
-  trialing: { label: "Trial", className: "bg-blue-100 text-blue-700" },
-  past_due: { label: "Past due", className: "bg-yellow-100 text-yellow-700" },
-  incomplete: { label: "Incomplete", className: "bg-yellow-100 text-yellow-700" },
-  unpaid: { label: "Unpaid", className: "bg-red-100 text-red-700" },
-  canceled: { label: "Canceled", className: "bg-gray-100 text-gray-500" },
-};
+/** Alert icon + hover/focus tooltip, anchored next to a value that needs
+ *  more explanation than fits in the surrounding label. */
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-flex align-middle">
+      <svg
+        className="w-3.5 h-3.5 text-muted cursor-help"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        aria-hidden="true"
+        tabIndex={0}
+        role="img"
+        aria-label={text}
+      >
+        <path
+          fillRule="evenodd"
+          d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zM9 9a1 1 0 012 0v4a1 1 0 11-2 0V9zm1-4a1 1 0 100 2 1 1 0 000-2z"
+          clipRule="evenodd"
+        />
+      </svg>
+      <span className="pointer-events-none absolute right-0 bottom-full z-10 mb-2 w-56 rounded-lg bg-dark px-3 py-2 text-xs leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        {text}
+      </span>
+    </span>
+  );
+}
 
 function formatDate(unixTimestamp: number) {
   return new Date(unixTimestamp * 1000).toLocaleDateString("en-NL", {
@@ -32,7 +52,9 @@ function BillingContent() {
   const { loading, member, accessToken } = useAccount();
   const searchParams = useSearchParams();
   const optinParam = searchParams.get("optin");
-  const [showSkipBanner, setShowSkipBanner] = useState(optinParam === "skip" || optinParam === "already_skip");
+  const [showSkipBanner, setShowSkipBanner] = useState(
+    optinParam === "skip" || optinParam === "already_skip" || optinParam === "skip_failed"
+  );
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -58,6 +80,7 @@ function BillingContent() {
   }
 
   const isFoundingMember = subscription?.price_lookup_key === "founding_member";
+  const isFypMember = !!subscription?.price_lookup_key && FYP_LOOKUP_KEYS.has(subscription.price_lookup_key);
   const planLabel =
     isFoundingMember
       ? "Founding member (€5/mo)"
@@ -65,11 +88,20 @@ function BillingContent() {
       ? "3-month commitment (€8/mo)"
       : subscription?.price_lookup_key === "standard_monthly"
       ? "Monthly (€12/mo)"
+      : isFypMember
+      ? "Monthly (€0/mo)"
       : null;
 
-  const statusInfo = subscription
-    ? STATUS_LABELS[subscription.status] ?? { label: subscription.status, className: "bg-gray-100 text-gray-500" }
-    : null;
+  const statusMessage =
+    subscription && member
+      ? deriveMemberStatusMessage({
+          stripeStatus: subscription.status,
+          priceLookupKey: subscription.price_lookup_key,
+          intervalCount: subscription.interval_count,
+          matchesRemaining: member.matches_remaining,
+          currentPeriodEnd: subscription.current_period_end,
+        })
+      : null;
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!member) return <MagicLinkRequest />;
@@ -77,9 +109,17 @@ function BillingContent() {
   return (
     <div className="space-y-6">
       {showSkipBanner && (
-        <div className="bg-[#caadff]/30 border border-[#caadff] rounded-2xl px-5 py-4 flex items-start justify-between gap-4">
-          <p className="text-sm text-dark leading-relaxed">
-            {optinParam === "already_skip"
+        <div
+          className={
+            optinParam === "skip_failed"
+              ? "bg-red-50 border border-red-200 rounded-2xl px-5 py-4 flex items-start justify-between gap-4"
+              : "bg-[#caadff]/30 border border-[#caadff] rounded-2xl px-5 py-4 flex items-start justify-between gap-4"
+          }
+        >
+          <p className={`text-sm leading-relaxed ${optinParam === "skip_failed" ? "text-red-800" : "text-dark"}`}>
+            {optinParam === "skip_failed"
+              ? <>Something went wrong recording your skip for this month, so we couldn&apos;t confirm it — you may still be matched or charged as usual. Please try the link from your email again, or contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a> and we&apos;ll sort it out.</>
+              : optinParam === "already_skip"
               ? <>You&apos;ve already chosen to skip this month. If you&apos;d like to rejoin the match pool, please contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a>.</>
               : "You're skipping your match this month — all good! We've automatically adjusted your billing cycle so that you're not charged this month. See you next month 💌"
             }
@@ -106,33 +146,33 @@ function BillingContent() {
               Your membership is active — you&apos;ll keep receiving matches and won&apos;t be charged again.
             </p>
           ) : (
-            <p className="text-sm text-muted">No active subscription found.</p>
+            <p className="text-sm text-muted">Membership ended.</p>
           )
         ) : (
           <>
-            {/* Skip this month banner */}
-            {subscription.pause_collection && (
+            {/* Skip this month banner (Track C2: sourced from monthly_skips,
+                not Stripe's pause_collection — see "Next billing date" below
+                for when billing actually resumes) */}
+            {subscription.is_skipping_this_month && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
                 <span className="font-medium">Skipping this month</span>
-                {subscription.pause_collection.resumes_at && (
-                  <span className="text-amber-700">
-                    {" "}— billing resumes {formatDate(subscription.pause_collection.resumes_at)}
-                  </span>
-                )}
               </div>
             )}
 
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted">Status</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo?.className}`}>
-                {statusInfo?.label}
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusMessage ? STATUS_TONE_CLASSNAMES[statusMessage.tone] : "bg-gray-100 text-gray-500"}`}>
+                {statusMessage?.label}
               </span>
             </div>
 
             {planLabel && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted">Plan</span>
-                <span className="text-dark font-medium">{planLabel}</span>
+                <span className="text-dark font-medium inline-flex items-center gap-1.5">
+                  {planLabel}
+                  {statusMessage?.planTooltip && <InfoTooltip text={statusMessage.planTooltip} />}
+                </span>
               </div>
             )}
 
@@ -141,8 +181,9 @@ function BillingContent() {
                 <span className="text-muted">
                   {subscription.cancel_at_period_end ? "Cancels on" : "Next billing date"}
                 </span>
-                <span className="text-dark font-medium">
+                <span className="text-dark font-medium inline-flex items-center gap-1.5">
                   {formatDate(subscription.current_period_end)}
+                  {statusMessage?.dateTooltip && <InfoTooltip text={statusMessage.dateTooltip} />}
                 </span>
               </div>
             )}

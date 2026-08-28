@@ -31,6 +31,7 @@ import { generateMatchToken } from "@/lib/match-token";
 import { isMember1Initiator } from "@/lib/match-initiator";
 import { sendMatchRevealEmail } from "@/lib/emails";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
+import { fetchBillingNoticeContext, resolveBillingNotice } from "@/lib/billing-notice";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
@@ -95,8 +96,8 @@ export async function POST(req: NextRequest) {
       id,
       member_id_1,
       member_id_2,
-      member1:member_id_1 ( id, first_name, last_name, email ),
-      member2:member_id_2 ( id, first_name, last_name, email )
+      member1:member_id_1 ( id, first_name, last_name, email, matches_remaining ),
+      member2:member_id_2 ( id, first_name, last_name, email, matches_remaining )
     `)
     .eq("matched_on", monthDate);
 
@@ -138,7 +139,15 @@ export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
   // Detect double-matched member (appears in 2 pairs due to odd pool)
   // -------------------------------------------------------------------------
-  type MemberRow = { id: string; first_name: string; last_name: string; email: string };
+  type MemberRow = {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    // Track C4: post-decrement counter (commit-matches already ran for this
+    // round) — the raw input deriveBillingNotice needs, not a display string.
+    matches_remaining: number;
+  };
 
   const matchCountById = new Map<string, number>();
   for (const m of matches) {
@@ -183,12 +192,21 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const [m1MatchesLink, m2MatchesLink, m1MatchPageUrl, m2MatchPageUrl] = await Promise.all([
-        magicLink(m1.email, matchesUrl),
-        magicLink(m2.email, matchesUrl),
-        magicLink(m1.email, matchPageUrl),
-        magicLink(m2.email, matchPageUrl),
-      ]);
+      const [m1MatchesLink, m2MatchesLink, m1MatchPageUrl, m2MatchPageUrl, m1NoticeContext, m2NoticeContext] =
+        await Promise.all([
+          magicLink(m1.email, matchesUrl),
+          magicLink(m2.email, matchesUrl),
+          magicLink(m1.email, matchPageUrl),
+          magicLink(m2.email, matchPageUrl),
+          // Track C4: admin-context fetch (no member session token exists
+          // here) — resolveBillingNotice below turns "no subscription
+          // found" (null) into { kind: "none" } rather than guessing.
+          fetchBillingNoticeContext(supabase, m1.id),
+          fetchBillingNoticeContext(supabase, m2.id),
+        ]);
+
+      const m1Notice = resolveBillingNotice(m1NoticeContext, m1.matches_remaining);
+      const m2Notice = resolveBillingNotice(m2NoticeContext, m2.matches_remaining);
 
       const isM1Double = (matchCountById.get(m1.id) ?? 0) > 1;
       const isM2Double = (matchCountById.get(m2.id) ?? 0) > 1;
@@ -211,6 +229,7 @@ export async function POST(req: NextRequest) {
           m1MatchesLink,
           isM1Double,
           m1IsInitiator,
+          m1Notice,
         );
         sentCount++;
       }
@@ -227,6 +246,7 @@ export async function POST(req: NextRequest) {
           m2MatchesLink,
           isM2Double,
           !m1IsInitiator,
+          m2Notice,
         );
         sentCount++;
       }

@@ -210,14 +210,17 @@ test(
       // billing page under "Months skipped in a row".
       await expect(page.getByText(/months skipped in a row/i)).toBeVisible({ timeout: 15_000 });
 
-      // The billing page's Status badge reflects our own `subscriptions.status`
-      // DB column (set once at signup, never synced with Stripe's live
-      // status — see getSubscriptionDetails in app/actions/profile.ts), so it
-      // stays "Active" even though the skip just put the Stripe subscription
-      // into "trialing" under the hood. Assert what's actually shown, and
-      // guard against the raw "Trial" wording ever leaking through.
-      await expect(page.getByText("Active", { exact: true })).toBeVisible();
+      // The billing page's Status badge is our own vocabulary (Track C1,
+      // billing plan §3.3) derived from the matches-remaining counter, not
+      // Stripe's raw status — it reads "Active — 3 matches left" whether
+      // the live Stripe subscription is "active" or "trialing" under the
+      // hood (the skip's extendSubscriptionToNext5th call doesn't touch
+      // the counter, so it's unaffected either way). Assert what's
+      // actually shown, and guard against Stripe's raw "trialing"/"Trial"
+      // wording ever leaking through.
+      await expect(page.getByText("Active — 3 matches left", { exact: true })).toBeVisible();
       await expect(page.getByText("Trial", { exact: true })).not.toBeVisible();
+      await expect(page.getByText("trialing", { exact: false })).not.toBeVisible();
 
       // ── Step 4: Stripe subscription extended to the next match day ────────
       const trialEndAfter = await getStripeTrialEnd(member.stripeSubscriptionId);

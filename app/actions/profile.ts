@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { geocodeZipcode } from "@/lib/matcher";
 import { requireMember } from "@/lib/require-member";
+import { currentMonth, monthToDate } from "@/lib/tokens";
 
 export type Availability = {
   days: string[];
@@ -31,6 +32,8 @@ export type MemberProfile = {
   match_priority: "age" | "proximity" | null;
   children: Child[] | null;
   open_to_second_match: boolean;
+  // Track C1: the counter Track B introduced, now actually read.
+  matches_remaining: number;
 };
 
 export type Topic = {
@@ -45,7 +48,15 @@ export type SubscriptionDetails = {
   price_lookup_key: string | null;
   current_period_end: number | null;
   cancel_at_period_end: boolean;
-  pause_collection: { behavior: string; resumes_at: number | null } | null;
+  // Track C2: sourced from our own monthly_skips table, not Stripe's
+  // pause_collection — this is our data, and it's the thing that actually
+  // determines whether they're skipping, regardless of how Stripe's side
+  // of the pause is implemented today or after Track E's cutover.
+  is_skipping_this_month: boolean;
+  // Track C1: distinguishes a bundle (matches-remaining counter is
+  // meaningful) from a monthly plan (interval_count === 1, counter reads
+  // 1-or-0 forever). null if the live Stripe fetch below failed.
+  interval_count: number | null;
 };
 
 export async function checkMemberExists(email: string): Promise<boolean> {
@@ -67,7 +78,7 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("members")
-    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, consecutive_skips, availability, match_priority, children, open_to_second_match")
+    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, consecutive_skips, availability, match_priority, children, open_to_second_match, matches_remaining")
     .eq("id", authed.memberId)
     .single();
   if (error && error.code !== "PGRST116") {
@@ -105,7 +116,25 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
   let current_period_end: number | null = null;
   let cancel_at_period_end = false;
   let price_lookup_key: string | null = null;
-  let pause_collection: { behavior: string; resumes_at: number | null } | null = null;
+  let interval_count: number | null = null;
+  // Track C1: prefer the live Stripe status over the local DB mirror — it's
+  // what actually determines the member-facing vocabulary below, and the
+  // live fetch can be fresher than whatever the last webhook wrote. Falls
+  // back to the DB value if the Stripe fetch itself fails.
+  let status: string = sub.status;
+
+  // Track C2: whether they're skipping this calendar month is our own data
+  // (monthly_skips), not Stripe's pause_collection — query it up front so a
+  // Stripe fetch failure below (caught and logged, non-fatal) doesn't also
+  // take this down with it.
+  const monthDate = monthToDate(currentMonth());
+  const { data: skipRow } = await supabase
+    .from("monthly_skips")
+    .select("id")
+    .eq("member_id", authed.memberId)
+    .eq("month", monthDate)
+    .maybeSingle();
+  const is_skipping_this_month = skipRow !== null;
 
   try {
     const stripe = getStripe();
@@ -114,45 +143,39 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
       { expand: ["items.data.price"] }
     );
     const item = stripeSub.items.data[0];
+    status = stripeSub.status;
     cancel_at_period_end = stripeSub.cancel_at_period_end;
     price_lookup_key = item.price.lookup_key ?? null;
-    pause_collection = stripeSub.pause_collection
-      ? { behavior: stripeSub.pause_collection.behavior, resumes_at: stripeSub.pause_collection.resumes_at ?? null }
-      : null;
+    interval_count = item.price.recurring?.interval_count ?? null;
 
-    // During a trial, current_period_end = trial_end (the first charge date).
-    // For the renewal case, show trial_end + interval so "Next billing date"
-    // reflects when the subscription auto-renews, not when the first payment hits.
-    // Exception: if cancel_at_period_end, the subscription cancels at trial_end —
-    // keep that as-is so "Cancels on" shows the actual end date.
-    if (
-      stripeSub.status === "trialing" &&
-      stripeSub.trial_end &&
-      !stripeSub.cancel_at_period_end
-    ) {
-      const recurring = item.price.recurring;
-      if (recurring?.interval === "month") {
-        const renewal = new Date(stripeSub.trial_end * 1000);
-        renewal.setUTCMonth(renewal.getUTCMonth() + (recurring.interval_count ?? 1));
-        current_period_end = Math.floor(renewal.getTime() / 1000);
-      } else {
-        current_period_end = item.current_period_end;
-      }
-    } else {
-      current_period_end = item.current_period_end;
-    }
+    // Bugfix (billing-simplification-plan.md, Appendix A): this app never gives a
+    // member a genuine pre-payment Stripe trial — checkout never sets
+    // subscription_data.trial_period_days (app/actions/signup.ts). The only
+    // way a subscription's status is ever "trialing" here is
+    // extendSubscriptionToNext5th() (lib/subscription-utils.ts) pushing
+    // trial_end forward on an already-paying subscription — the signup-time
+    // billing-anchor correction, a member skip, a match opt-in, or a
+    // free-month grant. In every one of those cases trial_end already IS
+    // the member's next real charge, not a "first payment" to project past.
+    // Stripe mirrors that onto item.current_period_end while trialing, so
+    // no special-casing is needed — a previous version of this code added
+    // trial_end + one more full interval on top, overstating "Next billing
+    // date" by an entire term (up to 6 months for commitment_6mo) for any
+    // member currently sitting in one of these trial_end windows.
+    current_period_end = item.current_period_end;
   } catch (e) {
     console.error("Failed to fetch subscription from Stripe:", e);
   }
 
   return {
-    status: sub.status,
+    status,
     stripe_subscription_id: sub.stripe_subscription_id,
     stripe_price_id: sub.stripe_price_id,
     price_lookup_key,
     current_period_end,
     cancel_at_period_end,
-    pause_collection,
+    is_skipping_this_month,
+    interval_count,
   };
 }
 
