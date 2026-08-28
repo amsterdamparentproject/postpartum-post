@@ -1,24 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
+import { getBaseUrl } from "@/lib/base-url";
 
 const FIRST20_TOTAL = 20;
 const PILOT_ONLY_UNTIL = new Date("2026-07-01");
-
-// Derives origin from the request so Stripe redirects work on any local port.
-// Falls back to the configured env var in production (behind a reverse proxy,
-// the host header reflects the internal host rather than the public origin).
-async function getBaseUrl(): Promise<string> {
-  if (process.env.NODE_ENV === "production") {
-    return process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
-  }
-  const headersList = await headers();
-  const host = headersList.get("host");
-  return host ? `http://${host}` : (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
-}
 
 export type SignupMeta = {
   first20SpotsRemaining: number | null;

@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
+import { getBaseUrl } from "@/lib/base-url";
 
 /**
  * Generate a Supabase magic link that signs a brand-new member into their own
@@ -19,7 +20,7 @@ import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
  * back to the plain profile URL (they can sign in from there).
  */
 export async function getOnboardingSignInLink(sessionId: string): Promise<string> {
-  const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}/profile`;
+  const redirectTo = `${await getBaseUrl()}/profile`;
   const supabase = createAdminClient();
 
   let email: string | undefined;
