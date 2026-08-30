@@ -613,7 +613,7 @@ describe("Stripe webhook", () => {
       expect(rows).toHaveLength(0);
     });
 
-    it("no-ops when there's no local subscription for the Stripe subscription id", async () => {
+    it("asks Stripe to retry when there's no local subscription yet for the Stripe subscription id", async () => {
       mockConstructEvent.mockReturnValue({
         type: "invoice.payment_succeeded",
         data: {
@@ -625,7 +625,12 @@ describe("Stripe webhook", () => {
       });
 
       const res = await POST(makeRequest("{}"));
-      expect(res.status).toBe(200); // non-fatal — logged, not thrown
+      // Non-2xx on purpose: this is the race /api/fyp/activate can lose
+      // against its own stripe.subscriptions.create() call, and a 200 here
+      // would tell Stripe delivery succeeded — permanently dropping the
+      // entitlement instead of Stripe redelivering once the local
+      // subscriptions row exists.
+      expect(res.status).toBe(409);
     });
 
     // ── Track C4: tagging gift-covered term_payment rows ──────────────────

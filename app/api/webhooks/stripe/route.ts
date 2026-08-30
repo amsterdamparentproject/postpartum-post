@@ -177,8 +177,17 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (!sub) {
+        // Can lose a race against our own callers: e.g. /api/fyp/activate
+        // calls stripe.subscriptions.create() — which fires this invoice's
+        // payment_succeeded immediately — before it's done writing the
+        // local subscriptions row a moment later. Answering 200 here would
+        // tell Stripe delivery succeeded and this entitlement would never
+        // be retried, so matches_remaining would stay stuck at 0 forever.
+        // A non-2xx makes Stripe redeliver with backoff until the row
+        // exists; recordEntitlement's stripe_invoice_id uniqueness keeps a
+        // later successful retry safe even if this ever fires twice.
         console.error("[webhook] invoice.payment_succeeded: no local subscription for", subscriptionId);
-        return NextResponse.json({ received: true });
+        return NextResponse.json({ error: "subscription not found yet" }, { status: 409 });
       }
 
       const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId, {
