@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { requireMember } from "@/lib/require-member";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { generateMatchToken } from "@/lib/match-token";
+import { isOptinWindowOpen } from "@/lib/optin-window";
 
 // ---------------------------------------------------------------------------
 // Match exclusions
@@ -296,14 +297,11 @@ export type OptInResult =
   | { success: true }
   | { success: false; error: "closed" | "already_responded" | "server_error" };
 
-/** Opt-in window closes after this day of the month (matches the emailed deadline). */
-const OPTIN_DEADLINE_DAY = 5;
-
 export async function optInFromMatches(
   accessToken: string,
   action: OptInAction
 ): Promise<OptInResult> {
-  if (new Date().getDate() > OPTIN_DEADLINE_DAY) {
+  if (!isOptinWindowOpen()) {
     return { success: false, error: "closed" };
   }
 

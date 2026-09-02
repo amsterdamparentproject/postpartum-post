@@ -1,5 +1,7 @@
 import Link from "next/link";
 import Header from "@/components/Header";
+import JoinReminderBanner from "@/components/JoinReminderBanner";
+import OptinReminderBanner from "@/components/OptinReminderBanner";
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -10,6 +12,13 @@ interface PageLayoutProps {
 export default function PageLayout({ children, showNav, activeRoute }: PageLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Opt-in window banner — "join before the deadline" for a logged-out
+          visitor, or "you have N days left to opt in" for a logged-in member
+          who hasn't responded yet. Full-width, above the header, on every
+          page — each banner checks its own session state and renders
+          nothing when it doesn't apply, so exactly one (or neither) shows. */}
+      <JoinReminderBanner />
+      <OptinReminderBanner />
       <Header showNav={showNav} activeRoute={activeRoute} />
       {children}
       <footer className="py-8 text-center text-xs md:text-sm text-muted border-t border-border leading-relaxed">

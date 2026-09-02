@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
+import { OPTIN_DEADLINE_DAY, isOptinWindowOpen } from "@/lib/optin-window";
 import { useAccount } from "@/app/(account)/AccountContext";
 import {
   getMatchStatus,
@@ -16,8 +17,6 @@ import {
   type Exclusion,
   type OptInAction,
 } from "./actions";
-
-const OPTIN_DEADLINE_DAY = 5;
 
 export default function MatchesPage() {
   const { loading, member, accessToken } = useAccount();
@@ -57,7 +56,7 @@ export default function MatchesPage() {
           {status?.type === "pending" && <PendingCard topic={status.topic} />}
           {status?.type === "skipped" && <SkippedCard month={status.month} />}
           {status?.type === "none" && (
-            new Date().getDate() <= OPTIN_DEADLINE_DAY ? (
+            isOptinWindowOpen() ? (
               <OptInCard
                 accessToken={accessToken ?? ""}
                 onOptIn={() => getMatchStatus(accessToken ?? "").then(setStatus)}
