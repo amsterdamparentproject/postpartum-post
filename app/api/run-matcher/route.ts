@@ -93,7 +93,8 @@ export async function POST(req: NextRequest) {
       topic_id,
       members (
         id, first_name, last_name, email, zipcode, lat, lng,
-        language, parent_type, availability, match_priority, children
+        language, parent_type, availability, match_priority, children,
+        open_to_second_match
       )
     `)
     .eq("month", monthDate);
@@ -187,6 +188,16 @@ export async function POST(req: NextRequest) {
     }
 
     savedCount = count ?? draftRows.length;
+
+    // Immutable audit trail (migration 025): capture the algorithm's original
+    // proposal before Alex can reassign anything. Non-fatal — a round should
+    // still be usable even if this side write fails.
+    const { error: snapshotError } = await supabase.from("match_draft_snapshots").insert(
+      draftRows.map((row) => ({ ...row, snapshot_type: "original" as const }))
+    );
+    if (snapshotError) {
+      console.error("[run-matcher] Failed to save 'original' match_draft_snapshots:", snapshotError);
+    }
   }
 
   // -------------------------------------------------------------------------
