@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
   const { data: drafts, error: draftsError } = await supabase
     .from("match_drafts")
-    .select("member_id_1, member_id_2")
+    .select("member_id_1, member_id_2, score, breakdown, quality_tier")
     .eq("round_id", round.id);
 
   if (draftsError) {
@@ -125,6 +125,27 @@ export async function POST(req: NextRequest) {
   if (insertError) {
     console.error("[commit-matches] Failed to insert matches:", insertError);
     return NextResponse.json({ error: "Failed to commit matches" }, { status: 500 });
+  }
+
+  // -------------------------------------------------------------------------
+  // Immutable audit trail (migration 025): capture match_drafts exactly as
+  // they stand at commit time — i.e. Alex's actual final call for the round,
+  // after any manual reassignment. Non-fatal — matches are already committed
+  // by this point, so a snapshot failure shouldn't fail the response.
+  // -------------------------------------------------------------------------
+  const { error: snapshotError } = await supabase.from("match_draft_snapshots").insert(
+    drafts.map((d) => ({
+      round_id: round.id,
+      member_id_1: d.member_id_1,
+      member_id_2: d.member_id_2,
+      score: d.score,
+      breakdown: d.breakdown,
+      quality_tier: d.quality_tier,
+      snapshot_type: "final" as const,
+    }))
+  );
+  if (snapshotError) {
+    console.error("[commit-matches] Failed to save 'final' match_draft_snapshots:", snapshotError);
   }
 
   // -------------------------------------------------------------------------
