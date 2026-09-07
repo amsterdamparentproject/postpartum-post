@@ -492,6 +492,9 @@ describe("Stripe webhook", () => {
           object: {
             id: invoiceId,
             parent: { subscription_details: { subscription: subscriptionId } },
+            // Real term-payment invoices by default — tests exercising the
+            // billing_reason skip below override this explicitly.
+            billing_reason: "subscription_create",
             ...extra,
           },
         },
@@ -620,6 +623,7 @@ describe("Stripe webhook", () => {
           object: {
             id: "in_test_orphan",
             parent: { subscription_details: { subscription: "sub_does_not_exist_locally" } },
+            billing_reason: "subscription_create",
           },
         },
       });
@@ -631,6 +635,57 @@ describe("Stripe webhook", () => {
       // entitlement instead of Stripe redelivering once the local
       // subscriptions row exists.
       expect(res.status).toBe(409);
+    });
+
+    // ── Stopgap for the pre-Track-E4 double-grant risk ─────────────────────
+    // extendSubscriptionToNext5th (still live in checkout.session.completed
+    // until feature/match-counter-subscriptions merges) generates a second,
+    // €0 "subscription_update" invoice on top of the real signup charge —
+    // real production case 2026-09-07: info@amsterdamkids.com and
+    // ionescu.adelina1012@gmail.com each produced exactly this pair.
+    it("does not credit a subscription_update invoice (trial-alignment side effect, not a real term payment)", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 3 });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_alignment_${member.id.slice(0, 8)}`, stripeSubId, {
+        billing_reason: "subscription_update",
+        amount_paid: 0,
+      });
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: updated } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", member.id)
+        .single();
+      expect(updated?.matches_remaining).toBe(0);
+
+      const { data: rows } = await supabase
+        .from("match_entitlements")
+        .select("id")
+        .eq("member_id", member.id);
+      expect(rows).toHaveLength(0);
+    });
+
+    it("still credits a subscription_cycle invoice (an ordinary renewal)", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 1 });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_cycle_${member.id.slice(0, 8)}`, stripeSubId, {
+        billing_reason: "subscription_cycle",
+      });
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: updated } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", member.id)
+        .single();
+      expect(updated?.matches_remaining).toBe(1);
     });
 
     // ── Track C4: tagging gift-covered term_payment rows ──────────────────

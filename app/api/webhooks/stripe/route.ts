@@ -170,11 +170,29 @@ export async function POST(req: NextRequest) {
       }
 
       const supabase = createAdminClient();
-      const { data: sub } = await supabase
-        .from("subscriptions")
-        .select("member_id")
-        .eq("stripe_subscription_id", subscriptionId)
-        .maybeSingle();
+
+      // Stripe doesn't guarantee delivery order between checkout.session.completed
+      // and invoice.payment_succeeded for a brand-new subscription — in practice
+      // the invoice event often lands first, before checkout.session.completed has
+      // finished upserting the local `subscriptions` row (same race documented
+      // below for /api/fyp/activate). A bare Stripe-level retry recovers eventually,
+      // but its backoff is minutes-to-hours, not seconds — long enough that a member
+      // checking their profile right after signup would see 0 matches for no reason.
+      // Retry locally a few times first (short, capped) to close the common case;
+      // fall through to the 409 below only if the row genuinely never shows up.
+      let sub: { member_id: string } | null = null;
+      for (const delayMs of [0, 500, 1000, 2000, 3000]) {
+        if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+        const { data } = await supabase
+          .from("subscriptions")
+          .select("member_id")
+          .eq("stripe_subscription_id", subscriptionId)
+          .maybeSingle();
+        if (data) {
+          sub = data;
+          break;
+        }
+      }
 
       if (!sub) {
         // Can lose a race against our own callers: e.g. /api/fyp/activate
@@ -186,8 +204,26 @@ export async function POST(req: NextRequest) {
         // A non-2xx makes Stripe redeliver with backoff until the row
         // exists; recordEntitlement's stripe_invoice_id uniqueness keeps a
         // later successful retry safe even if this ever fires twice.
-        console.error("[webhook] invoice.payment_succeeded: no local subscription for", subscriptionId);
+        console.error("[webhook] invoice.payment_succeeded: no local subscription for", subscriptionId, "(retried locally for ~6.5s)");
         return NextResponse.json({ error: "subscription not found yet" }, { status: 409 });
+      }
+
+      // Stopgap for the gap before Track E4 ships (branch
+      // feature/match-counter-subscriptions, commit d252a7a, removes
+      // extendSubscriptionToNext5th from checkout.session.completed below).
+      // Until then, that call generates a second, €0 "subscription_update"
+      // invoice ~seconds after the real charge, to push trial_end out and
+      // align billing to the next 5th — Stripe fires invoice.payment_succeeded
+      // for that one too, and this handler otherwise can't tell it apart
+      // from a real term payment, which would double-credit matchesPerTerm
+      // on every signup that needs the alignment. Remove this filter once
+      // E4 lands and the alignment call (and its invoice) no longer exist.
+      if (invoice.billing_reason !== "subscription_create" && invoice.billing_reason !== "subscription_cycle") {
+        console.log("[webhook] invoice.payment_succeeded: skipping non-term invoice", {
+          subscriptionId,
+          billingReason: invoice.billing_reason,
+        });
+        return NextResponse.json({ received: true });
       }
 
       const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId, {
