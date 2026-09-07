@@ -196,24 +196,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "subscription not found yet" }, { status: 409 });
       }
 
-      // Stopgap for the gap before Track E4 ships (branch
-      // feature/match-counter-subscriptions, commit d252a7a, removes
-      // extendSubscriptionToNext5th from checkout.session.completed below).
-      // Until then, that call generates a second, €0 "subscription_update"
-      // invoice ~seconds after the real charge, to push trial_end out and
-      // align billing to the next 5th — Stripe fires invoice.payment_succeeded
-      // for that one too, and this handler otherwise can't tell it apart
-      // from a real term payment, which would double-credit matchesPerTerm
-      // on every signup that needs the alignment. Remove this filter once
-      // E4 lands and the alignment call (and its invoice) no longer exist.
-      if (invoice.billing_reason !== "subscription_create" && invoice.billing_reason !== "subscription_cycle") {
-        console.log("[webhook] invoice.payment_succeeded: skipping non-term invoice", {
-          subscriptionId,
-          billingReason: invoice.billing_reason,
-        });
-        return NextResponse.json({ received: true });
-      }
-
       const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId, {
         expand: ["discounts.source.coupon"],
       });
