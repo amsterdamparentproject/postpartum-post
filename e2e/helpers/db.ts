@@ -144,7 +144,15 @@ export async function seedMemberWithSubscription(
     trial_end: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30,
   });
 
-  // Insert member into DB pointing at the real Stripe customer
+  // Insert member into DB pointing at the real Stripe customer.
+  // matches_remaining starts at its schema default (0) — the real
+  // invoice.payment_succeeded webhook (requires `stripe listen` running
+  // locally, per this file's prerequisites) credits it below. It used to
+  // be hardcoded to 3 here to "mirror" that webhook credit, but with a
+  // real Stripe subscription actually being created above, `stripe listen`
+  // delivers a genuine subscription_create invoice event for it — so the
+  // hardcoded value and the webhook's own credit both landed, leaving
+  // members at 6 instead of 3.
   const { error: memberError } = await db.from("members").insert({
     id,
     email,
@@ -153,12 +161,6 @@ export async function seedMemberWithSubscription(
     status: "active",
     stripe_customer_id: customer.id,
     consecutive_skips: 0,
-    // commitment_3mo has interval_count = 3 — this mirrors what B3's
-    // invoice.payment_succeeded handler would actually credit on a real
-    // first charge, so the billing page's Track C1 status badge shows
-    // realistic copy ("Active — 3 matches left") instead of the
-    // zero-matches renewal copy a genuinely fresh signup would never see.
-    matches_remaining: 3,
   });
   if (memberError) throw new Error(`seedMemberWithSubscription member insert failed: ${memberError.message}`);
 
@@ -170,6 +172,16 @@ export async function seedMemberWithSubscription(
     status: "active",
   });
   if (subError) throw new Error(`seedMemberWithSubscription subscription insert failed: ${subError.message}`);
+
+  // Wait for the webhook's credit to land (commitment_3mo has
+  // interval_count = 3) so callers see a fully-seeded, realistic member —
+  // "Active — 3 matches left" — rather than racing the async webhook.
+  const expectedMatches = price.recurring?.interval_count ?? 1;
+  for (const delayMs of [500, 500, 1000, 1000, 2000, 2000, 3000]) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    const { data } = await db.from("members").select("matches_remaining").eq("id", id).single();
+    if ((data?.matches_remaining ?? 0) >= expectedMatches) break;
+  }
 
   return { id, email, stripeCustomerId: customer.id, stripeSubscriptionId: sub.id };
 }
