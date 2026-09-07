@@ -79,6 +79,16 @@ export const whimsyHistory: WhimsyEntry[] = [
       </>
     ),
   },
+  {
+    imageSrc: "/whimsy/2026-09.jpg",
+    imageAlt: "A collage of jungle and sea animal stickers with pastel crayon scribbles on blue paper, made by two sisters",
+    title: "Art (Jungle Under the Sea)",
+    author: "Ayah (2) & Ameenah (4)",
+    createdMonth: "2026-08",
+    featuredMonth: "2026-09",
+    description:
+      "These two sisters made this summertime... sea? land? scape during Papote's Art Fair a few weeks ago. They had a lovely time making all sorts of things themselves, then came together for this whimsical piece.",
+  },
 ];
 
 /** The feature currently shown on match pages — the most recent entry, or null if none. */
