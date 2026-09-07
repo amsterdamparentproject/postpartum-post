@@ -225,6 +225,31 @@ export async function getMemberStatusByEmail(email: string): Promise<string | nu
   return data?.status ?? null;
 }
 
+/** Returns the member's current matches_remaining, or null if no member exists for this email. */
+export async function getMemberMatchesRemainingByEmail(email: string): Promise<number | null> {
+  const { data } = await supabase()
+    .from("members")
+    .select("matches_remaining")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  return data?.matches_remaining ?? null;
+}
+
+/**
+ * Fetch a price's recurring.interval_count by lookup key — mirrors exactly
+ * what the invoice.payment_succeeded webhook handler uses to compute
+ * matchesPerTerm (app/api/webhooks/stripe/route.ts, backed by
+ * lib/match-ledger.ts's design), so an e2e assertion built on this stays
+ * correct if pricing ever changes instead of hardcoding a number that can
+ * silently drift from the real price.
+ */
+export async function getPriceIntervalCount(lookupKey: string): Promise<number> {
+  const prices = await stripe().prices.list({ lookup_keys: [lookupKey] });
+  const price = prices.data[0];
+  if (!price) throw new Error(`Price with lookup key "${lookupKey}" not found in Stripe`);
+  return price.recurring?.interval_count ?? 1;
+}
+
 export async function cancelStripeSubscription(subscriptionId: string): Promise<void> {
   try {
     await stripe().subscriptions.cancel(subscriptionId);

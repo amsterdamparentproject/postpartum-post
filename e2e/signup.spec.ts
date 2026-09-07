@@ -18,7 +18,7 @@
 
 import { test, expect } from "@playwright/test";
 import { generateMagicLink, signInAs } from "./helpers/auth";
-import { cleanupMemberByEmail } from "./helpers/db";
+import { cleanupMemberByEmail, getMemberMatchesRemainingByEmail, getPriceIntervalCount } from "./helpers/db";
 
 // Real, deliverable domain — this flow follows a real magic link generated
 // via supabase.auth.admin.generateLink() (step 5 above). @example.com gets
@@ -40,12 +40,18 @@ test("full sign-up flow: form → Stripe checkout → success → profile", { ti
   await page.getByLabel("Email").fill(TEST_EMAIL);
 
   // The FIRST20 plan is featured and selected by default in pilot mode
-  // If pilot mode is off, click the 3-month commitment plan
+  // If pilot mode is off, click the 3-month commitment plan.
+  // Track which one so the ledger assertion below (step 5b) knows what
+  // matches_remaining should have been credited to — founding_member and
+  // commitment_3mo carry different interval_count values.
+  let expectedLookupKey: "founding_member" | "commitment_3mo";
   const first20Button = page.getByRole("button", { name: /founding members/i });
   if (await first20Button.isVisible()) {
     await first20Button.click();
+    expectedLookupKey = "founding_member";
   } else {
     await page.getByRole("button", { name: /3.month commitment/i }).click();
+    expectedLookupKey = "commitment_3mo";
   }
 
   // ── Step 2: Check consent boxes and submit ────────────────────────────
@@ -112,6 +118,24 @@ test("full sign-up flow: form → Stripe checkout → success → profile", { ti
   // The webhook runs async — give it a moment to process.
   // (Requires `stripe listen` to be running locally.)
   await page.waitForTimeout(3_000);
+
+  // ── Step 5b: confirm invoice.payment_succeeded actually credited the
+  // ledger (Track B3) ─────────────────────────────────────────────────────
+  // /success and /profile both render from members.status, not from
+  // matches_remaining — so steps 3-4 above can pass in full even when the
+  // ledger grant is silently broken (this is exactly what happened in
+  // production 2026-09-07: the webhook endpoint wasn't subscribed to
+  // invoice.payment_succeeded at all, so no one who signed up or renewed
+  // got credited, and nothing here would have failed without this check).
+  // Polled rather than a fixed wait — the grant fires off a separate Stripe
+  // event from checkout.session.completed and can land at a different time.
+  const expectedMatches = await getPriceIntervalCount(expectedLookupKey);
+  await expect
+    .poll(() => getMemberMatchesRemainingByEmail(TEST_EMAIL), {
+      message: "matches_remaining should be credited by the invoice.payment_succeeded webhook",
+      timeout: 10_000,
+    })
+    .toBe(expectedMatches);
 
   // ── Step 6: Navigate to magic link → land on /profile ──────────────────
   // We generate the link directly rather than fetching the welcome email inbox.
