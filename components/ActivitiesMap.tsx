@@ -156,8 +156,9 @@ export default function ActivitiesMap({ activities, center, memberCoords, playgr
         map.fitBounds(L.latLngBounds(boundsCoords), { padding: [64, 64], maxZoom: 15 });
       }
 
+      const cartoKey = process.env.NEXT_PUBLIC_CARTO_API_KEY;
       L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png${cartoKey ? `?key=${cartoKey}` : ""}`,
         {
           attribution:
             '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
