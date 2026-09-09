@@ -294,6 +294,13 @@ async function main() {
   console.log(`  member ${canceling.memberId} (${canceling.email})`);
   console.log(`  subscription ${canceling.subscriptionId}, expecting an explicit cancel — no invoice\n`);
 
+  // Stripe creates its own $0 invoice (billing_reason=subscription_create)
+  // the moment a trialing subscription is created, independent of anything
+  // renew-check does — captured here so the "no invoice" check below only
+  // flags invoices renew-check itself caused, not this pre-existing one.
+  const invoicesBeforeCancel = await stripe.invoices.list({ customer: canceling.customerId, limit: 10 });
+  const preexistingInvoiceIds = new Set(invoicesBeforeCancel.data.map((inv) => inv.id));
+
   let passed = true;
   const candidates = [billable, canceling];
 
@@ -347,13 +354,14 @@ async function main() {
       passed = false;
     }
 
-    console.log("Checking no invoice was created for the canceling member...");
+    console.log("Checking no invoice was created by the cancellation itself...");
     const invoices = await stripe.invoices.list({ customer: canceling.customerId, limit: 10 });
-    if (invoices.data.length === 0) {
-      console.log("  PASS: no invoice created.");
+    const newInvoices = invoices.data.filter((inv) => !preexistingInvoiceIds.has(inv.id));
+    if (newInvoices.length === 0) {
+      console.log("  PASS: no new invoice created.");
     } else {
-      console.error(`  FAIL: expected 0 invoices for the canceling member, found ${invoices.data.length}.`);
-      for (const inv of invoices.data) {
+      console.error(`  FAIL: expected 0 new invoices from the cancellation, found ${newInvoices.length}.`);
+      for (const inv of newInvoices) {
         console.error(`    ${inv.id} — status=${inv.status}, total=${inv.total}, billing_reason=${inv.billing_reason}, paid=${inv.paid}`);
       }
       passed = false;
