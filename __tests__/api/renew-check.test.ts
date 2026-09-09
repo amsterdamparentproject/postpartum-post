@@ -213,7 +213,14 @@ describe("POST /api/renew-check", () => {
     expect(body.canceled).toBeGreaterThanOrEqual(1);
     expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
 
-    expect(mockCancel).toHaveBeenCalledWith(sub.stripe_subscription_id);
+    // invoice_now/prorate must be explicit — Stripe's cancel endpoint can
+    // otherwise generate its own final invoice as a side effect of
+    // cancellation (caught for real against Stripe test mode via
+    // scripts/smoketest-renew-check.mts; this mock alone wouldn't have).
+    expect(mockCancel).toHaveBeenCalledWith(sub.stripe_subscription_id, {
+      invoice_now: false,
+      prorate: false,
+    });
     // Never billed — a canceling member already declined to renew.
     expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
     expect(mockInvoiceItemCreate).not.toHaveBeenCalledWith(

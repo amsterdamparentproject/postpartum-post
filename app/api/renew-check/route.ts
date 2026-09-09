@@ -204,7 +204,11 @@ async function renewMember(
  * docblock). stripe.subscriptions.cancel() triggers
  * customer.subscription.deleted immediately; that webhook already sets
  * members.status to "inactive" and sends the unsubscribed email, so this
- * function's only job is to make the cancel call.
+ * function's only job is to make the cancel call — explicitly with
+ * invoice_now: false and prorate: false, since Stripe's cancel endpoint
+ * can otherwise generate its own "final invoice" for unbilled items or
+ * pending prorations as a side effect of cancellation itself, which is
+ * exactly the unwanted charge this whole function exists to prevent.
  */
 async function finalizeCancellation(
   member: { id: string },
@@ -226,7 +230,18 @@ async function finalizeCancellation(
       return { kind: "no_op" };
     }
 
-    await stripe.subscriptions.cancel(sub.stripe_subscription_id);
+    // Stripe's cancel endpoint can generate its own "final invoice" for any
+    // unbilled usage or pending proration, independent of anything this
+    // route does — confirmed against real Stripe test mode via
+    // scripts/smoketest-renew-check.mts, which caught exactly this: a
+    // trialing subscription with nothing ever billed still got a final
+    // invoice on a bare cancel() call. That's the opposite of this
+    // function's entire point (no bill, just cancel), so both are passed
+    // explicitly rather than trusted to their documented defaults.
+    await stripe.subscriptions.cancel(sub.stripe_subscription_id, {
+      invoice_now: false,
+      prorate: false,
+    });
     return { kind: "canceled" };
   } catch (e) {
     console.error(`[renew-check] Failed to finalize cancellation for member ${member.id}:`, e);

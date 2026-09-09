@@ -353,6 +353,9 @@ async function main() {
       console.log("  PASS: no invoice created.");
     } else {
       console.error(`  FAIL: expected 0 invoices for the canceling member, found ${invoices.data.length}.`);
+      for (const inv of invoices.data) {
+        console.error(`    ${inv.id} — status=${inv.status}, total=${inv.total}, billing_reason=${inv.billing_reason}, paid=${inv.paid}`);
+      }
       passed = false;
     }
 
