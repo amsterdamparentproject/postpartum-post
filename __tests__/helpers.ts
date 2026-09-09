@@ -31,6 +31,10 @@ export interface TestMember {
   zipcode: string | null;
   availability: Availability | null;
   children: Child[] | null;
+  // Track E3: defaults to 1 (not the DB's own 0 default) so existing tests
+  // that don't care about balance aren't silently gated out of coffee/
+  // playdate opt-in — override to 0 to specifically test the gate.
+  matches_remaining: number;
 }
 
 /**
@@ -70,6 +74,7 @@ export async function seedMember(
     zipcode: null,
     availability: null,
     children: null,
+    matches_remaining: 1,
     ...overrides,
   };
   const { error } = await supabase.from("members").insert(member);
@@ -125,6 +130,13 @@ export async function cleanupMember(memberId: string) {
 export async function getAccessTokenForEmail(email: string): Promise<string> {
   const admin = createTestSupabase();
 
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url || !anonKey) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.test");
+  }
+  const anon = createClient(url, anonKey);
+
   // Retries: diagnosed 2026-07-24 (same root cause hit in the site repo),
   // this project's admin.generateLink() intermittently mints a JWT with no
   // `kid` header for a brand-new auth user, which fails downstream
@@ -133,43 +145,39 @@ export async function getAccessTokenForEmail(email: string): Promise<string> {
   // separately, see testEmail() above) since it recurs for real, deliverable
   // addresses too. See lib/supabase/generate-magic-link.ts for the full
   // diagnosis. Retrying tends to succeed on a later attempt.
+  //
+  // The whole generate+verify pair is retried together, not just
+  // generateLink: a magic-link token_hash is one-time-use, so if verifyOtp
+  // fails partway (same underlying quirk, seen under full-suite load where
+  // many auth calls fire in quick succession) re-verifying the same
+  // token_hash won't help — a fresh link is needed too.
   const maxAttempts = 3;
-  let data: Awaited<ReturnType<typeof admin.auth.admin.generateLink>>["data"] | undefined;
   let lastError: string | undefined;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const result = await admin.auth.admin.generateLink({ type: "magiclink", email });
-    if (!result.error && result.data?.properties?.hashed_token) {
-      data = result.data;
-      break;
+    const linkResult = await admin.auth.admin.generateLink({ type: "magiclink", email });
+    const hashedToken = linkResult.data?.properties?.hashed_token;
+    if (linkResult.error || !hashedToken) {
+      lastError = linkResult.error?.message ?? "no hashed_token returned";
+      if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, 500 * attempt));
+      continue;
     }
-    lastError = result.error?.message ?? "no hashed_token returned";
-    if (attempt < maxAttempts) {
-      await new Promise((r) => setTimeout(r, 500 * attempt));
-    }
-  }
-  if (!data?.properties?.hashed_token) {
-    throw new Error(`getAccessTokenForEmail: generateLink failed after ${maxAttempts} attempts: ${lastError}`);
-  }
 
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!url || !anonKey) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.test");
+    // Supabase issues a "signup"-type token (not "magiclink") when the email
+    // has no existing auth.users row yet, since generateLink auto-creates the
+    // user. verifyOtp's type must match whatever was actually issued, or it's
+    // rejected as expired/invalid — so use verification_type from the
+    // response rather than assuming "magiclink".
+    const { data: verified, error: verifyError } = await anon.auth.verifyOtp({
+      token_hash: hashedToken,
+      type: linkResult.data!.properties.verification_type as "magiclink" | "signup",
+    });
+    if (!verifyError && verified.session?.access_token) {
+      return verified.session.access_token;
+    }
+    lastError = verifyError?.message ?? "no access_token returned";
+    if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, 500 * attempt));
   }
-  const anon = createClient(url, anonKey);
-  // Supabase issues a "signup"-type token (not "magiclink") when the email
-  // has no existing auth.users row yet, since generateLink auto-creates the
-  // user. verifyOtp's type must match whatever was actually issued, or it's
-  // rejected as expired/invalid — so use verification_type from the response
-  // rather than assuming "magiclink".
-  const { data: verified, error: verifyError } = await anon.auth.verifyOtp({
-    token_hash: data.properties.hashed_token,
-    type: data.properties.verification_type as "magiclink" | "signup",
-  });
-  if (verifyError || !verified.session?.access_token) {
-    throw new Error(`getAccessTokenForEmail: verifyOtp failed: ${verifyError?.message}`);
-  }
-  return verified.session.access_token;
+  throw new Error(`getAccessTokenForEmail: failed after ${maxAttempts} attempts: ${lastError}`);
 }
 
 /** Deletes the Supabase Auth user created by getAccessTokenForEmail, if any. */

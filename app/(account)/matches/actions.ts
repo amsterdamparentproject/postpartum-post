@@ -295,7 +295,7 @@ export type OptInAction = "coffee" | "playdate" | "skip";
 
 export type OptInResult =
   | { success: true }
-  | { success: false; error: "closed" | "already_responded" | "server_error" };
+  | { success: false; error: "closed" | "already_responded" | "no_balance" | "server_error" };
 
 export async function optInFromMatches(
   accessToken: string,
@@ -313,7 +313,7 @@ export async function optInFromMatches(
 
   const { data: memberRow } = await supabase
     .from("members")
-    .select("consecutive_skips")
+    .select("consecutive_skips, matches_remaining")
     .eq("id", memberId)
     .single();
 
@@ -355,7 +355,12 @@ export async function optInFromMatches(
     return { success: true };
   }
 
-  // coffee or playdate
+  // coffee or playdate — Track E3: gate on the counter, same as
+  // /api/optin/route.ts. Skip stays free regardless of balance.
+  if ((memberRow.matches_remaining ?? 0) <= 0) {
+    return { success: false, error: "no_balance" };
+  }
+
   const { data: topic, error: topicError } = await supabase
     .from("topics")
     .select("id")

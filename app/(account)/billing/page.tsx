@@ -13,8 +13,30 @@ import { unsubscribe } from "@/app/actions/unsubscribe";
 import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES } from "@/lib/member-status";
 import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
 
+// Accepts either a Stripe unix timestamp (a real instant — formatted in the
+// viewer's local zone, as this always has) or a Date (deriveMemberStatusMessage's
+// renewsAt — a synthetic UTC-midnight calendar date with no real time-of-day
+// component, so it's formatted in UTC to avoid shifting a day off depending on
+// the viewer's timezone).
+function formatDate(value: number | Date) {
+  if (typeof value === "number") {
+    return new Date(value * 1000).toLocaleDateString("en-NL", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+  return value.toLocaleDateString("en-NL", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 /** Alert icon + hover/focus tooltip, anchored next to a value that needs
- *  more explanation than fits in the surrounding label. */
+ *  more explanation than fits in the surrounding label — currently just
+ *  the "Next billing date" row on the status card. */
 function InfoTooltip({ text }: { text: string }) {
   return (
     <span className="group relative inline-flex align-middle">
@@ -40,20 +62,12 @@ function InfoTooltip({ text }: { text: string }) {
   );
 }
 
-function formatDate(unixTimestamp: number) {
-  return new Date(unixTimestamp * 1000).toLocaleDateString("en-NL", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
 function BillingContent() {
   const { loading, member, accessToken } = useAccount();
   const searchParams = useSearchParams();
   const optinParam = searchParams.get("optin");
   const [showSkipBanner, setShowSkipBanner] = useState(
-    optinParam === "skip" || optinParam === "already_skip" || optinParam === "skip_failed"
+    optinParam === "skip" || optinParam === "already_skip" || optinParam === "skip_failed" || optinParam === "no_balance"
   );
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
@@ -96,12 +110,20 @@ function BillingContent() {
     subscription && member
       ? deriveMemberStatusMessage({
           stripeStatus: subscription.status,
+          cancellationReason: subscription.cancellation_reason,
           priceLookupKey: subscription.price_lookup_key,
           intervalCount: subscription.interval_count,
           matchesRemaining: member.matches_remaining,
+          latestInvoiceOpenAndAttempted: subscription.latest_invoice_open_and_attempted,
           currentPeriodEnd: subscription.current_period_end,
         })
       : null;
+
+  // Track E1's renew-check date (the 10th) when deriveMemberStatusMessage
+  // has one — it's the real next-charge date once Track E2's
+  // pause_collection sits between renewals. Falls back to Stripe's raw
+  // current_period_end everywhere else.
+  const nextBillingDate: number | Date | undefined = statusMessage?.renewsAt ?? subscription?.current_period_end ?? undefined;
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!member) return <MagicLinkRequest />;
@@ -121,6 +143,8 @@ function BillingContent() {
               ? <>Something went wrong recording your skip for this month, so we couldn&apos;t confirm it — you may still be matched or charged as usual. Please try the link from your email again, or contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a> and we&apos;ll sort it out.</>
               : optinParam === "already_skip"
               ? <>You&apos;ve already chosen to skip this month. If you&apos;d like to rejoin the match pool, please contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a>.</>
+              : optinParam === "no_balance"
+              ? "You're between terms right now, so this month's match is on pause — check your status below for when you'll be matched again."
               : "You're skipping your match this month — all good! We've automatically adjusted your billing cycle so that you're not charged this month. See you next month 💌"
             }
           </p>
@@ -161,8 +185,11 @@ function BillingContent() {
 
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted">Status</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusMessage ? STATUS_TONE_CLASSNAMES[statusMessage.tone] : "bg-gray-100 text-gray-500"}`}>
-                {statusMessage?.label}
+              <span className="inline-flex items-center gap-1.5">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusMessage ? STATUS_TONE_CLASSNAMES[statusMessage.tone] : "bg-gray-100 text-gray-500"}`}>
+                  {statusMessage?.label}
+                </span>
+                {statusMessage?.tooltip && <InfoTooltip text={statusMessage.tooltip} />}
               </span>
             </div>
 
@@ -176,13 +203,13 @@ function BillingContent() {
               </div>
             )}
 
-            {subscription.current_period_end && (
+            {nextBillingDate !== undefined && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted">
                   {subscription.cancel_at_period_end ? "Cancels on" : "Next billing date"}
                 </span>
                 <span className="text-dark font-medium inline-flex items-center gap-1.5">
-                  {formatDate(subscription.current_period_end)}
+                  {formatDate(nextBillingDate)}
                   {statusMessage?.dateTooltip && <InfoTooltip text={statusMessage.dateTooltip} />}
                 </span>
               </div>

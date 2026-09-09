@@ -4,8 +4,9 @@ import { unsubscribe } from "@/app/actions/unsubscribe";
 
 // --- Mocks ---
 
-const { mockUpdate } = vi.hoisted(() => ({
+const { mockUpdate, mockSendCancellationConfirmedEmail } = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
+  mockSendCancellationConfirmedEmail: vi.fn(),
 }));
 
 vi.mock("@/lib/stripe", () => ({
@@ -21,6 +22,17 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
+vi.mock("@/lib/emails", () => ({
+  sendCancellationConfirmedEmail: mockSendCancellationConfirmedEmail,
+}));
+
+// Fixed period-end timestamp Stripe's mocked update() returns — cancelSubscription
+// reads this off the (expanded) subscription to compute the "access until" date.
+const FAKE_PERIOD_END = Math.floor(new Date("2026-09-10T00:00:00Z").getTime() / 1000);
+function stripeCancelResponse() {
+  return { items: { data: [{ current_period_end: FAKE_PERIOD_END }] } };
+}
+
 // --- Integration test ---
 // Verifies that calling unsubscribe() makes the correct DB writes.
 
@@ -29,7 +41,8 @@ describe("unsubscribe — integration", () => {
 
   beforeEach(() => {
     mockUpdate.mockReset();
-    mockUpdate.mockResolvedValue({});
+    mockUpdate.mockResolvedValue(stripeCancelResponse());
+    mockSendCancellationConfirmedEmail.mockReset();
   });
 
   afterEach(async () => {
@@ -93,7 +106,8 @@ describe("unsubscribe — E2E", () => {
 
   beforeEach(() => {
     mockUpdate.mockReset();
-    mockUpdate.mockResolvedValue({});
+    mockUpdate.mockResolvedValue(stripeCancelResponse());
+    mockSendCancellationConfirmedEmail.mockReset();
   });
 
   afterEach(async () => {
@@ -114,7 +128,7 @@ describe("unsubscribe — E2E", () => {
     expect(mockUpdate).toHaveBeenCalledOnce();
     expect(mockUpdate).toHaveBeenCalledWith(
       sub.stripe_subscription_id,
-      { cancel_at_period_end: true }
+      { cancel_at_period_end: true, expand: ["items"] }
     );
 
     const supabase = createTestSupabase();
@@ -134,5 +148,23 @@ describe("unsubscribe — E2E", () => {
       .eq("id", memberId)
       .single();
     expect(updatedMember?.status).toBe("canceling");
+  });
+
+  it("sends the immediate cancellation confirmation email with the correct access-until date", async () => {
+    const member = await seedMember({ status: "active", email: "cancel-test@example.com", first_name: "Robin" });
+    memberId = member.id;
+    await seedSubscription(memberId, {
+      stripe_subscription_id: `sub_email_${memberId.slice(0, 8)}`,
+      status: "active",
+    });
+
+    await unsubscribe(memberId);
+
+    expect(mockSendCancellationConfirmedEmail).toHaveBeenCalledOnce();
+    expect(mockSendCancellationConfirmedEmail).toHaveBeenCalledWith(
+      "cancel-test@example.com",
+      "Robin",
+      new Date(FAKE_PERIOD_END * 1000)
+    );
   });
 });

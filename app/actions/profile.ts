@@ -57,6 +57,14 @@ export type SubscriptionDetails = {
   // meaningful) from a monthly plan (interval_count === 1, counter reads
   // 1-or-0 forever). null if the live Stripe fetch below failed.
   interval_count: number | null;
+  // Track E2: true when the latest invoice is submitted but not yet
+  // settled (invoice.status === "open" && invoice.attempted === true) —
+  // drives lib/member-status.ts's "Payment processing" branch.
+  latest_invoice_open_and_attempted: boolean;
+  // Track E2: Stripe's cancellation_details.reason, only meaningful when
+  // status is "canceled" — lets member-status distinguish a self-initiated
+  // cancellation from a mandate-failure cancellation (Track D case 6b).
+  cancellation_reason: string | null;
 };
 
 export async function checkMemberExists(email: string): Promise<boolean> {
@@ -117,6 +125,8 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
   let cancel_at_period_end = false;
   let price_lookup_key: string | null = null;
   let interval_count: number | null = null;
+  let latest_invoice_open_and_attempted = false;
+  let cancellation_reason: string | null = null;
   // Track C1: prefer the live Stripe status over the local DB mirror — it's
   // what actually determines the member-facing vocabulary below, and the
   // live fetch can be fresher than whatever the last webhook wrote. Falls
@@ -140,13 +150,20 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
     const stripe = getStripe();
     const stripeSub = await stripe.subscriptions.retrieve(
       sub.stripe_subscription_id,
-      { expand: ["items.data.price"] }
+      { expand: ["items.data.price", "latest_invoice"] }
     );
     const item = stripeSub.items.data[0];
     status = stripeSub.status;
     cancel_at_period_end = stripeSub.cancel_at_period_end;
     price_lookup_key = item.price.lookup_key ?? null;
     interval_count = item.price.recurring?.interval_count ?? null;
+    cancellation_reason = stripeSub.cancellation_details?.reason ?? null;
+
+    const latestInvoice = stripeSub.latest_invoice;
+    if (latestInvoice && typeof latestInvoice !== "string") {
+      latest_invoice_open_and_attempted =
+        latestInvoice.status === "open" && latestInvoice.attempted === true;
+    }
 
     // Bugfix (billing-simplification-plan.md, Appendix A): this app never gives a
     // member a genuine pre-payment Stripe trial — checkout never sets
@@ -176,6 +193,8 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
     cancel_at_period_end,
     is_skipping_this_month,
     interval_count,
+    latest_invoice_open_and_attempted,
+    cancellation_reason,
   };
 }
 
