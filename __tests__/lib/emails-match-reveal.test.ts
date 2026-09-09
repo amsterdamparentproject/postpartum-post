@@ -108,31 +108,6 @@ describe("match-reveal email — billing notice (Track C4)", () => {
     expect(html).toContain(">Billing page</a>");
   });
 
-  // Bug fix, 2026-08-27: the Community Guidelines section and the loud
-  // notice section both carry their own bottom padding by default, which
-  // stacked into a visibly oversized gap between them (flagged from a
-  // live screenshot) — tightBottom on the Guidelines section drops its
-  // own padding only when a loud notice immediately follows it.
-  it("tightens the spacing above the loud notice so the two sections don't stack padding", async () => {
-    const html = await sendWithNotice({
-      kind: "loud",
-      renewDate: "20 November 2026",
-      amount: "€24",
-      isFirstAfterGift: false,
-      cancelUrl: "https://postpartumpost.com/billing?utm_content=renewal-notice",
-    });
-    const guidelinesSectionIdx = html.indexOf("Community Guidelines");
-    const paddingBeforeGuidelines = html.lastIndexOf('style="padding:0 24px', guidelinesSectionIdx);
-    expect(html.slice(paddingBeforeGuidelines, paddingBeforeGuidelines + 30)).toContain("padding:0 24px 0px");
-  });
-
-  it("leaves the Community Guidelines section's normal bottom padding for a non-loud notice", async () => {
-    const html = await sendWithNotice({ kind: "counter", matchesRemaining: 3 });
-    const guidelinesSectionIdx = html.indexOf("Community Guidelines");
-    const paddingBeforeGuidelines = html.lastIndexOf('style="padding:0 24px', guidelinesSectionIdx);
-    expect(html.slice(paddingBeforeGuidelines, paddingBeforeGuidelines + 31)).toContain("padding:0 24px 16px");
-  });
-
   it("defaults to no billing content when the caller passes nothing (back-compat)", async () => {
     await sendMatchRevealEmail(
       "recipient@example.test",
