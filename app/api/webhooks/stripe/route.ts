@@ -310,6 +310,7 @@ export async function POST(req: NextRequest) {
 
         if (member.email) {
           await sendUnsubscribedEmail(
+            supabase,
             member.email,
             member.first_name ?? "there"
           );

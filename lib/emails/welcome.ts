@@ -50,15 +50,22 @@ function welcomeHtml(firstName: string, profileLink: string, planLabel: string, 
                                       7th of the month:
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      <span style="font-weight:700">Receive your match</span>
-                                      <span>! Your introduction, accompanied by a whimsical piece of art from our community.</span>
+                                      <span style="font-weight:700">Receive your match!</span>
+                                      <span>Your introduction, accompanied by a whimsical piece of art from our community.</span>
                                     </td></tr>
                                     <tr><td dir="ltr" style="color:#c56850;font-size:16px;font-weight:700;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <span style="text-decoration:underline">Before the 14th of the month:</span>
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <span style="font-weight:700">Request a rematch</span>
-                                      <span> if it's not working out</span>
+                                      <span> if it's not working out.</span>
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="color:#c56850;font-size:16px;font-weight:700;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      <span style="text-decoration:underline">23rd of the month:</span>
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      <span style="font-weight:700">A little nudge</span>
+                                      <span> to remind you to meet up, if you haven't done so already.</span>
                                     </td></tr>`);
 
   return baseEmail(

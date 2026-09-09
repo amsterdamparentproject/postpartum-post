@@ -17,6 +17,7 @@
 
 import { sendWelcomeEmail } from "../lib/emails/welcome.ts";
 import { sendUnsubscribedEmail } from "../lib/emails/unsubscribed.ts";
+import { createAdminClient } from "../lib/supabase.ts";
 import { sendAutoPauseEmail } from "../lib/emails/auto-pause.ts";
 import { sendOptinEmail } from "../lib/emails/optin.ts";
 import { sendMatchRevealEmail } from "../lib/emails/match-reveal.ts";
@@ -51,7 +52,7 @@ await send("welcome", () =>
 );
 
 await send("unsubscribed", () =>
-  sendUnsubscribedEmail(TO, "Alex")
+  sendUnsubscribedEmail(createAdminClient(), TO, "Alex")
 );
 
 await send("auto-pause", () =>

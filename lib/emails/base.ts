@@ -86,12 +86,20 @@ export function emailHead(extraPreloads = ""): string {
  *   insertion point rather than a required param so every other caller
  *   (welcome, gift-card, cancellation-confirmed, unsubscribed) is
  *   unaffected.
+ * @param signoff  The line above "Alex from Amsterdam Parent Project" —
+ *   defaults to the usual "Happy connecting," but a goodbye-toned email
+ *   (unsubscribed) can override it (e.g. "All the best,") without ending
+ *   up with two different sign-offs stacked in the same email, since this
+ *   footer's own sign-off line isn't otherwise skippable.
  */
-export function emailFooter({ afterNonprofitBox = "" }: { afterNonprofitBox?: string } = {}): string {
+export function emailFooter({
+  afterNonprofitBox = "",
+  signoff = "Happy connecting,",
+}: { afterNonprofitBox?: string; signoff?: string } = {}): string {
   return `
                   <!-- Amsterdam Parent Project + contact -->
                   <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 48px 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                    Happy connecting,
+                    ${signoff}
                   </td></tr>
                   <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 48px 24px;line-height:1.4;mso-line-height-alt:22.4px">
                     Alex from Amsterdam Parent Project
@@ -296,7 +304,7 @@ export function bodySection(rows: string, tightBottom = false): string {
 export function baseEmail(
   content: string,
   extraPreloads = "",
-  footerOpts: { afterNonprofitBox?: string } = {}
+  footerOpts: { afterNonprofitBox?: string; signoff?: string } = {}
 ): string {
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
