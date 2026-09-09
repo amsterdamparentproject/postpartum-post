@@ -60,9 +60,16 @@
  * isn't reset until the invoice.payment_succeeded webhook fires later,
  * Track E2) and, without the idempotency keys below, invoice them a second
  * time. Scoped to member + calendar month, not any Stripe-side transaction
- * id, so a genuine retry within the same billing cycle reuses the exact
- * same key (Stripe returns the original result, not a duplicate) while
- * next month's real invoice gets a fresh one.
+ * id — but that only protects retries within Stripe's actual idempotency
+ * window, which is 24 hours from the first request, not the whole billing
+ * cycle (https://docs.stripe.com/error-low-level#idempotency: "keys expire
+ * out of the system after 24 hours"). n8n's own retryOnFail, or you
+ * re-running this by hand the same day, safely replays the same key and
+ * gets the original result back. A manual re-run more than 24 hours after
+ * a failed/partial run — e.g. noticing a broken batch days later — is NOT
+ * covered: Stripe no longer recognizes the key and will create a genuine
+ * second invoice item + invoice for anyone re-processed. Re-run same-day
+ * only; past that, check for an existing uninvoiced state by hand first.
  */
 
 import { NextRequest, NextResponse } from "next/server";
