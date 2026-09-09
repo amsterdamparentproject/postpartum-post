@@ -2,20 +2,30 @@
  * Manual smoke test for POST /api/renew-check (Track E1) against a real
  * local dev server + real Stripe test mode — not a vitest/CI test, since
  * this needs `yarn dev` and `stripe listen` running as separate long-lived
- * processes. Seeds one throwaway billable member (real Stripe test
- * subscription, real card on file, matches_remaining forced to 0), calls
- * the route, confirms the full loop actually happened — pause_collection
- * cleared, invoice created, invoice.payment_succeeded webhook credited the
- * counter and re-paused the subscription — then cleans up after itself.
+ * processes. Seeds two throwaway members that both match renew-check's
+ * candidate filter (status active/canceling, matches_remaining <= 0), and
+ * processes them in the same call, matching how the real cron batch runs:
+ *
+ *   - a BILLABLE candidate (status "active", real card on file) — confirms
+ *     the full renew loop: pause_collection cleared, invoice created,
+ *     invoice.payment_succeeded webhook credits the counter and re-pauses
+ *     the subscription.
+ *   - a CANCELING candidate (status "canceling" — already declined to
+ *     renew) — confirms the other branch, added so renew-check stops
+ *     silently rebilling someone who's leaving: no invoice at all, just an
+ *     explicit stripe.subscriptions.cancel(), which fires
+ *     customer.subscription.deleted and lets the existing webhook set
+ *     members.status -> inactive.
  *
  * Prerequisites (see __claude__/billing-simplification-plan.md and this
  * script's own preflight checks):
  *   1. `yarn dev -p 3001` running in one terminal
  *   2. `stripe listen --forward-to localhost:3001/api/webhooks/stripe`
- *      running in another (required for the webhook credit + re-pause to
- *      actually fire — without it this script will see `billed: 1` from
- *      renew-check itself but time out waiting for matches_remaining to
- *      update, since nothing delivers the invoice.payment_succeeded event)
+ *      running in another (required for both webhook-driven assertions
+ *      below — the billable candidate's credit + re-pause, and the
+ *      canceling candidate's members.status -> inactive — without it
+ *      this script will see renew-check's own immediate response look
+ *      right but time out waiting for either to actually land)
  *
  * Usage:
  *   tsx scripts/smoketest-renew-check.mts
@@ -32,10 +42,11 @@
  * matches_remaining (0-5) every run, so there's a real chance one or more
  * of them already sit at 0 and get swept into the same renew-check call
  * this script triggers. Harmless in Stripe test mode, but it does mean
- * their real (salvaged) Stripe subscriptions get paused/invoiced too, not
- * just their DB row — which `yarn seed-test-members` only resets the DB
- * side of. This script reports who else currently matches before running,
- * and reminds you to re-run `yarn seed-test-members` afterward regardless.
+ * their real (salvaged) Stripe subscriptions get paused/invoiced/canceled
+ * too, not just their DB row — which `yarn seed-test-members` only resets
+ * the DB side of. This script reports who else currently matches before
+ * running, and reminds you to re-run `yarn seed-test-members` afterward
+ * regardless.
  */
 
 import { config } from "dotenv";
@@ -95,7 +106,7 @@ async function reportExistingCandidates(): Promise<void> {
     return;
   }
   if (!data?.length) {
-    console.log("Preflight: no other billable-at-zero members exist right now — this run will only touch the one seeded below.\n");
+    console.log("Preflight: no other billable-at-zero members exist right now — this run will only touch the two seeded below.\n");
     return;
   }
   console.log(`Preflight: ${data.length} other member(s) already match renew-check's candidate filter and will ALSO be processed:`);
@@ -106,18 +117,18 @@ async function reportExistingCandidates(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Seed one throwaway billable member with a real Stripe test subscription
-// and a real card on file (required — renew-check skips anyone with no
+// Seed a throwaway billable member with a real Stripe test subscription and
+// a real card on file (required — renew-check skips anyone with no
 // default_payment_method).
 // ---------------------------------------------------------------------------
 
-async function seedCandidate() {
+async function seedBillableCandidate() {
   const tag = crypto.randomUUID().slice(0, 8);
-  const email = `amsterdamparentproject+renewcheck-smoketest-${tag}@gmail.com`;
+  const email = `amsterdamparentproject+renewcheck-smoketest-billable-${tag}@gmail.com`;
 
   const customer = await stripe.customers.create({
     email,
-    name: "Renew-Check Smoketest",
+    name: "Renew-Check Smoketest (billable)",
     payment_method: "pm_card_visa",
     invoice_settings: { default_payment_method: "pm_card_visa" },
   });
@@ -141,7 +152,7 @@ async function seedCandidate() {
     .insert({
       email,
       first_name: "Renew-Check",
-      last_name: "Smoketest",
+      last_name: "Smoketest (billable)",
       status: "active",
       stripe_customer_id: customer.id,
       consecutive_skips: 0,
@@ -168,21 +179,87 @@ async function seedCandidate() {
   };
 }
 
-async function cleanup(candidate: { memberId: string; customerId: string; subscriptionId: string }) {
+// ---------------------------------------------------------------------------
+// Seed a throwaway member who has already declined to renew — status
+// "canceling", matches_remaining=0. finalizeCancellation() doesn't gate on
+// a payment method the way renewMember() does, but we give it a card
+// anyway to mirror a real member (who'd typically still have one on file
+// from their last paid term).
+// ---------------------------------------------------------------------------
+
+async function seedCancelingCandidate() {
+  const tag = crypto.randomUUID().slice(0, 8);
+  const email = `amsterdamparentproject+renewcheck-smoketest-canceling-${tag}@gmail.com`;
+
+  const customer = await stripe.customers.create({
+    email,
+    name: "Renew-Check Smoketest (canceling)",
+    payment_method: "pm_card_visa",
+    invoice_settings: { default_payment_method: "pm_card_visa" },
+  });
+
+  const prices = await stripe.prices.list({ lookup_keys: [LOOKUP_KEY], active: true, limit: 1 });
+  const price = prices.data[0];
+  if (!price) throw new Error(`Price with lookup key "${LOOKUP_KEY}" not found in Stripe test mode — has it been created?`);
+
+  // Same 30-day trial as the billable candidate — irrelevant to the cancel
+  // path either way, but keeps both candidates symmetric and avoids an
+  // incidental invoice muddying the "no invoice was created" assertion
+  // below.
+  const sub = await stripe.subscriptions.create({
+    customer: customer.id,
+    items: [{ price: price.id }],
+    trial_end: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30,
+  });
+
+  const { data: memberRow, error: memberError } = await supabase
+    .from("members")
+    .insert({
+      email,
+      first_name: "Renew-Check",
+      last_name: "Smoketest (canceling)",
+      status: "canceling",
+      stripe_customer_id: customer.id,
+      consecutive_skips: 0,
+      matches_remaining: 0,
+    })
+    .select("id")
+    .single();
+  if (memberError || !memberRow) throw new Error(`Member insert failed: ${memberError?.message}`);
+
+  const { error: subError } = await supabase.from("subscriptions").insert({
+    member_id: memberRow.id,
+    stripe_subscription_id: sub.id,
+    stripe_price_id: price.id,
+    status: "active",
+  });
+  if (subError) throw new Error(`Subscription insert failed: ${subError.message}`);
+
+  return {
+    memberId: memberRow.id as string,
+    email,
+    customerId: customer.id,
+    subscriptionId: sub.id,
+  };
+}
+
+async function cleanup(candidates: Array<{ memberId: string; customerId: string; subscriptionId: string }>) {
   console.log("\nCleaning up...");
-  try {
-    await stripe.subscriptions.cancel(candidate.subscriptionId);
-  } catch {
-    // Already canceled — ignore
+  for (const candidate of candidates) {
+    try {
+      await stripe.subscriptions.cancel(candidate.subscriptionId);
+    } catch {
+      // Already canceled (expected for the canceling candidate) — ignore
+    }
+    try {
+      await stripe.customers.del(candidate.customerId);
+    } catch {
+      // Already deleted, or Stripe refuses (has other objects attached) — not worth failing the script over
+    }
+    await supabase.from("subscriptions").delete().eq("member_id", candidate.memberId);
+    await supabase.from("members").delete().eq("id", candidate.memberId);
   }
-  try {
-    await stripe.customers.del(candidate.customerId);
-  } catch {
-    // Already deleted, or Stripe refuses (has other objects attached) — not worth failing the script over
-  }
-  await supabase.from("subscriptions").delete().eq("member_id", candidate.memberId);
-  await supabase.from("members").delete().eq("id", candidate.memberId);
-  console.log("Done — seeded member, subscription, and Stripe test objects removed.");
+  console.log("Done — seeded members, subscriptions, and Stripe test objects removed.");
 }
 
 // ---------------------------------------------------------------------------
@@ -207,12 +284,18 @@ async function main() {
 
   await reportExistingCandidates();
 
-  console.log("Seeding one throwaway billable member (real Stripe test subscription + card on file, matches_remaining=0)...");
-  const candidate = await seedCandidate();
-  console.log(`  member ${candidate.memberId} (${candidate.email})`);
-  console.log(`  subscription ${candidate.subscriptionId}, expecting +${candidate.expectedMatches} on credit\n`);
+  console.log("Seeding one billable member (real Stripe test subscription + card on file, status=active, matches_remaining=0)...");
+  const billable = await seedBillableCandidate();
+  console.log(`  member ${billable.memberId} (${billable.email})`);
+  console.log(`  subscription ${billable.subscriptionId}, expecting +${billable.expectedMatches} on credit\n`);
+
+  console.log("Seeding one canceling member (already declined to renew, status=canceling, matches_remaining=0)...");
+  const canceling = await seedCancelingCandidate();
+  console.log(`  member ${canceling.memberId} (${canceling.email})`);
+  console.log(`  subscription ${canceling.subscriptionId}, expecting an explicit cancel — no invoice\n`);
 
   let passed = true;
+  const candidates = [billable, canceling];
 
   try {
     console.log("Calling /api/renew-check...");
@@ -226,32 +309,69 @@ async function main() {
       console.error("FAIL: renew-check did not return 2xx.");
       passed = false;
     }
-
-    console.log("Polling for the webhook credit (needs `stripe listen` running — up to ~20s)...");
-    let matchesRemaining: number | null = null;
-    for (const delayMs of [500, 500, 1000, 1000, 2000, 2000, 3000, 3000, 3000, 3000]) {
-      await sleep(delayMs);
-      const { data } = await supabase.from("members").select("matches_remaining").eq("id", candidate.memberId).single();
-      matchesRemaining = data?.matches_remaining ?? null;
-      if ((matchesRemaining ?? 0) >= candidate.expectedMatches) break;
-    }
-    if (matchesRemaining === candidate.expectedMatches) {
-      console.log(`  PASS: matches_remaining credited to ${matchesRemaining} as expected.`);
-    } else {
-      console.error(`  FAIL: expected matches_remaining=${candidate.expectedMatches}, got ${matchesRemaining}. Is \`stripe listen\` running and forwarding to localhost:3001/api/webhooks/stripe?`);
+    if (typeof body.canceled === "number" && body.canceled < 1) {
+      console.error("FAIL: expected renew-check to report at least one cancellation.");
       passed = false;
     }
 
-    console.log("Checking the subscription was re-paused after crediting (Track E2)...");
-    const finalSub = await stripe.subscriptions.retrieve(candidate.subscriptionId);
+    console.log("Polling for the billable member's webhook credit (needs `stripe listen` running — up to ~20s)...");
+    let matchesRemaining: number | null = null;
+    for (const delayMs of [500, 500, 1000, 1000, 2000, 2000, 3000, 3000, 3000, 3000]) {
+      await sleep(delayMs);
+      const { data } = await supabase.from("members").select("matches_remaining").eq("id", billable.memberId).single();
+      matchesRemaining = data?.matches_remaining ?? null;
+      if ((matchesRemaining ?? 0) >= billable.expectedMatches) break;
+    }
+    if (matchesRemaining === billable.expectedMatches) {
+      console.log(`  PASS: matches_remaining credited to ${matchesRemaining} as expected.`);
+    } else {
+      console.error(`  FAIL: expected matches_remaining=${billable.expectedMatches}, got ${matchesRemaining}. Is \`stripe listen\` running and forwarding to localhost:3001/api/webhooks/stripe?`);
+      passed = false;
+    }
+
+    console.log("Checking the billable subscription was re-paused after crediting (Track E2)...");
+    const finalSub = await stripe.subscriptions.retrieve(billable.subscriptionId);
     if (finalSub.pause_collection?.behavior === "void") {
       console.log("  PASS: pause_collection is set again.");
     } else {
       console.error(`  FAIL: expected pause_collection.behavior === "void", got ${JSON.stringify(finalSub.pause_collection)}.`);
       passed = false;
     }
+
+    console.log("Checking the canceling member's Stripe subscription was actually canceled...");
+    const canceledSub = await stripe.subscriptions.retrieve(canceling.subscriptionId);
+    if (canceledSub.status === "canceled") {
+      console.log("  PASS: Stripe subscription status is canceled.");
+    } else {
+      console.error(`  FAIL: expected status "canceled", got "${canceledSub.status}".`);
+      passed = false;
+    }
+
+    console.log("Checking no invoice was created for the canceling member...");
+    const invoices = await stripe.invoices.list({ customer: canceling.customerId, limit: 10 });
+    if (invoices.data.length === 0) {
+      console.log("  PASS: no invoice created.");
+    } else {
+      console.error(`  FAIL: expected 0 invoices for the canceling member, found ${invoices.data.length}.`);
+      passed = false;
+    }
+
+    console.log("Polling for the webhook to mark the canceling member inactive (needs `stripe listen` running — up to ~20s)...");
+    let cancelingStatus: string | null = null;
+    for (const delayMs of [500, 500, 1000, 1000, 2000, 2000, 3000, 3000, 3000, 3000]) {
+      await sleep(delayMs);
+      const { data } = await supabase.from("members").select("status").eq("id", canceling.memberId).single();
+      cancelingStatus = data?.status ?? null;
+      if (cancelingStatus === "inactive") break;
+    }
+    if (cancelingStatus === "inactive") {
+      console.log("  PASS: members.status is inactive.");
+    } else {
+      console.error(`  FAIL: expected members.status "inactive", got "${cancelingStatus}". Is \`stripe listen\` running and forwarding to localhost:3001/api/webhooks/stripe?`);
+      passed = false;
+    }
   } finally {
-    await cleanup(candidate);
+    await cleanup(candidates);
   }
 
   console.log(passed ? "\n✓ Smoke test passed." : "\n✗ Smoke test FAILED — see above.");
