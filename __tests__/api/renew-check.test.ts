@@ -7,6 +7,9 @@
  *   - Happy path: pause cleared, flat-amount invoiceItem + invoice created
  *   - Per-member error isolation: one Stripe failure doesn't stop the batch
  *   - Members with balance > 0 are never candidates at all
+ *   - A "canceling" member at zero gets their cancellation finalized
+ *     (subscriptions.cancel) instead of billed — they already declined to
+ *     renew, so a fresh charge would silently override that decision.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -16,16 +19,17 @@ import { POST } from "@/app/api/renew-check/route";
 
 // --- Mocks ---
 
-const { mockRetrieve, mockUpdate, mockInvoiceItemCreate, mockInvoiceCreate } = vi.hoisted(() => ({
+const { mockRetrieve, mockUpdate, mockCancel, mockInvoiceItemCreate, mockInvoiceCreate } = vi.hoisted(() => ({
   mockRetrieve: vi.fn(),
   mockUpdate: vi.fn().mockResolvedValue({}),
+  mockCancel: vi.fn().mockResolvedValue({}),
   mockInvoiceItemCreate: vi.fn().mockResolvedValue({}),
   mockInvoiceCreate: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({
-    subscriptions: { retrieve: mockRetrieve, update: mockUpdate },
+    subscriptions: { retrieve: mockRetrieve, update: mockUpdate, cancel: mockCancel },
     invoiceItems: { create: mockInvoiceItemCreate },
     invoices: { create: mockInvoiceCreate },
   }),
@@ -82,6 +86,7 @@ describe("POST /api/renew-check", () => {
   beforeEach(() => {
     mockRetrieve.mockReset().mockResolvedValue(stripeSubResponse());
     mockUpdate.mockReset().mockResolvedValue({});
+    mockCancel.mockReset().mockResolvedValue({});
     mockInvoiceItemCreate.mockReset().mockResolvedValue({});
     mockInvoiceCreate.mockReset().mockResolvedValue({});
   });
@@ -195,6 +200,28 @@ describe("POST /api/renew-check", () => {
     expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
     expect(mockRetrieve).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
     expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+  });
+
+  it("finalizes the cancellation for a canceling member at zero — no bill, just cancel()", async () => {
+    const member = await seedMember({ status: "canceling", matches_remaining: 0 });
+    memberId = member.id;
+    const sub = await seedSubscription(memberId, { status: "active" });
+
+    const res = await POST(makeRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.canceled).toBeGreaterThanOrEqual(1);
+    expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+
+    expect(mockCancel).toHaveBeenCalledWith(sub.stripe_subscription_id);
+    // Never billed — a canceling member already declined to renew.
+    expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+    expect(mockInvoiceItemCreate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: sub.stripe_subscription_id })
+    );
+    expect(mockInvoiceCreate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: sub.stripe_subscription_id })
+    );
   });
 
   it("isolates a per-member Stripe failure — records the error without failing the batch", async () => {
