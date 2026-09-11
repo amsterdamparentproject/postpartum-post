@@ -335,18 +335,6 @@ export async function optInFromMatches(
       .insert({ member_id: memberId, month: monthDate });
     if (skipError) return { success: false, error: "server_error" };
 
-    const { data: sub } = await supabase
-      .from("subscriptions")
-      .select("stripe_subscription_id")
-      .eq("member_id", memberId)
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (sub?.stripe_subscription_id) {
-      const { extendSubscriptionToNext5th } = await import("@/lib/subscription-utils");
-      await extendSubscriptionToNext5th(sub.stripe_subscription_id);
-    }
-
     await supabase
       .from("members")
       .update({ consecutive_skips: memberRow.consecutive_skips + 1 })

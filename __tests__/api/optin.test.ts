@@ -1,24 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { seedMember, seedSubscription, cleanupMember, createTestSupabase } from "@tests/helpers";
 import { generateOptinToken } from "@/lib/optin-token";
 import { GET } from "@/app/api/optin/route";
 
-// --- Mocks ---
-
-const { mockRetrieve, mockUpdate } = vi.hoisted(() => ({
-  mockRetrieve: vi.fn(),
-  mockUpdate: vi.fn(),
-}));
-
-vi.mock("@/lib/stripe", () => ({
-  getStripe: () => ({
-    subscriptions: {
-      retrieve: mockRetrieve,
-      update: mockUpdate,
-    },
-  }),
-}));
+// Track F: app/api/optin/route.ts no longer touches Stripe at all — a skip
+// is pure DB bookkeeping now, so there's no Stripe mock in this file.
 
 const MONTH = "2024-03";
 const MONTH_DATE = "2024-03-01";
@@ -48,27 +35,8 @@ function makeRequest(memberId: string, month: string, action: string, token: str
   return new NextRequest(url, { method: "GET" });
 }
 
-function stripeMonthlySubResponse() {
-  return {
-    items: {
-      data: [
-        {
-          price: { lookup_key: "standard_monthly" },
-          current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400,
-        },
-      ],
-    },
-  };
-}
-
 describe("GET /api/optin", () => {
   let memberId: string;
-
-  beforeEach(() => {
-    mockRetrieve.mockReset();
-    mockUpdate.mockReset();
-    mockUpdate.mockResolvedValue({});
-  });
 
   afterEach(async () => {
     if (memberId) {
@@ -183,7 +151,6 @@ describe("GET /api/optin", () => {
     const member = await seedMember({ matches_remaining: 0, consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
-    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     const token = generateOptinToken(memberId, MONTH, "skip");
     const res = await GET(makeRequest(memberId, MONTH, "skip", token));
@@ -240,11 +207,10 @@ describe("GET /api/optin", () => {
   // Skip
   // ---------------------------------------------------------------------------
 
-  it("skip — records a monthly_skip row, increments consecutive_skips, and calls Stripe to extend subscription", async () => {
+  it("skip — records a monthly_skip row and increments consecutive_skips", async () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
-    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     const token = generateOptinToken(memberId, MONTH, "skip");
     const res = await GET(makeRequest(memberId, MONTH, "skip", token));
@@ -270,32 +236,20 @@ describe("GET /api/optin", () => {
       .eq("id", memberId)
       .single();
     expect(updated?.consecutive_skips).toBe(1);
-
-    // Stripe subscription extended by one month via trial_end
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        trial_end: expect.any(Number),
-        proration_behavior: "none",
-      })
-    );
   });
 
-  it("skip (already skipped) — redirects to /optin/already and does not double-write or re-extend Stripe", async () => {
+  it("skip (already skipped) — redirects to /optin/already and does not double-write", async () => {
     const member = await seedMember({ consecutive_skips: 1 });
     memberId = member.id;
     await seedSubscription(memberId);
-    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     const token = generateOptinToken(memberId, MONTH, "skip");
     await GET(makeRequest(memberId, MONTH, "skip", token));
-    mockUpdate.mockClear();
 
     // Second skip attempt
     const res = await GET(makeRequest(memberId, MONTH, "skip", token));
 
     expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=already_skip");
-    expect(mockUpdate).not.toHaveBeenCalled();
 
     const supabase = createTestSupabase();
     const { data: rows } = await supabase
@@ -310,7 +264,6 @@ describe("GET /api/optin", () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
-    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     // Wrap the real admin client so only this member's monthly_skips insert
     // fails — everything else (member lookup, magic link generation) goes
@@ -380,7 +333,6 @@ describe("GET /api/optin", () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
-    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     // First: opt in with coffee
     const coffeeToken = generateOptinToken(memberId, MONTH, "coffee");
@@ -425,7 +377,6 @@ describe("GET /api/optin", () => {
     const member = await seedMember({ consecutive_skips: 1 });
     memberId = member.id;
     await seedSubscription(memberId);
-    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     // First: skip
     const skipToken = generateOptinToken(memberId, MONTH, "skip");
@@ -461,7 +412,7 @@ describe("GET /api/optin", () => {
   // No response
   // ---------------------------------------------------------------------------
 
-  it("no response — member has no participation or skip row, is excluded from the match pool, and subscription is unchanged", async () => {
+  it("no response — member has no participation or skip row, and is excluded from the match pool", async () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
@@ -495,9 +446,6 @@ describe("GET /api/optin", () => {
       .eq("month", MONTH_DATE)
       .eq("member_id", memberId);
     expect(pool).toHaveLength(0);
-
-    // Stripe never touched
-    expect(mockUpdate).not.toHaveBeenCalled();
 
     // consecutive_skips unchanged
     const { data: updated } = await supabase
