@@ -170,7 +170,7 @@ describe("signup action", () => {
     expect(sessionArgs).not.toHaveProperty("discounts");
   });
 
-  it("does not set trial_end in the checkout session (extension is applied post-checkout by the webhook)", async () => {
+  it("does not set trial_end in the checkout session (this app never gives a genuine pre-payment trial)", async () => {
     await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
 
     const sessionArgs = mockSessionCreate.mock.calls[0][0];
