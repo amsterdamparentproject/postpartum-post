@@ -145,7 +145,7 @@ function BillingContent() {
               ? <>You&apos;ve already chosen to skip this month. If you&apos;d like to rejoin the match pool, please contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a>.</>
               : optinParam === "no_balance"
               ? "You're between terms right now, so this month's match is on pause — check your status below for when you'll be matched again."
-              : "You're skipping your match this month — all good! We've automatically adjusted your billing cycle so that you're not charged this month. See you next month 💌"
+              : "You're skipping your match this month — all good! Your match is saved for next time, and nothing about your billing changes. See you next month 💌"
             }
           </p>
           <button
@@ -215,29 +215,24 @@ function BillingContent() {
               </div>
             )}
 
-            {member.consecutive_skips > 0 && (() => {
-              const isMonthly = subscription.price_lookup_key === "standard_monthly";
-              return (
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted">Months skipped in a row</span>
-                    <span className={`font-medium ${isMonthly && member.consecutive_skips >= 2 ? "text-amber-600" : "text-dark"}`}>
-                      {isMonthly ? `${member.consecutive_skips} / 3` : member.consecutive_skips}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted leading-relaxed">
-                    {isMonthly
-                      ? "After 3 consecutive skips, your subscription will be automatically paused so you're not charged while things are busy."
-                      : "On your plan, you can skip as many months as you need — we'll never auto-pause you."}
-                  </p>
+            {member.consecutive_skips > 0 && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">Months skipped in a row</span>
+                  <span className={`font-medium ${member.consecutive_skips >= 2 ? "text-amber-600" : "text-dark"}`}>
+                    {member.consecutive_skips} / 3
+                  </span>
                 </div>
-              );
-            })()}
+                <p className="text-xs text-muted leading-relaxed">
+                  After 3 consecutive skips, your subscription will be automatically paused so you're not charged while things are busy.
+                </p>
+              </div>
+            )}
 
             <hr className="border-border" />
 
             <p className="text-xs text-muted leading-relaxed">
-              Skip any month from your monthly email and we&apos;ll adjust your billing automatically — no penalty, no questions asked.
+              Skip any month from your monthly email — no penalty, no questions asked. Your match is saved for next time.
             </p>
 
             <button

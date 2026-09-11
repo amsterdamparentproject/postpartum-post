@@ -11,12 +11,13 @@
  *
  *   2. Skip (opt-out)
  *      Simulate clicking "Skip" → auto sign-in on /billing →
- *      consecutive-skips counter visible → Stripe subscription extended
- *      by one month → member absent from dry-run match pool.
+ *      consecutive-skips counter visible → Stripe subscription untouched
+ *      (Track F: a skip is pure DB bookkeeping, no Stripe call at all) →
+ *      member absent from dry-run match pool.
  *
  *   3. No response
  *      No action taken → member absent from dry-run match pool →
- *      billing date unchanged → consecutive-skips counter not shown.
+ *      billing untouched → consecutive-skips counter not shown.
  *
  * All match rounds use dryRun: true so no emails are sent and no
  * match_rounds / match_drafts rows are written to the DB.
@@ -179,12 +180,12 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  "skip: skip email → /billing → subscription extended → not in match pool",
+  "skip: skip email → /billing → not in match pool",
   async ({ page }) => {
     const month = currentMonth();
 
-    // Real Stripe subscription needed so extendSubscriptionToNext5th can
-    // update the trial_end via the Stripe API.
+    // Real Stripe subscription so /billing has something real to render,
+    // and so we can positively assert Stripe was never touched by the skip.
     const member = await seedMemberWithSubscription({ firstName: "Carol", lastName: "Skip" });
 
     // Two extra members who opt in so the dry-run has a valid pool to run
@@ -193,13 +194,15 @@ test(
     const pool2 = await seedMember({ firstName: "Pool", lastName: "Two" });
 
     try {
-      // Record the subscription period before the skip so we can verify
-      // the extension afterwards.
+      // Record the subscription's trial_end before the skip so we can
+      // assert afterwards that a skip genuinely never calls Stripe
+      // (Track F removed extendSubscriptionToNext5th and every call site,
+      // including the one that used to live in this flow).
       const trialEndBefore = await getStripeTrialEnd(member.stripeSubscriptionId);
 
       // ── Step 1: Simulate clicking "Skip" in the monthly opt-in email ──────
-      // The route records monthly_skips, increments consecutive_skips,
-      // extends the Stripe subscription, and redirects to /billing?optin=skip.
+      // The route records monthly_skips, increments consecutive_skips, and
+      // redirects to /billing?optin=skip — no Stripe call.
       await page.goto(buildOptinUrl(member.id, month, "skip"));
 
       // ── Step 2: Lands on /billing, signed in automatically ────────────────
@@ -212,33 +215,16 @@ test(
 
       // The billing page's Status badge is our own vocabulary (Track C1,
       // billing plan §3.3) derived from the matches-remaining counter, not
-      // Stripe's raw status — it reads "Active — 3 matches left" whether
-      // the live Stripe subscription is "active" or "trialing" under the
-      // hood (the skip's extendSubscriptionToNext5th call doesn't touch
-      // the counter, so it's unaffected either way). Assert what's
-      // actually shown, and guard against Stripe's raw "trialing"/"Trial"
-      // wording ever leaking through.
+      // Stripe's raw status. Assert what's actually shown, and guard
+      // against Stripe's raw "trialing"/"Trial" wording ever leaking
+      // through (it never should now — nothing pushes trial_end anymore).
       await expect(page.getByText("Active — 3 matches left", { exact: true })).toBeVisible();
       await expect(page.getByText("Trial", { exact: true })).not.toBeVisible();
       await expect(page.getByText("trialing", { exact: false })).not.toBeVisible();
 
-      // ── Step 4: Stripe subscription extended to the next match day ────────
+      // ── Step 4: Stripe subscription genuinely untouched ───────────────────
       const trialEndAfter = await getStripeTrialEnd(member.stripeSubscriptionId);
-
-      expect(trialEndAfter).not.toBeNull();
-      expect(trialEndBefore).not.toBeNull();
-      // extendSubscriptionToNext5th rounds forward to the next 5th-of-month
-      // rather than always adding a flat ~30 days — the gap varies (as
-      // little as ~1 day, as much as ~31) depending on where in the month
-      // the subscription's period end already falls when the skip happens.
-      // Assert the invariant that actually holds regardless of test-run
-      // date: it's a forward-only extension landing exactly on the 5th.
-      expect(trialEndAfter!).toBeGreaterThan(trialEndBefore!);
-      const afterDate = new Date(trialEndAfter! * 1000);
-      expect(afterDate.getUTCDate()).toBe(5);
-      expect(afterDate.getUTCHours()).toBe(0);
-      expect(afterDate.getUTCMinutes()).toBe(0);
-      expect(afterDate.getUTCSeconds()).toBe(0);
+      expect(trialEndAfter).toBe(trialEndBefore);
 
       // ── Step 5: DB reflects the skip, not an opt-in ───────────────────────
       expect(await hasMemberParticipation(member.id, month)).toBe(false);

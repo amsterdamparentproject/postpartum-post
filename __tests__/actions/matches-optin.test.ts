@@ -13,21 +13,9 @@ import { seedMember, seedSubscription, cleanupMember, createTestSupabase } from 
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { optInFromMatches } from "@/app/(account)/matches/actions";
 
-// --- Mocks ---
-
-const { mockRetrieve, mockUpdate } = vi.hoisted(() => ({
-  mockRetrieve: vi.fn(),
-  mockUpdate: vi.fn(),
-}));
-
-vi.mock("@/lib/stripe", () => ({
-  getStripe: () => ({
-    subscriptions: {
-      retrieve: mockRetrieve,
-      update: mockUpdate,
-    },
-  }),
-}));
+// Track F: app/(account)/matches/actions.ts no longer touches Stripe at all
+// for a skip — pure DB bookkeeping now — so there's no Stripe mock in this
+// file.
 
 // In these unit tests the "token" passed to an action IS the member id —
 // requireMember's real token→member verification is covered separately by
@@ -36,19 +24,6 @@ vi.mock("@/lib/require-member", () => ({
   requireMember: (token: string) =>
     Promise.resolve(token ? { memberId: token, email: `${token}@test.com` } : null),
 }));
-
-function stripeMonthlySubResponse() {
-  return {
-    items: {
-      data: [
-        {
-          price: { lookup_key: "standard_monthly" },
-          current_period_end: Math.floor(Date.now() / 1000) + 30 * 86400,
-        },
-      ],
-    },
-  };
-}
 
 // Fixed pre-deadline date used for all tests so the suite passes regardless of
 // what day of the month it actually is.
@@ -64,9 +39,6 @@ describe("optInFromMatches", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(BEFORE_DEADLINE);
     monthDate = monthToDate(currentMonth());
-    mockRetrieve.mockReset();
-    mockUpdate.mockReset();
-    mockUpdate.mockResolvedValue({});
   });
 
   afterEach(async () => {
@@ -172,11 +144,10 @@ describe("optInFromMatches", () => {
   // Skip
   // ---------------------------------------------------------------------------
 
-  it("skip — records monthly_skips, increments consecutive_skips, and extends the Stripe subscription", async () => {
+  it("skip — records monthly_skips and increments consecutive_skips", async () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
-    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     const result = await optInFromMatches(memberId, "skip");
     expect(result).toEqual({ success: true });
@@ -196,24 +167,15 @@ describe("optInFromMatches", () => {
       .eq("id", memberId)
       .single();
     expect(updated?.consecutive_skips).toBe(1);
-
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        trial_end: expect.any(Number),
-        proration_behavior: "none",
-      })
-    );
   });
 
-  it("skip with no active subscription — still records the skip, never calls Stripe", async () => {
+  it("skip with no active subscription — still records the skip", async () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;
     // No seedSubscription() — member has no subscription row
 
     const result = await optInFromMatches(memberId, "skip");
     expect(result).toEqual({ success: true });
-    expect(mockUpdate).not.toHaveBeenCalled();
 
     const supabase = createTestSupabase();
     const { data: skip } = await supabase
@@ -258,7 +220,6 @@ describe("optInFromMatches", () => {
     const member = await seedMember({ matches_remaining: 0, consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
-    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     const result = await optInFromMatches(memberId, "skip");
     expect(result).toEqual({ success: true });
@@ -305,7 +266,6 @@ describe("optInFromMatches", () => {
     const member = await seedMember({ consecutive_skips: 1 });
     memberId = member.id;
     await seedSubscription(memberId);
-    mockRetrieve.mockResolvedValue(stripeMonthlySubResponse());
 
     await optInFromMatches(memberId, "skip");
     const attempt = await optInFromMatches(memberId, "coffee");
@@ -328,7 +288,7 @@ describe("optInFromMatches", () => {
     expect(updated?.consecutive_skips).toBe(2);
   });
 
-  it("already opted in — a skip call afterward is rejected and does not touch Stripe", async () => {
+  it("already opted in — a skip call afterward is rejected", async () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
@@ -336,7 +296,6 @@ describe("optInFromMatches", () => {
     await optInFromMatches(memberId, "playdate");
     const attempt = await optInFromMatches(memberId, "skip");
     expect(attempt).toEqual({ success: false, error: "already_responded" });
-    expect(mockUpdate).not.toHaveBeenCalled();
 
     const supabase = createTestSupabase();
     const { data: skip } = await supabase

@@ -86,18 +86,6 @@ export async function GET(request: NextRequest) {
       .eq("member_id", memberId)
       .eq("month", monthDate);
 
-    const { data: sub } = await supabase
-      .from("subscriptions")
-      .select("stripe_subscription_id")
-      .eq("member_id", memberId)
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (sub?.stripe_subscription_id) {
-      const { extendSubscriptionToNext5th } = await import("@/lib/subscription-utils");
-      await extendSubscriptionToNext5th(sub.stripe_subscription_id);
-    }
-
     await supabase
       .from("members")
       .update({ consecutive_skips: memberRow.consecutive_skips + 1 })

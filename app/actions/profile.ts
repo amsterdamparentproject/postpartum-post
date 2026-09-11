@@ -167,18 +167,21 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
 
     // Bugfix (billing-simplification-plan.md, Appendix A): this app never gives a
     // member a genuine pre-payment Stripe trial — checkout never sets
-    // subscription_data.trial_period_days (app/actions/signup.ts). The only
-    // way a subscription's status is ever "trialing" here is
-    // extendSubscriptionToNext5th() (lib/subscription-utils.ts) pushing
-    // trial_end forward on an already-paying subscription — the signup-time
-    // billing-anchor correction, a member skip, a match opt-in, or a
-    // free-month grant. In every one of those cases trial_end already IS
-    // the member's next real charge, not a "first payment" to project past.
-    // Stripe mirrors that onto item.current_period_end while trialing, so
-    // no special-casing is needed — a previous version of this code added
-    // trial_end + one more full interval on top, overstating "Next billing
-    // date" by an entire term (up to 6 months for commitment_6mo) for any
-    // member currently sitting in one of these trial_end windows.
+    // subscription_data.trial_period_days (app/actions/signup.ts). Before
+    // Track F, the only way a subscription's status was ever "trialing"
+    // here was extendSubscriptionToNext5th() pushing trial_end forward on
+    // an already-paying subscription (signup-time billing-anchor
+    // correction, a member skip, a match opt-in, or a free-month grant) —
+    // in every one of those cases trial_end already WAS the member's next
+    // real charge, not a "first payment" to project past. Stripe mirrors
+    // that onto item.current_period_end while trialing, so no
+    // special-casing was ever needed — a previous version of this code
+    // added trial_end + one more full interval on top, overstating "Next
+    // billing date" by an entire term (up to 6 months for commitment_6mo).
+    // Track F deleted extendSubscriptionToNext5th and every call site, so
+    // nothing pushes trial_end anymore and a subscription should never be
+    // "trialing" again going forward — this stays a flat, unconditional
+    // read of item.current_period_end regardless.
     current_period_end = item.current_period_end;
   } catch (e) {
     console.error("Failed to fetch subscription from Stripe:", e);
