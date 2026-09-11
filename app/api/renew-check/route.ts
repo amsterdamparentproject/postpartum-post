@@ -41,6 +41,19 @@
  * them would strand them at zero silently, since nothing would ever
  * unpause them.
  *
+ * The guard checks Stripe's real fallback order for collecting an
+ * automatically-charged invoice — the subscription's own
+ * default_payment_method first, then the customer's invoice_settings
+ * default, then the customer's legacy default_source — not just the
+ * customer-level field alone. Confirmed against live Stripe data
+ * (2026-09-11): real, paying members on founding_member/commitment_3mo/
+ * standard_monthly have their card on `subscription.default_payment_method`
+ * while `customer.invoice_settings.default_payment_method` is null, and
+ * Stripe's own recurring billing already charges them through it every
+ * cycle. Checking only the customer-level field treated every one of them
+ * as if they had no payment method at all, permanently skipping their
+ * renewal charge alongside the genuinely comped population.
+ *
  * Authentication: Bearer token via MATCHER_API_SECRET env var, same as
  * the other job endpoints (commit-matches, run-matcher, send-optin-email).
  *
@@ -132,10 +145,21 @@ async function renewMember(
 
     const customer = stripeSub.customer;
     const customerId = typeof customer === "string" ? customer : customer.id;
-    const defaultPaymentMethod =
+    const customerInvoiceDefaultPaymentMethod =
       typeof customer !== "string" && !customer.deleted
         ? customer.invoice_settings?.default_payment_method
         : undefined;
+    const customerDefaultSource =
+      typeof customer !== "string" && !customer.deleted ? customer.default_source : undefined;
+    // Stripe's own fallback order for collecting an automatically-charged
+    // invoice: the subscription's own default_payment_method, then the
+    // customer's invoice_settings default, then the customer's legacy
+    // default_source. See the docblock above — checking only the
+    // customer-level field missed real, paying members whose card was
+    // attached at Checkout to the SUBSCRIPTION rather than to the
+    // customer's invoice settings.
+    const defaultPaymentMethod =
+      stripeSub.default_payment_method ?? customerInvoiceDefaultPaymentMethod ?? customerDefaultSource;
 
     // Payment-method guard (plan §5 / Appendix A) — the FYP/comped
     // population. Never pause or bill a subscription with no default

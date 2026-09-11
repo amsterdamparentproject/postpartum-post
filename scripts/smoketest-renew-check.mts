@@ -2,14 +2,24 @@
  * Manual smoke test for POST /api/renew-check (Track E1) against a real
  * local dev server + real Stripe test mode — not a vitest/CI test, since
  * this needs `yarn dev` and `stripe listen` running as separate long-lived
- * processes. Seeds two throwaway members that both match renew-check's
+ * processes. Seeds three throwaway members that all match renew-check's
  * candidate filter (status active/canceling, matches_remaining <= 0), and
  * processes them in the same call, matching how the real cron batch runs:
  *
- *   - a BILLABLE candidate (status "active", real card on file) — confirms
- *     the full renew loop: pause_collection cleared, invoice created,
+ *   - a BILLABLE candidate (status "active", real card on file, set on
+ *     both the customer and the subscription) — confirms the full renew
+ *     loop: pause_collection cleared, invoice created,
  *     invoice.payment_succeeded webhook credits the counter and re-pauses
  *     the subscription.
+ *   - a BILLABLE candidate whose card lives ONLY on the Stripe
+ *     SUBSCRIPTION's default_payment_method, never set as the customer's
+ *     own invoice_settings.default_payment_method — regression coverage
+ *     for the 2026-09-11 bug where real Checkout-created subscriptions
+ *     attach the card this way, and the payment-method guard checked only
+ *     the customer-level field, silently treating every one of them as if
+ *     they had no payment method at all (see the guard's docblock in
+ *     app/api/renew-check/route.ts). Must be billed exactly like the
+ *     first candidate.
  *   - a CANCELING candidate (status "canceling" — already declined to
  *     renew) — confirms the other branch, added so renew-check stops
  *     silently rebilling someone who's leaving: no invoice at all, just an
@@ -187,6 +197,94 @@ async function seedBillableCandidate() {
 // from their last paid term).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Seed a throwaway billable member whose card lives ONLY on the Stripe
+// SUBSCRIPTION's default_payment_method — deliberately never set as the
+// customer's own invoice_settings.default_payment_method. Regression
+// coverage for the 2026-09-11 bug: real Checkout-created subscriptions
+// attach the card this way, and the payment-method guard in
+// app/api/renew-check/route.ts used to check only the customer-level
+// field, silently treating every one of these real, paying members as if
+// they had no payment method at all. This candidate must be billed
+// exactly like seedBillableCandidate()'s.
+// ---------------------------------------------------------------------------
+
+async function seedSubscriptionLevelCardCandidate() {
+  const tag = crypto.randomUUID().slice(0, 8);
+  const email = `amsterdamparentproject+renewcheck-smoketest-sublevelcard-${tag}@gmail.com`;
+
+  // Deliberately no `payment_method` / `invoice_settings` here — the
+  // customer must end up with no default payment method of its own.
+  const customer = await stripe.customers.create({
+    email,
+    name: "Renew-Check Smoketest (subscription-level card)",
+  });
+
+  // Attach a card to the customer without ever marking it as that
+  // customer's default — then hand it to the subscription directly.
+  const paymentMethod = await stripe.paymentMethods.attach("pm_card_visa", { customer: customer.id });
+
+  const prices = await stripe.prices.list({ lookup_keys: [LOOKUP_KEY], active: true, limit: 1 });
+  const price = prices.data[0];
+  if (!price) throw new Error(`Price with lookup key "${LOOKUP_KEY}" not found in Stripe test mode — has it been created?`);
+  if (price.unit_amount === null) throw new Error(`Price "${LOOKUP_KEY}" has no unit_amount — renew-check can't bill it.`);
+
+  // Same 30-day trial as seedBillableCandidate, same reasoning: start
+  // matches_remaining at exactly 0 under our control. default_payment_method
+  // is set here, on the subscription itself, not on the customer.
+  const sub = await stripe.subscriptions.create({
+    customer: customer.id,
+    items: [{ price: price.id }],
+    default_payment_method: paymentMethod.id,
+    trial_end: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30,
+  });
+
+  // Belt-and-suspenders — fail loudly here rather than get a confusing
+  // false pass/fail further down if Stripe's attach/create behavior around
+  // customer-level defaults ever changes.
+  const freshCustomer = await stripe.customers.retrieve(customer.id);
+  if (
+    typeof freshCustomer !== "string" &&
+    !freshCustomer.deleted &&
+    freshCustomer.invoice_settings?.default_payment_method
+  ) {
+    throw new Error(
+      "Test setup invariant broken: customer.invoice_settings.default_payment_method should be unset for this candidate — the regression test wouldn't actually exercise the subscription-level fallback."
+    );
+  }
+
+  const { data: memberRow, error: memberError } = await supabase
+    .from("members")
+    .insert({
+      email,
+      first_name: "Renew-Check",
+      last_name: "Smoketest (subscription-level card)",
+      status: "active",
+      stripe_customer_id: customer.id,
+      consecutive_skips: 0,
+      matches_remaining: 0,
+    })
+    .select("id")
+    .single();
+  if (memberError || !memberRow) throw new Error(`Member insert failed: ${memberError?.message}`);
+
+  const { error: subError } = await supabase.from("subscriptions").insert({
+    member_id: memberRow.id,
+    stripe_subscription_id: sub.id,
+    stripe_price_id: price.id,
+    status: "active",
+  });
+  if (subError) throw new Error(`Subscription insert failed: ${subError.message}`);
+
+  return {
+    memberId: memberRow.id as string,
+    email,
+    customerId: customer.id,
+    subscriptionId: sub.id,
+    expectedMatches: price.recurring?.interval_count ?? 1,
+  };
+}
+
 async function seedCancelingCandidate() {
   const tag = crypto.randomUUID().slice(0, 8);
   const email = `amsterdamparentproject+renewcheck-smoketest-canceling-${tag}@gmail.com`;
@@ -289,6 +387,11 @@ async function main() {
   console.log(`  member ${billable.memberId} (${billable.email})`);
   console.log(`  subscription ${billable.subscriptionId}, expecting +${billable.expectedMatches} on credit\n`);
 
+  console.log("Seeding one billable member whose card lives only on the subscription, not the customer (regression test for the 2026-09-11 payment-method-guard bug)...");
+  const subLevelCard = await seedSubscriptionLevelCardCandidate();
+  console.log(`  member ${subLevelCard.memberId} (${subLevelCard.email})`);
+  console.log(`  subscription ${subLevelCard.subscriptionId}, expecting +${subLevelCard.expectedMatches} on credit (must NOT be skipped as no-payment-method)\n`);
+
   console.log("Seeding one canceling member (already declined to renew, status=canceling, matches_remaining=0)...");
   const canceling = await seedCancelingCandidate();
   console.log(`  member ${canceling.memberId} (${canceling.email})`);
@@ -302,7 +405,7 @@ async function main() {
   const preexistingInvoiceIds = new Set(invoicesBeforeCancel.data.map((inv) => inv.id));
 
   let passed = true;
-  const candidates = [billable, canceling];
+  const candidates = [billable, subLevelCard, canceling];
 
   try {
     console.log("Calling /api/renew-check...");
@@ -342,6 +445,30 @@ async function main() {
       console.log("  PASS: pause_collection is set again.");
     } else {
       console.error(`  FAIL: expected pause_collection.behavior === "void", got ${JSON.stringify(finalSub.pause_collection)}.`);
+      passed = false;
+    }
+
+    console.log("Polling for the subscription-level-card member's webhook credit (regression check — the guard must not skip this as no-payment-method)...");
+    let subLevelMatchesRemaining: number | null = null;
+    for (const delayMs of [500, 500, 1000, 1000, 2000, 2000, 3000, 3000, 3000, 3000]) {
+      await sleep(delayMs);
+      const { data } = await supabase.from("members").select("matches_remaining").eq("id", subLevelCard.memberId).single();
+      subLevelMatchesRemaining = data?.matches_remaining ?? null;
+      if ((subLevelMatchesRemaining ?? 0) >= subLevelCard.expectedMatches) break;
+    }
+    if (subLevelMatchesRemaining === subLevelCard.expectedMatches) {
+      console.log(`  PASS: matches_remaining credited to ${subLevelMatchesRemaining} as expected — a subscription-level-only card was correctly billed.`);
+    } else {
+      console.error(`  FAIL: expected matches_remaining=${subLevelCard.expectedMatches}, got ${subLevelMatchesRemaining}. If this is 0, the payment-method guard is (again) treating a subscription-level card as "no payment method" and silently skipping the bill.`);
+      passed = false;
+    }
+
+    console.log("Checking the subscription-level-card member's subscription was re-paused after crediting (Track E2)...");
+    const subLevelFinalSub = await stripe.subscriptions.retrieve(subLevelCard.subscriptionId);
+    if (subLevelFinalSub.pause_collection?.behavior === "void") {
+      console.log("  PASS: pause_collection is set again.");
+    } else {
+      console.error(`  FAIL: expected pause_collection.behavior === "void", got ${JSON.stringify(subLevelFinalSub.pause_collection)}.`);
       passed = false;
     }
 

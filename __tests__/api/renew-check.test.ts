@@ -4,6 +4,10 @@
  * Tests cover:
  *   - Auth enforcement
  *   - Payment-method guard: no default_payment_method -> skipped, no invoice
+ *   - Payment-method guard checks the subscription-level default_payment_method
+ *     too, not just the customer's invoice_settings — real Checkout-created
+ *     subscriptions carry the card there (bug found 2026-09-11 against live
+ *     Stripe data: real paying members were being skipped as if comped)
  *   - Happy path: pause cleared, flat-amount invoiceItem + invoice created
  *   - Per-member error isolation: one Stripe failure doesn't stop the batch
  *   - Members with balance > 0 are never candidates at all
@@ -47,11 +51,27 @@ function makeRequest(bearer?: string) {
 
 function stripeSubResponse(overrides: {
   hasPaymentMethod?: boolean;
+  // Independent overrides for the subscription-level vs customer-level
+  // default_payment_method — undefined means "fall back to hasPaymentMethod".
+  // Lets tests reproduce the real-world case where the card lives on the
+  // subscription but not on the customer's invoice_settings.
+  subscriptionDefaultPaymentMethod?: string | null;
+  customerDefaultPaymentMethod?: string | null;
   unitAmount?: number | null;
   currency?: string;
 } = {}) {
   const { hasPaymentMethod = true, unitAmount = 1200, currency = "eur" } = overrides;
+  const fallbackPm = hasPaymentMethod ? "pm_test_123" : null;
+  const subscriptionDefaultPaymentMethod =
+    overrides.subscriptionDefaultPaymentMethod !== undefined
+      ? overrides.subscriptionDefaultPaymentMethod
+      : fallbackPm;
+  const customerDefaultPaymentMethod =
+    overrides.customerDefaultPaymentMethod !== undefined
+      ? overrides.customerDefaultPaymentMethod
+      : fallbackPm;
   return {
+    default_payment_method: subscriptionDefaultPaymentMethod,
     items: {
       data: [
         {
@@ -62,8 +82,9 @@ function stripeSubResponse(overrides: {
     customer: {
       id: "cus_test",
       deleted: false,
+      default_source: null,
       invoice_settings: {
-        default_payment_method: hasPaymentMethod ? "pm_test_123" : null,
+        default_payment_method: customerDefaultPaymentMethod,
       },
     },
   };
@@ -125,6 +146,37 @@ describe("POST /api/renew-check", () => {
     );
     expect(mockInvoiceCreate).not.toHaveBeenCalledWith(
       expect.objectContaining({ subscription: sub.stripe_subscription_id })
+    );
+  });
+
+  it("bills a member whose card lives on the subscription, not the customer's invoice_settings", async () => {
+    // Regression test for the 2026-09-11 bug: real Checkout-created
+    // subscriptions carry the card on subscription.default_payment_method,
+    // not customer.invoice_settings.default_payment_method. The guard must
+    // check both (Stripe's own fallback order for automatic collection),
+    // or it wrongly treats every real paying member as if comped.
+    const member = await seedMember({ status: "active", matches_remaining: 0 });
+    memberId = member.id;
+    const sub = await seedSubscription(memberId, { status: "active" });
+    mockRetrieve.mockImplementation(async (subId: string) =>
+      subId === sub.stripe_subscription_id
+        ? stripeSubResponse({ subscriptionDefaultPaymentMethod: "pm_test_123", customerDefaultPaymentMethod: null })
+        : stripeSubResponse()
+    );
+
+    const res = await POST(makeRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+
+    expect(mockUpdate).toHaveBeenCalledWith(sub.stripe_subscription_id, { pause_collection: null });
+    expect(mockInvoiceItemCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: sub.stripe_subscription_id }),
+      expect.anything()
+    );
+    expect(mockInvoiceCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: sub.stripe_subscription_id }),
+      expect.anything()
     );
   });
 
