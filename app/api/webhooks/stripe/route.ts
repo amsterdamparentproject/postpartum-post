@@ -55,6 +55,33 @@ export async function POST(req: NextRequest) {
     const priceId = stripeSubscription.items.data[0].price.id;
     console.log("[webhook] retrieved stripe subscription", { priceId });
 
+    // Checkout attaches the card a member just entered to the SUBSCRIPTION
+    // it paid for (subscription.default_payment_method) — it does not
+    // promote that card to the customer's own invoice_settings.
+    // default_payment_method. Nothing about billing this member depends on
+    // the customer-level field today (renew-check reads the full fallback
+    // chain), but Stripe's own dunning emails, Smart Retries, and the
+    // customer billing portal all key off it, and a naive customer-level
+    // check bit us once already (the renew-check payment-method guard,
+    // fixed 2026-09-11). Set it explicitly here, once, at signup — the
+    // earliest point a card exists — so it's never missing for a new
+    // member. (A one-time backfill, scripts/backfill-default-payment-method.mts,
+    // covers members who signed up before this existed.)
+    if (stripeSubscription.default_payment_method && session.customer) {
+      const paymentMethodId =
+        typeof stripeSubscription.default_payment_method === "string"
+          ? stripeSubscription.default_payment_method
+          : stripeSubscription.default_payment_method.id;
+      try {
+        await stripe.customers.update(session.customer as string, {
+          invoice_settings: { default_payment_method: paymentMethodId },
+        });
+        console.log("[webhook] set customer default_payment_method", { paymentMethodId });
+      } catch (e) {
+        console.error("[webhook] setting customer default_payment_method failed (non-fatal):", e);
+      }
+    }
+
     const supabase = createAdminClient();
 
     const { error: memberError } = await supabase

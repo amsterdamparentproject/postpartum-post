@@ -6,7 +6,7 @@ import { sendWelcomeEmail, sendGiftCardEmail } from "@/lib/emails";
 
 // --- Mocks ---
 
-const { mockConstructEvent, mockRetrieve, mockUpdate, mockCreateCoupon, mockRetrieveCoupon, mockCreatePromotionCode, mockRetrievePrice } = vi.hoisted(() => ({
+const { mockConstructEvent, mockRetrieve, mockUpdate, mockCreateCoupon, mockRetrieveCoupon, mockCreatePromotionCode, mockRetrievePrice, mockCustomersUpdate } = vi.hoisted(() => ({
   mockConstructEvent: vi.fn(),
   mockRetrieve: vi.fn(),
   mockUpdate: vi.fn().mockResolvedValue({}),
@@ -14,6 +14,7 @@ const { mockConstructEvent, mockRetrieve, mockUpdate, mockCreateCoupon, mockRetr
   mockRetrieveCoupon: vi.fn(),
   mockCreatePromotionCode: vi.fn().mockResolvedValue({ id: "promo_test" }),
   mockRetrievePrice: vi.fn().mockResolvedValue({ product: "prod_test" }),
+  mockCustomersUpdate: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@/lib/stripe", () => ({
@@ -23,6 +24,7 @@ vi.mock("@/lib/stripe", () => ({
     coupons: { create: mockCreateCoupon, retrieve: mockRetrieveCoupon },
     promotionCodes: { create: mockCreatePromotionCode },
     prices: { retrieve: mockRetrievePrice },
+    customers: { update: mockCustomersUpdate },
   }),
 }));
 
@@ -49,6 +51,7 @@ describe("Stripe webhook", () => {
     mockUpdate.mockResolvedValue({});
     mockRetrievePrice.mockResolvedValue({ product: "prod_test" });
     mockRetrieveCoupon.mockReset();
+    mockCustomersUpdate.mockResolvedValue({});
   });
 
   afterEach(async () => {
@@ -253,6 +256,87 @@ describe("Stripe webhook", () => {
     expect(mockCreateCoupon).not.toHaveBeenCalled();
     expect(mockCreatePromotionCode).not.toHaveBeenCalled();
     expect(sendGiftCardEmail).not.toHaveBeenCalled();
+  });
+
+  // ── Default payment method backfill-at-signup ────────────────────────────
+  // Checkout attaches a freshly-collected card to the SUBSCRIPTION
+  // (subscription.default_payment_method), not to the customer's own
+  // invoice_settings.default_payment_method. Nothing reads the customer-level
+  // field for billing decisions today, but Stripe's own dunning/Smart Retries
+  // and the billing portal do — so checkout.session.completed sets it
+  // explicitly, once, at signup (see scripts/backfill-default-payment-method.mts
+  // for the one-time backfill of members who signed up before this existed).
+
+  it("sets the customer's default_payment_method from the subscription's card on checkout.session.completed", async () => {
+    const member = await seedMember({ status: "pending" });
+    memberId = member.id;
+
+    mockRetrieve.mockResolvedValue({
+      items: {
+        data: [
+          {
+            price: { id: "price_test_monthly" },
+            current_period_end: Math.floor(new Date("2026-09-05T00:00:00Z").getTime() / 1000),
+          },
+        ],
+      },
+      metadata: {},
+      default_payment_method: "pm_test_card123",
+    });
+
+    mockConstructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          metadata: { member_id: memberId },
+          customer_details: { email: member.email, name: "Test Member" },
+          subscription: `sub_test_${memberId.slice(0, 8)}`,
+          customer: "cus_test_123",
+        },
+      },
+    });
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    expect(mockCustomersUpdate).toHaveBeenCalledWith("cus_test_123", {
+      invoice_settings: { default_payment_method: "pm_test_card123" },
+    });
+  });
+
+  it("does not call customers.update when the subscription has no default_payment_method yet", async () => {
+    const member = await seedMember({ status: "pending" });
+    memberId = member.id;
+
+    // No default_payment_method on the mocked subscription — mirrors the
+    // existing tests above, none of which set one.
+    mockRetrieve.mockResolvedValue({
+      items: {
+        data: [
+          {
+            price: { id: "price_test_monthly" },
+            current_period_end: Math.floor(new Date("2026-09-05T00:00:00Z").getTime() / 1000),
+          },
+        ],
+      },
+      metadata: {},
+    });
+
+    mockConstructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          metadata: { member_id: memberId },
+          customer_details: { email: member.email, name: "Test Member" },
+          subscription: `sub_test_${memberId.slice(0, 8)}`,
+          customer: "cus_test_456",
+        },
+      },
+    });
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+    expect(mockCustomersUpdate).not.toHaveBeenCalled();
   });
 
   // ── Gift card e2e tests ──────────────────────────────────────────────────
