@@ -196,18 +196,26 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "subscription not found yet" }, { status: 409 });
       }
 
-      // Stopgap for the gap before Track E4 ships (branch
-      // feature/match-counter-subscriptions, commit d252a7a, removes
-      // extendSubscriptionToNext5th from checkout.session.completed below).
-      // Until then, that call generates a second, €0 "subscription_update"
-      // invoice ~seconds after the real charge, to push trial_end out and
-      // align billing to the next 5th — Stripe fires invoice.payment_succeeded
-      // for that one too, and this handler otherwise can't tell it apart
-      // from a real term payment, which would double-credit matchesPerTerm
-      // on every signup that needs the alignment. Remove this filter once
-      // E4 lands and the alignment call (and its invoice) no longer exist.
-      if (invoice.billing_reason !== "subscription_create" && invoice.billing_reason !== "subscription_cycle") {
-        console.log("[webhook] invoice.payment_succeeded: skipping non-term invoice", {
+      // Skip only the genuine €0 trial-alignment invoice that
+      // extendSubscriptionToNext5th() (app/actions/skip.ts,
+      // lib/free-month-grants.ts) still produces when it pushes trial_end —
+      // that update always carries billing_reason "subscription_update" and
+      // would double-credit matchesPerTerm if let through. Everything else
+      // is a real term payment.
+      //
+      // This used to be an allow-list (only "subscription_create" /
+      // "subscription_cycle" got through), written as a stopgap before
+      // Track E4 removed extendSubscriptionToNext5th from
+      // checkout.session.completed. E4 has since shipped, but the filter
+      // wasn't removed — and it was never updated to account for Track E1's
+      // renew-check job, which bills every renewal via a manually created
+      // invoice (billing_reason "manual"). That meant every successful
+      // renewal since this filter landed (2026-09-07) was silently skipped
+      // here and never credited — discovered and fixed 2026-09-11; see
+      // scripts/backfill-missed-renewal-entitlements.mts for the one-time
+      // backfill of invoices caught by the old bug.
+      if (invoice.billing_reason === "subscription_update") {
+        console.log("[webhook] invoice.payment_succeeded: skipping trial-alignment invoice", {
           subscriptionId,
           billingReason: invoice.billing_reason,
         });

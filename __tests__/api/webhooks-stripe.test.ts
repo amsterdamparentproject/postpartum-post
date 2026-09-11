@@ -695,6 +695,40 @@ describe("Stripe webhook", () => {
       expect(updated?.matches_remaining).toBe(1);
     });
 
+    // Regression test for the 2026-09-11 incident: renew-check
+    // (Track E1) bills every renewal via stripe.invoices.create(), which
+    // Stripe always stamps billing_reason "manual" — a value the old
+    // allow-list ("subscription_create" / "subscription_cycle" only)
+    // silently rejected, so every successful renewal since 2026-09-07 was
+    // charged but never credited. See
+    // scripts/backfill-missed-renewal-entitlements.mts for the one-time
+    // backfill this incident required.
+    it("credits a manual-billing_reason invoice (renew-check's renewal invoices)", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 1 });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_manual_${member.id.slice(0, 8)}`, stripeSubId, {
+        billing_reason: "manual",
+      });
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      const supabase = createTestSupabase();
+      const { data: updated } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", member.id)
+        .single();
+      expect(updated?.matches_remaining).toBe(1);
+
+      const { data: rows } = await supabase
+        .from("match_entitlements")
+        .select("event, delta, stripe_invoice_id")
+        .eq("member_id", member.id);
+      expect(rows).toHaveLength(1);
+      expect(rows![0].event).toBe("term_payment");
+    });
+
     // ── Track C4: tagging gift-covered term_payment rows ──────────────────
 
     it("tags the entitlement with note: gift when a gift coupon is active", async () => {
