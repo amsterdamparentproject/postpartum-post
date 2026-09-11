@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const memberId = session.metadata?.member_id;
     const email = session.customer_details?.email;
 
-    console.log("[webhook] checkout.session.completed", { memberId, email, subscription: session.subscription });
+    console.log("[webhook] checkout.session.completed", { memberId, subscription: session.subscription });
 
     if (!memberId || !session.subscription || !email) {
       console.log("[webhook] missing required fields, skipping");
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
     // Send welcome email via Resend
     try {
       await sendWelcomeEmail(email, firstName, profileLink, planLabel, nextBillingDate);
-      console.log("[webhook] welcome email sent to", email);
+      console.log("[webhook] welcome email sent", { memberId });
     } catch (e) {
       // Non-fatal — log and continue. Member is subscribed; email failure shouldn't block.
       console.error("[webhook] sendWelcomeEmail failed (non-fatal):", e);
@@ -339,9 +339,10 @@ export async function POST(req: NextRequest) {
           await sendUnsubscribedEmail(
             supabase,
             member.email,
-            member.first_name ?? "there"
+            member.first_name ?? "there",
+            member.id
           );
-          console.log("[webhook] unsubscribed email sent to", member.email);
+          console.log("[webhook] unsubscribed email sent", { memberId: member.id });
         }
       }
     } catch (e) {

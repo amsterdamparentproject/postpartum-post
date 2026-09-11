@@ -112,7 +112,7 @@ export async function runMeetupReminder(testEmail?: string, monthOverride?: stri
     for (const [recipient, partner] of recipients) {
       if (testEmail && recipient.email !== testEmail) continue;
       try {
-        const feedbackUrl = await feedbackMagicLink(supabase, recipient.email);
+        const feedbackUrl = await feedbackMagicLink(supabase, recipient.email, recipient.id);
         await sendMeetupReminderEmail(recipient.email, recipient.first_name, partner.first_name, partner.email, feedbackUrl);
         sentTo.push(recipient.email);
         result.sent++;

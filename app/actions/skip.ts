@@ -109,7 +109,7 @@ async function autoPauseMember(
   // Send auto-pause notification email
   try {
     await sendAutoPauseEmail(email, firstName);
-    console.log("[autoPause] auto-pause email sent to", email);
+    console.log("[autoPause] auto-pause email sent", { memberId });
   } catch (e) {
     console.error("[autoPause] sendAutoPauseEmail failed (non-fatal):", e);
   }

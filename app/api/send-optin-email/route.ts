@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
         const isBundle = (context?.intervalCount ?? 1) > 1;
         lastMatchNotice = isBundle && member.matches_remaining === 1;
       } catch (e) {
-        console.error(`[send-optin-email] billing-notice lookup failed for ${member.email} (non-fatal):`, e);
+        console.error(`[send-optin-email] billing-notice lookup failed for member ${member.id} (non-fatal):`, e);
       }
 
       await sendOptinEmail(
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
         email: member.email,
         error: err instanceof Error ? err.message : String(err),
       });
-      console.error(`[send-optin-email] Failed to send to ${member.email}:`, err);
+      console.error(`[send-optin-email] Failed to send to member ${member.id}:`, err);
     }
   }
 

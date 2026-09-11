@@ -28,9 +28,10 @@ function unsubscribedHtml(firstName: string, feedbackUrl: string): string {
 export async function sendUnsubscribedEmail(
   supabase: ReturnType<typeof createAdminClient>,
   email: string,
-  firstName: string
+  firstName: string,
+  memberId: string
 ) {
-  const feedbackUrl = await feedbackMagicLink(supabase, email);
+  const feedbackUrl = await feedbackMagicLink(supabase, email, memberId);
   const resend = getResend();
   const { error } = await resend.emails.send({
     from: FROM,

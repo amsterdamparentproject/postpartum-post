@@ -182,22 +182,22 @@ export async function POST(req: NextRequest) {
     // of the two matched members. Falls back to a plain (unauthenticated)
     // link if link generation fails, so the recipient can still sign in
     // manually from the resulting page.
-    async function magicLink(email: string, redirectTo: string): Promise<string> {
+    async function magicLink(email: string, memberId: string, redirectTo: string): Promise<string> {
       const result = await generateMagicLinkWithRetry(supabase, email, redirectTo);
       if (result.success) {
         return result.url;
       }
-      console.error("[send-match-emails] generateLink failed for", email, result.error);
+      console.error("[send-match-emails] generateLink failed for member", memberId, result.error);
       return redirectTo;
     }
 
     try {
       const [m1MatchesLink, m2MatchesLink, m1MatchPageUrl, m2MatchPageUrl, m1NoticeContext, m2NoticeContext] =
         await Promise.all([
-          magicLink(m1.email, matchesUrl),
-          magicLink(m2.email, matchesUrl),
-          magicLink(m1.email, matchPageUrl),
-          magicLink(m2.email, matchPageUrl),
+          magicLink(m1.email, m1.id, matchesUrl),
+          magicLink(m2.email, m2.id, matchesUrl),
+          magicLink(m1.email, m1.id, matchPageUrl),
+          magicLink(m2.email, m2.id, matchPageUrl),
           // Track C4: admin-context fetch (no member session token exists
           // here) — resolveBillingNotice below turns "no subscription
           // found" (null) into { kind: "none" } rather than guessing.

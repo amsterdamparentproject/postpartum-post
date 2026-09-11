@@ -24,7 +24,7 @@ type AdminClient = ReturnType<typeof createAdminClient>;
  * redirects. Same reasoning as verifyMagicLinkToken's docblock in
  * lib/auth-confirm.ts, applied here for the admin.generateLink caller too.
  */
-export async function feedbackMagicLink(supabase: AdminClient, email: string): Promise<string> {
+export async function feedbackMagicLink(supabase: AdminClient, email: string, memberId: string): Promise<string> {
   try {
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "magiclink",
@@ -37,7 +37,7 @@ export async function feedbackMagicLink(supabase: AdminClient, email: string): P
       return `${SITE_URL}/auth/confirm?token_hash=${hashedToken}&type=magiclink&next=${next}`;
     }
   } catch (err) {
-    console.error("[feedback-link] generateLink failed for", email, err);
+    console.error("[feedback-link] generateLink failed for member", memberId, err);
   }
   return FEEDBACK_URL;
 }
