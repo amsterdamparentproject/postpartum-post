@@ -6,6 +6,7 @@ import PartnerLeadForm from "@/components/PartnerLeadForm";
 import { StampSVG } from "@/components/StampIcons";
 import Sparkle from "@/components/Sparkle";
 import WordMark from "@/components/WordMark";
+import PostPerksWordMark from "@/components/PostPerksWordMark";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 
 // ---------------------------------------------------------------------------
@@ -293,7 +294,7 @@ export default function PartnerSplash() {
       {/* What's a perk */}
       <div className="max-w-2xl mx-auto text-center">
         <h2 className="text-2xl text-dark mb-4" style={{ fontFamily: "var(--font-serif)" }}>
-          What&apos;s a <span className="text-coral">Post Perk</span>?
+          What&apos;s a <PostPerksWordMark size="text-2xl" plural={false} />?
         </h2>
         <p className="text-base text-dark leading-relaxed max-w-lg mx-auto">
           A perk is a discount, freebie, or exclusive offer you give Postpartum Post
@@ -306,7 +307,7 @@ export default function PartnerSplash() {
       {/* Examples */}
       <div className="w-full max-w-sm md:max-w-xl mx-auto">
         <h2 className="text-2xl text-dark text-center mb-6" style={{ fontFamily: "var(--font-serif)" }}>
-          Post Perks look like this
+          <PostPerksWordMark size="text-2xl" /> look like this
         </h2>
         <ExampleCarousel />
       </div>
@@ -397,7 +398,7 @@ export default function PartnerSplash() {
             <Sparkle className="w-16 h-auto" />
           </div>
           <h2 className="text-2xl text-dark mb-2" style={{ fontFamily: "var(--font-serif)" }}>
-            Interested in offering a Post Perk?
+            Interested in offering a <PostPerksWordMark size="text-2xl" plural={false} />?
           </h2>
           <p className="text-muted mb-6">
             Tell us about your business to kickstart the discussion on a perk that works for you and our members.
