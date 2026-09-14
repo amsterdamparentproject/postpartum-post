@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { createBrowserClient } from "@/lib/supabase";
 import { getPartnerProfile, type PartnerProfile } from "@/app/actions/partners";
+import { consumeFreshSignIn } from "@/lib/fresh-signin";
 
 type PartnerContextValue = {
   loading: boolean;
@@ -38,7 +39,12 @@ export function usePartner() {
  *    requireMember()/requirePartner()'s auth.getUser() even for a genuinely
  *    valid session (documented in lib/supabase/generate-magic-link.ts) — so
  *    a failed lookup retries with a refreshed token before concluding "not
- *    a partner", rather than signing out on the first miss.
+ *    a partner", rather than signing out on the first miss. Gated on
+ *    lib/fresh-signin.ts's signal so this only costs the extra
+ *    lookups/refreshSession round-trips right after a magic-link sign-in,
+ *    not on every ordinary page load with some other pre-existing session
+ *    (e.g. a signed-in member who simply isn't a partner) — before this,
+ *    every such visit to /partners paid the same cost as a genuine flake.
  */
 export function PartnerProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -72,12 +78,13 @@ export function PartnerProvider({ children }: { children: React.ReactNode }) {
 
     (async () => {
       try {
+        const maxAttempts = consumeFreshSignIn() ? 3 : 1;
         let token = accessToken;
         let partnerData: PartnerProfile | null = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           partnerData = await getPartnerProfile(token);
           if (partnerData || cancelled) break;
-          if (attempt < 3) {
+          if (attempt < maxAttempts) {
             await new Promise((r) => setTimeout(r, 400 * attempt));
             const { data: refreshed, error: refreshError } = await createBrowserClient().auth.refreshSession();
             if (refreshError || !refreshed.session?.access_token) break;
@@ -85,14 +92,14 @@ export function PartnerProvider({ children }: { children: React.ReactNode }) {
           }
         }
         if (cancelled) return;
-        if (!partnerData) {
-          // Authenticated in Supabase but no matching partners row —
-          // same "stale session" handling as AccountContext.
-          setPartner(null);
-          await createBrowserClient().auth.signOut();
-        } else {
-          setPartner(partnerData);
-        }
+        // Authenticated in Supabase but no matching partners row — just
+        // show "not a partner" (PartnerSplash, via the null check in
+        // app/partners/page.tsx). Deliberately never signs out: the same
+        // Supabase client/session is shared with AccountContext (member
+        // auth uses the same magic-link plumbing), so someone who's a
+        // member but not a partner — or vice versa — must be able to
+        // visit the "other" section without losing their real session.
+        setPartner(partnerData ?? null);
       } catch (err) {
         console.error("[PartnerContext] profile lookup error:", err);
         if (!cancelled) setPartner(null);
