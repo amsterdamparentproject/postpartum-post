@@ -13,7 +13,7 @@ const labelClass = "block text-sm font-medium text-dark mb-1";
  * partner — mirrors MagicLinkRequest's own not_found -> SignupForm
  * fallback, but for interested businesses instead of prospective members.
  * No account is created here; this only reaches partner_leads
- * (db/migrations/024_partner_leads.sql) for Alex to follow up on herself.
+ * (db/migrations/024_perks.sql) for Alex to follow up on herself.
  */
 export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string }) {
   const [businessName, setBusinessName] = useState("");

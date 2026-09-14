@@ -51,7 +51,7 @@ export async function listPartnerLeads(): Promise<PartnerLead[]> {
  * submission from PartnerLeadForm. Contact name/email are optional here:
  * she may not have anyone to reach out to yet, just a business + site +
  * why. business_name/url/note stay required (see db/migrations/
- * 024_partner_leads.sql's updated comment for the full reasoning).
+ * 024_perks.sql's updated comment for the full reasoning).
  */
 export type AddLeadIdeaInput = {
   businessName: string;
@@ -367,7 +367,7 @@ export async function convertLeadToPartner(
 // Add partner directly (no lead) — e.g. a Circle of Experts contributor, or
 // a business Alex signed up herself outside the lead-capture flow. Email is
 // optional here (unlike convertLeadToPartner): a partner with no email has
-// no portal access yet, same as db/migrations/023_perks.sql documents.
+// no portal access yet, same as db/migrations/024_perks.sql documents.
 // ---------------------------------------------------------------------------
 
 export type AddPartnerInput = {
@@ -433,7 +433,7 @@ export type ReviewPerk = {
 };
 
 /**
- * Reads the perks_partners view (db/migrations/023_perks.sql) so the queue
+ * Reads the perks_partners view (db/migrations/024_perks.sql) so the queue
  * gets the partner's business_name in one query instead of a second lookup
  * per perk — same join the eventual public /perks page will use.
  */

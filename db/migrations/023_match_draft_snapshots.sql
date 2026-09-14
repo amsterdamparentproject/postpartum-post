@@ -1,4 +1,4 @@
--- Migration 025: match_draft_snapshots
+-- Migration 023: match_draft_snapshots
 --
 -- match_drafts is a mutable working copy: reassignDraftMember() deletes and
 -- re-inserts rows as Alex manually reassigns pairs before a round commits.

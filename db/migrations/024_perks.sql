@@ -1,10 +1,19 @@
--- Migration 023: perks
--- Post Perks: local businesses (and later, Circle of Experts contributors)
--- offer Postpartum Post members a discount in exchange for exposure. See
--- postpartum-post/__claude__/ for the build sheet this migration implements.
+-- Migration 024: Post Perks — full partner/perks schema
 --
--- Lives entirely in the existing postpartumpost schema — no new schema, no
--- desk involvement, no new Supabase client.
+-- Local businesses (and later, Circle of Experts contributors) offer
+-- Postpartum Post members a discount in exchange for exposure. Lives
+-- entirely in the existing postpartumpost schema — no new schema, no desk
+-- involvement, no new Supabase client.
+--
+-- Consolidated (2026-09): this was originally split across 023 (perks),
+-- 024 (partner_leads), and 026 (partner_leads reshape + perks.exclusive) —
+-- but none of that had run against production, only test, so there was no
+-- real data forcing a step-by-step history. Folded into one migration for
+-- a clean, chronological build: 024 is gone entirely (026 superseded it
+-- outright, dropping and recreating the same table), and 026's changes
+-- (the url/idea-status/notes-log reshape of partner_leads, plus the
+-- perks.exclusive column) are just how those tables look from the start
+-- here, not a later ALTER.
 --
 -- Self-service (2026-09-02): partners sign in the same way members do —
 -- Supabase magic-link against partners.email, no password, no separate
@@ -29,6 +38,14 @@ end $$;
 
 do $$ begin
   create type postpartumpost.redemption_event_type as enum ('revealed', 'clicked');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create type postpartumpost.lead_status as enum (
+    'idea', 'new', 'contacted', 'converted', 'rejected'
+  );
 exception
   when duplicate_object then null;
 end $$;
@@ -71,6 +88,38 @@ create table if not exists postpartumpost.partner_locations (
 create index if not exists partner_locations_partner_id_idx on postpartumpost.partner_locations (partner_id);
 create index if not exists partner_locations_geo_idx on postpartumpost.partner_locations (latitude, longitude) where latitude is not null;
 
+-- Lightweight lead capture for Post Perks: a business that isn't in
+-- `partners` yet can express interest from the /partners login screen's
+-- "not found" state (mirrors how MagicLinkRequest already shows a signup
+-- form there for members) — one email straight to Alex (see
+-- lib/emails/partner-lead.ts), no account, no auth, no live perk. Alex
+-- reaches out herself and adds them to `partners` if it's a fit. `notes`
+-- is a dated log ([{id, date, note}, ...]) so Alex can track updates
+-- ("reached out 9/13", "followed up 9/20") instead of one static blurb.
+-- `lead_status` gains 'idea' for a potential partner Alex identifies
+-- herself from /admin/partners, as opposed to 'new', which is always an
+-- inbound public submission. first_name/last_name/email are nullable for
+-- exactly that case — a public submission still enforces them not-blank
+-- at the application layer (submitPartnerLead).
+create table if not exists postpartumpost.partner_leads (
+  id                   uuid primary key default gen_random_uuid(),
+  created_at           timestamptz default now(),
+  updated_at           timestamptz default now(),
+
+  first_name           text,   -- nullable: unset for an admin-added 'idea' with no contact yet
+  last_name            text,   -- nullable: see first_name
+  business_name        text not null,
+  url                  text not null,   -- the business's own site — lets Alex vet an idea/lead before reaching out
+  email                text,   -- nullable: see first_name
+  notes                jsonb not null default '[]'::jsonb,   -- [{id, date, note}, ...] — dated log
+
+  status               postpartumpost.lead_status not null default 'new',
+  -- Set once Alex actually adds them as a partner, so a lead's outcome
+  -- stays traceable instead of just flipping a status flag.
+  converted_partner_id uuid references postpartumpost.partners(id) on delete set null
+);
+create index if not exists partner_leads_status_idx on postpartumpost.partner_leads (status);
+
 -- Fixed but editable — a table, not an enum. Same shape as postpartumpost.topics.
 create table if not exists postpartumpost.perk_categories (
   id    uuid primary key default gen_random_uuid(),
@@ -100,6 +149,13 @@ create table if not exists postpartumpost.perks (
   perk_redemption_code     text,
   perk_redemption_url      text,
   featured                 boolean not null default false,
+  -- Opt-in: a partner can make a perk exclusive to Postpartum Post in
+  -- exchange for extra promotion (badge, higher match-page ranking, extra
+  -- social/newsletter highlights — see components/PartnerTerms.tsx's
+  -- "Exclusivity not required, but exclusive perks get extra benefits").
+  -- Never enforced at the schema level — same trust-based model as the
+  -- rest of the partnership terms.
+  exclusive                boolean not null default false,
   expires_at               date   -- nullable: open-ended perks don't need one
 );
 create index if not exists perks_partner_id_idx on postpartumpost.perks (partner_id);
@@ -160,6 +216,14 @@ end $$;
 do $$ begin
   create trigger set_updated_at_partner_locations
     before update on postpartumpost.partner_locations
+    for each row execute function postpartumpost.handle_updated_at();
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create trigger set_updated_at_partner_leads
+    before update on postpartumpost.partner_leads
     for each row execute function postpartumpost.handle_updated_at();
 exception
   when duplicate_object then null;

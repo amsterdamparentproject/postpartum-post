@@ -277,7 +277,7 @@ export type PartnerLeadInput = {
  * a typed email isn't a recognized partner. No account, no perk, just an
  * inbound-interest record: saved to partner_leads (status defaults to
  * 'new') and an email straight to Alex so she sees it right away, same as
- * she would a cold-outreach reply. See db/migrations/024_partner_leads.sql.
+ * she would a cold-outreach reply. See db/migrations/024_perks.sql.
  *
  * Every field is required — name, business, and a note on the perk idea —
  * so a lead reflects some actual effort rather than a bare "email us"

@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 
 /**
- * partner_leads.notes shape (db/migrations/026_partner_leads_url_and_idea_status.sql):
+ * partner_leads.notes shape (db/migrations/024_perks.sql):
  * a jsonb array of dated entries rather than one static blurb, so Alex can
  * keep a running log on a lead over time ("reached out 9/13", "followed up
  * 9/20") instead of only ever seeing what was true at submission time.

@@ -87,7 +87,7 @@ const HIGHLIGHT_COLORS = ["#8A9E3A", "#7B6FD4", "#C07830", "#8A9E3A"];
 
 // Illustrative only — no partners are live yet, so these aren't real
 // listings. Categories match postpartumpost.perk_categories (see
-// db/migrations/023_perks.sql) so the examples stay honest about what
+// db/migrations/024_perks.sql) so the examples stay honest about what
 // kinds of perks the taxonomy actually supports.
 const EXAMPLE_PERKS: { icon: (fill: string, stroke: string) => React.ReactNode; text: (color: string) => React.ReactNode }[] = [
   {
