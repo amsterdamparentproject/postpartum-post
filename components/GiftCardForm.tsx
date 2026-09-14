@@ -7,19 +7,19 @@ const GIFT_OPTIONS = [
     id: "3mo" as const,
     icon: "⭐",
     price: "€24",
-    name: "3 months of matches",
+    name: "3 matches",
     billing: "One-time payment",
     badge: "Best value",
-    description: "3 free months of matches on the 3 month subscription",
+    description: "3 free matches on the 3 month subscription",
     featured: true,
   },
   {
     id: "1mo" as const,
     icon: "🎁",
     price: "€12",
-    name: "1 month of matches",
+    name: "1 match",
     billing: "One-time payment",
-    description: "1 free month of matches on the monthly subscription",
+    description: "1 free match on the 1 month subscription",
   },
 ];
 
@@ -88,7 +88,7 @@ export default function GiftCardForm({
         href={href || "#"}
         data-umami-event="Gift: Buy Card"
         data-umami-event-option={selected}
-        className="block w-full py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition text-center"
+        className="block w-full py-3 px-6 bg-purple-light hover:bg-purple text-dark font-semibold rounded-lg transition text-center"
       >
         Buy gift card →
       </a>

@@ -22,12 +22,14 @@ type State = "idle" | "sending" | "sent" | "not_found";
  * this is the "Submit perk without a conversation with Alex" flow's
  * replacement, per the Sep 2026 self-service-portal pivot.
  *
- * Used in three places, all with the default `showLeadFormOnNotFound=true`:
- * the dedicated /partners/login page (linked from PartnerSplash's "Are you
- * an existing partner?" line), the /auth/confirm retry state, and the
- * /partners/perks logged-out fallback — each a minimal context where
- * showing the lead form inline on a not-found email is the right fallback,
- * rather than dead-ending.
+ * Used with the default `showLeadFormOnNotFound=true` everywhere a
+ * not-signed-in visitor can land in the partner section: the dedicated
+ * /partners/login page (linked from PartnerSplash's "Are you an existing
+ * partner?" line), the /auth/confirm retry state, and the not-signed-in
+ * fallback on each of /partners/profile, /partners/perks, and
+ * /partners/terms — each a minimal context where showing the lead form
+ * inline on a not-found email is the right fallback, rather than
+ * dead-ending.
  */
 export default function PartnerLoginRequest({
   showLeadFormOnNotFound = true,
@@ -55,7 +57,7 @@ export default function PartnerLoginRequest({
       }
       setState("sending");
       const supabase = createBrowserClient();
-      const next = encodeNextParam("/partners");
+      const next = encodeNextParam("/partners/profile");
       await supabase.auth.signInWithOtp({
         email: normalizedEmail,
         options: {

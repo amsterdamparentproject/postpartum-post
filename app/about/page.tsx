@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 export default function About() {
   return (
     <PageLayout showNav>
-      <main className="flex-1 w-full px-6 py-16">
+      <main className="flex-1 w-full px-6 pt-8 pb-16">
         <div className="max-w-xl mx-auto text-center">
           <div className="flex justify-center mb-6">
             <EnvelopeLogo width={72} height={54} />

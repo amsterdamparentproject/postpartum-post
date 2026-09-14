@@ -44,7 +44,8 @@ export function usePartner() {
  *    lookups/refreshSession round-trips right after a magic-link sign-in,
  *    not on every ordinary page load with some other pre-existing session
  *    (e.g. a signed-in member who simply isn't a partner) — before this,
- *    every such visit to /partners paid the same cost as a genuine flake.
+ *    every such visit to the partner section paid the same cost as a
+ *    genuine flake.
  */
 export function PartnerProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -93,8 +94,9 @@ export function PartnerProvider({ children }: { children: React.ReactNode }) {
         }
         if (cancelled) return;
         // Authenticated in Supabase but no matching partners row — just
-        // show "not a partner" (PartnerSplash, via the null check in
-        // app/partners/page.tsx). Deliberately never signs out: the same
+        // show "not a partner" (PartnerLoginRequest, via the null check in
+        // app/partners/(app)/profile/page.tsx and friends). Deliberately
+        // never signs out: the same
         // Supabase client/session is shared with AccountContext (member
         // auth uses the same magic-link plumbing), so someone who's a
         // member but not a partner — or vice versa — must be able to

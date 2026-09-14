@@ -6,7 +6,7 @@ import EnvelopeLogo from "@/components/EnvelopeLogo";
 import TextLogo from "@/components/TextLogo";
 
 export const metadata: Metadata = {
-  title: "Gift Cards — Postpartum Post",
+  title: "Gift Cards",
   description:
     "Give the gift of local parent friends when and where they need them most. Choose a 1- or 3-month Postpartum Post gift card.",
 };
