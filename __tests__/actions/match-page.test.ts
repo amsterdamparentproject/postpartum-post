@@ -8,7 +8,7 @@
  * must never get match data back, even with a fully valid link token.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import {
   seedMember,
   cleanupMember,
@@ -68,12 +68,37 @@ async function cleanupParticipation(memberId: string, month: string): Promise<vo
 describe("getMatchPageData", () => {
   const matchIds: string[] = [];
   const memberIds: string[] = [];
-  const authEmails: string[] = [];
+
+  // Fixed auth identities, one Supabase magic-link session each, minted
+  // once for the whole file rather than per test — getAccessTokenForEmail
+  // hits Supabase's real rate limit on admin.generateLink() when enough
+  // tests fire it in quick succession, and each test here only needs a
+  // stable *email* to sign in as, not a fresh auth user. Every test still
+  // seeds its own fresh member row (different names, matched pairs,
+  // participation, etc.) — it just points that row's email at one of
+  // these three fixed identities instead of a random one.
+  const emailA = "amsterdamparentproject+matchpage-a@gmail.com";
+  const emailB = "amsterdamparentproject+matchpage-b@gmail.com";
+  const emailOutsider = "amsterdamparentproject+matchpage-outsider@gmail.com";
+  let tokenA: string;
+  let tokenB: string;
+  let tokenOutsider: string;
+
+  beforeAll(async () => {
+    tokenA = await getAccessTokenForEmail(emailA);
+    tokenB = await getAccessTokenForEmail(emailB);
+    tokenOutsider = await getAccessTokenForEmail(emailOutsider);
+  });
+
+  afterAll(async () => {
+    await cleanupAuthUser(emailA);
+    await cleanupAuthUser(emailB);
+    await cleanupAuthUser(emailOutsider);
+  });
 
   afterEach(async () => {
     for (const id of matchIds.splice(0)) await cleanupMatch(id);
     for (const id of memberIds.splice(0)) await cleanupMember(id);
-    for (const email of authEmails.splice(0)) await cleanupAuthUser(email);
   });
 
   it("rejects an invalid link token outright", async () => {
@@ -82,8 +107,8 @@ describe("getMatchPageData", () => {
   });
 
   it("rejects a missing/invalid access token even with a valid link token", async () => {
-    const a = await seedMember({ first_name: "Alice", last_name: "Gate" });
-    const b = await seedMember({ first_name: "Bob", last_name: "Gate" });
+    const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA });
+    const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB });
     memberIds.push(a.id, b.id);
 
     const matchId = await seedMatch(a.id, b.id);
@@ -95,35 +120,29 @@ describe("getMatchPageData", () => {
   });
 
   it("rejects a signed-in member who isn't part of this match", async () => {
-    const a = await seedMember({ first_name: "Alice", last_name: "Gate" });
-    const b = await seedMember({ first_name: "Bob", last_name: "Gate" });
-    const outsider = await seedMember({ first_name: "Casey", last_name: "Outsider" });
+    const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA });
+    const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB });
+    const outsider = await seedMember({ first_name: "Casey", last_name: "Outsider", email: emailOutsider });
     memberIds.push(a.id, b.id, outsider.id);
 
     const matchId = await seedMatch(a.id, b.id);
     matchIds.push(matchId);
 
     const token = generateMatchToken(matchId);
-    const accessToken = await getAccessTokenForEmail(outsider.email);
-    authEmails.push(outsider.email);
-
-    const result = await getMatchPageData(matchId, token, accessToken);
+    const result = await getMatchPageData(matchId, token, tokenOutsider);
     expect(result).toEqual({ authorized: false, reason: "forbidden" });
   });
 
   it("returns match data for a signed-in member who is part of the match", async () => {
-    const a = await seedMember({ first_name: "Alice", last_name: "Gate" });
-    const b = await seedMember({ first_name: "Bob", last_name: "Gate" });
+    const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA });
+    const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB });
     memberIds.push(a.id, b.id);
 
     const matchId = await seedMatch(a.id, b.id);
     matchIds.push(matchId);
 
     const token = generateMatchToken(matchId);
-    const accessToken = await getAccessTokenForEmail(a.email);
-    authEmails.push(a.email);
-
-    const result = await getMatchPageData(matchId, token, accessToken);
+    const result = await getMatchPageData(matchId, token, tokenA);
     expect(result.authorized).toBe(true);
     if (!result.authorized || result.rematchRequested) {
       throw new Error("expected an authorized, non-rematched result");
@@ -134,18 +153,15 @@ describe("getMatchPageData", () => {
   });
 
   it("also authorizes the other member of the pair (not just member_id_1)", async () => {
-    const a = await seedMember({ first_name: "Alice", last_name: "Gate" });
-    const b = await seedMember({ first_name: "Bob", last_name: "Gate" });
+    const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA });
+    const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB });
     memberIds.push(a.id, b.id);
 
     const matchId = await seedMatch(a.id, b.id);
     matchIds.push(matchId);
 
     const token = generateMatchToken(matchId);
-    const accessToken = await getAccessTokenForEmail(b.email);
-    authEmails.push(b.email);
-
-    const result = await getMatchPageData(matchId, token, accessToken);
+    const result = await getMatchPageData(matchId, token, tokenB);
     expect(result.authorized).toBe(true);
     if (!result.authorized || result.rematchRequested) throw new Error("expected a ready result");
     expect(result.viewerMemberId).toBe(b.id);
@@ -155,8 +171,8 @@ describe("getMatchPageData", () => {
     // These flags drive which "Get started" copy and which mailto CTA
     // render on the match page — a wrong value means someone sees the
     // wrong instructions or a CTA addressed to the wrong person.
-    const a = await seedMember({ first_name: "Alice", last_name: "Gate" });
-    const b = await seedMember({ first_name: "Bob", last_name: "Gate" });
+    const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA });
+    const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB });
     memberIds.push(a.id, b.id);
 
     const matchId = await seedMatch(a.id, b.id);
@@ -164,17 +180,13 @@ describe("getMatchPageData", () => {
     const token = generateMatchToken(matchId);
     const expectedM1Initiator = isMember1Initiator(matchId);
 
-    const aAccessToken = await getAccessTokenForEmail(a.email);
-    authEmails.push(a.email);
-    const resultA = await getMatchPageData(matchId, token, aAccessToken);
+    const resultA = await getMatchPageData(matchId, token, tokenA);
     if (!resultA.authorized || resultA.rematchRequested) throw new Error("expected a ready result for member A");
     expect(resultA.viewerIsM1).toBe(true);
     expect(resultA.viewerIsInitiator).toBe(expectedM1Initiator);
     expect(resultA.viewerMemberId).toBe(a.id);
 
-    const bAccessToken = await getAccessTokenForEmail(b.email);
-    authEmails.push(b.email);
-    const resultB = await getMatchPageData(matchId, token, bAccessToken);
+    const resultB = await getMatchPageData(matchId, token, tokenB);
     if (!resultB.authorized || resultB.rematchRequested) throw new Error("expected a ready result for member B");
     expect(resultB.viewerIsM1).toBe(false);
     expect(resultB.viewerIsInitiator).toBe(!expectedM1Initiator);
@@ -186,21 +198,19 @@ describe("getMatchPageData", () => {
     const coffeeId = await getTopicId("coffee");
     const playdateId = await getTopicId("playdate");
 
-    const a = await seedMember({ first_name: "Alice", last_name: "Topic" });
-    const b = await seedMember({ first_name: "Bob", last_name: "Topic" });
+    const a = await seedMember({ first_name: "Alice", last_name: "Topic", email: emailA });
+    const b = await seedMember({ first_name: "Bob", last_name: "Topic", email: emailB });
     memberIds.push(a.id, b.id);
 
     const matchId = await seedMatch(a.id, b.id, { matchedOn: month });
     matchIds.push(matchId);
     const token = generateMatchToken(matchId);
-    const accessToken = await getAccessTokenForEmail(a.email);
-    authEmails.push(a.email);
 
     try {
       await seedParticipation(a.id, coffeeId, month);
       await seedParticipation(b.id, coffeeId, month);
 
-      const agree = await getMatchPageData(matchId, token, accessToken);
+      const agree = await getMatchPageData(matchId, token, tokenA);
       if (!agree.authorized || agree.rematchRequested) throw new Error("expected a ready result");
       expect(agree.topic).toBe("coffee");
 
@@ -209,7 +219,7 @@ describe("getMatchPageData", () => {
       await seedParticipation(a.id, coffeeId, month);
       await seedParticipation(b.id, playdateId, month);
 
-      const disagree = await getMatchPageData(matchId, token, accessToken);
+      const disagree = await getMatchPageData(matchId, token, tokenA);
       if (!disagree.authorized || disagree.rematchRequested) throw new Error("expected a ready result");
       expect(disagree.topic).toBeNull();
     } finally {
@@ -219,18 +229,15 @@ describe("getMatchPageData", () => {
   });
 
   it("hides contact details once a rematch has been requested", async () => {
-    const a = await seedMember({ first_name: "Alice", last_name: "Gate" });
-    const b = await seedMember({ first_name: "Bob", last_name: "Gate" });
+    const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA });
+    const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB });
     memberIds.push(a.id, b.id);
 
     const matchId = await seedMatch(a.id, b.id, { rematchRequested: true });
     matchIds.push(matchId);
 
     const token = generateMatchToken(matchId);
-    const accessToken = await getAccessTokenForEmail(a.email);
-    authEmails.push(a.email);
-
-    const result = await getMatchPageData(matchId, token, accessToken);
+    const result = await getMatchPageData(matchId, token, tokenA);
     // Exact shape check — proves no m1/m2/contact fields leak alongside
     // rematchRequested: true.
     expect(result).toEqual({ authorized: true, rematchRequested: true });

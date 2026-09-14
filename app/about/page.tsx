@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function About() {
   return (
-    <PageLayout showNav activeRoute="/about">
+    <PageLayout showNav>
       <main className="flex-1 w-full px-6 py-16">
         <div className="max-w-xl mx-auto text-center">
           <div className="flex justify-center mb-6">

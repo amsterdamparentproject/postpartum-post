@@ -1,12 +1,11 @@
 "use client";
 
-import { useRef, useEffect, useState, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import ProfileForm, { type ProfileFormHandle } from "@/components/ProfileForm";
+import ProfileForm from "@/components/ProfileForm";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import NotSubscribedView from "@/components/NotSubscribedView";
 import { useAccount } from "@/app/(account)/AccountContext";
-import { useProfileSave } from "@/app/(account)/ProfileSaveContext";
 
 type OptinParam = "coffee" | "playdate" | "skip";
 
@@ -38,25 +37,6 @@ function OptinBanner() {
 
 export default function ProfilePage() {
   const { loading, email, member } = useAccount();
-  const { registerSave, unregisterSave, setSaveState } = useProfileSave();
-
-  const personalRef = useRef<ProfileFormHandle>(null);
-  const prefsRef    = useRef<ProfileFormHandle>(null);
-  const detailsRef  = useRef<ProfileFormHandle>(null);
-
-  useEffect(() => {
-    registerSave(() => {
-      setSaveState({ saving: true, saved: false });
-      personalRef.current?.save();
-      prefsRef.current?.save();
-      detailsRef.current?.save();
-      setTimeout(() => {
-        setSaveState({ saving: false, saved: true });
-        setTimeout(() => setSaveState({ saving: false, saved: false }), 3000);
-      }, 800);
-    });
-    return () => unregisterSave();
-  }, [registerSave, unregisterSave, setSaveState]);
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!email)  return <MagicLinkRequest />;
@@ -72,9 +52,7 @@ export default function ProfilePage() {
       <div className="space-y-6">
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <ProfileForm
-            ref={personalRef}
             initialData={member}
-
             mode="profile"
             section="personal"
           />
@@ -82,9 +60,7 @@ export default function ProfilePage() {
 
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <ProfileForm
-            ref={prefsRef}
             initialData={member}
-
             mode="profile"
             section="preferences"
           />
@@ -95,9 +71,7 @@ export default function ProfilePage() {
       <div className="space-y-6">
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <ProfileForm
-            ref={detailsRef}
             initialData={member}
-
             mode="profile"
             section="details"
           />

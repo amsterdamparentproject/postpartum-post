@@ -31,7 +31,7 @@ vi.mock("@/lib/emails", () => ({
 import { createGiftCard } from "@/lib/gift-cards";
 import { sendGiftCardEmail } from "@/lib/emails";
 
-function makeSession(overrides: Partial<Stripe.Checkout.Session> = {}): Stripe.Checkout.Session {
+function makeSession(overrides: Record<string, unknown> = {}): Stripe.Checkout.Session {
   return {
     metadata: { product: "gift_card", gift_months: "1" },
     customer_details: { email: "buyer@example.com" },
