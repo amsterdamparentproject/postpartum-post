@@ -9,6 +9,7 @@ import {
   addPartnerLeadIdea,
   addLeadNote,
   editLeadNote,
+  updateLeadDetails,
   listPerksForReview,
   setPerkStatus,
   type PartnerLead,
@@ -250,8 +251,86 @@ function NotesLog({ leadId, notes, onChanged }: { leadId: string; notes: LeadNot
   );
 }
 
+/**
+ * Edits business_name/url/contact fields in place — separate from
+ * ConvertLeadForm, which pre-fills the same fields but is a one-way
+ * "become a real partner" action. This is just fixing a typo or filling
+ * in contact info later, with no status change attached.
+ */
+function EditLeadForm({
+  lead,
+  onDone,
+  onCancel,
+}: {
+  lead: PartnerLead;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [businessName, setBusinessName] = useState(lead.business_name);
+  const [url, setUrl] = useState(lead.url);
+  const [firstName, setFirstName] = useState(lead.first_name ?? "");
+  const [lastName, setLastName] = useState(lead.last_name ?? "");
+  const [email, setEmail] = useState(lead.email ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const result = await updateLeadDetails({ leadId: lead.id, businessName, url, firstName, lastName, email });
+      if (!result.success) {
+        setError(result.error ?? "Couldn't save — try again");
+        return;
+      }
+      onDone();
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 pt-4 border-t border-border space-y-3">
+      <div>
+        <label className={labelClass}>Business name <RequiredMark /></label>
+        <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} required className={inputClass} />
+      </div>
+      <div>
+        <label className={labelClass}>Website <RequiredMark /></label>
+        <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} required className={inputClass} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>First name</label>
+          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} placeholder="Optional" />
+        </div>
+        <div>
+          <label className={labelClass}>Last name</label>
+          <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} placeholder="Optional" />
+        </div>
+      </div>
+      <div>
+        <label className={labelClass}>Email</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="Optional" />
+      </div>
+      {error && <p className="text-xs text-coral">{error}</p>}
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-coral hover:bg-coral-dark text-white transition disabled:opacity-60"
+        >
+          {isPending ? "Saving…" : "Save changes"}
+        </button>
+        <button type="button" onClick={onCancel} className="text-sm text-muted hover:text-dark transition">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => void }) {
   const [converting, setConverting] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function quickSetStatus(status: "contacted" | "rejected") {
@@ -293,15 +372,23 @@ function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => voi
       <NotesLog leadId={lead.id} notes={lead.notes} onChanged={onChanged} />
       <p className="text-xs text-muted mt-2">Submitted {new Date(lead.created_at).toLocaleDateString()}</p>
 
-      {lead.status !== "converted" && !converting && (
-        <div className="flex gap-4 mt-4 pt-4 border-t border-border">
+      {!converting && !editing && (
+        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-border">
+          {lead.status !== "converted" && (
+            <button
+              onClick={() => setConverting(true)}
+              className="text-sm font-semibold text-coral hover:text-coral-dark transition"
+            >
+              Convert to partner
+            </button>
+          )}
           <button
-            onClick={() => setConverting(true)}
-            className="text-sm font-semibold text-coral hover:text-coral-dark transition"
+            onClick={() => setEditing(true)}
+            className="text-sm text-muted hover:text-dark transition"
           >
-            Convert to partner
+            Edit
           </button>
-          {lead.status !== "contacted" && (
+          {lead.status !== "converted" && lead.status !== "contacted" && (
             <button
               onClick={() => quickSetStatus("contacted")}
               disabled={isPending}
@@ -310,7 +397,7 @@ function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => voi
               Mark contacted
             </button>
           )}
-          {lead.status !== "rejected" && (
+          {lead.status !== "converted" && lead.status !== "rejected" && (
             <button
               onClick={() => quickSetStatus("rejected")}
               disabled={isPending}
@@ -326,8 +413,12 @@ function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => voi
         <ConvertLeadForm lead={lead} onDone={onChanged} onCancel={() => setConverting(false)} />
       )}
 
-      {lead.status === "converted" && (
-        <p className="text-xs text-muted mt-4 pt-4 border-t border-border">Converted to partner</p>
+      {editing && (
+        <EditLeadForm lead={lead} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />
+      )}
+
+      {lead.status === "converted" && !editing && (
+        <p className="text-xs text-muted mt-2">Converted to partner</p>
       )}
     </div>
   );

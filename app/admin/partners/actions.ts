@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase";
 import { createLeadNote, type LeadNote } from "@/lib/lead-notes";
+import { findMatchingLead, mergeIntoLead } from "@/lib/lead-matching";
 
 // ---------------------------------------------------------------------------
 // Leads
@@ -22,17 +23,26 @@ export type PartnerLead = {
   converted_partner_id: string | null;
 };
 
+/**
+ * Ordered alphabetically by business name, not by created_at — deliberate,
+ * so a near-duplicate ("Joe's Coffee" vs "Joes Coffee Shop") lands next to
+ * its sibling for Alex to spot by eye. findMatchingLead only catches an
+ * exact match; this sort is the low-tech backstop for everything short of
+ * that. Sorted client-side (not via the query's .order()) so it's
+ * consistently case-insensitive regardless of DB collation.
+ */
 export async function listPartnerLeads(): Promise<PartnerLead[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("partner_leads")
-    .select("id, created_at, first_name, last_name, business_name, url, email, notes, status, converted_partner_id")
-    .order("created_at", { ascending: false });
+    .select("id, created_at, first_name, last_name, business_name, url, email, notes, status, converted_partner_id");
   if (error) {
     console.error("[listPartnerLeads] query error:", error.message);
     return [];
   }
-  return (data ?? []) as PartnerLead[];
+  return ((data ?? []) as PartnerLead[]).sort((a, b) =>
+    a.business_name.localeCompare(b.business_name, undefined, { sensitivity: "base" }),
+  );
 }
 
 /**
@@ -67,6 +77,19 @@ export async function addPartnerLeadIdea(
   const email = input.email.trim().toLowerCase();
 
   const supabase = createAdminClient();
+
+  // Same business already has a lead (by name or URL) — fold this idea's
+  // note into it instead of creating a disconnected duplicate.
+  const match = await findMatchingLead(supabase, businessName, url);
+  if (match) {
+    return mergeIntoLead(supabase, match, {
+      note,
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      email: email || undefined,
+    });
+  }
+
   const { error } = await supabase.from("partner_leads").insert({
     business_name: businessName,
     url,
@@ -79,6 +102,55 @@ export async function addPartnerLeadIdea(
 
   if (error) {
     console.error("[addPartnerLeadIdea] insert error:", error.message);
+    return { success: false, error: "Couldn't save — try again" };
+  }
+  return { success: true };
+}
+
+/**
+ * Edits a lead's core identifying fields — the "Edit" button on a lead
+ * card. Contact fields stay optional/nullable here, same as
+ * addPartnerLeadIdea, since an 'idea' lead may still have none. Business
+ * name and URL stay required — they're what findMatchingLead keys off of,
+ * so this deliberately does NOT re-run the match check: editing a lead
+ * should never silently fold it into a different one.
+ */
+export type UpdateLeadDetailsInput = {
+  leadId: string;
+  businessName: string;
+  url: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+
+export async function updateLeadDetails(
+  input: UpdateLeadDetailsInput,
+): Promise<{ success: boolean; error?: string }> {
+  const businessName = input.businessName.trim();
+  const url = input.url.trim();
+  if (!businessName || !url) {
+    return { success: false, error: "Business name and website are required" };
+  }
+
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const email = input.email.trim().toLowerCase();
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("partner_leads")
+    .update({
+      business_name: businessName,
+      url,
+      first_name: firstName || null,
+      last_name: lastName || null,
+      email: email || null,
+    })
+    .eq("id", input.leadId);
+
+  if (error) {
+    console.error("[updateLeadDetails] update error:", error.message);
     return { success: false, error: "Couldn't save — try again" };
   }
   return { success: true };

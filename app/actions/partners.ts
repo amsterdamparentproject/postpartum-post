@@ -5,6 +5,7 @@ import { requirePartner } from "@/lib/require-partner";
 import { geocodeAddress } from "@/lib/geocode";
 import { sendPartnerLeadEmail } from "@/lib/emails/partner-lead";
 import { createLeadNote } from "@/lib/lead-notes";
+import { findMatchingLead, mergeIntoLead } from "@/lib/lead-matching";
 
 export type PartnerLocation = {
   id: string;
@@ -297,18 +298,27 @@ export async function submitPartnerLead(
   }
 
   const supabase = createAdminClient();
-  const { error } = await supabase.from("partner_leads").insert({
-    first_name: firstName,
-    last_name: lastName,
-    business_name: businessName,
-    url,
-    email,
-    notes: [createLeadNote(note)],
-  });
 
-  if (error) {
-    console.error("[submitPartnerLead] insert error:", error.message);
-    return { success: false, error: "Couldn't submit — try again" };
+  // Same business already has a lead (by name or URL) — fold this
+  // submission into it instead of creating a disconnected duplicate.
+  const match = await findMatchingLead(supabase, businessName, url);
+  if (match) {
+    const result = await mergeIntoLead(supabase, match, { note, firstName, lastName, email });
+    if (!result.success) return result;
+  } else {
+    const { error } = await supabase.from("partner_leads").insert({
+      first_name: firstName,
+      last_name: lastName,
+      business_name: businessName,
+      url,
+      email,
+      notes: [createLeadNote(note)],
+    });
+
+    if (error) {
+      console.error("[submitPartnerLead] insert error:", error.message);
+      return { success: false, error: "Couldn't submit — try again" };
+    }
   }
 
   // Fire-and-forget — the lead is already saved above regardless of whether
