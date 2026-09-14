@@ -31,6 +31,7 @@ export interface TestMember {
   zipcode: string | null;
   availability: Availability | null;
   children: Child[] | null;
+  language: string[] | null;
   // Track E3: defaults to 1 (not the DB's own 0 default) so existing tests
   // that don't care about balance aren't silently gated out of coffee/
   // playdate opt-in — override to 0 to specifically test the gate.
@@ -74,6 +75,7 @@ export async function seedMember(
     zipcode: null,
     availability: null,
     children: null,
+    language: null,
     matches_remaining: 1,
     ...overrides,
   };

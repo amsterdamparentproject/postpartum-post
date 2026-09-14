@@ -32,7 +32,7 @@ const BASE_MATCH = {
   id: MATCH_ID,
   matched_on: "2026-06-01",
   rematch_requested: true,
-  rematch_requested_by: MEMBER_A,
+  rematch_requested_by: MEMBER_A as string | null,
   member_id_1: MEMBER_A,
   member_id_2: MEMBER_B,
   member1: { id: MEMBER_A, first_name: "Alex", last_name: "A", email: "a@test.com" },

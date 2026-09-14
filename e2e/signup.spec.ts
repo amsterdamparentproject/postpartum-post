@@ -31,7 +31,9 @@ test.afterAll(async () => {
   await cleanupMemberByEmail(TEST_EMAIL);
 });
 
-test("full sign-up flow: form → Stripe checkout → success → profile", { timeout: 120_000 }, async ({ page }) => {
+test("full sign-up flow: form → Stripe checkout → success → profile", async ({ page }) => {
+  test.setTimeout(120_000);
+
   // ── Step 1: Fill in the sign-up form ───────────────────────────────────
   await page.goto("/");
 
