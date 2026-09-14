@@ -62,6 +62,9 @@ export default function PartnerPerksManager({
     fetchPerksAndCategories().then(([perkList, categoryList]) => {
       setPerks(perkList);
       setCategories(categoryList);
+      // Nothing to show yet — skip straight to the form instead of an
+      // empty list + a button the partner has to notice and click first.
+      if (perkList.length === 0) setEditing("new");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
