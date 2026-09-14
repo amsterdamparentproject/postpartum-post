@@ -8,11 +8,14 @@ export const metadata: Metadata = {
   title: "Partners",
   description,
   // Without this, sharing a /partners link showed the generic
-  // member-facing site description from the root layout's openGraph
-  // block instead of the partner pitch — same pattern as
-  // app/about/page.tsx etc.
+  // member-facing site title/description from the root layout's
+  // openGraph block instead of the partner pitch — same pattern as
+  // app/privacy/page.tsx etc. Title is spelled out in full here (not
+  // just "Partners") because, unlike the plain `title` field above,
+  // openGraph.title does NOT get the root layout's "%s · Postpartum
+  // Post" template applied — it renders exactly what's given.
   openGraph: {
-    title: "Partners",
+    title: "Partners · Postpartum Post",
     description,
   },
 };
