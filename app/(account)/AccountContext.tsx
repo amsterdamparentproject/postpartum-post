@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { createBrowserClient } from "@/lib/supabase";
 import { getMemberProfile, type MemberProfile } from "@/app/actions/profile";
+import { consumeFreshSignIn } from "@/lib/fresh-signin";
 
 type AccountContextValue = {
   loading: boolean;
@@ -96,12 +97,20 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
         // lag) for free, since a fresh token re-verifies from scratch either
         // way. Safe to call here (not inside onAuthStateChange's callback —
         // see that effect's docblock on the deadlock this would otherwise risk).
+        //
+        // Gated on lib/fresh-signin.ts's signal so this only costs the
+        // extra lookups/refreshSession round-trips right after a
+        // magic-link sign-in, not on every ordinary page load with some
+        // other pre-existing session (e.g. a signed-in partner who simply
+        // isn't a member) — before this, every such visit to /profile
+        // paid the same cost as a genuine flake.
+        const maxAttempts = consumeFreshSignIn() ? 3 : 1;
         let token = accessToken;
         let memberData: MemberProfile | null = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           memberData = await getMemberProfile(token);
           if (memberData || cancelled) break;
-          if (attempt < 3) {
+          if (attempt < maxAttempts) {
             await new Promise((r) => setTimeout(r, 400 * attempt));
             const { data: refreshed, error: refreshError } = await createBrowserClient().auth.refreshSession();
             if (refreshError || !refreshed.session?.access_token) break; // no new token to try — further attempts would be identical
@@ -109,16 +118,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
           }
         }
         if (cancelled) return;
-        if (!memberData) {
-          // Authenticated in Supabase but not in the members table.
-          // Sign out so the stale session doesn't persist across
-          // refreshes — the resulting SIGNED_OUT event (handled by the
-          // effect above) clears state and shows MagicLinkRequest.
-          setMember(null);
-          await createBrowserClient().auth.signOut();
-        } else {
-          setMember(memberData);
-        }
+        // Authenticated in Supabase but not in the members table — just
+        // show MagicLinkRequest (via the null check wherever useAccount()
+        // is read). Deliberately never signs out: the same Supabase
+        // client/session is shared with PartnerContext (partner auth uses
+        // the same magic-link plumbing), so someone who's a partner but
+        // not a member — or vice versa — must be able to visit the
+        // "other" section without losing their real session.
+        setMember(memberData ?? null);
       } catch (err) {
         console.error("[AccountContext] profile lookup error:", err);
         if (!cancelled) setMember(null);

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { verifyMagicLinkToken } from "@/lib/auth-confirm";
 import { createBrowserClient } from "@/lib/supabase";
+import { markFreshSignIn } from "@/lib/fresh-signin";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import PartnerLoginRequest from "@/components/PartnerLoginRequest";
 import PageLayout from "@/components/PageLayout";
@@ -49,6 +50,7 @@ export default function ConfirmHandler({ next }: { next: string }) {
             console.error("[auth/confirm] verifyOtp error:", errorMessage);
             setStatus("error");
           } else {
+            markFreshSignIn();
             setStatus("success");
             router.replace(next);
           }
@@ -61,6 +63,7 @@ export default function ConfirmHandler({ next }: { next: string }) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
           if (event === "SIGNED_IN") {
             subscription.unsubscribe();
+            markFreshSignIn();
             setStatus("success");
             router.replace(next);
           }
