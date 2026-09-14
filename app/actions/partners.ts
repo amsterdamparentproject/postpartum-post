@@ -3,7 +3,7 @@
 import { createAdminClient } from "@/lib/supabase";
 import { requirePartner } from "@/lib/require-partner";
 import { geocodeAddress } from "@/lib/geocode";
-import { postPartnerLead } from "@/lib/n8n-webhook";
+import { sendPartnerLeadEmail } from "@/lib/emails/partner-lead";
 
 export type PartnerLocation = {
   id: string;
@@ -273,25 +273,33 @@ export type PartnerLeadInput = {
  * Public, unauthenticated — the fallback shown by PartnerLoginRequest when
  * a typed email isn't a recognized partner. No account, no perk, just an
  * inbound-interest record: saved to partner_leads (status defaults to
- * 'new') and a Slack ping via n8n so Alex sees it right away, same as she
- * would a cold-outreach reply. See db/migrations/024_partner_leads.sql.
+ * 'new') and an email straight to Alex so she sees it right away, same as
+ * she would a cold-outreach reply. See db/migrations/024_partner_leads.sql.
+ *
+ * Every field is required — name, business, and a note on the perk idea —
+ * so a lead reflects some actual effort rather than a bare "email us"
+ * click. Enforced here too, not just in PartnerLeadForm's `required`
+ * inputs, since a client-side attribute alone is never a real guarantee.
  */
 export async function submitPartnerLead(
   input: PartnerLeadInput,
 ): Promise<{ success: boolean; error?: string }> {
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
   const businessName = input.businessName.trim();
   const email = input.email.trim().toLowerCase();
-  if (!businessName || !email) {
-    return { success: false, error: "Business name and email are required" };
+  const note = input.note.trim();
+  if (!firstName || !lastName || !businessName || !email || !note) {
+    return { success: false, error: "All fields are required" };
   }
 
   const supabase = createAdminClient();
   const { error } = await supabase.from("partner_leads").insert({
-    first_name: input.firstName.trim() || null,
-    last_name: input.lastName.trim() || null,
+    first_name: firstName,
+    last_name: lastName,
     business_name: businessName,
     email,
-    note: input.note.trim() || null,
+    note,
   });
 
   if (error) {
@@ -300,14 +308,12 @@ export async function submitPartnerLead(
   }
 
   // Fire-and-forget — the lead is already saved above regardless of whether
-  // the Slack ping succeeds (see lib/n8n-webhook.ts's fails-soft docblock).
-  await postPartnerLead({
-    firstName: input.firstName.trim() || undefined,
-    lastName: input.lastName.trim() || undefined,
-    businessName,
-    email,
-    note: input.note.trim() || undefined,
-  });
+  // this notification email succeeds.
+  try {
+    await sendPartnerLeadEmail({ firstName, lastName, businessName, email, note });
+  } catch (emailError) {
+    console.error("[submitPartnerLead] notification email failed:", emailError);
+  }
 
   return { success: true };
 }

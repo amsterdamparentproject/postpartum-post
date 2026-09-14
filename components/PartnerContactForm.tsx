@@ -76,7 +76,9 @@ export default function PartnerContactForm({
           {firstNameField.error && <p className="mt-1 text-xs text-coral">{firstNameField.error}</p>}
         </div>
         <div>
-          <label className={labelClass}>Last name</label>
+          <label className={labelClass}>
+            Last name <RequiredMark />
+          </label>
           <input
             value={lastName}
             onChange={(e) => { setLastName(e.target.value); lastNameField.clear(); }}

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { submitPartnerLead } from "@/app/actions/partners";
+import RequiredMark from "@/components/RequiredMark";
 
 const inputClass =
   "w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition";
@@ -54,26 +55,34 @@ export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className={labelClass}>First name</label>
+          <label className={labelClass}>
+            First name <RequiredMark />
+          </label>
           <input
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
+            required
             className={inputClass}
             placeholder="Alex"
           />
         </div>
         <div>
-          <label className={labelClass}>Last name</label>
+          <label className={labelClass}>
+            Last name <RequiredMark />
+          </label>
           <input
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
+            required
             className={inputClass}
             placeholder="Siega"
           />
         </div>
       </div>
       <div>
-        <label className={labelClass}>Email</label>
+        <label className={labelClass}>
+          Email <RequiredMark />
+        </label>
         <input
           type="email"
           value={email}
@@ -83,7 +92,9 @@ export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string
         />
       </div>
       <div>
-        <label className={labelClass}>Business name</label>
+        <label className={labelClass}>
+          Business name <RequiredMark />
+        </label>
         <input
           value={businessName}
           onChange={(e) => setBusinessName(e.target.value)}
@@ -93,13 +104,16 @@ export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string
         />
       </div>
       <div>
-        <label className={labelClass}>Tell us about your perk idea</label>
+        <label className={labelClass}>
+          Tell us about your perk idea <RequiredMark />
+        </label>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={3}
+          required
           className={inputClass}
-          placeholder="Optional — a discount, a free class, whatever you have in mind"
+          placeholder="A discount, a free class, whatever you have in mind"
         />
       </div>
       {error && <p className="text-xs text-coral">{error}</p>}

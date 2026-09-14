@@ -102,7 +102,7 @@ export default async function Home() {
   const pilotOnly = first20SpotsRemaining === 0 ? false : PILOT_ONLY;
 
   return (
-    <PageLayout showNav activeRoute="/">
+    <PageLayout showNav>
       <main className="flex-1 flex flex-col items-center px-6 px-6 md:py-16">
 
         {/* Hero */}

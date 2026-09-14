@@ -21,8 +21,19 @@ type State = "idle" | "sending" | "sent" | "not_found";
  * partner's not_found shows PartnerLeadForm (express interest, no account) —
  * this is the "Submit perk without a conversation with Alex" flow's
  * replacement, per the Sep 2026 self-service-portal pivot.
+ *
+ * Used in three places, all with the default `showLeadFormOnNotFound=true`:
+ * the dedicated /partners/login page (linked from PartnerSplash's "Are you
+ * an existing partner?" line), the /auth/confirm retry state, and the
+ * /partners/perks logged-out fallback — each a minimal context where
+ * showing the lead form inline on a not-found email is the right fallback,
+ * rather than dead-ending.
  */
-export default function PartnerLoginRequest() {
+export default function PartnerLoginRequest({
+  showLeadFormOnNotFound = true,
+}: {
+  showLeadFormOnNotFound?: boolean;
+} = {}) {
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [state, setState] = useState<State>("idle");
@@ -91,7 +102,9 @@ export default function PartnerLoginRequest() {
             {emailError && <p className="mt-1 text-xs text-coral text-left">{emailError}</p>}
             {notFound && (
               <p className="mt-1 text-xs text-coral text-left">
-                We don&apos;t have that email on file yet — tell us about your business below.
+                {showLeadFormOnNotFound
+                  ? "We don't have that email on file yet — tell us about your business below."
+                  : "We don't have that email on file yet — use the interest form below to get in touch."}
               </p>
             )}
           </div>
@@ -106,7 +119,7 @@ export default function PartnerLoginRequest() {
         </form>
       </div>
 
-      {notFound && (
+      {notFound && showLeadFormOnNotFound && (
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <h2 className="text-xl text-dark mb-1" style={{ fontFamily: "var(--font-serif)" }}>
             Interested in becoming a Post Partner?

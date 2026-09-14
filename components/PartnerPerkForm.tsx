@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { savePartnerPerk, type PartnerPerk, type PerkCategory } from "@/app/actions/partners";
 import type { PartnerLocation } from "@/app/actions/partners";
+import RequiredMark from "@/components/RequiredMark";
 
 const inputClass =
   "w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition";
@@ -79,17 +80,23 @@ export default function PartnerPerkForm({
       </h2>
 
       <div>
-        <label className={labelClass}>Perk title</label>
+        <label className={labelClass}>
+          Perk title <RequiredMark />
+        </label>
         <input value={title} onChange={(e) => setTitle(e.target.value)} required className={inputClass} placeholder="20% off your first class" />
       </div>
 
       <div>
-        <label className={labelClass}>Discount</label>
+        <label className={labelClass}>
+          Discount <RequiredMark />
+        </label>
         <input value={discount} onChange={(e) => setDiscount(e.target.value)} required className={inputClass} placeholder="20% off, 1 free class, €10 off…" />
       </div>
 
       <div>
-        <label className={labelClass}>Description</label>
+        <label className={labelClass}>
+          Description <RequiredMark />
+        </label>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} required rows={3} className={inputClass} />
       </div>
 

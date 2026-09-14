@@ -6,7 +6,7 @@ import { useTransition } from "react";
 import { createBrowserClient } from "@/lib/supabase";
 
 const TABS = [
-  { href: "/partners", label: "Profile" },
+  { href: "/partners", label: "Partner profile" },
   { href: "/partners/perks", label: "Your Perks" },
 ];
 

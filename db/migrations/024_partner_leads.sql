@@ -3,8 +3,8 @@
 -- /perks/submit removal (migration 023) needed an inbound-interest path back:
 -- a business that isn't in `partners` yet can express interest from the
 -- /partners login screen's "not found" state (mirrors how MagicLinkRequest
--- already shows a signup form there for members) — one email + a Slack
--- ping via n8n (see lib/n8n-webhook.ts), no account, no auth, no live perk.
+-- already shows a signup form there for members) — one email straight to
+-- Alex (see lib/emails/partner-lead.ts), no account, no auth, no live perk.
 -- Alex reaches out herself and adds them to `partners` if it's a fit.
 
 do $$ begin
@@ -20,11 +20,11 @@ create table if not exists postpartumpost.partner_leads (
   created_at           timestamptz default now(),
   updated_at           timestamptz default now(),
 
-  first_name           text,
-  last_name            text,
+  first_name           text not null,
+  last_name            text not null,
   business_name        text not null,
   email                text not null,
-  note                 text,   -- "tell us about your perk idea" — optional, free text
+  note                 text not null,   -- "tell us about your perk idea" — required, some effort > none
 
   status               postpartumpost.lead_status not null default 'new',
   -- Set once Alex actually adds them as a partner, so a lead's outcome

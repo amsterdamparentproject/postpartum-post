@@ -6,10 +6,9 @@ import OptinReminderBanner from "@/components/OptinReminderBanner";
 interface PageLayoutProps {
   children: React.ReactNode;
   showNav?: boolean;
-  activeRoute?: string;
 }
 
-export default function PageLayout({ children, showNav, activeRoute }: PageLayoutProps) {
+export default function PageLayout({ children, showNav }: PageLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Opt-in window banner — "join before the deadline" for a logged-out
@@ -19,7 +18,7 @@ export default function PageLayout({ children, showNav, activeRoute }: PageLayou
           nothing when it doesn't apply, so exactly one (or neither) shows. */}
       <JoinReminderBanner />
       <OptinReminderBanner />
-      <Header showNav={showNav} activeRoute={activeRoute} />
+      <Header showNav={showNav} />
       {children}
       <footer className="py-8 text-center text-xs md:text-sm text-muted border-t border-border leading-relaxed">
         <p className="text-dark">A project by{" "}

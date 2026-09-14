@@ -1,6 +1,6 @@
 "use client";
 
-import PartnerLoginRequest from "@/components/PartnerLoginRequest";
+import PartnerSplash from "@/components/PartnerSplash";
 import PartnerContactForm from "@/components/PartnerContactForm";
 import PartnerProfileForm from "@/components/PartnerProfileForm";
 import PartnerLocationsManager from "@/components/PartnerLocationsManager";
@@ -17,7 +17,7 @@ export default function PartnersPage() {
   const { loading, email, partner, accessToken, refresh } = usePartner();
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
-  if (!email || !partner || !accessToken) return <PartnerLoginRequest />;
+  if (!email || !partner || !accessToken) return <PartnerSplash />;
 
   return (
     <div className="grid md:grid-cols-2 gap-6 items-start">
