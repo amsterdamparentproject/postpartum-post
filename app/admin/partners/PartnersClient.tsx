@@ -823,7 +823,14 @@ function PerkCard({ perk, onChanged }: { perk: ReviewPerk; onChanged: () => void
     <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-medium text-dark">{perk.perk_title}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-dark">{perk.perk_title}</p>
+            {perk.exclusive && (
+              <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-light/30 text-dark">
+                Exclusive
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted mt-0.5">{perk.partner_name} · {perk.perk_discount}</p>
         </div>
         <StatusBadge label={PERK_STATUS_LABELS[perk.status]} className={PERK_STATUS_STYLES[perk.status]} />

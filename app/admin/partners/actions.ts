@@ -428,6 +428,7 @@ export type ReviewPerk = {
   perk_title: string;
   perk_description: string;
   perk_discount: string;
+  exclusive: boolean;
   partner_id: string;
   partner_name: string;
 };
@@ -441,7 +442,7 @@ export async function listPerksForReview(): Promise<ReviewPerk[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("perks_partners")
-    .select("id, status, created_at, perk_title, perk_description, perk_discount, partner_id, partner_name")
+    .select("id, status, created_at, perk_title, perk_description, perk_discount, exclusive, partner_id, partner_name")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[listPerksForReview] query error:", error.message);

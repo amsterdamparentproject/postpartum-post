@@ -419,6 +419,7 @@ export type PartnerPerk = {
   perk_redemption_code: string | null;
   perk_redemption_url: string | null;
   expires_at: string | null;
+  exclusive: boolean;
   category_ids: string[];
 };
 
@@ -439,7 +440,7 @@ export async function listPartnerPerks(accessToken: string): Promise<PartnerPerk
   const supabase = createAdminClient();
   const { data: perks, error } = await supabase
     .from("perks")
-    .select("id, status, location_id, partner_link, perk_title, perk_description, perk_discount, redemption_instructions, perk_redemption_code, perk_redemption_url, expires_at")
+    .select("id, status, location_id, partner_link, perk_title, perk_description, perk_discount, redemption_instructions, perk_redemption_code, perk_redemption_url, expires_at, exclusive")
     .eq("partner_id", authed.partnerId)
     .order("created_at", { ascending: false });
   if (error) {
@@ -470,6 +471,7 @@ export type PartnerPerkInput = {
   perk_redemption_code: string;
   perk_redemption_url: string;
   expires_at: string; // "" = no expiry
+  exclusive: boolean;
   category_ids: string[];
 };
 
@@ -531,6 +533,7 @@ export async function savePartnerPerk(
     perk_redemption_code: input.perk_redemption_code.trim() || null,
     perk_redemption_url: input.perk_redemption_url.trim() || null,
     expires_at: input.expires_at || null,
+    exclusive: input.exclusive,
   };
 
   const { data: perk, error } = input.id

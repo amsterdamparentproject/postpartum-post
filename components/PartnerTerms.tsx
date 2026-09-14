@@ -26,23 +26,6 @@ export default function PartnerTerms() {
       </p>
 
       <section className="space-y-2">
-        <h2 className="text-coral font-semibold">Creating, updating, and removing perks</h2>
-        <p className="text-sm text-dark leading-relaxed">
-          You manage your perk anytime from the Your Perks tab:
-        </p>
-        <ul className="text-sm text-dark leading-relaxed list-disc pl-5 space-y-1">
-          <li><b>Creating</b> a perk goes through a quick review — usually within 5 business days — before it&apos;s live.</li>
-          <li><b>Updating</b> a perk goes through that same review before your changes take effect.</li>
-          <li><b>Removing</b> a perk: Submit your request by the 23rd of the month, and we&apos;ll make sure it&apos;s off the platform starting the 1st of the next month.</li>
-        </ul>
-        <p className="text-sm text-dark leading-relaxed">
-          This is also how the partnership itself winds down. Whenever either of us wants to stop,
-          it just means removing all perks. There&apos;s no separate cancellation process, and no fixed
-          end date otherwise.
-        </p>
-      </section>
-
-      <section className="space-y-2">
         <h2 className="text-coral font-semibold">What you get</h2>
         <p className="text-sm text-dark leading-relaxed">Here&apos;s what you get as a Post Perks partner:</p>
         <ul className="text-sm text-dark leading-relaxed list-disc pl-5 space-y-1">
@@ -62,15 +45,54 @@ export default function PartnerTerms() {
             </Link>: A minimum of 2 inclusions on the activity list per year</li>
         </ul>
         <p className="text-sm text-dark leading-relaxed">
-          This costs you nothing. It&apos;s a straight trade — your discount for this exposure.
+          This costs you nothing. It&apos;s a straight trade — your discount for this exposure.
         </p>
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-coral font-semibold">No exclusivity</h2>
+        <h2 className="text-coral font-semibold">Creating, updating, and removing perks</h2>
         <p className="text-sm text-dark leading-relaxed">
-          While we always appreciate exclusivity, you&apos;re free to offer the same or similar deals through other communities or
-          partnerships. If you are willing to offer exclusivity, let us know and we can highlight that in your perk description.
+          You manage your perk anytime from the Your Perks tab:
+        </p>
+        <ul className="text-sm text-dark leading-relaxed list-disc pl-5 space-y-1">
+          <li><b>Creating</b> a perk goes through a quick review — usually within 5 business days — before it&apos;s live.</li>
+          <li><b>Updating</b> a perk goes through that same review before your changes take effect.</li>
+          <li><b>Removing</b> a perk: Submit your request by the 23rd of the month, and we&apos;ll make sure it&apos;s off the platform starting the 1st of the next month.</li>
+        </ul>
+        <p className="text-sm text-dark leading-relaxed">
+          This is also how the partnership itself winds down. Whenever either of us wants to stop,
+          it just means removing all perks. There&apos;s no separate cancellation process, and no fixed
+          end date otherwise.
+        </p>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-coral font-semibold">Exclusivity not required, but exclusive perks get extra benefits</h2>
+        <p className="text-sm text-dark leading-relaxed">
+          You&apos;re free to offer the same or similar deals through other communities or
+          partnerships — nothing here requires exclusivity.
+        </p>
+        <p className="text-sm text-dark leading-relaxed">
+          If you make a perk exclusive to us, in addition to &quot;What you get&quot; above, you also get:
+        </p>
+        <ul className="text-sm text-dark leading-relaxed list-disc pl-5 space-y-1">
+          <li>
+            An &quot;exclusive&quot; badge in the Perks directory and a highlight on the{" "}
+            <Link href="/perks" className="text-coral hover:underline underline-offset-2">
+              Perks page
+            </Link>
+          </li>
+          <li>Higher ranking in recommended activities on the match page</li>
+          <li>
+            At least 1 extra social media highlight and 1 extra{" "}
+            <Link href="https://amsterdamparentproject.com/newsletter" className="text-coral hover:underline underline-offset-2">
+              newsletter
+            </Link>{" "}
+            highlight per year
+          </li>
+        </ul>
+        <p className="text-sm text-dark leading-relaxed">
+          To make a perk exclusive, just check the box when you add or edit it from the Your Perks tab.
         </p>
       </section>
 
@@ -91,7 +113,7 @@ export default function PartnerTerms() {
           redeems it. We&apos;re just the middleman connecting you with our members — we&apos;re not
           liable for how the redemption itself goes.
         </p>
-                <p className="text-sm text-dark leading-relaxed">
+        <p className="text-sm text-dark leading-relaxed">
           If we hear that you are not honoring your perk, we&apos;ll reach out to you to resolve it. If the issue isn&apos;t resolved, we may remove your perk from the platform.
         </p>
       </section>

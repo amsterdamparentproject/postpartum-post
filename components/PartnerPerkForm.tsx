@@ -40,6 +40,7 @@ export default function PartnerPerkForm({
   const [code, setCode] = useState(perk?.perk_redemption_code ?? "");
   const [redemptionUrl, setRedemptionUrl] = useState(perk?.perk_redemption_url ?? "");
   const [expiresAt, setExpiresAt] = useState(perk?.expires_at ?? "");
+  const [exclusive, setExclusive] = useState(perk?.exclusive ?? false);
   const [categoryIds, setCategoryIds] = useState<string[]>(perk?.category_ids ?? []);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -63,6 +64,7 @@ export default function PartnerPerkForm({
         perk_redemption_code: code,
         perk_redemption_url: redemptionUrl,
         expires_at: expiresAt,
+        exclusive,
         category_ids: categoryIds,
       });
       if (!result.success) {
@@ -161,6 +163,21 @@ export default function PartnerPerkForm({
           <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className={inputClass} />
         </div>
       </div>
+
+      <label className="flex items-start gap-2 rounded-lg border border-purple-light/40 bg-purple-light/10 px-4 py-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={exclusive}
+          onChange={(e) => setExclusive(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span className="text-sm text-dark leading-relaxed">
+          <span className="font-medium">Make this perk exclusive to Postpartum Post.</span>{" "}
+          Exclusive perks get an &quot;exclusive&quot; badge in the Perks directory and a highlight
+          on the Perks page, higher ranking in recommended activities on the match page, and at
+          least one extra social media and newsletter highlight per year.
+        </span>
+      </label>
 
       {error && <p className="text-xs text-coral">{error}</p>}
 
