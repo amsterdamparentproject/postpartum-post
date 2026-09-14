@@ -119,6 +119,20 @@ export async function cleanupMember(memberId: string) {
 }
 
 /**
+ * A rate-limit rejection needs a couple seconds to clear; the JWT-kid quirk
+ * (see getAccessTokenForEmail below) tends to clear on the next attempt.
+ * Backing off harder for the former keeps the common case fast — capped
+ * low enough that maxAttempts retries still fit inside vitest's 20s
+ * hookTimeout/testTimeout (vitest.config.ts) with room to spare.
+ */
+function backoffMs(attempt: number, lastError: string | undefined): number {
+  if (lastError?.toLowerCase().includes("rate limit")) {
+    return Math.min(1000 * 2 ** (attempt - 1), 4000);
+  }
+  return 500 * attempt;
+}
+
+/**
  * Signs a member in server-side (no browser needed) and returns a real
  * Supabase access token for their session — for tests that need to exercise
  * code paths gated behind `supabase.auth.getUser(accessToken)`, e.g. the
@@ -153,14 +167,20 @@ export async function getAccessTokenForEmail(email: string): Promise<string> {
   // fails partway (same underlying quirk, seen under full-suite load where
   // many auth calls fire in quick succession) re-verifying the same
   // token_hash won't help — a fresh link is needed too.
-  const maxAttempts = 3;
+  //
+  // A distinct failure mode (2026-09): the partner-portal test files added
+  // enough per-test getAccessTokenForEmail calls that a full-suite run can
+  // trip Supabase's own "Request rate limit reached" on admin.generateLink
+  // — a short-lived throttle, not the JWT-kid quirk above, so it needs a
+  // real backoff (seconds, not milliseconds) rather than a quick retry.
+  const maxAttempts = 4;
   let lastError: string | undefined;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const linkResult = await admin.auth.admin.generateLink({ type: "magiclink", email });
     const hashedToken = linkResult.data?.properties?.hashed_token;
     if (linkResult.error || !hashedToken) {
       lastError = linkResult.error?.message ?? "no hashed_token returned";
-      if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, 500 * attempt));
+      if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, backoffMs(attempt, lastError)));
       continue;
     }
 
@@ -177,7 +197,7 @@ export async function getAccessTokenForEmail(email: string): Promise<string> {
       return verified.session.access_token;
     }
     lastError = verifyError?.message ?? "no access_token returned";
-    if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, 500 * attempt));
+    if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, backoffMs(attempt, lastError)));
   }
   throw new Error(`getAccessTokenForEmail: failed after ${maxAttempts} attempts: ${lastError}`);
 }

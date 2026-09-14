@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { savePartnerPerk, listPartnerPerks, type PartnerPerkInput } from "@/app/actions/partners";
 import { listPerksForReview, setPerkStatus } from "@/app/admin/partners/actions";
 import {
@@ -29,16 +29,25 @@ function perkInput(overrides: Partial<PartnerPerkInput> = {}): PartnerPerkInput 
   };
 }
 
+// Each describe below seeds its partner + access token once via beforeAll,
+// not a per-test beforeEach — getAccessTokenForEmail hits Supabase's real
+// magic-link rate limit when the full suite fires enough of these in quick
+// succession. None of the tests within a describe depend on a completely
+// fresh partner (they assert on specific perk ids, not on the partner's
+// total perk count), so sharing is safe; a test that genuinely needs a
+// second, isolated partner (cross-partner ownership checks) still seeds
+// its own "other" partner + token inline.
+
 describe("savePartnerPerk", () => {
   let partner: Awaited<ReturnType<typeof seedPartner>>;
   let accessToken: string;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     partner = await seedPartner();
     accessToken = await getAccessTokenForEmail(partner.email!);
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await cleanupPartner(partner.id); // cascades to the partner's perks/locations
     await cleanupAuthUser(partner.email!);
   });
@@ -164,12 +173,12 @@ describe("admin perk review (listPerksForReview / setPerkStatus)", () => {
   let partner: Awaited<ReturnType<typeof seedPartner>>;
   let accessToken: string;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     partner = await seedPartner({ business_name: `Review Test ${crypto.randomUUID().slice(0, 8)}` });
     accessToken = await getAccessTokenForEmail(partner.email!);
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await cleanupPartner(partner.id);
     await cleanupAuthUser(partner.email!);
   });

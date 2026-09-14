@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import {
   checkPartnerExists,
   getPartnerProfile,
@@ -52,21 +52,31 @@ describe("checkPartnerExists", () => {
   });
 });
 
+// Each nested describe below seeds its own partner + access token once via
+// beforeAll (not a shared outer beforeEach) — getAccessTokenForEmail hits
+// Supabase's real magic-link rate limit when the full suite fires enough
+// of these in quick succession, so tests that don't need isolation from
+// their siblings share one token instead of minting a fresh one per test.
+// savePartnerContact's email-changing test is why this is scoped per
+// nested describe rather than to the whole file: it mutates partners.email
+// permanently, so it must be the last test to touch its describe's shared
+// token, never a describe that outlives it.
+
 describe("authenticated partner profile actions", () => {
-  let partner: Awaited<ReturnType<typeof seedPartner>>;
-  let accessToken: string;
-
-  beforeEach(async () => {
-    partner = await seedPartner();
-    accessToken = await getAccessTokenForEmail(partner.email!);
-  });
-
-  afterEach(async () => {
-    await cleanupPartner(partner.id);
-    await cleanupAuthUser(partner.email!);
-  });
-
   describe("getPartnerProfile", () => {
+    let partner: Awaited<ReturnType<typeof seedPartner>>;
+    let accessToken: string;
+
+    beforeAll(async () => {
+      partner = await seedPartner();
+      accessToken = await getAccessTokenForEmail(partner.email!);
+    });
+
+    afterAll(async () => {
+      await cleanupPartner(partner.id);
+      await cleanupAuthUser(partner.email!);
+    });
+
     it("returns null for an invalid access token", async () => {
       expect(await getPartnerProfile("not-a-real-token")).toBeNull();
     });
@@ -83,6 +93,19 @@ describe("authenticated partner profile actions", () => {
   });
 
   describe("savePartnerProfile", () => {
+    let partner: Awaited<ReturnType<typeof seedPartner>>;
+    let accessToken: string;
+
+    beforeAll(async () => {
+      partner = await seedPartner();
+      accessToken = await getAccessTokenForEmail(partner.email!);
+    });
+
+    afterAll(async () => {
+      await cleanupPartner(partner.id);
+      await cleanupAuthUser(partner.email!);
+    });
+
     it("rejects an invalid access token", async () => {
       const result = await savePartnerProfile("not-a-real-token", {
         business_name: "Nope",
@@ -110,6 +133,19 @@ describe("authenticated partner profile actions", () => {
   });
 
   describe("savePartnerContact", () => {
+    let partner: Awaited<ReturnType<typeof seedPartner>>;
+    let accessToken: string;
+
+    beforeAll(async () => {
+      partner = await seedPartner();
+      accessToken = await getAccessTokenForEmail(partner.email!);
+    });
+
+    afterAll(async () => {
+      await cleanupPartner(partner.id);
+      await cleanupAuthUser(partner.email!);
+    });
+
     it("rejects a missing required field", async () => {
       const result = await savePartnerContact(accessToken, {
         first_name: "",
@@ -134,6 +170,10 @@ describe("authenticated partner profile actions", () => {
       }
     });
 
+    // Must stay last in this describe: it permanently changes partners.email
+    // (not the underlying auth user's email, so accessToken itself keeps
+    // working — see requirePartner — but a later test relying on
+    // partner.email matching the row would break).
     it("updates first/last name and email when there's no conflict", async () => {
       const newEmail = `amsterdamparentproject+partner-${crypto.randomUUID().slice(0, 8)}@gmail.com`;
       const result = await savePartnerContact(accessToken, {
@@ -152,6 +192,19 @@ describe("authenticated partner profile actions", () => {
   });
 
   describe("upsertPartnerLocation", () => {
+    let partner: Awaited<ReturnType<typeof seedPartner>>;
+    let accessToken: string;
+
+    beforeAll(async () => {
+      partner = await seedPartner();
+      accessToken = await getAccessTokenForEmail(partner.email!);
+    });
+
+    afterAll(async () => {
+      await cleanupPartner(partner.id);
+      await cleanupAuthUser(partner.email!);
+    });
+
     it("rejects an invalid access token", async () => {
       const result = await upsertPartnerLocation("not-a-real-token", { label: "", address: "Somestraat 1" });
       expect(result.success).toBe(false);
@@ -204,6 +257,19 @@ describe("authenticated partner profile actions", () => {
   });
 
   describe("deletePartnerLocation", () => {
+    let partner: Awaited<ReturnType<typeof seedPartner>>;
+    let accessToken: string;
+
+    beforeAll(async () => {
+      partner = await seedPartner();
+      accessToken = await getAccessTokenForEmail(partner.email!);
+    });
+
+    afterAll(async () => {
+      await cleanupPartner(partner.id);
+      await cleanupAuthUser(partner.email!);
+    });
+
     it("deletes a location it owns", async () => {
       const loc = await seedPartnerLocation(partner.id);
 
