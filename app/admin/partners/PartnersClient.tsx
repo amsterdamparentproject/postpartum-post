@@ -470,10 +470,22 @@ function AddPartnerForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
   );
 }
 
+const LEAD_STATUS_FILTERS: Array<{ value: LeadStatusFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "idea", label: "Idea" },
+  { value: "new", label: "New" },
+  { value: "contacted", label: "Contacted" },
+  { value: "converted", label: "Converted" },
+  { value: "rejected", label: "Not a fit" },
+];
+
+type LeadStatusFilter = PartnerLead["status"] | "all";
+
 function LeadsTab() {
   const [leads, setLeads] = useState<PartnerLead[] | null>(null);
   const [addingPartner, setAddingPartner] = useState(false);
   const [addingIdea, setAddingIdea] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<LeadStatusFilter>("all");
 
   function reload() {
     listPartnerLeads().then(setLeads);
@@ -483,8 +495,17 @@ function LeadsTab() {
     reload();
   }, []);
 
-  const openLeads = leads?.filter((l) => l.status === "idea" || l.status === "new" || l.status === "contacted") ?? [];
-  const closedLeads = leads?.filter((l) => l.status === "converted" || l.status === "rejected") ?? [];
+  const filteredLeads =
+    statusFilter === "all" ? leads ?? [] : (leads ?? []).filter((l) => l.status === statusFilter);
+
+  // Only the "All" view keeps the open/closed split — once a specific
+  // status is picked, that's already the filter, so show a single flat list.
+  const openLeads =
+    statusFilter === "all"
+      ? filteredLeads.filter((l) => l.status === "idea" || l.status === "new" || l.status === "contacted")
+      : filteredLeads;
+  const closedLeads =
+    statusFilter === "all" ? filteredLeads.filter((l) => l.status === "converted" || l.status === "rejected") : [];
 
   return (
     <div className="space-y-6">
@@ -508,6 +529,26 @@ function LeadsTab() {
         )}
       </div>
 
+      <div className="flex flex-wrap gap-1.5">
+        {LEAD_STATUS_FILTERS.map((f) => {
+          const count = f.value === "all" ? leads?.length ?? 0 : leads?.filter((l) => l.status === f.value).length ?? 0;
+          const active = statusFilter === f.value;
+          return (
+            <button
+              key={f.value}
+              onClick={() => setStatusFilter(f.value)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                active
+                  ? "bg-dark text-white border-dark"
+                  : "bg-white text-muted border-border hover:text-dark hover:border-dark/30"
+              }`}
+            >
+              {f.label} · {count}
+            </button>
+          );
+        })}
+      </div>
+
       {addingIdea && (
         <AddIdeaLeadForm
           onDone={() => { setAddingIdea(false); reload(); }}
@@ -524,6 +565,9 @@ function LeadsTab() {
 
       {leads === null && <p className="text-sm text-muted">Loading…</p>}
       {leads?.length === 0 && <p className="text-sm text-muted">No leads yet.</p>}
+      {leads && leads.length > 0 && filteredLeads.length === 0 && (
+        <p className="text-sm text-muted">No leads with this status.</p>
+      )}
 
       {openLeads.length > 0 && (
         <div className="space-y-3">
