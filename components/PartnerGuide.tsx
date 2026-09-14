@@ -22,21 +22,29 @@ export default function PartnerGuide() {
       </div>
 
       <p className="text-sm text-dark leading-relaxed">
-        Thanks for partnering with Post Perks! Here&apos;s how the partnership works, in plain terms.
+        Thanks for partnering with Post Perks! Here&apos;s how the partnership works.
       </p>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-dark">Your perk</h2>
+        <h2 className="text-coral font-semibold">Creating, updating, and removing perks</h2>
         <p className="text-sm text-dark leading-relaxed">
-          You offer Postpartum Post members a discount or benefit — create or update it anytime from
-          the Your Perks tab. Just know that any change goes through a quick review before it&apos;s
-          live again.
+          You manage your perk anytime from the Your Perks tab:
+        </p>
+        <ul className="text-sm text-dark leading-relaxed list-disc pl-5 space-y-1">
+          <li><b>Creating</b> a perk goes through a quick review — usually within 5 business days — before it&apos;s live.</li>
+          <li><b>Updating</b> a perk goes through that same review before your changes take effect.</li>
+          <li><b>Removing</b> a perk: submit your request by the 23rd of the month, and we&apos;ll make sure it&apos;s off the platform starting the 1st of the next month.</li>
+        </ul>
+        <p className="text-sm text-dark leading-relaxed">
+          This is also how the partnership itself winds down — whenever either of us wants to stop,
+          it just means removing the perk. There&apos;s no separate cancellation process, and no fixed
+          end date otherwise.
         </p>
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-dark">What you get</h2>
-        <p className="text-sm text-dark leading-relaxed">Here&apos;s exactly what you get as a Post Perks partner:</p>
+        <h2 className="text-coral font-semibold">What you get</h2>
+        <p className="text-sm text-dark leading-relaxed">Here&apos;s what you get as a Post Perks partner:</p>
         <ul className="text-sm text-dark leading-relaxed list-disc pl-5 space-y-1">
           <li>Your perk featured on Postpartum Post&apos;s monthly match page, seen by all matched members</li>
           <li>
@@ -44,31 +52,22 @@ export default function PartnerGuide() {
             <Link href="/perks" className="text-coral hover:underline underline-offset-2">
               public Perks page
             </Link>{" "}
-            (currently in development)
           </li>
           <li>
-            On social media (Instagram and LinkedIn): a partnership announcement, plus a minimum of 1
+            On social media (Instagram and LinkedIn): A partnership announcement, plus a minimum of 1
             perk highlight per year
           </li>
-          <li>In Amsterdam Parent Project&apos;s newsletter: a minimum of 2 inclusions on the activity list per year</li>
+          <li>In Amsterdam Parent Project&apos;s <Link href="https://amsterdamparentproject.com/newsletter" className="text-coral hover:underline underline-offset-2">
+              newsletter
+            </Link>: A minimum of 2 inclusions on the activity list per year</li>
         </ul>
         <p className="text-sm text-dark leading-relaxed">
-          This costs you nothing — it&apos;s a straight trade: your discount for this exposure.
+          This costs you nothing. It&apos;s a straight trade — your discount for this exposure.
         </p>
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-dark">How long this lasts</h2>
-        <p className="text-sm text-dark leading-relaxed">
-          This partnership doesn&apos;t have an end date — it runs until either of us wants to stop.
-          We review Post Perks on a monthly cycle: submit your request to remove your perk by the 23rd
-          of the month, and we&apos;ll make sure it&apos;s off the platform starting the 1st of the next
-          month. We&apos;ll work on the same timeline if we&apos;re ever the one ending it.
-        </p>
-      </section>
-
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-dark">No exclusivity</h2>
+        <h2 className="text-coral font-semibold">No exclusivity</h2>
         <p className="text-sm text-dark leading-relaxed">
           You&apos;re free to offer the same or similar deals through other communities or
           partnerships — we&apos;re not asking for anything exclusive here.
@@ -86,7 +85,7 @@ export default function PartnerGuide() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-dark">A couple of practical notes</h2>
+        <h2 className="text-coral font-semibold">A couple of practical notes</h2>
         <p className="text-sm text-dark leading-relaxed">
           You&apos;re responsible for actually honoring the perk you&apos;ve offered when a member
           redeems it. We&apos;re just the middleman connecting you with our members — we&apos;re not
