@@ -11,12 +11,12 @@ const LAST_UPDATED = "September 2026";
  * one-off document sent per partner, since the terms are the same for
  * everyone and a partner should always be able to look them up.
  */
-export default function PartnerGuide() {
+export default function PartnerTerms() {
   return (
     <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8 max-w-2xl mx-auto space-y-8">
       <div>
         <h1 className="text-2xl text-dark mb-1" style={{ fontFamily: "var(--font-serif)" }}>
-          Partnership guide
+          Partnership terms
         </h1>
         <p className="text-xs text-muted">Last updated: {LAST_UPDATED}</p>
       </div>
@@ -33,11 +33,11 @@ export default function PartnerGuide() {
         <ul className="text-sm text-dark leading-relaxed list-disc pl-5 space-y-1">
           <li><b>Creating</b> a perk goes through a quick review — usually within 5 business days — before it&apos;s live.</li>
           <li><b>Updating</b> a perk goes through that same review before your changes take effect.</li>
-          <li><b>Removing</b> a perk: submit your request by the 23rd of the month, and we&apos;ll make sure it&apos;s off the platform starting the 1st of the next month.</li>
+          <li><b>Removing</b> a perk: Submit your request by the 23rd of the month, and we&apos;ll make sure it&apos;s off the platform starting the 1st of the next month.</li>
         </ul>
         <p className="text-sm text-dark leading-relaxed">
-          This is also how the partnership itself winds down — whenever either of us wants to stop,
-          it just means removing the perk. There&apos;s no separate cancellation process, and no fixed
+          This is also how the partnership itself winds down. Whenever either of us wants to stop,
+          it just means removing all perks. There&apos;s no separate cancellation process, and no fixed
           end date otherwise.
         </p>
       </section>
@@ -69,13 +69,13 @@ export default function PartnerGuide() {
       <section className="space-y-2">
         <h2 className="text-coral font-semibold">No exclusivity</h2>
         <p className="text-sm text-dark leading-relaxed">
-          You&apos;re free to offer the same or similar deals through other communities or
-          partnerships — we&apos;re not asking for anything exclusive here.
+          While we always appreciate exclusivity, you&apos;re free to offer the same or similar deals through other communities or
+          partnerships. If you are willing to offer exclusivity, let us know and we can highlight that in your perk description.
         </p>
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-dark">Using each other&apos;s name</h2>
+        <h2 className="text-coral font-semibold">Using each other&apos;s name</h2>
         <p className="text-sm text-dark leading-relaxed">
           We&apos;ll use your business name, logo, and a link to your site when we promote your perk.
           You&apos;re welcome to mention that you&apos;re a Post Perks partner with Amsterdam Parent
@@ -85,11 +85,14 @@ export default function PartnerGuide() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-coral font-semibold">A couple of practical notes</h2>
+        <h2 className="text-coral font-semibold">Your responsibilities</h2>
         <p className="text-sm text-dark leading-relaxed">
           You&apos;re responsible for actually honoring the perk you&apos;ve offered when a member
           redeems it. We&apos;re just the middleman connecting you with our members — we&apos;re not
           liable for how the redemption itself goes.
+        </p>
+                <p className="text-sm text-dark leading-relaxed">
+          If we hear that you are not honoring your perk, we&apos;ll reach out to you to resolve it. If the issue isn&apos;t resolved, we may remove your perk from the platform.
         </p>
       </section>
     </div>

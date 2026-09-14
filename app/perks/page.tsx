@@ -10,7 +10,7 @@ export const metadata: Metadata = {
  * Placeholder for the eventual public Post Perks page — mirrors
  * not-found.tsx's look on purpose (same emoji/serif-heading/muted-subtext
  * shape) since there's nothing to show here yet either. Linked from
- * PartnerGuide's "public Perks page" mention.
+ * PartnerTerms's "public Perks page" mention.
  */
 export default function PerksPage() {
   return (
