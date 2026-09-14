@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from "vitest";
 import { seedMember, seedSubscription, cleanupMember, createTestSupabase, getAccessTokenForEmail, cleanupAuthUser } from "@tests/helpers";
 import { updateMemberProfile, getMemberProfile, checkMemberExists, getSubscriptionDetails } from "@/app/actions/profile";
 import type { Availability, Child } from "@/app/actions/profile";
@@ -19,31 +19,44 @@ vi.mock("@/lib/matcher", () => ({
   geocodeZipcode: vi.fn().mockResolvedValue({ lat: 52.374, lng: 4.89 }),
 }));
 
+// Each describe below signs in as one fixed email, minted once via
+// beforeAll rather than per test — getAccessTokenForEmail hits Supabase's
+// real rate limit on admin.generateLink() when enough tests fire it in
+// quick succession. Every test still seeds its own fresh member row
+// (different zipcodes, children, subscription state, etc.); it just
+// points that row's email at the describe's fixed identity instead of a
+// random one, and reuses the one token already minted for it.
+
 describe("email case-insensitivity", () => {
+  const email = "amsterdamparentproject+profile-case@gmail.com";
+  let token: string;
   let memberId: string;
+
+  beforeAll(async () => {
+    token = await getAccessTokenForEmail(email);
+  });
+
+  afterAll(async () => {
+    await cleanupAuthUser(email);
+  });
 
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
   });
 
   it("getMemberProfile returns the member for a valid token, and null for an invalid one", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
 
-    const token = await getAccessTokenForEmail(member.email);
-    try {
-      const result = await getMemberProfile(token);
-      expect(result).not.toBeNull();
-      expect(result?.id).toBe(memberId);
-      // A bogus token must never resolve to anyone's profile (audit Finding 1).
-      expect(await getMemberProfile("not-a-real-token")).toBeNull();
-    } finally {
-      await cleanupAuthUser(member.email);
-    }
+    const result = await getMemberProfile(token);
+    expect(result).not.toBeNull();
+    expect(result?.id).toBe(memberId);
+    // A bogus token must never resolve to anyone's profile (audit Finding 1).
+    expect(await getMemberProfile("not-a-real-token")).toBeNull();
   });
 
   it("checkMemberExists returns true regardless of input casing", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
 
     expect(await checkMemberExists(member.email.toUpperCase())).toBe(true);
@@ -54,20 +67,26 @@ describe("email case-insensitivity", () => {
 });
 
 describe("profile — geocoding on save", () => {
+  const email = "amsterdamparentproject+profile-geocode@gmail.com";
+  let token: string;
   let memberId: string;
-  let memberEmail: string;
+
+  beforeAll(async () => {
+    token = await getAccessTokenForEmail(email);
+  });
+
+  afterAll(async () => {
+    await cleanupAuthUser(email);
+  });
 
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
-    if (memberEmail) await cleanupAuthUser(memberEmail);
   });
 
   it("writes lat/lng after a zipcode is saved", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
-    memberEmail = member.email;
 
-    const token = await getAccessTokenForEmail(member.email);
     await updateMemberProfile(token, { zipcode: "1012AB" });
 
     const supabase = createTestSupabase();
@@ -83,15 +102,13 @@ describe("profile — geocoding on save", () => {
   });
 
   it("clears lat/lng when zipcode is set to null", async () => {
-    const member = await seedMember({ zipcode: "1012AB" });
+    const member = await seedMember({ email, zipcode: "1012AB" });
     memberId = member.id;
-    memberEmail = member.email;
 
     // Seed existing coords directly
     const supabase = createTestSupabase();
     await supabase.from("members").update({ lat: 52.374, lng: 4.89 }).eq("id", memberId);
 
-    const token = await getAccessTokenForEmail(member.email);
     await updateMemberProfile(token, { zipcode: null });
 
     await vi.waitFor(async () => {
@@ -107,18 +124,25 @@ describe("profile — geocoding on save", () => {
 });
 
 describe("profile — matching fields", () => {
+  const email = "amsterdamparentproject+profile-matching@gmail.com";
+  let token: string;
   let memberId: string;
-  let memberEmail: string;
+
+  beforeAll(async () => {
+    token = await getAccessTokenForEmail(email);
+  });
+
+  afterAll(async () => {
+    await cleanupAuthUser(email);
+  });
 
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
-    if (memberEmail) await cleanupAuthUser(memberEmail);
   });
 
   it("persists zipcode, children, and availability to the DB", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
-    memberEmail = member.email;
 
     const newZipcode = "1012AB";
     const newChildren: Child[] = [
@@ -129,7 +153,6 @@ describe("profile — matching fields", () => {
       times: ["morning"],
     };
 
-    const token = await getAccessTokenForEmail(memberEmail);
     await updateMemberProfile(token, {
       zipcode: newZipcode,
       children: newChildren,
@@ -150,34 +173,30 @@ describe("profile — matching fields", () => {
 
   it("getMemberProfile returns the saved matching fields", async () => {
     const member = await seedMember({
+      email,
       zipcode: "1054GH",
       children: [{ birth_month: 7, birth_year: 2023, expected: false }],
       availability: { days: ["friday"], times: ["afternoon", "evening"] },
     });
     memberId = member.id;
-    memberEmail = member.email;
 
-    const token = await getAccessTokenForEmail(memberEmail);
-    try {
-      const profile = await getMemberProfile(token);
+    const profile = await getMemberProfile(token);
 
-      expect(profile?.zipcode).toBe("1054GH");
-      expect(profile?.children).toEqual([
-        { birth_month: 7, birth_year: 2023, expected: false },
-      ]);
-      expect(profile?.availability).toEqual({
-        days: ["friday"],
-        times: ["afternoon", "evening"],
-      });
-    } finally {
-      await cleanupAuthUser(memberEmail);
-    }
+    expect(profile?.zipcode).toBe("1054GH");
+    expect(profile?.children).toEqual([
+      { birth_month: 7, birth_year: 2023, expected: false },
+    ]);
+    expect(profile?.availability).toEqual({
+      days: ["friday"],
+      times: ["afternoon", "evening"],
+    });
   });
 });
 
 describe("getSubscriptionDetails — is_skipping_this_month (Track C2)", () => {
+  const email = "amsterdamparentproject+profile-skip@gmail.com";
+  let token: string;
   let memberId: string;
-  let memberEmail: string;
 
   function stripeSubResponse() {
     return {
@@ -199,16 +218,22 @@ describe("getSubscriptionDetails — is_skipping_this_month (Track C2)", () => {
     };
   }
 
+  beforeAll(async () => {
+    token = await getAccessTokenForEmail(email);
+  });
+
+  afterAll(async () => {
+    await cleanupAuthUser(email);
+  });
+
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
-    if (memberEmail) await cleanupAuthUser(memberEmail);
     mockRetrieve.mockReset();
   });
 
   it("is true when a monthly_skips row exists for the current calendar month", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
-    memberEmail = member.email;
     await seedSubscription(memberId);
     mockRetrieve.mockResolvedValue(stripeSubResponse());
 
@@ -218,7 +243,6 @@ describe("getSubscriptionDetails — is_skipping_this_month (Track C2)", () => {
       .insert({ member_id: memberId, month: monthToDate(currentMonth()) });
     if (error) throw new Error(`seed monthly_skips failed: ${error.message}`);
 
-    const token = await getAccessTokenForEmail(memberEmail);
     const details = await getSubscriptionDetails(token);
 
     expect(details?.is_skipping_this_month).toBe(true);
@@ -227,22 +251,19 @@ describe("getSubscriptionDetails — is_skipping_this_month (Track C2)", () => {
   });
 
   it("is false when no monthly_skips row exists for the current month", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
-    memberEmail = member.email;
     await seedSubscription(memberId);
     mockRetrieve.mockResolvedValue(stripeSubResponse());
 
-    const token = await getAccessTokenForEmail(memberEmail);
     const details = await getSubscriptionDetails(token);
 
     expect(details?.is_skipping_this_month).toBe(false);
   });
 
   it("is false for a skip recorded in a different month", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
-    memberEmail = member.email;
     await seedSubscription(memberId);
     mockRetrieve.mockResolvedValue(stripeSubResponse());
 
@@ -253,7 +274,6 @@ describe("getSubscriptionDetails — is_skipping_this_month (Track C2)", () => {
       .insert({ member_id: memberId, month: "2199-01-01" });
     if (error) throw new Error(`seed monthly_skips failed: ${error.message}`);
 
-    const token = await getAccessTokenForEmail(memberEmail);
     const details = await getSubscriptionDetails(token);
 
     expect(details?.is_skipping_this_month).toBe(false);
@@ -261,12 +281,20 @@ describe("getSubscriptionDetails — is_skipping_this_month (Track C2)", () => {
 });
 
 describe("getSubscriptionDetails — current_period_end while trialing (bugfix)", () => {
+  const email = "amsterdamparentproject+profile-trialing@gmail.com";
+  let token: string;
   let memberId: string;
-  let memberEmail: string;
+
+  beforeAll(async () => {
+    token = await getAccessTokenForEmail(email);
+  });
+
+  afterAll(async () => {
+    await cleanupAuthUser(email);
+  });
 
   afterEach(async () => {
     if (memberId) await cleanupMember(memberId);
-    if (memberEmail) await cleanupAuthUser(memberEmail);
     mockRetrieve.mockReset();
   });
 
@@ -281,9 +309,8 @@ describe("getSubscriptionDetails — current_period_end while trialing (bugfix)"
   // months for a commitment_6mo member — which is exactly the shape the
   // sandbox record that surfaced this bug showed.
   it("shows trial_end itself, not trial_end plus another full interval, for a bundle plan", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
-    memberEmail = member.email;
     await seedSubscription(memberId);
 
     const trialEnd = Math.floor(Date.now() / 1000) + 60 * 86400; // 60 days out
@@ -304,16 +331,14 @@ describe("getSubscriptionDetails — current_period_end while trialing (bugfix)"
       },
     });
 
-    const token = await getAccessTokenForEmail(memberEmail);
     const details = await getSubscriptionDetails(token);
 
     expect(details?.current_period_end).toBe(trialEnd);
   });
 
   it("shows trial_end itself for a monthly plan too", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
-    memberEmail = member.email;
     await seedSubscription(memberId);
 
     const trialEnd = Math.floor(Date.now() / 1000) + 20 * 86400;
@@ -334,7 +359,6 @@ describe("getSubscriptionDetails — current_period_end while trialing (bugfix)"
       },
     });
 
-    const token = await getAccessTokenForEmail(memberEmail);
     const details = await getSubscriptionDetails(token);
 
     expect(details?.current_period_end).toBe(trialEnd);
@@ -345,9 +369,8 @@ describe("getSubscriptionDetails — current_period_end while trialing (bugfix)"
   // a normal active subscription, never trialing — still reports the right
   // date: item.current_period_end passed straight through, untouched.
   it("passes item.current_period_end straight through for a normal active subscription", async () => {
-    const member = await seedMember();
+    const member = await seedMember({ email });
     memberId = member.id;
-    memberEmail = member.email;
     await seedSubscription(memberId);
 
     const periodEnd = Math.floor(Date.now() / 1000) + 25 * 86400;
@@ -368,7 +391,6 @@ describe("getSubscriptionDetails — current_period_end while trialing (bugfix)"
       },
     });
 
-    const token = await getAccessTokenForEmail(memberEmail);
     const details = await getSubscriptionDetails(token);
 
     expect(details?.current_period_end).toBe(periodEnd);
