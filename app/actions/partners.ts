@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { requirePartner } from "@/lib/require-partner";
 import { geocodeAddress } from "@/lib/geocode";
 import { sendPartnerLeadEmail } from "@/lib/emails/partner-lead";
+import { createLeadNote } from "@/lib/lead-notes";
 
 export type PartnerLocation = {
   id: string;
@@ -302,7 +303,7 @@ export async function submitPartnerLead(
     business_name: businessName,
     url,
     email,
-    note,
+    notes: [createLeadNote(note)],
   });
 
   if (error) {

@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase";
+import { createLeadNote, type LeadNote } from "@/lib/lead-notes";
 
 // ---------------------------------------------------------------------------
 // Leads
@@ -16,7 +17,7 @@ export type PartnerLead = {
   business_name: string;
   url: string;
   email: string | null;
-  note: string;
+  notes: LeadNote[];
   status: LeadStatus;
   converted_partner_id: string | null;
 };
@@ -25,7 +26,7 @@ export async function listPartnerLeads(): Promise<PartnerLead[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("partner_leads")
-    .select("id, created_at, first_name, last_name, business_name, url, email, note, status, converted_partner_id")
+    .select("id, created_at, first_name, last_name, business_name, url, email, notes, status, converted_partner_id")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[listPartnerLeads] query error:", error.message);
@@ -69,7 +70,7 @@ export async function addPartnerLeadIdea(
   const { error } = await supabase.from("partner_leads").insert({
     business_name: businessName,
     url,
-    note,
+    notes: [createLeadNote(note)],
     first_name: firstName || null,
     last_name: lastName || null,
     email: email || null,
@@ -78,6 +79,82 @@ export async function addPartnerLeadIdea(
 
   if (error) {
     console.error("[addPartnerLeadIdea] insert error:", error.message);
+    return { success: false, error: "Couldn't save — try again" };
+  }
+  return { success: true };
+}
+
+/**
+ * Appends a new dated entry to a lead's notes log — the "+ Note" button on
+ * an existing lead card. Read-modify-write rather than a jsonb append
+ * expression: the notes array is small (a handful of entries per lead at
+ * most) and this keeps the shape/validation in application code rather
+ * than in SQL.
+ */
+export async function addLeadNote(
+  leadId: string,
+  text: string,
+): Promise<{ success: boolean; error?: string }> {
+  const note = text.trim();
+  if (!note) {
+    return { success: false, error: "Note can't be empty" };
+  }
+
+  const supabase = createAdminClient();
+  const { data: lead, error: fetchError } = await supabase
+    .from("partner_leads")
+    .select("notes")
+    .eq("id", leadId)
+    .single();
+  if (fetchError || !lead) {
+    console.error("[addLeadNote] fetch error:", fetchError?.message);
+    return { success: false, error: "Couldn't save — try again" };
+  }
+
+  const notes = [...((lead.notes as LeadNote[] | null) ?? []), createLeadNote(note)];
+  const { error } = await supabase.from("partner_leads").update({ notes }).eq("id", leadId);
+  if (error) {
+    console.error("[addLeadNote] update error:", error.message);
+    return { success: false, error: "Couldn't save — try again" };
+  }
+  return { success: true };
+}
+
+/**
+ * Corrects the text of an existing note entry — the "Edit" button on a
+ * note. The entry's date/id are left untouched; only its text changes,
+ * since date represents when the note was originally added.
+ */
+export async function editLeadNote(
+  leadId: string,
+  noteId: string,
+  text: string,
+): Promise<{ success: boolean; error?: string }> {
+  const newText = text.trim();
+  if (!newText) {
+    return { success: false, error: "Note can't be empty" };
+  }
+
+  const supabase = createAdminClient();
+  const { data: lead, error: fetchError } = await supabase
+    .from("partner_leads")
+    .select("notes")
+    .eq("id", leadId)
+    .single();
+  if (fetchError || !lead) {
+    console.error("[editLeadNote] fetch error:", fetchError?.message);
+    return { success: false, error: "Couldn't save — try again" };
+  }
+
+  const existing = (lead.notes as LeadNote[] | null) ?? [];
+  if (!existing.some((n) => n.id === noteId)) {
+    return { success: false, error: "Note not found" };
+  }
+  const notes = existing.map((n) => (n.id === noteId ? { ...n, note: newText } : n));
+
+  const { error } = await supabase.from("partner_leads").update({ notes }).eq("id", leadId);
+  if (error) {
+    console.error("[editLeadNote] update error:", error.message);
     return { success: false, error: "Couldn't save — try again" };
   }
   return { success: true };

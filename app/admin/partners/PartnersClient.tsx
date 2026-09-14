@@ -7,12 +7,15 @@ import {
   convertLeadToPartner,
   addPartner,
   addPartnerLeadIdea,
+  addLeadNote,
+  editLeadNote,
   listPerksForReview,
   setPerkStatus,
   type PartnerLead,
   type ReviewPerk,
   type PerkReviewStatus,
 } from "./actions";
+import type { LeadNote } from "@/lib/lead-notes";
 import RequiredMark from "@/components/RequiredMark";
 
 const inputClass =
@@ -134,6 +137,119 @@ function ConvertLeadForm({
   );
 }
 
+/**
+ * Renders a lead's dated notes log (see lib/lead-notes.ts), plus a small
+ * "+ Note" button to append a new entry and a per-entry "Edit" to correct
+ * one's text in place. date is never editable — it marks when the note
+ * was originally added.
+ */
+function NotesLog({ leadId, notes, onChanged }: { leadId: string; notes: LeadNote[]; onChanged: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function submitAdd(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const result = await addLeadNote(leadId, draft);
+      if (!result.success) {
+        setError(result.error ?? "Couldn't save — try again");
+        return;
+      }
+      setDraft("");
+      setAdding(false);
+      onChanged();
+    });
+  }
+
+  function submitEdit(e: React.FormEvent, noteId: string) {
+    e.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const result = await editLeadNote(leadId, noteId, editDraft);
+      if (!result.success) {
+        setError(result.error ?? "Couldn't save — try again");
+        return;
+      }
+      setEditingId(null);
+      onChanged();
+    });
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      {notes.map((entry) => (
+        <div key={entry.id} className="text-sm text-dark leading-relaxed bg-cream/60 rounded-lg px-3 py-2">
+          {editingId === entry.id ? (
+            <form onSubmit={(e) => submitEdit(e, entry.id)} className="space-y-2">
+              <textarea
+                value={editDraft}
+                onChange={(e) => setEditDraft(e.target.value)}
+                rows={2}
+                required
+                className={inputClass}
+                autoFocus
+              />
+              <div className="flex gap-3">
+                <button type="submit" disabled={isPending} className="text-xs font-semibold text-coral hover:text-coral-dark transition">
+                  Save
+                </button>
+                <button type="button" onClick={() => setEditingId(null)} className="text-xs text-muted hover:text-dark transition">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <p className="whitespace-pre-wrap">{entry.note}</p>
+                <button
+                  onClick={() => { setEditingId(entry.id); setEditDraft(entry.note); }}
+                  className="shrink-0 text-xs text-muted hover:text-coral transition"
+                >
+                  Edit
+                </button>
+              </div>
+              <p className="text-xs text-muted mt-1">{new Date(entry.date).toLocaleDateString()}</p>
+            </>
+          )}
+        </div>
+      ))}
+
+      {adding ? (
+        <form onSubmit={submitAdd} className="space-y-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={2}
+            required
+            className={inputClass}
+            placeholder="New update…"
+            autoFocus
+          />
+          <div className="flex gap-3">
+            <button type="submit" disabled={isPending} className="text-xs font-semibold text-coral hover:text-coral-dark transition">
+              {isPending ? "Saving…" : "Save note"}
+            </button>
+            <button type="button" onClick={() => { setAdding(false); setDraft(""); }} className="text-xs text-muted hover:text-dark transition">
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button onClick={() => setAdding(true)} className="text-xs font-semibold text-coral hover:text-coral-dark transition">
+          + Note
+        </button>
+      )}
+      {error && <p className="text-xs text-coral">{error}</p>}
+    </div>
+  );
+}
+
 function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => void }) {
   const [converting, setConverting] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -174,8 +290,8 @@ function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => voi
         </div>
         <StatusBadge label={LEAD_STATUS_LABELS[lead.status]} className={LEAD_STATUS_STYLES[lead.status]} />
       </div>
-      <p className="text-sm text-dark leading-relaxed mt-3 whitespace-pre-wrap">{lead.note}</p>
-      <p className="text-xs text-muted mt-2">{new Date(lead.created_at).toLocaleDateString()}</p>
+      <NotesLog leadId={lead.id} notes={lead.notes} onChanged={onChanged} />
+      <p className="text-xs text-muted mt-2">Submitted {new Date(lead.created_at).toLocaleDateString()}</p>
 
       {lead.status !== "converted" && !converting && (
         <div className="flex gap-4 mt-4 pt-4 border-t border-border">
