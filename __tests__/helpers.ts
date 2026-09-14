@@ -191,3 +191,183 @@ export async function cleanupAuthUser(email: string): Promise<void> {
     await admin.auth.admin.deleteUser(user.id);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Partner leads (db/migrations/024_perks.sql)
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministic-but-unique URL for a test lead/idea submission — same
+ * purpose as testEmail() above (collision-free across parallel test runs),
+ * but for the business `url` findMatchingLead/guessBusinessNameFromUrl key
+ * off of. Always a real, parseable https URL so guessBusinessNameFromUrl
+ * (app/actions/partners.ts) doesn't fall back to its catch-all default.
+ */
+export function testLeadUrl(label: string): string {
+  return `https://test-${label}-${crypto.randomUUID().slice(0, 8)}.example.com`;
+}
+
+export interface TestPartnerLead {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  business_name: string;
+  url: string;
+  email: string | null;
+  notes: { id: string; date: string; note: string }[];
+  status: string;
+  converted_partner_id: string | null;
+}
+
+/**
+ * Inserts a partner_leads row directly (bypassing submitPartnerLead's
+ * validation/dedup) — for setting up an "existing lead" a test then
+ * submits against to exercise findMatchingLead/mergeIntoLead.
+ */
+export async function seedPartnerLead(
+  overrides: Partial<Omit<TestPartnerLead, "id">> = {}
+): Promise<TestPartnerLead> {
+  const supabase = createTestSupabase();
+  const id = crypto.randomUUID();
+  const lead = {
+    id,
+    first_name: "Existing",
+    last_name: "Contact",
+    business_name: `Test Business ${id.slice(0, 8)}`,
+    url: testLeadUrl(`seed-${id.slice(0, 8)}`),
+    email: null,
+    notes: [],
+    status: "new",
+    converted_partner_id: null,
+    ...overrides,
+  };
+  const { error } = await supabase.from("partner_leads").insert(lead);
+  if (error) throw new Error(`seedPartnerLead failed: ${error.message}`);
+  return lead as TestPartnerLead;
+}
+
+export async function getPartnerLead(id: string): Promise<TestPartnerLead | null> {
+  const supabase = createTestSupabase();
+  const { data } = await supabase.from("partner_leads").select("*").eq("id", id).maybeSingle();
+  return (data as TestPartnerLead) ?? null;
+}
+
+/**
+ * submitPartnerLead/submitPerkIdea/addPartnerLeadIdea don't return the
+ * row's id (just {success, error?}), so tests that exercise them directly
+ * (rather than seeding a row themselves) look the resulting row up by its
+ * known-unique url.
+ */
+export async function findPartnerLeadByUrl(url: string): Promise<TestPartnerLead | null> {
+  const supabase = createTestSupabase();
+  const { data } = await supabase.from("partner_leads").select("*").eq("url", url).maybeSingle();
+  return (data as TestPartnerLead) ?? null;
+}
+
+export async function cleanupPartnerLead(id: string | undefined | null) {
+  if (!id) return;
+  const supabase = createTestSupabase();
+  await supabase.from("partner_leads").delete().eq("id", id);
+}
+
+export async function cleanupPartnerLeadByUrl(url: string) {
+  const supabase = createTestSupabase();
+  await supabase.from("partner_leads").delete().eq("url", url);
+}
+
+// ---------------------------------------------------------------------------
+// Partners, partner_locations, perks (db/migrations/024_perks.sql)
+// ---------------------------------------------------------------------------
+
+function testPartnerEmail(label: string): string {
+  // Same deliverable-but-synthetic Gmail `+` addressing as testEmail()
+  // above, for partners.email — getAccessTokenForEmail doesn't care
+  // whether the address belongs to a member or a partner.
+  return `amsterdamparentproject+partner-${label}@gmail.com`;
+}
+
+export interface TestPartner {
+  id: string;
+  first_name: string;
+  last_name: string;
+  business_name: string;
+  url: string | null;
+  description: string | null;
+  image_url: string | null;
+  email: string | null;
+}
+
+export async function seedPartner(overrides: Partial<Omit<TestPartner, "id">> = {}): Promise<TestPartner> {
+  const supabase = createTestSupabase();
+  const id = crypto.randomUUID();
+  const partner: TestPartner = {
+    id,
+    first_name: "Test",
+    last_name: "Partner",
+    business_name: `Test Partner Biz ${id.slice(0, 8)}`,
+    url: null,
+    description: null,
+    image_url: null,
+    email: testPartnerEmail(id.slice(0, 8)),
+    ...overrides,
+  };
+  const { error } = await supabase.from("partners").insert(partner);
+  if (error) throw new Error(`seedPartner failed: ${error.message}`);
+  return partner;
+}
+
+/** Deletes the partner row — partner_locations and perks cascade with it. */
+export async function cleanupPartner(partnerId: string | undefined | null) {
+  if (!partnerId) return;
+  const supabase = createTestSupabase();
+  await supabase.from("partners").delete().eq("id", partnerId);
+}
+
+export interface TestPartnerLocation {
+  id: string;
+  partner_id: string;
+  label: string | null;
+  address: string;
+}
+
+export async function seedPartnerLocation(
+  partnerId: string,
+  overrides: Partial<Omit<TestPartnerLocation, "id" | "partner_id">> = {}
+): Promise<TestPartnerLocation> {
+  const supabase = createTestSupabase();
+  const id = crypto.randomUUID();
+  const location = {
+    id,
+    partner_id: partnerId,
+    label: null,
+    address: "Some Test Street 1, Amsterdam",
+    ...overrides,
+  };
+  const { error } = await supabase.from("partner_locations").insert(location);
+  if (error) throw new Error(`seedPartnerLocation failed: ${error.message}`);
+  return location;
+}
+
+/** Raw perk row, including fields (status, source, partner_id) the
+ *  app-facing PartnerPerk/ReviewPerk types don't select. */
+export async function getPerkRaw(id: string): Promise<Record<string, unknown> | null> {
+  const supabase = createTestSupabase();
+  const { data } = await supabase.from("perks").select("*").eq("id", id).maybeSingle();
+  return data ?? null;
+}
+
+export async function getPerkCategoryLinks(perkId: string): Promise<string[]> {
+  const supabase = createTestSupabase();
+  const { data } = await supabase.from("perks_category_links").select("category_id").eq("perk_id", perkId);
+  return (data ?? []).map((r) => r.category_id as string);
+}
+
+/** perk_categories is seeded once by the migration (Fitness, Food & Drink,
+ *  Services, Other) — tests reuse those real rows rather than inserting
+ *  more. */
+export async function getSeededPerkCategoryIds(limit = 2): Promise<string[]> {
+  const supabase = createTestSupabase();
+  const { data, error } = await supabase.from("perk_categories").select("id").limit(limit);
+  if (error) throw new Error(`getSeededPerkCategoryIds failed: ${error.message}`);
+  return (data ?? []).map((r) => r.id as string);
+}
