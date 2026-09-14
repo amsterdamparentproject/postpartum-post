@@ -1,0 +1,435 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import {
+  listPartnerLeads,
+  setLeadStatus,
+  convertLeadToPartner,
+  addPartner,
+  listPerksForReview,
+  setPerkStatus,
+  type PartnerLead,
+  type ReviewPerk,
+  type PerkReviewStatus,
+} from "./actions";
+import RequiredMark from "@/components/RequiredMark";
+
+const inputClass =
+  "w-full px-3 py-2 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition text-sm";
+const labelClass = "block text-xs font-medium text-dark mb-1";
+
+const LEAD_STATUS_STYLES: Record<PartnerLead["status"], string> = {
+  new: "bg-amber-50 text-amber-700 border-amber-200",
+  contacted: "bg-blue-50 text-blue-700 border-blue-200",
+  converted: "bg-green-50 text-green-700 border-green-200",
+  rejected: "bg-gray-100 text-muted border-border",
+};
+
+const PERK_STATUS_STYLES: Record<PerkReviewStatus, string> = {
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
+  coming_soon: "bg-blue-50 text-blue-700 border-blue-200",
+  published: "bg-green-50 text-green-700 border-green-200",
+  rejected: "bg-coral/10 text-coral border-coral/30",
+  archived: "bg-gray-100 text-muted border-border",
+};
+
+const PERK_STATUS_LABELS: Record<PerkReviewStatus, string> = {
+  pending: "In review",
+  coming_soon: "Coming soon",
+  published: "Live",
+  rejected: "Not approved",
+  archived: "Archived",
+};
+
+function StatusBadge({ label, className }: { label: string; className: string }) {
+  return (
+    <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border ${className}`}>
+      {label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Leads tab
+// ---------------------------------------------------------------------------
+
+function ConvertLeadForm({
+  lead,
+  onDone,
+  onCancel,
+}: {
+  lead: PartnerLead;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [firstName, setFirstName] = useState(lead.first_name);
+  const [lastName, setLastName] = useState(lead.last_name);
+  const [businessName, setBusinessName] = useState(lead.business_name);
+  const [email, setEmail] = useState(lead.email);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const result = await convertLeadToPartner({ leadId: lead.id, firstName, lastName, businessName, email });
+      if (!result.success) {
+        setError(result.error ?? "Couldn't convert — try again");
+        return;
+      }
+      onDone();
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 pt-4 border-t border-border space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>First name <RequiredMark /></label>
+          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Last name <RequiredMark /></label>
+          <input value={lastName} onChange={(e) => setLastName(e.target.value)} required className={inputClass} />
+        </div>
+      </div>
+      <div>
+        <label className={labelClass}>Business name <RequiredMark /></label>
+        <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} required className={inputClass} />
+      </div>
+      <div>
+        <label className={labelClass}>Login email <RequiredMark /></label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={inputClass} />
+      </div>
+      {error && <p className="text-xs text-coral">{error}</p>}
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-coral hover:bg-coral-dark text-white transition disabled:opacity-60"
+        >
+          {isPending ? "Creating…" : "Create partner + mark converted"}
+        </button>
+        <button type="button" onClick={onCancel} className="text-sm text-muted hover:text-dark transition">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => void }) {
+  const [converting, setConverting] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function quickSetStatus(status: "contacted" | "rejected") {
+    startTransition(async () => {
+      await setLeadStatus(lead.id, status);
+      onChanged();
+    });
+  }
+
+  return (
+    <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-medium text-dark">{lead.business_name}</p>
+          <p className="text-sm text-muted mt-0.5">
+            {lead.first_name} {lead.last_name} ·{" "}
+            <a href={`mailto:${lead.email}`} className="hover:text-coral transition-colors">{lead.email}</a>
+          </p>
+        </div>
+        <StatusBadge label={lead.status} className={LEAD_STATUS_STYLES[lead.status]} />
+      </div>
+      <p className="text-sm text-dark leading-relaxed mt-3 whitespace-pre-wrap">{lead.note}</p>
+      <p className="text-xs text-muted mt-2">{new Date(lead.created_at).toLocaleDateString()}</p>
+
+      {lead.status !== "converted" && !converting && (
+        <div className="flex gap-4 mt-4 pt-4 border-t border-border">
+          <button
+            onClick={() => setConverting(true)}
+            className="text-sm font-semibold text-coral hover:text-coral-dark transition"
+          >
+            Convert to partner
+          </button>
+          {lead.status !== "contacted" && (
+            <button
+              onClick={() => quickSetStatus("contacted")}
+              disabled={isPending}
+              className="text-sm text-muted hover:text-dark transition"
+            >
+              Mark contacted
+            </button>
+          )}
+          {lead.status !== "rejected" && (
+            <button
+              onClick={() => quickSetStatus("rejected")}
+              disabled={isPending}
+              className="text-sm text-muted hover:text-dark transition"
+            >
+              Not a fit
+            </button>
+          )}
+        </div>
+      )}
+
+      {converting && (
+        <ConvertLeadForm lead={lead} onDone={onChanged} onCancel={() => setConverting(false)} />
+      )}
+
+      {lead.status === "converted" && (
+        <p className="text-xs text-muted mt-4 pt-4 border-t border-border">Converted to partner</p>
+      )}
+    </div>
+  );
+}
+
+function AddPartnerForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const result = await addPartner({ firstName, lastName, businessName, email });
+      if (!result.success) {
+        setError(result.error ?? "Couldn't create — try again");
+        return;
+      }
+      onDone();
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-3">
+      <h3 className="text-sm font-semibold text-dark">Add partner directly</h3>
+      <p className="text-xs text-muted -mt-2">
+        For a business or contributor outside the lead-capture flow. Leave email blank if they
+        don&apos;t need portal access yet.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>First name <RequiredMark /></label>
+          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required className={inputClass} />
+        </div>
+        <div>
+          <label className={labelClass}>Last name <RequiredMark /></label>
+          <input value={lastName} onChange={(e) => setLastName(e.target.value)} required className={inputClass} />
+        </div>
+      </div>
+      <div>
+        <label className={labelClass}>Business name <RequiredMark /></label>
+        <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} required className={inputClass} />
+      </div>
+      <div>
+        <label className={labelClass}>Login email</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="Optional — no email means no portal access yet" />
+      </div>
+      {error && <p className="text-xs text-coral">{error}</p>}
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-coral hover:bg-coral-dark text-white transition disabled:opacity-60"
+        >
+          {isPending ? "Creating…" : "Add partner"}
+        </button>
+        <button type="button" onClick={onCancel} className="text-sm text-muted hover:text-dark transition">
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function LeadsTab() {
+  const [leads, setLeads] = useState<PartnerLead[] | null>(null);
+  const [addingPartner, setAddingPartner] = useState(false);
+
+  function reload() {
+    listPartnerLeads().then(setLeads);
+  }
+
+  useEffect(() => {
+    reload();
+  }, []);
+
+  const openLeads = leads?.filter((l) => l.status === "new" || l.status === "contacted") ?? [];
+  const closedLeads = leads?.filter((l) => l.status === "converted" || l.status === "rejected") ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>Leads</h2>
+        {!addingPartner && (
+          <button
+            onClick={() => setAddingPartner(true)}
+            className="px-4 py-2 text-sm font-semibold rounded-lg bg-coral hover:bg-coral-dark text-white transition"
+          >
+            + Add partner
+          </button>
+        )}
+      </div>
+
+      {addingPartner && (
+        <AddPartnerForm
+          onDone={() => { setAddingPartner(false); reload(); }}
+          onCancel={() => setAddingPartner(false)}
+        />
+      )}
+
+      {leads === null && <p className="text-sm text-muted">Loading…</p>}
+      {leads?.length === 0 && <p className="text-sm text-muted">No leads yet.</p>}
+
+      {openLeads.length > 0 && (
+        <div className="space-y-3">
+          {openLeads.map((lead) => (
+            <LeadCard key={lead.id} lead={lead} onChanged={reload} />
+          ))}
+        </div>
+      )}
+
+      {closedLeads.length > 0 && (
+        <details className="pt-2">
+          <summary className="text-sm text-muted cursor-pointer hover:text-dark transition">
+            {closedLeads.length} converted or not-a-fit lead{closedLeads.length === 1 ? "" : "s"}
+          </summary>
+          <div className="space-y-3 mt-3">
+            {closedLeads.map((lead) => (
+              <LeadCard key={lead.id} lead={lead} onChanged={reload} />
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Perks tab
+// ---------------------------------------------------------------------------
+
+function PerkCard({ perk, onChanged }: { perk: ReviewPerk; onChanged: () => void }) {
+  const [isPending, startTransition] = useTransition();
+
+  function updateStatus(status: PerkReviewStatus) {
+    startTransition(async () => {
+      await setPerkStatus(perk.id, status);
+      onChanged();
+    });
+  }
+
+  return (
+    <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-medium text-dark">{perk.perk_title}</p>
+          <p className="text-sm text-muted mt-0.5">{perk.partner_name} · {perk.perk_discount}</p>
+        </div>
+        <StatusBadge label={PERK_STATUS_LABELS[perk.status]} className={PERK_STATUS_STYLES[perk.status]} />
+      </div>
+      <p className="text-sm text-dark leading-relaxed mt-3">{perk.perk_description}</p>
+      <p className="text-xs text-muted mt-2">Submitted {new Date(perk.created_at).toLocaleDateString()}</p>
+
+      <div className="flex gap-4 mt-4 pt-4 border-t border-border">
+        {perk.status !== "published" && (
+          <button onClick={() => updateStatus("published")} disabled={isPending} className="text-sm font-semibold text-coral hover:text-coral-dark transition">
+            Approve
+          </button>
+        )}
+        {perk.status !== "coming_soon" && (
+          <button onClick={() => updateStatus("coming_soon")} disabled={isPending} className="text-sm text-muted hover:text-dark transition">
+            Mark coming soon
+          </button>
+        )}
+        {perk.status !== "rejected" && (
+          <button onClick={() => updateStatus("rejected")} disabled={isPending} className="text-sm text-muted hover:text-dark transition">
+            Reject
+          </button>
+        )}
+        {perk.status !== "archived" && (
+          <button onClick={() => updateStatus("archived")} disabled={isPending} className="text-sm text-muted hover:text-dark transition">
+            Archive
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PerksTab() {
+  const [perks, setPerks] = useState<ReviewPerk[] | null>(null);
+
+  function reload() {
+    listPerksForReview().then(setPerks);
+  }
+
+  useEffect(() => {
+    reload();
+  }, []);
+
+  const pending = perks?.filter((p) => p.status === "pending") ?? [];
+  const rest = perks?.filter((p) => p.status !== "pending") ?? [];
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>Perks</h2>
+
+      {perks === null && <p className="text-sm text-muted">Loading…</p>}
+      {perks?.length === 0 && <p className="text-sm text-muted">No perks submitted yet.</p>}
+
+      {pending.length > 0 && (
+        <div className="space-y-3">
+          {pending.map((perk) => (
+            <PerkCard key={perk.id} perk={perk} onChanged={reload} />
+          ))}
+        </div>
+      )}
+      {pending.length === 0 && perks && perks.length > 0 && (
+        <p className="text-sm text-muted">Nothing waiting on review.</p>
+      )}
+
+      {rest.length > 0 && (
+        <details className="pt-2">
+          <summary className="text-sm text-muted cursor-pointer hover:text-dark transition">
+            {rest.length} reviewed perk{rest.length === 1 ? "" : "s"}
+          </summary>
+          <div className="space-y-3 mt-3">
+            {rest.map((perk) => (
+              <PerkCard key={perk.id} perk={perk} onChanged={reload} />
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page shell
+// ---------------------------------------------------------------------------
+
+type SubTab = "leads" | "perks";
+
+export default function PartnersClient() {
+  const [tab, setTab] = useState<SubTab>("leads");
+  const base = "text-sm font-medium px-3 py-1.5 rounded-lg transition-colors";
+  const on = `${base} bg-dark text-white`;
+  const off = `${base} text-muted hover:text-dark`;
+
+  return (
+    <div className="space-y-6">
+      <nav className="flex gap-1">
+        <button onClick={() => setTab("leads")} className={tab === "leads" ? on : off}>Leads</button>
+        <button onClick={() => setTab("perks")} className={tab === "perks" ? on : off}>Perks</button>
+      </nav>
+      {tab === "leads" ? <LeadsTab /> : <PerksTab />}
+    </div>
+  );
+}

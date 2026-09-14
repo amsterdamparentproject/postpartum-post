@@ -6,6 +6,7 @@ import {
   deletePartnerLocation,
   type PartnerLocation,
 } from "@/app/actions/partners";
+import RequiredMark from "@/components/RequiredMark";
 
 const inputClass =
   "w-full px-3 py-2 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition text-sm";
@@ -74,19 +75,26 @@ function LocationRow({
 
   return (
     <div className="py-3 border-b border-border last:border-0 space-y-2">
-      <input
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
-        placeholder="Label (optional — e.g. Center studio)"
-        className={inputClass}
-      />
-      <input
-        value={address}
-        onChange={(e) => setAddress(e.target.value)}
-        placeholder="Address"
-        required
-        className={inputClass}
-      />
+      <div>
+        <label className="block text-xs font-medium text-dark mb-1">Label</label>
+        <input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Optional — e.g. Center studio"
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-dark mb-1">
+          Address <RequiredMark />
+        </label>
+        <input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          required
+          className={inputClass}
+        />
+      </div>
       {error && <p className="text-xs text-coral">{error}</p>}
       <div className="flex gap-3">
         <button

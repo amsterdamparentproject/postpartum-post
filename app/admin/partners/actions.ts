@@ -1,0 +1,213 @@
+"use server";
+
+import { createAdminClient } from "@/lib/supabase";
+
+// ---------------------------------------------------------------------------
+// Leads
+// ---------------------------------------------------------------------------
+
+export type LeadStatus = "new" | "contacted" | "converted" | "rejected";
+
+export type PartnerLead = {
+  id: string;
+  created_at: string;
+  first_name: string;
+  last_name: string;
+  business_name: string;
+  email: string;
+  note: string;
+  status: LeadStatus;
+  converted_partner_id: string | null;
+};
+
+export async function listPartnerLeads(): Promise<PartnerLead[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("partner_leads")
+    .select("id, created_at, first_name, last_name, business_name, email, note, status, converted_partner_id")
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[listPartnerLeads] query error:", error.message);
+    return [];
+  }
+  return (data ?? []) as PartnerLead[];
+}
+
+/**
+ * Quick status change with no side effects — "Mark contacted" / "Not a fit"
+ * from the leads list. Converting to a partner goes through
+ * convertLeadToPartner instead, which also creates the partners row.
+ */
+export async function setLeadStatus(
+  leadId: string,
+  status: Exclude<LeadStatus, "converted">,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("partner_leads").update({ status }).eq("id", leadId);
+  if (error) {
+    console.error("[setLeadStatus] update error:", error.message);
+    return { success: false, error: "Couldn't update — try again" };
+  }
+  return { success: true };
+}
+
+export type ConvertLeadInput = {
+  leadId: string;
+  firstName: string;
+  lastName: string;
+  businessName: string;
+  email: string;
+};
+
+/**
+ * Turns a lead into a real partners row so they can sign in at
+ * /partners/login. Pre-filled from the lead's own submission but editable
+ * first, since a lead's typed business name/email is exactly what should
+ * become the login identity — no reason to force Alex to retype it, but no
+ * reason to trust it blindly either (e.g. a typo'd email she wants to fix
+ * before it becomes someone's login).
+ */
+export async function convertLeadToPartner(
+  input: ConvertLeadInput,
+): Promise<{ success: boolean; error?: string; partnerId?: string }> {
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const businessName = input.businessName.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!firstName || !lastName || !businessName || !email) {
+    return { success: false, error: "All fields are required" };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: existingPartner } = await supabase
+    .from("partners")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+  if (existingPartner) {
+    return { success: false, error: "A partner with that email already exists" };
+  }
+
+  const { data: partner, error } = await supabase
+    .from("partners")
+    .insert({ first_name: firstName, last_name: lastName, business_name: businessName, email })
+    .select("id")
+    .single();
+
+  if (error || !partner) {
+    console.error("[convertLeadToPartner] insert error:", error?.message);
+    return { success: false, error: "Couldn't create partner — try again" };
+  }
+
+  const { error: leadError } = await supabase
+    .from("partner_leads")
+    .update({ status: "converted", converted_partner_id: partner.id })
+    .eq("id", input.leadId);
+  if (leadError) {
+    // Partner row exists either way — worth surfacing, not worth rolling back.
+    console.error("[convertLeadToPartner] lead update error:", leadError.message);
+  }
+
+  return { success: true, partnerId: partner.id as string };
+}
+
+// ---------------------------------------------------------------------------
+// Add partner directly (no lead) — e.g. a Circle of Experts contributor, or
+// a business Alex signed up herself outside the lead-capture flow. Email is
+// optional here (unlike convertLeadToPartner): a partner with no email has
+// no portal access yet, same as db/migrations/023_perks.sql documents.
+// ---------------------------------------------------------------------------
+
+export type AddPartnerInput = {
+  firstName: string;
+  lastName: string;
+  businessName: string;
+  email: string; // "" = no portal access yet
+};
+
+export async function addPartner(
+  input: AddPartnerInput,
+): Promise<{ success: boolean; error?: string; partnerId?: string }> {
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const businessName = input.businessName.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!firstName || !lastName || !businessName) {
+    return { success: false, error: "First name, last name, and business name are required" };
+  }
+
+  const supabase = createAdminClient();
+
+  if (email) {
+    const { data: existingPartner } = await supabase
+      .from("partners")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+    if (existingPartner) {
+      return { success: false, error: "A partner with that email already exists" };
+    }
+  }
+
+  const { data: partner, error } = await supabase
+    .from("partners")
+    .insert({ first_name: firstName, last_name: lastName, business_name: businessName, email: email || null })
+    .select("id")
+    .single();
+
+  if (error || !partner) {
+    console.error("[addPartner] insert error:", error?.message);
+    return { success: false, error: "Couldn't create partner — try again" };
+  }
+
+  return { success: true, partnerId: partner.id as string };
+}
+
+// ---------------------------------------------------------------------------
+// Perk review queue
+// ---------------------------------------------------------------------------
+
+export type PerkReviewStatus = "pending" | "coming_soon" | "published" | "rejected" | "archived";
+
+export type ReviewPerk = {
+  id: string;
+  status: PerkReviewStatus;
+  created_at: string;
+  perk_title: string;
+  perk_description: string;
+  perk_discount: string;
+  partner_id: string;
+  partner_name: string;
+};
+
+/**
+ * Reads the perks_partners view (db/migrations/023_perks.sql) so the queue
+ * gets the partner's business_name in one query instead of a second lookup
+ * per perk — same join the eventual public /perks page will use.
+ */
+export async function listPerksForReview(): Promise<ReviewPerk[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("perks_partners")
+    .select("id, status, created_at, perk_title, perk_description, perk_discount, partner_id, partner_name")
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[listPerksForReview] query error:", error.message);
+    return [];
+  }
+  return (data ?? []) as ReviewPerk[];
+}
+
+export async function setPerkStatus(
+  perkId: string,
+  status: PerkReviewStatus,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("perks").update({ status }).eq("id", perkId);
+  if (error) {
+    console.error("[setPerkStatus] update error:", error.message);
+    return { success: false, error: "Couldn't update — try again" };
+  }
+  return { success: true };
+}
