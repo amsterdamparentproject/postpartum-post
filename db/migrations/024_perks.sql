@@ -126,7 +126,7 @@ create table if not exists postpartumpost.perk_categories (
   name  text not null unique
 );
 insert into postpartumpost.perk_categories (name)
-  values ('Fitness'), ('Food & Drink'), ('Services')
+  values ('Fitness'), ('Food & Drink'), ('Services'), ('Other')
   on conflict (name) do nothing;
 
 create table if not exists postpartumpost.perks (
