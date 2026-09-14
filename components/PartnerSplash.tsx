@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import PartnerLeadForm from "@/components/PartnerLeadForm";
-import { StampSVG } from "@/components/StampIcons";
+import { StampSVG, GiftStamp } from "@/components/StampIcons";
 import WordMark from "@/components/WordMark";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 
@@ -246,6 +246,10 @@ export default function PartnerSplash() {
           Manage your Post Perks here
         </Link>
       </p>
+
+      <div className="flex justify-center">
+        <GiftStamp />
+      </div>
 
       {/* What's a perk */}
       <div className="max-w-2xl mx-auto text-center">

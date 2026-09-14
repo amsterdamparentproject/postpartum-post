@@ -52,3 +52,26 @@ export function EnvelopeStamp({ fill = "rgba(197, 104, 80, 0.08)", stroke = "#C5
     </StampSVG>
   );
 }
+
+/** Green by default — same palette token as PersonaCards' first color slot (#8A9E3A / rgba(212, 224, 155, ...)). */
+export function GiftStamp({ fill = "rgba(212, 224, 155, 0.18)", stroke = "#8A9E3A", size = 64, background }: {
+  fill?: string;
+  stroke?: string;
+  size?: number;
+  background?: string;
+}) {
+  return (
+    <StampSVG fill={fill} stroke={stroke} size={size} background={background}>
+      {/* Box */}
+      <rect x="8" y="20" width="32" height="22" rx="2" fill={stroke} opacity="0.15" stroke={stroke} strokeWidth="1.5" />
+      {/* Lid */}
+      <rect x="5" y="15" width="38" height="7" rx="1.5" fill={stroke} opacity="0.25" stroke={stroke} strokeWidth="1.2" />
+      {/* Ribbon */}
+      <rect x="21" y="15" width="6" height="27" fill={stroke} opacity="0.5" />
+      {/* Bow */}
+      <path d="M24 15 C20 6 10 7 13 13 C15 17 21 16.5 24 15 Z" fill={stroke} opacity="0.6" stroke={stroke} strokeWidth="0.8" strokeLinejoin="round" />
+      <path d="M24 15 C28 6 38 7 35 13 C33 17 27 16.5 24 15 Z" fill={stroke} opacity="0.6" stroke={stroke} strokeWidth="0.8" strokeLinejoin="round" />
+      <circle cx="24" cy="15" r="2.2" fill={stroke} />
+    </StampSVG>
+  );
+}
