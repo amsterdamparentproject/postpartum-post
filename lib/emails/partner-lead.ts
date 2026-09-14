@@ -21,6 +21,7 @@ import { FROM, getResend, bodySection, emailHead, subjectPrefix } from "./base";
 
 export type PartnerLeadEmailPayload = {
   businessName: string;
+  url: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -70,6 +71,9 @@ function partnerLeadHtml(payload: PartnerLeadEmailPayload): string {
   const intro = bodySection(`
     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4">
       <span style="font-weight:700">Post Partner submission from: ${escapeHtml(payload.businessName)}</span>
+    </td></tr>
+    <tr><td dir="ltr" style="font-size:14px;text-align:left;padding:0 0 4px;line-height:1.4">
+      <b>Website:</b> <a href="${escapeHtml(payload.url)}">${escapeHtml(payload.url)}</a>
     </td></tr>
     <tr><td dir="ltr" style="font-size:14px;text-align:left;padding:0 0 4px;line-height:1.4">
       <b>Contact:</b> ${escapeHtml(name)}

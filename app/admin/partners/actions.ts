@@ -6,15 +6,16 @@ import { createAdminClient } from "@/lib/supabase";
 // Leads
 // ---------------------------------------------------------------------------
 
-export type LeadStatus = "new" | "contacted" | "converted" | "rejected";
+export type LeadStatus = "idea" | "new" | "contacted" | "converted" | "rejected";
 
 export type PartnerLead = {
   id: string;
   created_at: string;
-  first_name: string;
-  last_name: string;
+  first_name: string | null;
+  last_name: string | null;
   business_name: string;
-  email: string;
+  url: string;
+  email: string | null;
   note: string;
   status: LeadStatus;
   converted_partner_id: string | null;
@@ -24,13 +25,62 @@ export async function listPartnerLeads(): Promise<PartnerLead[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("partner_leads")
-    .select("id, created_at, first_name, last_name, business_name, email, note, status, converted_partner_id")
+    .select("id, created_at, first_name, last_name, business_name, url, email, note, status, converted_partner_id")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[listPartnerLeads] query error:", error.message);
     return [];
   }
   return (data ?? []) as PartnerLead[];
+}
+
+/**
+ * A potential partner Alex identifies herself — a business she wants to
+ * approach, as opposed to 'new', which is always an inbound public
+ * submission from PartnerLeadForm. Contact name/email are optional here:
+ * she may not have anyone to reach out to yet, just a business + site +
+ * why. business_name/url/note stay required (see db/migrations/
+ * 024_partner_leads.sql's updated comment for the full reasoning).
+ */
+export type AddLeadIdeaInput = {
+  businessName: string;
+  url: string;
+  note: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+
+export async function addPartnerLeadIdea(
+  input: AddLeadIdeaInput,
+): Promise<{ success: boolean; error?: string }> {
+  const businessName = input.businessName.trim();
+  const url = input.url.trim();
+  const note = input.note.trim();
+  if (!businessName || !url || !note) {
+    return { success: false, error: "Business name, website, and a note are required" };
+  }
+
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const email = input.email.trim().toLowerCase();
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("partner_leads").insert({
+    business_name: businessName,
+    url,
+    note,
+    first_name: firstName || null,
+    last_name: lastName || null,
+    email: email || null,
+    status: "idea",
+  });
+
+  if (error) {
+    console.error("[addPartnerLeadIdea] insert error:", error.message);
+    return { success: false, error: "Couldn't save — try again" };
+  }
+  return { success: true };
 }
 
 /**
@@ -56,6 +106,7 @@ export type ConvertLeadInput = {
   firstName: string;
   lastName: string;
   businessName: string;
+  url: string;
   email: string;
 };
 
@@ -65,7 +116,9 @@ export type ConvertLeadInput = {
  * first, since a lead's typed business name/email is exactly what should
  * become the login identity — no reason to force Alex to retype it, but no
  * reason to trust it blindly either (e.g. a typo'd email she wants to fix
- * before it becomes someone's login).
+ * before it becomes someone's login). All fields are required here even
+ * for an 'idea' lead that started with no contact info — a real partner
+ * row needs one before it can be a working login.
  */
 export async function convertLeadToPartner(
   input: ConvertLeadInput,
@@ -73,8 +126,9 @@ export async function convertLeadToPartner(
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   const businessName = input.businessName.trim();
+  const url = input.url.trim();
   const email = input.email.trim().toLowerCase();
-  if (!firstName || !lastName || !businessName || !email) {
+  if (!firstName || !lastName || !businessName || !url || !email) {
     return { success: false, error: "All fields are required" };
   }
 
@@ -91,7 +145,7 @@ export async function convertLeadToPartner(
 
   const { data: partner, error } = await supabase
     .from("partners")
-    .insert({ first_name: firstName, last_name: lastName, business_name: businessName, email })
+    .insert({ first_name: firstName, last_name: lastName, business_name: businessName, url, email })
     .select("id")
     .single();
 

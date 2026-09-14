@@ -6,6 +6,7 @@ import {
   setLeadStatus,
   convertLeadToPartner,
   addPartner,
+  addPartnerLeadIdea,
   listPerksForReview,
   setPerkStatus,
   type PartnerLead,
@@ -19,10 +20,19 @@ const inputClass =
 const labelClass = "block text-xs font-medium text-dark mb-1";
 
 const LEAD_STATUS_STYLES: Record<PartnerLead["status"], string> = {
+  idea: "bg-purple-50 text-purple-700 border-purple-200",
   new: "bg-amber-50 text-amber-700 border-amber-200",
   contacted: "bg-blue-50 text-blue-700 border-blue-200",
   converted: "bg-green-50 text-green-700 border-green-200",
   rejected: "bg-gray-100 text-muted border-border",
+};
+
+const LEAD_STATUS_LABELS: Record<PartnerLead["status"], string> = {
+  idea: "Idea",
+  new: "New",
+  contacted: "Contacted",
+  converted: "Converted",
+  rejected: "Not a fit",
 };
 
 const PERK_STATUS_STYLES: Record<PerkReviewStatus, string> = {
@@ -62,10 +72,11 @@ function ConvertLeadForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const [firstName, setFirstName] = useState(lead.first_name);
-  const [lastName, setLastName] = useState(lead.last_name);
+  const [firstName, setFirstName] = useState(lead.first_name ?? "");
+  const [lastName, setLastName] = useState(lead.last_name ?? "");
   const [businessName, setBusinessName] = useState(lead.business_name);
-  const [email, setEmail] = useState(lead.email);
+  const [url, setUrl] = useState(lead.url);
+  const [email, setEmail] = useState(lead.email ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -73,7 +84,7 @@ function ConvertLeadForm({
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await convertLeadToPartner({ leadId: lead.id, firstName, lastName, businessName, email });
+      const result = await convertLeadToPartner({ leadId: lead.id, firstName, lastName, businessName, url, email });
       if (!result.success) {
         setError(result.error ?? "Couldn't convert — try again");
         return;
@@ -97,6 +108,10 @@ function ConvertLeadForm({
       <div>
         <label className={labelClass}>Business name <RequiredMark /></label>
         <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} required className={inputClass} />
+      </div>
+      <div>
+        <label className={labelClass}>Website <RequiredMark /></label>
+        <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} required className={inputClass} />
       </div>
       <div>
         <label className={labelClass}>Login email <RequiredMark /></label>
@@ -130,17 +145,34 @@ function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => voi
     });
   }
 
+  const contactLine = [lead.first_name, lead.last_name].filter(Boolean).join(" ");
+
   return (
     <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="font-medium text-dark">{lead.business_name}</p>
-          <p className="text-sm text-muted mt-0.5">
-            {lead.first_name} {lead.last_name} ·{" "}
-            <a href={`mailto:${lead.email}`} className="hover:text-coral transition-colors">{lead.email}</a>
-          </p>
+          <a
+            href={lead.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-muted hover:text-coral transition-colors underline underline-offset-2"
+          >
+            {lead.url}
+          </a>
+          {(contactLine || lead.email) ? (
+            <p className="text-sm text-muted mt-1">
+              {contactLine}
+              {contactLine && lead.email ? " · " : ""}
+              {lead.email && (
+                <a href={`mailto:${lead.email}`} className="hover:text-coral transition-colors">{lead.email}</a>
+              )}
+            </p>
+          ) : (
+            <p className="text-sm text-muted italic mt-1">No contact yet</p>
+          )}
         </div>
-        <StatusBadge label={lead.status} className={LEAD_STATUS_STYLES[lead.status]} />
+        <StatusBadge label={LEAD_STATUS_LABELS[lead.status]} className={LEAD_STATUS_STYLES[lead.status]} />
       </div>
       <p className="text-sm text-dark leading-relaxed mt-3 whitespace-pre-wrap">{lead.note}</p>
       <p className="text-xs text-muted mt-2">{new Date(lead.created_at).toLocaleDateString()}</p>
@@ -182,6 +214,80 @@ function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => voi
         <p className="text-xs text-muted mt-4 pt-4 border-t border-border">Converted to partner</p>
       )}
     </div>
+  );
+}
+
+function AddIdeaLeadForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+  const [businessName, setBusinessName] = useState("");
+  const [url, setUrl] = useState("");
+  const [note, setNote] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const result = await addPartnerLeadIdea({ businessName, url, note, firstName, lastName, email });
+      if (!result.success) {
+        setError(result.error ?? "Couldn't save — try again");
+        return;
+      }
+      onDone();
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-3">
+      <h3 className="text-sm font-semibold text-dark">Add a potential partner</h3>
+      <p className="text-xs text-muted -mt-2">
+        A business you want to reach out to, marked with an &quot;Idea&quot; status so it&apos;s clear
+        it didn&apos;t come in through the lead form. Contact name and email are optional — add them
+        once you&apos;ve actually talked to someone there.
+      </p>
+      <div>
+        <label className={labelClass}>Business name <RequiredMark /></label>
+        <input value={businessName} onChange={(e) => setBusinessName(e.target.value)} required className={inputClass} />
+      </div>
+      <div>
+        <label className={labelClass}>Website <RequiredMark /></label>
+        <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} required className={inputClass} placeholder="https://" />
+      </div>
+      <div>
+        <label className={labelClass}>Why <RequiredMark /></label>
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} required className={inputClass} placeholder="What perk or angle you have in mind" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>First name</label>
+          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} placeholder="Optional" />
+        </div>
+        <div>
+          <label className={labelClass}>Last name</label>
+          <input value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} placeholder="Optional" />
+        </div>
+      </div>
+      <div>
+        <label className={labelClass}>Email</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="Optional" />
+      </div>
+      {error && <p className="text-xs text-coral">{error}</p>}
+      <div className="flex gap-3">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-coral hover:bg-coral-dark text-white transition disabled:opacity-60"
+        >
+          {isPending ? "Saving…" : "Save idea"}
+        </button>
+        <button type="button" onClick={onCancel} className="text-sm text-muted hover:text-dark transition">
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -251,6 +357,7 @@ function AddPartnerForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
 function LeadsTab() {
   const [leads, setLeads] = useState<PartnerLead[] | null>(null);
   const [addingPartner, setAddingPartner] = useState(false);
+  const [addingIdea, setAddingIdea] = useState(false);
 
   function reload() {
     listPartnerLeads().then(setLeads);
@@ -260,22 +367,37 @@ function LeadsTab() {
     reload();
   }, []);
 
-  const openLeads = leads?.filter((l) => l.status === "new" || l.status === "contacted") ?? [];
+  const openLeads = leads?.filter((l) => l.status === "idea" || l.status === "new" || l.status === "contacted") ?? [];
   const closedLeads = leads?.filter((l) => l.status === "converted" || l.status === "rejected") ?? [];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>Leads</h2>
-        {!addingPartner && (
-          <button
-            onClick={() => setAddingPartner(true)}
-            className="px-4 py-2 text-sm font-semibold rounded-lg bg-coral hover:bg-coral-dark text-white transition"
-          >
-            + Add partner
-          </button>
+        {!addingPartner && !addingIdea && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setAddingIdea(true)}
+              className="px-4 py-2 text-sm font-semibold rounded-lg border border-coral text-coral hover:bg-coral/10 transition"
+            >
+              + Add idea
+            </button>
+            <button
+              onClick={() => setAddingPartner(true)}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-coral hover:bg-coral-dark text-white transition"
+            >
+              + Add partner
+            </button>
+          </div>
         )}
       </div>
+
+      {addingIdea && (
+        <AddIdeaLeadForm
+          onDone={() => { setAddingIdea(false); reload(); }}
+          onCancel={() => setAddingIdea(false)}
+        />
+      )}
 
       {addingPartner && (
         <AddPartnerForm

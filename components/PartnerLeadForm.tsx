@@ -17,6 +17,7 @@ const labelClass = "block text-sm font-medium text-dark mb-1";
  */
 export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string }) {
   const [businessName, setBusinessName] = useState("");
+  const [url, setUrl] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState(defaultEmail);
@@ -29,7 +30,7 @@ export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await submitPartnerLead({ businessName, firstName, lastName, email, note });
+      const result = await submitPartnerLead({ businessName, url, firstName, lastName, email, note });
       if (!result.success) {
         setError(result.error ?? "Couldn't submit — try again");
         return;
@@ -101,6 +102,19 @@ export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string
           required
           className={inputClass}
           placeholder="Postpartum Post"
+        />
+      </div>
+      <div>
+        <label className={labelClass}>
+          Website <RequiredMark />
+        </label>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          required
+          className={inputClass}
+          placeholder="https://"
         />
       </div>
       <div>

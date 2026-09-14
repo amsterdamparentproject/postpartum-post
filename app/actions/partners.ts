@@ -265,6 +265,7 @@ export type PartnerLeadInput = {
   firstName: string;
   lastName: string;
   businessName: string;
+  url: string;
   email: string;
   note: string;
 };
@@ -287,9 +288,10 @@ export async function submitPartnerLead(
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   const businessName = input.businessName.trim();
+  const url = input.url.trim();
   const email = input.email.trim().toLowerCase();
   const note = input.note.trim();
-  if (!firstName || !lastName || !businessName || !email || !note) {
+  if (!firstName || !lastName || !businessName || !url || !email || !note) {
     return { success: false, error: "All fields are required" };
   }
 
@@ -298,6 +300,7 @@ export async function submitPartnerLead(
     first_name: firstName,
     last_name: lastName,
     business_name: businessName,
+    url,
     email,
     note,
   });
@@ -310,7 +313,7 @@ export async function submitPartnerLead(
   // Fire-and-forget — the lead is already saved above regardless of whether
   // this notification email succeeds.
   try {
-    await sendPartnerLeadEmail({ firstName, lastName, businessName, email, note });
+    await sendPartnerLeadEmail({ firstName, lastName, businessName, url, email, note });
   } catch (emailError) {
     console.error("[submitPartnerLead] notification email failed:", emailError);
   }
