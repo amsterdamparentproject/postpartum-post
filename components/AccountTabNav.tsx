@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 import { createBrowserClient } from "@/lib/supabase";
-import { useProfileSave } from "@/app/(account)/ProfileSaveContext";
 
 const TABS = [
   { href: "/profile", label: "Profile" },
@@ -15,7 +14,6 @@ const TABS = [
 export default function AccountTabNav() {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-  const { triggerSave, saveState, hasSaveHandler } = useProfileSave();
 
   function handleSignOut() {
     startTransition(async () => {
@@ -26,25 +24,14 @@ export default function AccountTabNav() {
     });
   }
 
-  const actionButtons = (
-    <>
-      {hasSaveHandler && (
-        <button
-          onClick={triggerSave}
-          disabled={saveState.saving || saveState.saved}
-          className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-coral hover:bg-coral-dark text-white transition disabled:opacity-60"
-        >
-          {saveState.saving ? "Saving…" : saveState.saved ? "Saved!" : "Save changes"}
-        </button>
-      )}
-      <button
-        onClick={handleSignOut}
-        disabled={isPending}
-        className="px-4 py-2.5 text-sm font-medium text-muted hover:text-dark transition disabled:opacity-50"
-      >
-        {isPending ? "Signing out…" : "Sign out"}
-      </button>
-    </>
+  const signOutButton = (
+    <button
+      onClick={handleSignOut}
+      disabled={isPending}
+      className="px-4 py-2.5 text-sm font-medium text-muted hover:text-dark transition disabled:opacity-50"
+    >
+      {isPending ? "Signing out…" : "Sign out"}
+    </button>
   );
 
   return (
@@ -68,15 +55,15 @@ export default function AccountTabNav() {
           );
         })}
 
-        {/* Desktop: actions inline in the tab bar */}
+        {/* Desktop: sign out inline in the tab bar */}
         <div className="ml-auto hidden md:flex items-center gap-3">
-          {actionButtons}
+          {signOutButton}
         </div>
       </nav>
 
-      {/* Mobile: actions pinned to the bottom of the screen */}
+      {/* Mobile: sign out pinned to the bottom of the screen */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-end gap-3 px-6 py-4 bg-white/90 backdrop-blur border-t border-border">
-        {actionButtons}
+        {signOutButton}
       </div>
     </>
   );

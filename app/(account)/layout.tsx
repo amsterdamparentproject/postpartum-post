@@ -3,7 +3,6 @@
 import PageLayout from "@/components/PageLayout";
 import AccountTabNav from "@/components/AccountTabNav";
 import { AccountProvider, useAccount } from "@/app/(account)/AccountContext";
-import { ProfileSaveProvider } from "@/app/(account)/ProfileSaveContext";
 
 function AccountShell({ children }: { children: React.ReactNode }) {
   const { member } = useAccount();
@@ -21,9 +20,7 @@ function AccountShell({ children }: { children: React.ReactNode }) {
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   return (
     <AccountProvider>
-      <ProfileSaveProvider>
-        <AccountShell>{children}</AccountShell>
-      </ProfileSaveProvider>
+      <AccountShell>{children}</AccountShell>
     </AccountProvider>
   );
 }

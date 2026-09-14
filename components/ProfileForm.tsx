@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useTransition, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getOnboardingSignInLink } from "@/app/actions/auth";
 import { updateMemberProfile, updateOnboardingProfile, type MemberProfile, type Availability, type Child } from "@/app/actions/profile";
 import { createBrowserClient } from "@/lib/supabase";
 import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
+import { useAutosave } from "@/lib/use-autosave";
+import { useRequiredField } from "@/lib/use-required-field";
+import AutosaveStatus from "@/components/AutosaveStatus";
+import RequiredMark from "@/components/RequiredMark";
 
 
 const DUTCH_POSTCODE = /^[1-9][0-9]{3}\s?[A-Za-z]{2}$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 
 const LANGUAGES = [
@@ -47,6 +50,9 @@ const selectClass =
 const inputClass =
   "w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition";
 
+const disabledInputClass =
+  "w-full px-4 py-2.5 rounded-lg border border-border bg-cream text-muted cursor-not-allowed";
+
 const labelClass = "block text-sm font-medium text-dark mb-1";
 
 function ChevronDown() {
@@ -58,10 +64,6 @@ function ChevronDown() {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
     </svg>
   );
-}
-
-function RequiredMark() {
-  return <span className="text-coral ml-0.5">*</span>;
 }
 
 function CalendarIcon() {
@@ -164,11 +166,6 @@ function ChildRow({
   );
 }
 
-/** Compare two string arrays regardless of insertion order */
-function arrEq(a: string[], b: string[]) {
-  return JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
-}
-
 type Props = {
   initialData: Partial<MemberProfile>;
 
@@ -180,25 +177,29 @@ type Props = {
   sessionId?: string;
 };
 
-export type ProfileFormHandle = {
-  save: () => void;
-  isDirty: boolean;
-  isPending: boolean;
-};
-
 const SECTION_TITLES: Record<string, string> = {
   personal: "Personal info",
   details: "Details",
   preferences: "Preferences",
 };
 
-const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
-  { initialData, mode, section, sessionId }: Props,
-  ref,
-) {
+/**
+ * Reads the current Supabase session's access token for an authenticated
+ * (mode: "profile") save — never a client-supplied member id (audit
+ * Finding 1). Returns null if the session has lapsed; callers surface that
+ * as a save error rather than throwing, so a lapsed session shows up as one
+ * failed autosave rather than an unhandled rejection.
+ */
+async function getAccessToken(): Promise<string | null> {
+  const { data: { session } } = await createBrowserClient().auth.getSession();
+  return session?.access_token ?? null;
+}
+
+const SESSION_EXPIRED = "Your session has expired. Please sign in again.";
+
+export default function ProfileForm({ initialData, mode, section, sessionId }: Props) {
   const [firstName, setFirstName] = useState(initialData.first_name ?? "");
   const [lastName, setLastName] = useState(initialData.last_name ?? "");
-  const [email, setEmail] = useState(initialData.email ?? "");
   const [zipcode, setZipcode] = useState(initialData.zipcode ?? "");
   const [languages, setLanguages] = useState<string[]>(initialData.language ?? []);
   const [parentType, setParentType] = useState<"mom" | "dad" | "anyone" | "">(initialData.parent_type ?? "anyone");
@@ -208,167 +209,156 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
   const [openToSecondMatch, setOpenToSecondMatch] = useState<boolean>(initialData.open_to_second_match ?? true);
   const [children, setChildren] = useState<Child[]>(initialData.children ?? []);
 
-  // Snapshot of last-saved values — used to compute isDirty
-  const [snapshot, setSnapshot] = useState({
-    firstName: initialData.first_name ?? "",
-    lastName: initialData.last_name ?? "",
-    email: initialData.email ?? "",
-    zipcode: initialData.zipcode ?? "",
-    languages: initialData.language ?? [] as string[],
-    parentType: initialData.parent_type ?? "anyone",
-    availabilityDays: initialData.availability?.days ?? [] as string[],
-    availabilityTimes: initialData.availability?.times ?? [] as string[],
-    matchPriority: initialData.match_priority ?? "",
-    openToSecondMatch: initialData.open_to_second_match ?? true,
-    children: initialData.children ?? [] as Child[],
-  });
+  const firstNameField = useRequiredField("First name");
+  const lastNameField = useRequiredField("Last name");
 
-  const isDirty =
-    section === "personal"
-      ? firstName !== snapshot.firstName ||
-        lastName !== snapshot.lastName ||
-        email !== snapshot.email
-      : section === "details"
-      ? zipcode !== snapshot.zipcode ||
-        !arrEq(languages, snapshot.languages) ||
-        !arrEq(availabilityDays, snapshot.availabilityDays) ||
-        !arrEq(availabilityTimes, snapshot.availabilityTimes) ||
-        JSON.stringify(children) !== JSON.stringify(snapshot.children)
-      : section === "preferences"
-      ? matchPriority !== snapshot.matchPriority ||
-        parentType !== snapshot.parentType ||
-        openToSecondMatch !== snapshot.openToSecondMatch
-      : // onboarding — always starts dirty (empty form)
-        true;
-
-  // Warn before closing/navigating away with unsaved profile changes
-  useEffect(() => {
-    if (!isDirty || mode === "onboarding") return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty, mode]);
-
-  const [emailError, setEmailError] = useState<string | null>(null);
   const [zipcodeError, setZipcodeError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const router = useRouter();
 
-  const [isPending, startTransition] = useTransition();
+  // ---------------------------------------------------------------------
+  // Profile mode: each section autosaves independently (see lib/use-autosave.ts).
+  // Hooks are always called (Rules of Hooks) but guarded to no-ops outside
+  // their own mode+section — the fields they track simply never change on
+  // an instance whose inputs aren't rendered, so this is inert there
+  // regardless, but the explicit guard keeps that obvious rather than
+  // incidental.
+  //
+  // Email is read-only here, same treatment as PartnerContactForm: it's
+  // also the sign-in identity (requireMember resolves it by matching the
+  // verified session's email straight against members.email — see
+  // lib/require-member.ts), and there's no separate Supabase-Auth-user
+  // record kept in sync (see applyMemberProfileUpdate's docblock in
+  // app/actions/profile.ts) — a self-service edit, typo'd or not, risks
+  // locking a member out of their own login with no recovery path. Changes
+  // go through us instead.
+  // ---------------------------------------------------------------------
 
-  function doSave() {
-    setSaved(false);
-    setSaveError(null);
+  const isPersonalSection = mode === "profile" && section === "personal";
+  const isDetailsSection = mode === "profile" && section === "details";
+  const isPreferencesSection = mode === "profile" && section === "preferences";
 
-    if (section === "personal") {
-      if (!EMAIL_RE.test(email)) {
-        setEmailError("Enter a valid email address");
-        return;
+  const { status: nameStatus, error: nameError } = useAutosave(
+    { firstName, lastName },
+    async (v) => {
+      const token = await getAccessToken();
+      if (!token) return { success: false, error: SESSION_EXPIRED };
+      try {
+        await updateMemberProfile(token, { first_name: v.firstName, last_name: v.lastName });
+        return { success: true };
+      } catch {
+        return { success: false, error: "Couldn't save — try again" };
       }
-      setEmailError(null);
-    }
-    if (section === "details" || mode === "onboarding") {
-      if (zipcode && !DUTCH_POSTCODE.test(zipcode)) {
-        setZipcodeError("Enter a valid Dutch postcode, e.g. 1234 AB");
-        return;
+    },
+    { skip: (v) => !isPersonalSection || !v.firstName.trim() || !v.lastName.trim() },
+  );
+
+  const { status: detailsStatus, error: detailsError } = useAutosave(
+    { zipcode, languages, availabilityDays, availabilityTimes, children },
+    async (v) => {
+      const token = await getAccessToken();
+      if (!token) return { success: false, error: SESSION_EXPIRED };
+      const availability: Availability | null =
+        v.availabilityDays.length > 0 || v.availabilityTimes.length > 0
+          ? { days: v.availabilityDays, times: v.availabilityTimes }
+          : null;
+      try {
+        await updateMemberProfile(token, {
+          zipcode: v.zipcode || null,
+          language: v.languages.length > 0 ? v.languages : null,
+          availability,
+          children: v.children.length > 0 ? v.children : null,
+        });
+        return { success: true };
+      } catch {
+        return { success: false, error: "Couldn't save — try again" };
       }
-      setZipcodeError(null);
+    },
+    // Skipped (not just errored) while zipcode is present-but-invalid, same as
+    // the rest of this section pre-autosave: an in-progress postcode used to
+    // block the whole section's Save button, not just zipcode itself.
+    { skip: (v) => !isDetailsSection || (!!v.zipcode && !DUTCH_POSTCODE.test(v.zipcode)) },
+  );
+
+  const { status: preferencesStatus, error: preferencesError } = useAutosave(
+    { parentType, matchPriority, openToSecondMatch },
+    async (v) => {
+      const token = await getAccessToken();
+      if (!token) return { success: false, error: SESSION_EXPIRED };
+      try {
+        await updateMemberProfile(token, {
+          parent_type: (v.parentType as "mom" | "dad" | "anyone") || "anyone",
+          match_priority: (v.matchPriority as "age" | "proximity") || null,
+          open_to_second_match: v.openToSecondMatch,
+        });
+        return { success: true };
+      } catch {
+        return { success: false, error: "Couldn't save — try again" };
+      }
+    },
+    { skip: () => !isPreferencesSection },
+  );
+
+  // ---------------------------------------------------------------------
+  // Onboarding mode: unchanged from before autosave — a first-run wizard
+  // ending in "All done →", not a persistent settings page, so a single
+  // explicit submit (then redirect to the freshly-minted sign-in link) is
+  // the right shape here, not autosave.
+  // ---------------------------------------------------------------------
+
+  const [onboardingPending, startOnboardingTransition] = useTransition();
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
+
+  function handleOnboardingSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setOnboardingError(null);
+
+    if (zipcode && !DUTCH_POSTCODE.test(zipcode)) {
+      setZipcodeError("Enter a valid Dutch postcode, e.g. 1234 AB");
+      return;
     }
+    setZipcodeError(null);
 
     const availability: Availability | null =
       availabilityDays.length > 0 || availabilityTimes.length > 0
         ? { days: availabilityDays, times: availabilityTimes }
         : null;
 
-    const updates =
-      section === "personal"
-        ? { first_name: firstName, last_name: lastName, email }
-        : section === "details"
-        ? {
-            zipcode: zipcode || null,
-            language: languages.length > 0 ? languages : null,
-            availability,
-            children: children.length > 0 ? children : null,
-          }
-        : section === "preferences"
-        ? {
-            parent_type: (parentType as "mom" | "dad" | "anyone") || "anyone",
-            match_priority: (matchPriority as "age" | "proximity") || null,
-            open_to_second_match: openToSecondMatch,
-          }
-        : {
-            zipcode: zipcode || null,
-            language: languages.length > 0 ? languages : null,
-            availability,
-            match_priority: (matchPriority as "age" | "proximity") || null,
-            children: children.length > 0 ? children : null,
-          };
+    const updates = {
+      zipcode: zipcode || null,
+      language: languages.length > 0 ? languages : null,
+      availability,
+      match_priority: (matchPriority as "age" | "proximity") || null,
+      children: children.length > 0 ? children : null,
+    };
 
-    startTransition(async () => {
+    startOnboardingTransition(async () => {
       try {
-        if (mode === "onboarding") {
-          // Onboarding: no auth session exists yet — both the update and the
-          // sign-in link are authorized by the verified Stripe checkout session,
-          // never a client-supplied id/email (audit Finding 1 / S1 PP twin).
-          await updateOnboardingProfile(sessionId ?? "", updates);
-          setSaved(true);
-          const link = await getOnboardingSignInLink(sessionId ?? "");
-          router.push(link);
-          return;
-        }
-
-        // Authenticated profile edit — identity comes from the live session
-        // token, verified server-side; no client-supplied member id.
-        const { data: { session } } = await createBrowserClient().auth.getSession();
-        if (!session) {
-          setSaveError("Your session has expired. Please sign in again.");
-          return;
-        }
-        await updateMemberProfile(session.access_token, updates);
-        setSaved(true);
-        setSnapshot({
-          firstName, lastName, email, zipcode,
-          languages: [...languages], parentType: (parentType || "anyone") as "mom" | "dad" | "anyone",
-          availabilityDays: [...availabilityDays],
-          availabilityTimes: [...availabilityTimes],
-          matchPriority,
-          openToSecondMatch,
-          children: [...children],
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "";
-        if (msg.includes("already associated")) {
-          setEmailError(msg);
-        } else {
-          setSaveError("Failed to save changes. Please try again.");
-        }
+        // Onboarding: no auth session exists yet — both the update and the
+        // sign-in link are authorized by the verified Stripe checkout session,
+        // never a client-supplied id/email (audit Finding 1 / S1 PP twin).
+        await updateOnboardingProfile(sessionId ?? "", updates);
+        const link = await getOnboardingSignInLink(sessionId ?? "");
+        router.push(link);
+      } catch {
+        setOnboardingError("Failed to save changes. Please try again.");
       }
     });
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    doSave();
-  }
-
-  useImperativeHandle(ref, () => ({ save: doSave, isDirty, isPending }));
-
-
   const title = section ? SECTION_TITLES[section] : null;
+  const sectionStatus =
+    section === "personal" ? { status: nameStatus, error: nameError }
+    : section === "details" ? { status: detailsStatus, error: detailsError }
+    : section === "preferences" ? { status: preferencesStatus, error: preferencesError }
+    : null;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Section header with inline save button — profile mode only */}
+    <form onSubmit={mode === "onboarding" ? handleOnboardingSubmit : (e) => e.preventDefault()} className="space-y-5">
+      {/* Section header with autosave status — profile mode only */}
       {title && (
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-dark">{title}</h2>
-          <div className="flex items-center gap-3">
-            {saveError && <p className="text-xs text-coral">{saveError}</p>}
-          </div>
+          {sectionStatus && <AutosaveStatus status={sectionStatus.status} error={sectionStatus.error} />}
         </div>
       )}
 
@@ -385,10 +375,12 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
                 type="text"
                 required
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => { setFirstName(e.target.value); firstNameField.clear(); }}
+                onBlur={() => firstNameField.onBlur(firstName)}
                 autoComplete="given-name"
-                className={inputClass}
+                className={`${inputClass} ${firstNameField.error ? "border-coral" : ""}`}
               />
+              {firstNameField.error && <p className="mt-1 text-xs text-coral">{firstNameField.error}</p>}
             </div>
             <div>
               <label htmlFor="lastName" className={labelClass}>
@@ -399,30 +391,34 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
                 type="text"
                 required
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => { setLastName(e.target.value); lastNameField.clear(); }}
+                onBlur={() => lastNameField.onBlur(lastName)}
                 autoComplete="family-name"
-                className={inputClass}
+                className={`${inputClass} ${lastNameField.error ? "border-coral" : ""}`}
               />
+              {lastNameField.error && <p className="mt-1 text-xs text-coral">{lastNameField.error}</p>}
             </div>
           </div>
 
+          {/* Email is read-only — see the docblock above the autosave hooks. */}
           <div>
             <label htmlFor="email" className={labelClass}>
-              Email <RequiredMark />
+              Email
             </label>
             <input
               id="email"
               type="email"
-              required
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setEmailError(null); }}
-              onBlur={() => {
-                if (email && !EMAIL_RE.test(email)) setEmailError("Enter a valid email address");
-              }}
-              autoComplete="email"
-              className={`${inputClass} ${emailError ? "border-coral" : ""}`}
+              value={initialData.email ?? ""}
+              disabled
+              readOnly
+              className={disabledInputClass}
             />
-            {emailError && <p className="mt-1 text-xs text-coral">{emailError}</p>}
+            <p className="mt-1 text-xs text-muted">
+              If you need to change your contact email, please contact us at{" "}
+              <a href="mailto:post@amsterdamparentproject.nl" className="text-coral hover:text-coral-dark underline">
+                post@amsterdamparentproject.nl
+              </a>.
+            </p>
           </div>
         </>
       )}
@@ -648,16 +644,14 @@ const ProfileForm = forwardRef<ProfileFormHandle, Props>(function ProfileForm(
         <div className="flex items-center gap-4 pt-1">
           <button
             type="submit"
-            disabled={isPending}
+            disabled={onboardingPending}
             className="py-2.5 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isPending ? "Saving…" : "All done →"}
+            {onboardingPending ? "Saving…" : "All done →"}
           </button>
-          {saveError && <p className="text-sm text-coral">{saveError}</p>}
+          {onboardingError && <p className="text-sm text-coral">{onboardingError}</p>}
         </div>
       )}
     </form>
   );
-});
-
-export default ProfileForm;
+}
