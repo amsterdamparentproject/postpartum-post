@@ -70,10 +70,11 @@ export default function PartnerProfileForm({
         <AutosaveStatus status={status} error={error} />
       </div>
       <div>
-        <label className={labelClass}>
+        <label htmlFor="businessName" className={labelClass}>
           Business name <RequiredMark />
         </label>
         <input
+          id="businessName"
           value={businessName}
           onChange={(e) => { setBusinessName(e.target.value); businessNameField.clear(); }}
           onBlur={() => businessNameField.onBlur(businessName)}

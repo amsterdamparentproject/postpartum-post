@@ -187,6 +187,46 @@ export async function seedMemberWithSubscription(
 }
 
 // ---------------------------------------------------------------------------
+// Partner helpers
+// ---------------------------------------------------------------------------
+
+export interface SeededPartner {
+  id: string;
+  email: string;
+  businessName: string;
+}
+
+/**
+ * Insert a partner directly into the DB. Same self-service login model as
+ * members — a partners row with an email IS the portal invite, no separate
+ * auth-user FK (see lib/require-partner.ts) — so this alone is enough for
+ * signInAs() to sign the resulting Supabase Auth user in as this partner.
+ */
+export async function seedPartner(
+  overrides: { email?: string; businessName?: string; firstName?: string; lastName?: string } = {}
+): Promise<SeededPartner> {
+  const db = supabase();
+  const id = crypto.randomUUID();
+  const email = overrides.email ?? testEmail(`e2e-partner-${id.slice(0, 8)}`);
+  const businessName = overrides.businessName ?? `Test Partner Biz ${id.slice(0, 8)}`;
+
+  const { error } = await db.from("partners").insert({
+    id,
+    email,
+    business_name: businessName,
+    first_name: overrides.firstName ?? "Test",
+    last_name: overrides.lastName ?? "Partner",
+  });
+  if (error) throw new Error(`seedPartner failed: ${error.message}`);
+  return { id, email, businessName };
+}
+
+/** Deletes the partner row — partner_locations and perks cascade with it. */
+export async function cleanupPartner(partnerId: string): Promise<void> {
+  await supabase().from("partners").delete().eq("id", partnerId);
+}
+
+// ---------------------------------------------------------------------------
 // Cleanup helpers
 // ---------------------------------------------------------------------------
 
@@ -204,6 +244,21 @@ export async function cleanupMember(memberId: string): Promise<void> {
   } catch {
     // Auth user may not exist (seedMember doesn't create one) — ignore
   }
+}
+
+/**
+ * Deletes the Supabase Auth user for this email, if one exists — unlike
+ * cleanupMember's own (best-effort) attempt, this looks the user up by
+ * email rather than assuming the members/partners row's own id happens to
+ * match the auth user's id. Needed by any test that actually signs in
+ * (signInAs's generateMagicLink auto-creates the auth user) rather than
+ * just exercising signed-out states.
+ */
+export async function cleanupAuthUser(email: string): Promise<void> {
+  const db = supabase();
+  const { data } = await db.auth.admin.listUsers();
+  const user = data?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+  if (user) await db.auth.admin.deleteUser(user.id);
 }
 
 /**
