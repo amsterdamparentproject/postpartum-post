@@ -229,8 +229,8 @@ export default function PartnerSplash() {
           <span className="text-dark">— and to the local businesses that support them.</span>
         </h1>
         <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
-          Post Partners connects local businesses with <WordMark size="text-base" />{" "}members —
-          new and expecting parents across Amsterdam — through a perk they&apos;re excited to
+          <WordMark size="text-base" />{" "}connects local businesses with members —
+          new and expecting parents across Amsterdam — through a Post Perk they&apos;re excited to
           use with their match.
         </p>
       </div>
@@ -242,14 +242,14 @@ export default function PartnerSplash() {
           href="/partners/login"
           className="text-coral hover:text-coral-dark font-medium underline underline-offset-2"
         >
-          Manage your perks here
+          Manage your Post Perks here
         </Link>
       </p>
 
       {/* What's a perk */}
       <div className="max-w-2xl mx-auto text-center">
         <h2 className="text-2xl text-dark mb-4" style={{ fontFamily: "var(--font-serif)" }}>
-          What&apos;s a Post Perk?
+          What&apos;s a <span className="text-coral">Post Perk</span>?
         </h2>
         <p className="text-base text-dark leading-relaxed max-w-lg mx-auto">
           A perk is a discount, freebie, or exclusive offer you give Postpartum Post
@@ -262,7 +262,7 @@ export default function PartnerSplash() {
       {/* Examples */}
       <div className="w-full max-w-sm md:max-w-xl mx-auto">
         <h2 className="text-2xl text-dark text-center mb-6" style={{ fontFamily: "var(--font-serif)" }}>
-          Perks look like this
+          Post Perks look like this
         </h2>
         <ExampleCarousel />
       </div>
@@ -273,7 +273,7 @@ export default function PartnerSplash() {
           homepage stats list — too ragged once the sentences run long.) */}
       <div className="max-w-2xl mx-auto text-center">
         <h2 className="text-2xl text-dark mb-6" style={{ fontFamily: "var(--font-serif)" }}>
-          What Partners Get
+          What partners get
         </h2>
         <ul className="max-w-lg mx-auto text-left space-y-6">
           <li className="flex items-start gap-3">
@@ -291,7 +291,7 @@ export default function PartnerSplash() {
             <div>
               <p className="font-bold text-coral">Co-promotion</p>
               <p className="text-sm text-dark leading-relaxed mt-1">
-                We feature Post Partners across Amsterdam Parent Project's  <a
+                We feature your perk across Amsterdam Parent Project's  <a
                   href="https://amsterdamparentproject.nl"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -339,7 +339,7 @@ export default function PartnerSplash() {
               <p className="font-bold text-coral">It costs nothing but the perk itself</p>
               <p className="text-sm text-dark leading-relaxed mt-1">
                 No partnership fee or cut. You give members a discount or freebie; we give you
-                the introduction. We're here to help both sides discover each other.
+                the introduction. It's our mission and our joy to help both sides discover each other.
               </p>
             </div>
           </li>
@@ -349,7 +349,7 @@ export default function PartnerSplash() {
       {/* Lead capture — primary CTA */}
       <div className="max-w-lg mx-auto bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
         <h2 className="text-xl text-dark mb-1" style={{ fontFamily: "var(--font-serif)" }}>
-          Interested in becoming a Post Partner?
+          Interested in offering a Post Perk?
         </h2>
         <p className="text-sm text-muted mb-6">
           Tell us about your business to kickstart the discussion on a perk that works for you and our members.

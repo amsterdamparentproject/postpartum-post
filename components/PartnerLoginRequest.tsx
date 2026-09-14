@@ -74,7 +74,7 @@ export default function PartnerLoginRequest({
           Check your inbox
         </h2>
         <p className="text-muted text-sm leading-relaxed">
-          We sent a sign-in link to <strong>{email}</strong>. Click it to access your Post Partners profile.
+          We sent a sign-in link to <strong>{email}</strong>. Click it to access your partner profile.
         </p>
       </CalloutBox>
     );
@@ -85,7 +85,7 @@ export default function PartnerLoginRequest({
   return (
     <div className="max-w-sm mx-auto space-y-6">
       <div className="text-center">
-        <p className="text-dark font-medium mb-1">Sign in to Post Partners</p>
+        <p className="text-dark font-medium mb-1">Partner sign-in</p>
         <p className="text-muted text-sm mb-6">
           Enter your business email and we&apos;ll send you a sign-in link.
         </p>
