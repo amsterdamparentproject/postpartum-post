@@ -9,10 +9,13 @@ import {
   addPartnerLeadIdea,
   addLeadNote,
   editLeadNote,
+  deleteLeadNote,
   updateLeadDetails,
+  deleteLead,
   listPerksForReview,
   setPerkStatus,
   type PartnerLead,
+  type LeadStatus,
   type ReviewPerk,
   type PerkReviewStatus,
 } from "./actions";
@@ -138,17 +141,35 @@ function ConvertLeadForm({
   );
 }
 
+function PencilIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  );
+}
+
 /**
  * Renders a lead's dated notes log (see lib/lead-notes.ts), plus a small
- * "+ Note" button to append a new entry and a per-entry "Edit" to correct
- * one's text in place. date is never editable — it marks when the note
- * was originally added.
+ * "+ Note" button to append a new entry, a pencil icon per entry to
+ * correct its text in place, and a trash icon to remove it — same icon
+ * pair as the lead-level edit/delete. date is never editable — it marks
+ * when the note was originally added.
  */
 function NotesLog({ leadId, notes, onChanged }: { leadId: string; notes: LeadNote[]; onChanged: () => void }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -181,6 +202,18 @@ function NotesLog({ leadId, notes, onChanged }: { leadId: string; notes: LeadNot
     });
   }
 
+  function handleDeleteNote(noteId: string) {
+    startTransition(async () => {
+      const result = await deleteLeadNote(leadId, noteId);
+      if (!result.success) {
+        setError(result.error ?? "Couldn't delete — try again");
+        return;
+      }
+      setDeletingId(null);
+      onChanged();
+    });
+  }
+
   return (
     <div className="mt-3 space-y-2">
       {notes.map((entry) => (
@@ -208,12 +241,38 @@ function NotesLog({ leadId, notes, onChanged }: { leadId: string; notes: LeadNot
             <>
               <div className="flex items-start justify-between gap-3">
                 <p className="whitespace-pre-wrap">{entry.note}</p>
-                <button
-                  onClick={() => { setEditingId(entry.id); setEditDraft(entry.note); }}
-                  className="shrink-0 text-xs text-muted hover:text-coral transition"
-                >
-                  Edit
-                </button>
+                {deletingId === entry.id ? (
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className="text-xs text-muted whitespace-nowrap">Delete?</span>
+                    <button
+                      onClick={() => handleDeleteNote(entry.id)}
+                      disabled={isPending}
+                      className="text-xs font-semibold text-coral hover:text-coral-dark transition"
+                    >
+                      Yes
+                    </button>
+                    <button onClick={() => setDeletingId(null)} className="text-xs text-muted hover:text-dark transition">
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <div className="shrink-0 flex items-center gap-1">
+                    <button
+                      onClick={() => { setEditingId(entry.id); setEditDraft(entry.note); }}
+                      aria-label="Edit note"
+                      className="p-1 text-muted hover:text-coral transition"
+                    >
+                      <PencilIcon />
+                    </button>
+                    <button
+                      onClick={() => setDeletingId(entry.id)}
+                      aria-label="Delete note"
+                      className="p-1 text-muted hover:text-coral transition"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                )}
               </div>
               <p className="text-xs text-muted mt-1">{new Date(entry.date).toLocaleDateString()}</p>
             </>
@@ -328,19 +387,31 @@ function EditLeadForm({
   );
 }
 
+const EDITABLE_STATUSES = ["idea", "new", "contacted", "rejected"] as const;
+
 function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => void }) {
   const [converting, setConverting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function quickSetStatus(status: "contacted" | "rejected") {
+  function changeStatus(status: Exclude<LeadStatus, "converted">) {
+    if (status === lead.status) return;
     startTransition(async () => {
       await setLeadStatus(lead.id, status);
       onChanged();
     });
   }
 
+  function handleDelete() {
+    startTransition(async () => {
+      await deleteLead(lead.id);
+      onChanged();
+    });
+  }
+
   const contactLine = [lead.first_name, lead.last_name].filter(Boolean).join(" ");
+  const showIcons = !editing && !converting;
 
   return (
     <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6">
@@ -367,39 +438,89 @@ function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => voi
             <p className="text-sm text-muted italic mt-1">No contact yet</p>
           )}
         </div>
-        <StatusBadge label={LEAD_STATUS_LABELS[lead.status]} className={LEAD_STATUS_STYLES[lead.status]} />
+        <div className="flex items-center gap-2 shrink-0">
+          {editing && lead.status !== "converted" ? (
+            <div className="flex flex-wrap gap-1 justify-end">
+              {EDITABLE_STATUSES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => changeStatus(s)}
+                  disabled={isPending}
+                  className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                    lead.status === s
+                      ? LEAD_STATUS_STYLES[s]
+                      : "bg-white text-muted border-border hover:border-dark/30 hover:text-dark"
+                  }`}
+                >
+                  {LEAD_STATUS_LABELS[s]}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <StatusBadge label={LEAD_STATUS_LABELS[lead.status]} className={LEAD_STATUS_STYLES[lead.status]} />
+          )}
+          {showIcons && !confirmingDelete && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setEditing(true)}
+                aria-label="Edit lead"
+                className="p-1 text-muted hover:text-coral transition"
+              >
+                <PencilIcon />
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                aria-label="Delete lead"
+                className="p-1 text-muted hover:text-coral transition"
+              >
+                <TrashIcon />
+              </button>
+            </div>
+          )}
+          {showIcons && confirmingDelete && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted whitespace-nowrap">Delete?</span>
+              <button
+                onClick={handleDelete}
+                disabled={isPending}
+                className="text-xs font-semibold text-coral hover:text-coral-dark transition"
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="text-xs text-muted hover:text-dark transition"
+              >
+                No
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <NotesLog leadId={lead.id} notes={lead.notes} onChanged={onChanged} />
       <p className="text-xs text-muted mt-2">Submitted {new Date(lead.created_at).toLocaleDateString()}</p>
 
-      {!converting && !editing && (
+      {showIcons && lead.status !== "converted" && (
         <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-border">
-          {lead.status !== "converted" && (
-            <button
-              onClick={() => setConverting(true)}
-              className="text-sm font-semibold text-coral hover:text-coral-dark transition"
-            >
-              Convert to partner
-            </button>
-          )}
           <button
-            onClick={() => setEditing(true)}
-            className="text-sm text-muted hover:text-dark transition"
+            onClick={() => setConverting(true)}
+            className="text-sm font-semibold text-coral hover:text-coral-dark transition"
           >
-            Edit
+            Convert to partner
           </button>
-          {lead.status !== "converted" && lead.status !== "contacted" && (
+          {lead.status !== "contacted" && (
             <button
-              onClick={() => quickSetStatus("contacted")}
+              onClick={() => changeStatus("contacted")}
               disabled={isPending}
               className="text-sm text-muted hover:text-dark transition"
             >
               Mark contacted
             </button>
           )}
-          {lead.status !== "converted" && lead.status !== "rejected" && (
+          {lead.status !== "rejected" && (
             <button
-              onClick={() => quickSetStatus("rejected")}
+              onClick={() => changeStatus("rejected")}
               disabled={isPending}
               className="text-sm text-muted hover:text-dark transition"
             >
@@ -417,7 +538,7 @@ function LeadCard({ lead, onChanged }: { lead: PartnerLead; onChanged: () => voi
         <EditLeadForm lead={lead} onDone={() => { setEditing(false); onChanged(); }} onCancel={() => setEditing(false)} />
       )}
 
-      {lead.status === "converted" && !editing && (
+      {lead.status === "converted" && showIcons && (
         <p className="text-xs text-muted mt-2">Converted to partner</p>
       )}
     </div>

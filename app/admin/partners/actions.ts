@@ -233,6 +233,54 @@ export async function editLeadNote(
 }
 
 /**
+ * Removes a single note entry from a lead's log — the trash icon on a
+ * note. Read-modify-write, same shape as addLeadNote/editLeadNote.
+ */
+export async function deleteLeadNote(
+  leadId: string,
+  noteId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient();
+  const { data: lead, error: fetchError } = await supabase
+    .from("partner_leads")
+    .select("notes")
+    .eq("id", leadId)
+    .single();
+  if (fetchError || !lead) {
+    console.error("[deleteLeadNote] fetch error:", fetchError?.message);
+    return { success: false, error: "Couldn't delete — try again" };
+  }
+
+  const notes = ((lead.notes as LeadNote[] | null) ?? []).filter((n) => n.id !== noteId);
+  const { error } = await supabase.from("partner_leads").update({ notes }).eq("id", leadId);
+  if (error) {
+    console.error("[deleteLeadNote] update error:", error.message);
+    return { success: false, error: "Couldn't delete — try again" };
+  }
+  return { success: true };
+}
+
+/**
+ * Permanently removes a lead — the trash icon on a lead card. Unlike
+ * setLeadStatus("rejected"), this actually deletes the row (and its whole
+ * notes log) rather than just marking it closed; use it for a genuine
+ * mistake (a duplicate that findMatchingLead missed because the names
+ * didn't match, a test entry) rather than "not a fit," which should stay
+ * on record. No FK cleanup needed: a converted lead's
+ * converted_partner_id is a reference FROM partner_leads, so the partners
+ * row itself is untouched either way.
+ */
+export async function deleteLead(leadId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("partner_leads").delete().eq("id", leadId);
+  if (error) {
+    console.error("[deleteLead] delete error:", error.message);
+    return { success: false, error: "Couldn't delete — try again" };
+  }
+  return { success: true };
+}
+
+/**
  * Quick status change with no side effects — "Mark contacted" / "Not a fit"
  * from the leads list. Converting to a partner goes through
  * convertLeadToPartner instead, which also creates the partners row.
