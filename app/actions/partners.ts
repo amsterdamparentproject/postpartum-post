@@ -332,6 +332,75 @@ export async function submitPartnerLead(
   return { success: true };
 }
 
+/**
+ * Best-effort business name from a submitted URL, used only as a starting
+ * point for the /perks idea box below — Alex fixes it via the "Edit"
+ * pencil on the resulting lead if it's off. Handles the common case of a
+ * Google Maps share link (.../maps/place/<Name>/...) specially, since the
+ * hostname alone ("www.google.com") is useless there; otherwise falls
+ * back to the hostname.
+ */
+function guessBusinessNameFromUrl(url: string): string {
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
+    if (parsed.hostname.includes("google.") && parsed.pathname.includes("/maps/place/")) {
+      const segment = parsed.pathname.split("/maps/place/")[1]?.split("/")[0];
+      const decoded = segment ? decodeURIComponent(segment.replace(/\+/g, " ")).trim() : "";
+      if (decoded) return decoded;
+    }
+    return parsed.hostname.replace(/^www\./, "");
+  } catch {
+    return "New perk idea";
+  }
+}
+
+export type PerkIdeaInput = { url: string };
+
+/**
+ * The tiny "know a place?" box on the still-in-development /perks page —
+ * public, anonymous, no name/email collected, just a link. Deliberately
+ * files as an 'idea' lead (Alex's own reasoning bucket) rather than 'new'
+ * (a business applying for itself), since this is a member suggesting
+ * someone else's business, not that business reaching out.
+ *
+ * If the link already matches an existing lead (see lib/lead-matching.ts),
+ * this only adds a note to it rather than reusing mergeIntoLead's
+ * idea->new promotion — a member's suggestion isn't the business itself
+ * confirming interest, so the status shouldn't move.
+ */
+export async function submitPerkIdea(input: PerkIdeaInput): Promise<{ success: boolean; error?: string }> {
+  const url = input.url.trim();
+  if (!url) {
+    return { success: false, error: "Add a link first" };
+  }
+
+  const supabase = createAdminClient();
+  const businessName = guessBusinessNameFromUrl(url);
+
+  const match = await findMatchingLead(supabase, businessName, url);
+  if (match) {
+    const notes = [...(match.notes ?? []), createLeadNote(`Suggested again via the /perks page: ${url}`)];
+    const { error } = await supabase.from("partner_leads").update({ notes }).eq("id", match.id);
+    if (error) {
+      console.error("[submitPerkIdea] merge update error:", error.message);
+      return { success: false, error: "Couldn't submit — try again" };
+    }
+    return { success: true };
+  }
+
+  const { error } = await supabase.from("partner_leads").insert({
+    business_name: businessName,
+    url,
+    notes: [createLeadNote("Suggested by a member via the /perks page.")],
+    status: "idea",
+  });
+  if (error) {
+    console.error("[submitPerkIdea] insert error:", error.message);
+    return { success: false, error: "Couldn't submit — try again" };
+  }
+  return { success: true };
+}
+
 // ---------------------------------------------------------------------------
 // Your Perks tab
 // ---------------------------------------------------------------------------

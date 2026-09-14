@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const LAST_UPDATED = "September 2026";
 
 /**
@@ -37,7 +39,13 @@ export default function PartnerGuide() {
         <p className="text-sm text-dark leading-relaxed">Here&apos;s exactly what you get as a Post Perks partner:</p>
         <ul className="text-sm text-dark leading-relaxed list-disc pl-5 space-y-1">
           <li>Your perk featured on Postpartum Post&apos;s monthly match page, seen by all matched members</li>
-          <li>Your company featured on our public Perks page (currently in development)</li>
+          <li>
+            Your company featured on our{" "}
+            <Link href="/perks" className="text-coral hover:underline underline-offset-2">
+              public Perks page
+            </Link>{" "}
+            (currently in development)
+          </li>
           <li>
             On social media (Instagram and LinkedIn): a partnership announcement, plus a minimum of 1
             perk highlight per year
