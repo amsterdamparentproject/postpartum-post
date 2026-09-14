@@ -109,10 +109,11 @@ const EXAMPLE_PERKS: { icon: (fill: string, stroke: string) => React.ReactNode; 
 ];
 
 /**
- * Logged-out /partners — a splash page pitching the idea to businesses and
- * capturing their interest. Lead capture is the primary CTA (own section,
- * always visible). Sign-in for existing partners is a single link near the
- * top to /partners/login, rather than an inline widget — keeps this page
+ * /partners — a public splash page pitching the idea to businesses and
+ * capturing their interest, regardless of session state (see that page's
+ * docblock). Lead capture is the primary CTA (own section, always
+ * visible). Sign-in for existing partners is a single link near the top
+ * to /partners/login, rather than an inline widget — keeps this page
  * focused on the pitch instead of also carrying sign-in mechanics.
  */
 /**

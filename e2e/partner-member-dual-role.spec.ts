@@ -39,13 +39,21 @@ test("a member who is also a partner can see both, and visiting one never signs 
     await signInAs(page, email);
     await expect(page.getByLabel("First name")).toHaveValue("Dana");
 
-    // ── Visiting /partners shows the partner profile, not the public splash ──
-    await page.goto("/partners");
+    // ── Visiting /partners/profile shows the partner profile ──
+    await page.goto("/partners/profile");
     await expect(page.getByRole("link", { name: "Partner profile" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Your Perks" })).toBeVisible();
     await expect(page.getByLabel("Business name")).toHaveValue("Dana's Dual Studio");
-    // The public "become a partner" pitch is for people who aren't partners.
-    await expect(page.getByText("What's a Post Perk?")).not.toBeVisible();
+
+    // ── /partners itself is always the public splash, even signed in — ──
+    // it never checks auth at all (see that page's docblock).
+    await page.goto("/partners");
+    await expect(page.getByText("What's a Post Perk?")).toBeVisible();
+
+    // ── /partners/login redirects an already-signed-in partner straight ──
+    // to /partners/profile instead of showing the sign-in form again.
+    await page.goto("/partners/login");
+    await page.waitForURL(/\/partners\/profile/, { timeout: 10_000 });
 
     // ── Back on /profile, the member session must still be intact — the ──
     // regression this test exists to catch: PartnerContext's old
