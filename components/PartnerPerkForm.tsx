@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { savePartnerPerk, type PartnerPerk, type PerkCategory } from "@/app/actions/partners";
 import type { PartnerLocation } from "@/app/actions/partners";
 import RequiredMark from "@/components/RequiredMark";
@@ -175,7 +176,15 @@ export default function PartnerPerkForm({
           <span className="font-medium">Make this perk exclusive to Postpartum Post.</span>{" "}
           Exclusive perks get an &quot;exclusive&quot; badge in the Perks directory and a highlight
           on the Perks page, higher ranking in recommended activities on the match page, and at
-          least one extra social media and newsletter highlight per year.
+          least one extra social media and newsletter highlight per year.{" "}
+          <Link
+            href="/partners/terms#exclusivity"
+            target="_blank"
+            onClick={(e) => e.stopPropagation()}
+            className="text-coral hover:underline underline-offset-2"
+          >
+            See terms
+          </Link>
         </span>
       </label>
 

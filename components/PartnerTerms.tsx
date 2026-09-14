@@ -67,7 +67,7 @@ export default function PartnerTerms() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-coral font-semibold">Exclusivity not required, but exclusive perks get extra benefits</h2>
+        <h2 id="exclusivity" className="text-coral font-semibold">Exclusivity not required, but exclusive perks get extra benefits</h2>
         <p className="text-sm text-dark leading-relaxed">
           You&apos;re free to offer the same or similar deals through other communities or
           partnerships — nothing here requires exclusivity.
