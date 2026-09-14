@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { verifyMagicLinkToken } from "@/lib/auth-confirm";
 import { createBrowserClient } from "@/lib/supabase";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
+import PartnerLoginRequest from "@/components/PartnerLoginRequest";
 import PageLayout from "@/components/PageLayout";
 import CalloutBox from "@/components/CalloutBox";
 
@@ -79,6 +80,12 @@ export default function ConfirmHandler({ next }: { next: string }) {
 
   // Link was expired, already used, or token is missing entirely
   const isExpired = status === "error";
+  // /auth/confirm/[next] is shared between member and partner sign-in —
+  // `next` (already decoded by the caller) is the only signal available
+  // here for which retry form to show. Both destinations start with a
+  // fixed, non-user-controlled prefix ("/partners" vs. everything else),
+  // so this can't be spoofed into showing the wrong form for a real link.
+  const isPartnerFlow = next.startsWith("/partners");
 
   return (
     <PageLayout>
@@ -96,7 +103,7 @@ export default function ConfirmHandler({ next }: { next: string }) {
               ? "Sign-in links expire after 24 hours and can only be used once. Request a new one below."
               : "This link doesn't look right. Try requesting a fresh sign-in link."}
           </p>
-          <MagicLinkRequest />
+          {isPartnerFlow ? <PartnerLoginRequest /> : <MagicLinkRequest />}
         </CalloutBox>
       </main>
     </PageLayout>
