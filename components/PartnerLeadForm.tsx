@@ -135,7 +135,7 @@ export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string
         type="submit"
         disabled={isPending}
         data-umami-event="Partners: Submit Lead"
-        className="w-full py-2.5 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full py-2.5 px-6 bg-green hover:bg-green-light text-dark font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {isPending ? "Submitting…" : "Submit interest"}
       </button>

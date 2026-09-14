@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import PartnerLeadForm from "@/components/PartnerLeadForm";
-import { StampSVG, GiftStamp } from "@/components/StampIcons";
+import { StampSVG } from "@/components/StampIcons";
+import Sparkle from "@/components/Sparkle";
 import WordMark from "@/components/WordMark";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 
@@ -117,6 +118,43 @@ const EXAMPLE_PERKS: { icon: (fill: string, stroke: string) => React.ReactNode; 
  * focused on the pitch instead of also carrying sign-in mechanics.
  */
 /**
+ * Sparkle divider above "What's a Post Perk?" — plays the shared .wiggle
+ * keyframe (app/globals.css) once when scrolled into view, rather than on
+ * hover like SubscribeSection's envelope or GiftBow's group-hover variant,
+ * since there's nothing to hover here as the page scrolls past it.
+ */
+function AnimatedSparkleDivider() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [wiggling, setWiggling] = useState(false);
+
+  useEffect(() => {
+    const target = ref.current;
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setWiggling(true);
+          // Reset once the animation finishes so scrolling away and back
+          // (or a later remount) can retrigger it.
+          setTimeout(() => setWiggling(false), 550);
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="flex justify-center mb-4">
+      <Sparkle className={`w-20 h-auto${wiggling ? " wiggle" : ""}`} />
+    </div>
+  );
+}
+
+/**
  * Carousel for the example-perk cards — mirrors PersonaCards' pagination
  * exactly (2-per-page desktop / 1-per-page mobile, swipe + arrows + dots)
  * so the two feel like the same visual system.
@@ -224,7 +262,10 @@ export default function PartnerSplash() {
   return (
     <div className="space-y-16">
       {/* Hero */}
-      <div className="max-w-2xl mx-auto text-center">
+      <div className="max-w-2xl mx-auto text-center mb-8">
+        <div className="flex justify-center mb-6">
+          <EnvelopeLogo width={72} height={54} />
+        </div>
         <h1 className="text-3xl md:text-4xl leading-snug" style={{ fontFamily: "var(--font-serif)" }}>
           <span className="text-coral">We&apos;re introducing new parents to each other</span>{" "}
           <span className="text-dark">— and to the local businesses that support them.</span>
@@ -237,19 +278,17 @@ export default function PartnerSplash() {
       </div>
 
       {/* Sign in — secondary, for existing partners */}
-      <p className="text-center text-sm text-muted">
+      <p className="text-center text-sm text-muted mb-12">
         Are you an existing partner?{" "}
         <Link
           href="/partners/login"
-          className="text-coral hover:text-coral-dark font-medium underline underline-offset-2"
+          className="text-coral hover:text-coral-dark font-medium underline underline-offset-2 whitespace-nowrap"
         >
           Manage your Post Perks here
         </Link>
       </p>
 
-      <div className="flex justify-center">
-        <GiftStamp />
-      </div>
+      <AnimatedSparkleDivider />
 
       {/* What's a perk */}
       <div className="max-w-2xl mx-auto text-center">
@@ -352,14 +391,19 @@ export default function PartnerSplash() {
       </div>
 
       {/* Lead capture — primary CTA */}
-      <div className="max-w-lg mx-auto bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-        <h2 className="text-xl text-dark mb-1" style={{ fontFamily: "var(--font-serif)" }}>
-          Interested in offering a Post Perk?
-        </h2>
-        <p className="text-sm text-muted mb-6">
-          Tell us about your business to kickstart the discussion on a perk that works for you and our members.
-        </p>
-        <PartnerLeadForm defaultEmail="" />
+      <div className="max-w-lg mx-auto">
+        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
+          <div className="flex justify-center mb-6">
+            <Sparkle className="w-16 h-auto" />
+          </div>
+          <h2 className="text-2xl text-dark mb-2" style={{ fontFamily: "var(--font-serif)" }}>
+            Interested in offering a Post Perk?
+          </h2>
+          <p className="text-muted mb-6">
+            Tell us about your business to kickstart the discussion on a perk that works for you and our members.
+          </p>
+          <PartnerLeadForm defaultEmail="" />
+        </div>
       </div>
     </div>
   );
