@@ -50,4 +50,14 @@ if [ $? -ne 0 ]; then
   echo "Warning: seed-test-members.mts failed — reference member data may be stale." >&2
 fi
 
+# Same shared-project situation as members above — a partner-side test run
+# (e.g. __tests__/actions/partner-perks.test.ts) can leave stale rows
+# behind too. Restores partners + locations only — see
+# scripts/seed-test-partners.mts.
+echo "Restoring reference partner data..."
+tsx scripts/seed-test-partners.mts
+if [ $? -ne 0 ]; then
+  echo "Warning: seed-test-partners.mts failed — reference partner data may be stale." >&2
+fi
+
 exit "$STATUS"

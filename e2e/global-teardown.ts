@@ -50,4 +50,17 @@ export default async function globalTeardown() {
   } catch (e) {
     console.error("[teardown] Warning: seed-test-members.mts failed — reference member data may be stale.", e);
   }
+
+  // Same shared-project situation as members above — see
+  // scripts/seed-test-partners.mts's docblock.
+  console.log("[teardown] Restoring reference partner data...");
+  try {
+    const tsxBin = path.join(REPO_ROOT, "node_modules", ".bin", "tsx");
+    execFileSync(tsxBin, ["scripts/seed-test-partners.mts"], {
+      cwd: REPO_ROOT,
+      stdio: "inherit",
+    });
+  } catch (e) {
+    console.error("[teardown] Warning: seed-test-partners.mts failed — reference partner data may be stale.", e);
+  }
 }

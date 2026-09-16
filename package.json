@@ -15,6 +15,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "seed-test-members": "tsx scripts/seed-test-members.mts",
+    "seed-test-partners": "tsx scripts/seed-test-partners.mts",
     "smoketest:renew-check": "tsx scripts/smoketest-renew-check.mts",
     "geo:test": "tsx scripts/backfill-geo.ts test",
     "geo:prod": "tsx scripts/backfill-geo.ts prod",
