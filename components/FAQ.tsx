@@ -3,13 +3,18 @@
 /**
  * FAQ
  *
- * Expandable accordion for frequently asked questions.
- * Used on the home page and /about. Add new entries to the FAQS array below.
+ * Expandable accordion for frequently asked questions. Used on the home
+ * page and /about with the default member-facing FAQS below; pass `faqs`
+ * (plus optionally `heading`/`subheading`) to reuse the same accordion for
+ * a different audience — e.g. PartnerSplash's partner-facing questions,
+ * drawn from components/PartnerTerms.tsx.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
-const FAQS: { question: string; answer: string; id?: string }[] = [
+export type FAQItem = { question: string; answer: string; id?: string };
+
+const FAQS: FAQItem[] = [
   {
     question: "Who is Postpartum Post for?",
     answer:
@@ -53,19 +58,32 @@ const FAQS: { question: string; answer: string; id?: string }[] = [
   },
 ];
 
-export default function FAQ() {
+export default function FAQ({
+  faqs = FAQS,
+  heading = (
+    <>
+      Frequently asked <span className="text-coral">questions</span>
+    </>
+  ),
+  subheading = "Still not sure? Here are some things people often ask before joining.",
+}: {
+  faqs?: FAQItem[];
+  heading?: ReactNode;
+  subheading?: string;
+}) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const hash = window.location.hash.slice(1);
     if (!hash) return;
-    const idx = FAQS.findIndex((f) => f.id === hash);
+    const idx = faqs.findIndex((f) => f.id === hash);
     if (idx < 0) return;
     setOpenIndex(idx);
     // Let the DOM update before scrolling so the element is in its final position
     setTimeout(() => {
       document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -74,14 +92,14 @@ export default function FAQ() {
         className="text-2xl text-dark text-center mb-2"
         style={{ fontFamily: "var(--font-serif)" }}
       >
-        Frequently asked <span className="text-coral">questions</span>
+        {heading}
       </h2>
       <p className="text-sm text-muted text-center mb-8 max-w-md mx-auto leading-relaxed">
-        Still not sure? Here are some things people often ask before joining.
+        {subheading}
       </p>
 
       <div className="space-y-2">
-        {FAQS.map((faq, i) => {
+        {faqs.map((faq, i) => {
           const isOpen = openIndex === i;
           return (
             <div

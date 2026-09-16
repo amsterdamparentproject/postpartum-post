@@ -9,6 +9,7 @@ import WordMark from "@/components/WordMark";
 import PostPerksWordMark from "@/components/PostPerksWordMark";
 import AnimatedSparkleDivider from "@/components/AnimatedSparkleDivider";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
+import FAQ, { type FAQItem } from "@/components/FAQ";
 
 // ---------------------------------------------------------------------------
 // Category icons — same stamp-frame language as PersonaCards' icons
@@ -229,6 +230,42 @@ function ExampleCarousel() {
   );
 }
 
+// Drawn from components/PartnerTerms.tsx — the actual partnership
+// agreement partners agree to once they join. Keep these in sync with that
+// document if its terms change.
+const PARTNER_FAQS: FAQItem[] = [
+  {
+    question: "What makes a good perk? Who will be using it?",
+    answer:
+      "The ideal perk is something that two parents can use together when they meet up! Think activities, food & drink, or services that help our matches get to know each other. Sometimes they'll be with their kids (0-4 years old), other times solo. Our members are moms, dads, and more all across Amsterdam.",
+  },
+  {
+    question: "Does it cost anything to become a partner?",
+    answer:
+      "No. There is no partnership fee or cut of your sales — it's set up this way because we truly believe that everyone benefits. You offer members a great perk, and in exchange we get to share it with new and expecting parents in Amsterdam who will be excited to use it. Collaboration and community are the values we live by ❤️",
+  },
+  {
+    question: "Do I need to offer an exclusive discount?",
+    answer:
+      "No, you don't need to make your perk exclusive. That said, perks that are exclusive to Postpartum Post members (not available elsewhere, including your own website) get extra visibility, like featured placement and priority in our popular bi-weekly activities newsletter and social posts.",
+  },
+  {
+    question: "How do members access perks?",
+    answer:
+      "Members see the available Post Perks on their monthly match page, which is sent to all opted-in members on the 7th of the month.",
+  },
+  {
+    question: "Can I add, edit, or remove perks at any time?",
+    answer:
+      "You can add or edit perks at any time through your partner portal; we review and publish changes within 5 business days. If you wish to remove a perk, let us know before the 23rd of the month and we'll make sure it's not in the next month's Post Perks list going out on the 7th.",
+  },
+  {
+    question: "Is there a contract, and can I end the partnership later?",
+    answer:
+      "There's no long-term contract to sign or fixed commitment. We partner for as long as you a) have a planned or active Post Perk, and b) you continue to honor your perk as listed. If you ever want to end the partnership, just let us know by the 23rd of the month and your remaining perks will come off the platform by the 1st of the next month. We will give you the same notice before the 23rd if we feel like the partnership isn't working on our side. We can always revisit at a later date ❤️",
+  },
+];
+
 export default function PartnerSplash() {
   return (
     <div className="space-y-16">
@@ -376,6 +413,12 @@ export default function PartnerSplash() {
           <PartnerLeadForm defaultEmail="" />
         </div>
       </div>
+
+      {/* FAQ — partner-facing questions, sourced from the partnership terms */}
+      <FAQ
+        faqs={PARTNER_FAQS}
+        subheading="Curious before you reach out? Here's what other partners often ask."
+      />
     </div>
   );
 }
