@@ -354,50 +354,109 @@ function guessBusinessNameFromUrl(url: string): string {
   }
 }
 
-export type PerkIdeaInput = { url: string };
+export type PerkIdeaInput = {
+  url: string;
+  // The "win 1 of 3 free trials when Post Perks launches" checkbox —
+  // wantsGiveaway gates whether email/name are required and whether a
+  // perk_giveaway_entries row gets created. See db/migrations/025_perk_giveaway_entries.sql.
+  wantsGiveaway?: boolean;
+  name?: string;
+  email?: string;
+};
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * The tiny "know a place?" box on the still-in-development /perks page —
- * public, anonymous, no name/email collected, just a link. Deliberately
- * files as an 'idea' lead (Alex's own reasoning bucket) rather than 'new'
- * (a business applying for itself), since this is a member suggesting
- * someone else's business, not that business reaching out.
+ * The "know a place?" box on the still-in-development /perks page. Always
+ * public, no account needed — but no longer fully anonymous: checking
+ * "win 1 of 3 free trials when Post Perks launches" collects name (optional)
+ * + email (required) and creates a giveaway entry alongside the
+ * suggestion. Deliberately files the suggestion itself as an 'idea' lead
+ * (Alex's own reasoning bucket) rather than 'new' (a business applying for
+ * itself), since this is a member suggesting someone else's business, not
+ * that business reaching out.
  *
  * If the link already matches an existing lead (see lib/lead-matching.ts),
  * this only adds a note to it rather than reusing mergeIntoLead's
  * idea->new promotion — a member's suggestion isn't the business itself
  * confirming interest, so the status shouldn't move.
+ *
+ * The giveaway entry is intentionally its own table
+ * (perk_giveaway_entries), not folded into partner_leads: mergeIntoLead
+ * only backfills a lead's email/name when that field is currently empty,
+ * so a second person suggesting the same already-known business would have
+ * their entry silently dropped if it lived on the lead row instead. See
+ * that migration's comment and __claude__/free-trial-plan.md.
  */
-export async function submitPerkIdea(input: PerkIdeaInput): Promise<{ success: boolean; error?: string }> {
+export async function submitPerkIdea(
+  input: PerkIdeaInput,
+): Promise<{ success: boolean; error?: string; giveawayError?: string }> {
   const url = input.url.trim();
   if (!url) {
     return { success: false, error: "Add a link first" };
   }
 
+  const wantsGiveaway = input.wantsGiveaway === true;
+  const name = input.name?.trim() || null;
+  const email = input.email?.trim().toLowerCase() || "";
+  if (wantsGiveaway && !EMAIL_RE.test(email)) {
+    return { success: false, error: "Add a valid email to enter the drawing" };
+  }
+
   const supabase = createAdminClient();
   const businessName = guessBusinessNameFromUrl(url);
 
+  let leadId: string | null = null;
+
   const match = await findMatchingLead(supabase, businessName, url);
   if (match) {
+    leadId = match.id;
     const notes = [...(match.notes ?? []), createLeadNote(`Suggested again via the /perks page: ${url}`)];
     const { error } = await supabase.from("partner_leads").update({ notes }).eq("id", match.id);
     if (error) {
       console.error("[submitPerkIdea] merge update error:", error.message);
       return { success: false, error: "Couldn't submit — try again" };
     }
+  } else {
+    const { data, error } = await supabase
+      .from("partner_leads")
+      .insert({
+        business_name: businessName,
+        url,
+        notes: [createLeadNote("Suggested by a member via the /perks page.")],
+        status: "idea",
+      })
+      .select("id")
+      .single();
+    if (error || !data) {
+      console.error("[submitPerkIdea] insert error:", error?.message);
+      return { success: false, error: "Couldn't submit — try again" };
+    }
+    leadId = data.id as string;
+  }
+
+  if (!wantsGiveaway) {
     return { success: true };
   }
 
-  const { error } = await supabase.from("partner_leads").insert({
-    business_name: businessName,
+  const { error: entryError } = await supabase.from("perk_giveaway_entries").insert({
+    name,
+    email,
     url,
-    notes: [createLeadNote("Suggested by a member via the /perks page.")],
-    status: "idea",
+    partner_lead_id: leadId,
   });
-  if (error) {
-    console.error("[submitPerkIdea] insert error:", error.message);
-    return { success: false, error: "Couldn't submit — try again" };
+  if (entryError) {
+    console.error("[submitPerkIdea] giveaway entry insert error:", entryError.message);
+    // The suggestion itself was saved above — don't tell the member the
+    // whole submission failed, but do surface that their entry specifically
+    // didn't go through, since a real prize-eligibility commitment to a
+    // real person should never fail silently.
+    return {
+      success: true,
+      giveawayError: "Your suggestion was sent, but we couldn't save your giveaway entry — try again or email us.",
+    };
   }
+
   return { success: true };
 }
 
