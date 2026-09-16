@@ -7,6 +7,7 @@ import { StampSVG } from "@/components/StampIcons";
 import Sparkle from "@/components/Sparkle";
 import WordMark from "@/components/WordMark";
 import PostPerksWordMark from "@/components/PostPerksWordMark";
+import AnimatedSparkleDivider from "@/components/AnimatedSparkleDivider";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 
 // ---------------------------------------------------------------------------
@@ -118,42 +119,7 @@ const EXAMPLE_PERKS: { icon: (fill: string, stroke: string) => React.ReactNode; 
  * to /partners/login, rather than an inline widget — keeps this page
  * focused on the pitch instead of also carrying sign-in mechanics.
  */
-/**
- * Sparkle divider above "What's a Post Perk?" — plays the shared .wiggle
- * keyframe (app/globals.css) once when scrolled into view, rather than on
- * hover like SubscribeSection's envelope or GiftBow's group-hover variant,
- * since there's nothing to hover here as the page scrolls past it.
- */
-function AnimatedSparkleDivider() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [wiggling, setWiggling] = useState(false);
-
-  useEffect(() => {
-    const target = ref.current;
-    if (!target) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setWiggling(true);
-          // Reset once the animation finishes so scrolling away and back
-          // (or a later remount) can retrigger it.
-          setTimeout(() => setWiggling(false), 550);
-        }
-      },
-      { threshold: 0.5 }
-    );
-
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div ref={ref} className="flex justify-center mb-4">
-      <Sparkle className={`w-20 h-auto${wiggling ? " wiggle" : ""}`} />
-    </div>
-  );
-}
+// AnimatedSparkleDivider now lives in components/AnimatedSparkleDivider.tsx (shared with /perks).
 
 /**
  * Carousel for the example-perk cards — mirrors PersonaCards' pagination
