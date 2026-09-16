@@ -3,6 +3,8 @@
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { currentMonth, monthToDate } from "@/lib/tokens";
+import { optinDeadlineUTC } from "@/lib/optin-window";
+import { GIFT_ENTITLEMENT_NOTE } from "@/lib/match-ledger";
 import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +39,12 @@ export type BaseStats = {
   newThisMonth: number;
   momPercent: number | null;
   planBreakdown: PlanBreakdown;
+  /** Currently gift-covered — most recent term_payment entitlement tagged
+   *  'gift'. Everyone else (including a former gift member now on a real
+   *  charge, and FYP/comped members who never hit the ledger at all) counts
+   *  as paid — see getBaseStats's docblock. */
+  giftCount: number;
+  paidCount: number;
 };
 
 export type RevenueMonth = { month: string; label: string; amountCents: number };
@@ -48,6 +56,7 @@ export type MatchRoundStats = {
   coffee: number;
   playdate: number;
   skipped: number;
+  joinedAfterRound: number;
   noResponse: number;
 };
 
@@ -122,12 +131,47 @@ export async function getBaseStats(): Promise<BaseStats> {
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count);
 
+  // Paid vs. gift: read from the same match_entitlements ledger
+  // lib/billing-notice.ts uses for "first charge after a gift" — a
+  // member's *most recent* term_payment row, tagged 'gift'
+  // (GIFT_ENTITLEMENT_NOTE) by the invoice.payment_succeeded webhook
+  // whenever the invoice it came from was covered by an active gift
+  // coupon (lib/gift-cards.ts). Once that coupon's repeating duration
+  // runs out, Stripe drops the discount and the *next* invoice's
+  // term_payment row carries no note — so a member who started on a gift
+  // and is now paying for real shows up as paid here, automatically, with
+  // no separate "convert" step. Fetched ordered newest-first and deduped
+  // per member (same idiom as `subs` above), so only the latest row per
+  // member counts. A member with no term_payment row at all — FYP/comped
+  // members are explicitly excluded from this ledger (see
+  // lib/match-ledger.ts's FYP_LOOKUP_KEYS docblock), as is anyone who
+  // hasn't reached their first renewal since the ledger launched — falls
+  // through to "paid" by default, which is correct: absence of a gift tag
+  // means nothing is currently discounting them.
+  const { data: termPayments } = activeMemberIds.length
+    ? await supabase
+        .from("match_entitlements")
+        .select("member_id, note")
+        .in("member_id", activeMemberIds)
+        .eq("event", "term_payment")
+        .order("created_at", { ascending: false })
+    : { data: [] };
+
+  const seenPaymentMembers = new Set<string>();
+  let giftCount = 0;
+  for (const row of termPayments ?? []) {
+    if (seenPaymentMembers.has(row.member_id)) continue;
+    seenPaymentMembers.add(row.member_id);
+    if (row.note === GIFT_ENTITLEMENT_NOTE) giftCount++;
+  }
+
   const active = totalActive ?? 0;
   const newN = newThisMonth ?? 0;
   const prev = active - newN;
   const momPercent = prev > 0 ? Math.round((newN / prev) * 100) : null;
+  const paidCount = active - giftCount;
 
-  return { totalActive: active, newThisMonth: newN, momPercent, planBreakdown };
+  return { totalActive: active, newThisMonth: newN, momPercent, planBreakdown, giftCount, paidCount };
 }
 
 // ---------------------------------------------------------------------------
@@ -189,8 +233,12 @@ export async function getMatchRoundStats(): Promise<MatchRoundStats> {
   const supabase = createAdminClient();
   const monthStr = currentMonth();
   const monthDate = monthToDate(monthStr);
+  // The instant this month's opt-in window closed (see lib/optin-window.ts)
+  // — anyone who joined at or after this had no chance to opt in or skip
+  // for this round at all, so they shouldn't read as a non-responder.
+  const deadline = optinDeadlineUTC(monthStr);
 
-  const [{ count: totalActive }, { data: participations }, { count: skipped }] =
+  const [{ count: totalActive }, { data: participations }, { count: skipped }, { count: joinedAfterRound }] =
     await Promise.all([
       supabase
         .from("members")
@@ -204,6 +252,11 @@ export async function getMatchRoundStats(): Promise<MatchRoundStats> {
         .from("monthly_skips")
         .select("*", { count: "exact", head: true })
         .eq("month", monthDate),
+      supabase
+        .from("members")
+        .select("*", { count: "exact", head: true })
+        .in("status", ["active", "canceling"])
+        .gte("created_at", deadline),
     ]);
 
   const active = totalActive ?? 0;
@@ -215,9 +268,19 @@ export async function getMatchRoundStats(): Promise<MatchRoundStats> {
     (p) => (p.topics as unknown as { name: string } | null)?.name === "playdate"
   ).length;
   const skippedN = skipped ?? 0;
-  const noResponse = Math.max(0, active - optedIn - skippedN);
+  const joinedAfterRoundN = joinedAfterRound ?? 0;
+  const noResponse = Math.max(0, active - optedIn - skippedN - joinedAfterRoundN);
 
-  return { month: monthStr, totalActive: active, optedIn, coffee, playdate, skipped: skippedN, noResponse };
+  return {
+    month: monthStr,
+    totalActive: active,
+    optedIn,
+    coffee,
+    playdate,
+    skipped: skippedN,
+    joinedAfterRound: joinedAfterRoundN,
+    noResponse,
+  };
 }
 
 // ---------------------------------------------------------------------------

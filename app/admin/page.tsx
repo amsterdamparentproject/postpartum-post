@@ -62,7 +62,7 @@ export default async function AdminStatsPage() {
             <StatCard
               label="Active members"
               value={base.totalActive}
-              sub={base.newThisMonth > 0 ? `+${base.newThisMonth} this month` : "No new members this month"}
+              sub={`${pct(base.paidCount, base.totalActive)}% paid \u00b7 ${pct(base.giftCount, base.totalActive)}% gift`}
             />
             <StatCard
               label="Growth this month"
@@ -125,6 +125,12 @@ export default async function AdminStatsPage() {
             />
             <RoundRow label="Skipped" count={round.skipped} total={round.totalActive} />
             <RoundRow label="No response" count={round.noResponse} total={round.totalActive} />
+            <RoundRow
+              label="Joined after round"
+              count={round.joinedAfterRound}
+              total={round.totalActive}
+              sub="Signed up after this round's opt-in window closed — not eligible yet"
+            />
           </div>
         </section>
 

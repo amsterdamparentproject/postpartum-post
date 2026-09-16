@@ -42,3 +42,41 @@ export function isOptinWindowOpen(now: Date = new Date()): boolean {
 export function daysLeftToOptin(now: Date = new Date()): number {
   return Math.max(0, OPTIN_DEADLINE_DAY - amsterdamDayOfMonth(now) + 1);
 }
+
+/**
+ * The Amsterdam UTC offset (in minutes) actually in effect at `date` — +1h
+ * (CET) roughly Nov-Mar, +2h (CEST) roughly Mar-Oct. Read via Intl rather
+ * than hardcoded, so it stays correct across the DST transition without
+ * tracking the EU's specific transition dates here.
+ */
+function amsterdamOffsetMinutes(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: AMSTERDAM_TZ,
+    timeZoneName: "shortOffset",
+  }).formatToParts(date);
+  const tzName = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT+1";
+  const match = tzName.match(/GMT([+-]\d+)/);
+  return (match ? parseInt(match[1], 10) : 1) * 60;
+}
+
+/**
+ * The exact instant the opt-in window for `month` (YYYY-MM) closes — 00:00
+ * Amsterdam time on the 6th, the same moment the matcher runs (see this
+ * file's top docblock). Returned as a UTC ISO string, for comparing against
+ * a Postgres timestamptz column (e.g. members.created_at) directly: a
+ * member with created_at at or after this instant joined too late to have
+ * had any opt-in window for `month`'s round at all — see getMatchRoundStats
+ * (app/admin/stats/actions.ts), which uses this to split "joined after
+ * round" out from genuine non-responders.
+ *
+ * Safe to resolve the UTC offset from a same-day UTC guess rather than the
+ * true target instant (up to ~2h off): the 6th of any month never falls
+ * near the EU's actual DST transition (last Sunday of March/October), so
+ * both instants always share one unambiguous offset.
+ */
+export function optinDeadlineUTC(month: string): string {
+  const [year, mo] = month.split("-").map(Number);
+  const guess = new Date(Date.UTC(year, mo - 1, OPTIN_DEADLINE_DAY + 1, 0, 0, 0));
+  const offsetMinutes = amsterdamOffsetMinutes(guess);
+  return new Date(guess.getTime() - offsetMinutes * 60_000).toISOString();
+}
