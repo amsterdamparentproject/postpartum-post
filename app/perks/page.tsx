@@ -3,6 +3,7 @@ import PageLayout from "@/components/PageLayout";
 import PerkIdeaForm from "@/components/PerkIdeaForm";
 import PostPerksWordMark from "@/components/PostPerksWordMark";
 import AnimatedSparkleDivider from "@/components/AnimatedSparkleDivider";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Perks · Postpartum Post",
@@ -37,6 +38,16 @@ export default function PerksPage() {
           </p>
         </div>
         <PerkIdeaForm />
+        <div className="bg-white/80 border border-green-light rounded-2xl shadow-sm px-6 py-4 max-w-md mx-auto text-sm text-dark hover:bg-green-light/20 transition-colors">
+          Want to offer a Post Perk?{" "}
+          <Link
+            href="/partners"
+            className="text-coral font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity"
+          >
+            Head on over to our Partners page
+          </Link>{" "}
+          for more info.
+        </div>
       </main>
     </PageLayout>
   );
