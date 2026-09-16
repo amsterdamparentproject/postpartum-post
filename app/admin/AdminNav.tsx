@@ -1,3 +1,4 @@
+import EnvelopeLogo from "@/components/EnvelopeLogo";
 import Link from "next/link";
 
 export default function AdminNav({ active }: { active: "stats" | "matches" | "demographics" | "partners" }) {
@@ -7,7 +8,10 @@ export default function AdminNav({ active }: { active: "stats" | "matches" | "de
 
   return (
     <div className="flex items-center justify-between">
-      <span className="text-sm font-semibold text-dark">PostStats</span>
+      <div className="flex items-center gap-4">
+        <EnvelopeLogo className="w-8 h-auto" />
+        <span className="text-lg font-semibold text-coral" style={{ fontFamily: "var(--font-serif)" }}>PostAdmin</span>
+      </div>
       <nav className="flex gap-1">
         <Link href="/admin" className={active === "stats" ? on : off}>Stats</Link>
         <Link href="/admin/matches" className={active === "matches" ? on : off}>Matches</Link>
