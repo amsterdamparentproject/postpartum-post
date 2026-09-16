@@ -8,6 +8,7 @@ import EnvelopeLogo from "@/components/EnvelopeLogo";
 const NAV_LINKS = [
   { href: "/about", label: "About" },
   { href: "/partners", label: "Partners" },
+  { href: "/perks", label: "Perks" },
   // "Your Post" covers the whole (account) route group, not just /profile —
   // those routes share a URL prefix only through the group's folder name,
   // which Next.js drops from the actual path, so each one is listed here.
