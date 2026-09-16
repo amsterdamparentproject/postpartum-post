@@ -3,6 +3,9 @@
 import { createAdminClient } from "@/lib/supabase";
 import { createLeadNote, type LeadNote } from "@/lib/lead-notes";
 import { findMatchingLead, mergeIntoLead } from "@/lib/lead-matching";
+import { sendPartnerWelcomeEmail } from "@/lib/emails/partner-welcome";
+import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
+import { SITE_URL } from "@/lib/emails/base";
 
 // ---------------------------------------------------------------------------
 // Leads
@@ -358,6 +361,27 @@ export async function convertLeadToPartner(
   if (leadError) {
     // Partner row exists either way — worth surfacing, not worth rolling back.
     console.error("[convertLeadToPartner] lead update error:", leadError.message);
+  }
+
+  // Signed magic link so "Sign in to your portal" in the welcome email
+  // signs the partner straight into /partners/profile — same pattern
+  // app/api/send-match-emails/route.ts uses for member emails. Falls back
+  // to a plain /partners/login URL (a normal, if slightly slower, sign-in)
+  // if link generation fails, rather than blocking the welcome email on it.
+  const loginUrl = `${SITE_URL}/partners/login`;
+  const linkResult = await generateMagicLinkWithRetry(supabase, email, `${SITE_URL}/partners/profile`);
+  if (!linkResult.success) {
+    console.error("[convertLeadToPartner] generateLink failed:", linkResult.error);
+  }
+  const portalUrl = linkResult.success ? linkResult.url : loginUrl;
+
+  // Fire-and-forget — the partner row is already saved above regardless of
+  // whether this welcome email succeeds (same call submitPartnerLead makes
+  // for its own notification email).
+  try {
+    await sendPartnerWelcomeEmail({ firstName, businessName, email, portalUrl });
+  } catch (emailError) {
+    console.error("[convertLeadToPartner] welcome email failed:", emailError);
   }
 
   return { success: true, partnerId: partner.id as string };

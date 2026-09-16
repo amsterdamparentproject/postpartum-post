@@ -26,6 +26,7 @@ import { sendRematchConfirmationEmail } from "../lib/emails/rematch-confirmation
 import { sendMemberUpdateEmail } from "../lib/emails/member-update.ts";
 import { sendMeetupReminderEmail } from "../lib/emails/meetup-reminder.ts";
 import { sendPendingFollowupEmail } from "../lib/emails/pending-followup.ts";
+import { sendPartnerWelcomeEmail } from "../lib/emails/partner-welcome.ts";
 
 const args = process.argv.slice(2);
 const isEmail = (s: string) => s.includes("@");
@@ -157,8 +158,20 @@ await send("pending-followup", () =>
   sendPendingFollowupEmail(TO, "Alex", "Test")
 );
 
+await send("partner-welcome", () =>
+  // Plain (unsigned) URL here — the real send generates a magic link via
+  // convertLeadToPartner (app/admin/partners/actions.ts); this preview
+  // only needs something to render in the button.
+  sendPartnerWelcomeEmail({
+    firstName: "Jamie",
+    businessName: "Jamie's Coffee House",
+    email: TO,
+    portalUrl: "https://postpartumpost.com/partners/login",
+  })
+);
+
 if (results.length === 0 && filter) {
-  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, auto-pause, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, member-update, meetup-reminder, pending-followup`);
+  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, auto-pause, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, member-update, meetup-reminder, pending-followup, partner-welcome`);
   process.exit(1);
 }
 
