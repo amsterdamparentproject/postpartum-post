@@ -718,15 +718,6 @@ function LeadsTab() {
   const filteredLeads =
     statusFilter === "all" ? leads ?? [] : (leads ?? []).filter((l) => l.status === statusFilter);
 
-  // Only the "All" view keeps the open/closed split — once a specific
-  // status is picked, that's already the filter, so show a single flat list.
-  const openLeads =
-    statusFilter === "all"
-      ? filteredLeads.filter((l) => l.status === "idea" || l.status === "new" || l.status === "contacted")
-      : filteredLeads;
-  const closedLeads =
-    statusFilter === "all" ? filteredLeads.filter((l) => l.status === "converted" || l.status === "rejected") : [];
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -774,25 +765,12 @@ function LeadsTab() {
         <p className="text-sm text-muted">No leads with this status.</p>
       )}
 
-      {openLeads.length > 0 && (
+      {filteredLeads.length > 0 && (
         <div className="space-y-3">
-          {openLeads.map((lead) => (
+          {filteredLeads.map((lead) => (
             <LeadCard key={lead.id} lead={lead} onChanged={reload} />
           ))}
         </div>
-      )}
-
-      {closedLeads.length > 0 && (
-        <details className="pt-2">
-          <summary className="text-sm text-muted cursor-pointer hover:text-dark transition">
-            {closedLeads.length} converted or not-a-fit lead{closedLeads.length === 1 ? "" : "s"}
-          </summary>
-          <div className="space-y-3 mt-3">
-            {closedLeads.map((lead) => (
-              <LeadCard key={lead.id} lead={lead} onChanged={reload} />
-            ))}
-          </div>
-        </details>
       )}
     </div>
   );
