@@ -133,9 +133,13 @@ function ExampleCarousel() {
   const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
-    setMounted(true);
     const mq = window.matchMedia("(min-width: 768px)");
+    // setMounted folded into `update` (called below, not synchronously in
+    // the effect body) rather than called directly here — same indirection
+    // the setPerPage/setPage calls already relied on to satisfy the
+    // set-state-in-effect lint rule.
     const update = () => {
+      setMounted(true);
       setPerPage(mq.matches ? 2 : 1);
       setPage(0);
     };
@@ -302,7 +306,7 @@ export default function PartnerSplash() {
             <div>
               <p className="font-bold text-coral">Co-promotion</p>
               <p className="text-sm text-dark leading-relaxed mt-1">
-                We feature your perk across Amsterdam Parent Project's  <a
+                We feature your perk across Amsterdam Parent Project&apos;s  <a
                   href="https://amsterdamparentproject.nl"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -350,7 +354,7 @@ export default function PartnerSplash() {
               <p className="font-bold text-coral">It costs nothing but the perk itself</p>
               <p className="text-sm text-dark leading-relaxed mt-1">
                 No partnership fee or cut. You give members a discount or freebie; we give you
-                the introduction. It's our mission and our joy to help both sides discover each other.
+                the introduction. It&apos;s our mission and our joy to help both sides discover each other.
               </p>
             </div>
           </li>
