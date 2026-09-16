@@ -416,6 +416,136 @@ export async function addPartner(
 }
 
 // ---------------------------------------------------------------------------
+// Partners list — for associating an admin-added perk with an existing
+// partner. Every row in `partners` is already a converted partner by
+// definition (conversion is what creates the row, via convertLeadToPartner
+// or addPartner above), so this is simply "all partners."
+// ---------------------------------------------------------------------------
+
+export type PartnerOption = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  business_name: string;
+  url: string | null;
+  email: string | null; // null = no portal access yet
+};
+
+export async function listPartners(): Promise<PartnerOption[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("partners")
+    .select("id, first_name, last_name, business_name, url, email")
+    .order("business_name", { ascending: true });
+  if (error) {
+    console.error("[listPartners] query error:", error.message);
+    return [];
+  }
+  return (data ?? []) as PartnerOption[];
+}
+
+export type PartnerLocationOption = {
+  id: string;
+  label: string | null;
+  address: string;
+};
+
+export async function listPartnerLocations(partnerId: string): Promise<PartnerLocationOption[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("partner_locations")
+    .select("id, label, address")
+    .eq("partner_id", partnerId)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("[listPartnerLocations] query error:", error.message);
+    return [];
+  }
+  return (data ?? []) as PartnerLocationOption[];
+}
+
+/**
+ * Edits a partner's core identifying fields — the "Edit" button on a
+ * partner card. Same field set and validation shape as updateLeadDetails,
+ * just keyed on partners instead of partner_leads: business name/first/
+ * last name required, url/email optional. An email change is re-checked
+ * for uniqueness (partners.email has a unique constraint) same as
+ * convertLeadToPartner/addPartner's own checks — this is also the login
+ * identity, so a collision would silently break someone else's portal
+ * access.
+ */
+export type UpdatePartnerInput = {
+  partnerId: string;
+  businessName: string;
+  url: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+
+export async function updatePartner(
+  input: UpdatePartnerInput,
+): Promise<{ success: boolean; error?: string }> {
+  const businessName = input.businessName.trim();
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const url = input.url.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!businessName || !firstName || !lastName) {
+    return { success: false, error: "Business name, first name, and last name are required" };
+  }
+
+  const supabase = createAdminClient();
+
+  if (email) {
+    const { data: existing } = await supabase
+      .from("partners")
+      .select("id")
+      .eq("email", email)
+      .neq("id", input.partnerId)
+      .maybeSingle();
+    if (existing) {
+      return { success: false, error: "A partner with that email already exists" };
+    }
+  }
+
+  const { error } = await supabase
+    .from("partners")
+    .update({
+      business_name: businessName,
+      url: url || null,
+      first_name: firstName,
+      last_name: lastName,
+      email: email || null,
+    })
+    .eq("id", input.partnerId);
+
+  if (error) {
+    console.error("[updatePartner] update error:", error.message);
+    return { success: false, error: "Couldn't save — try again" };
+  }
+  return { success: true };
+}
+
+/**
+ * Permanently removes a partner — the trash icon on a partner card, same
+ * "genuine mistake, not a status change" semantics as deleteLead. Hard
+ * delete: partner_locations and perks both cascade on partner_id (see
+ * db/migrations/024_perks.sql), so this also removes their locations and
+ * every perk tied to them, live or not — worth the confirm step already
+ * built into the UI.
+ */
+export async function deletePartner(partnerId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("partners").delete().eq("id", partnerId);
+  if (error) {
+    console.error("[deletePartner] delete error:", error.message);
+    return { success: false, error: "Couldn't delete — try again" };
+  }
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // Perk review queue
 // ---------------------------------------------------------------------------
 
@@ -425,30 +555,53 @@ export type ReviewPerk = {
   id: string;
   status: PerkReviewStatus;
   created_at: string;
+  location_id: string | null;
+  partner_link: string | null;
   perk_title: string;
   perk_description: string;
   perk_discount: string;
+  redemption_instructions: string | null;
+  perk_redemption_code: string | null;
+  perk_redemption_url: string | null;
+  expires_at: string | null;
   exclusive: boolean;
   partner_id: string;
   partner_name: string;
+  category_ids: string[];
 };
 
 /**
  * Reads the perks_partners view (db/migrations/024_perks.sql) so the queue
  * gets the partner's business_name in one query instead of a second lookup
- * per perk — same join the eventual public /perks page will use.
+ * per perk — same join the eventual public /perks page will use. Selects
+ * every editable field, not just the review-card display fields, so
+ * PerkCard's "Edit" form (updatePerkAdmin below) doesn't need a second
+ * per-perk fetch — same tradeoff listPartnerPerks already makes for the
+ * partner-portal "Your Perks" tab.
  */
 export async function listPerksForReview(): Promise<ReviewPerk[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  const { data: perks, error } = await supabase
     .from("perks_partners")
-    .select("id, status, created_at, perk_title, perk_description, perk_discount, exclusive, partner_id, partner_name")
+    .select(
+      "id, status, created_at, location_id, partner_link, perk_title, perk_description, perk_discount, redemption_instructions, perk_redemption_code, perk_redemption_url, expires_at, exclusive, partner_id, partner_name",
+    )
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[listPerksForReview] query error:", error.message);
     return [];
   }
-  return (data ?? []) as ReviewPerk[];
+  if (!perks || perks.length === 0) return [];
+
+  const { data: links } = await supabase
+    .from("perks_category_links")
+    .select("perk_id, category_id")
+    .in("perk_id", perks.map((p) => p.id));
+
+  return perks.map((p) => ({
+    ...p,
+    category_ids: (links ?? []).filter((l) => l.perk_id === p.id).map((l) => l.category_id),
+  })) as ReviewPerk[];
 }
 
 export async function setPerkStatus(
@@ -463,3 +616,186 @@ export async function setPerkStatus(
   }
   return { success: true };
 }
+
+export type UpdatePerkInput = {
+  perkId: string;
+  status: PerkReviewStatus;
+  location_id: string | null;
+  partner_link: string;
+  perk_title: string;
+  perk_description: string;
+  perk_discount: string;
+  redemption_instructions: string;
+  perk_redemption_code: string;
+  perk_redemption_url: string;
+  expires_at: string; // "" = no expiry
+  exclusive: boolean;
+  category_ids: string[];
+};
+
+/**
+ * Full-content edit from the admin Perks queue — the "Edit" button on a
+ * PerkCard, for perks submitted through the partner portal as much as
+ * ones Alex added herself. Unlike savePartnerPerk (the partner-portal
+ * counterpart), this never forces source or status: Alex is the reviewer,
+ * so her own edit doesn't need to re-queue itself for review, and status
+ * is whatever she sets here (independent of PerkCard's own quick-action
+ * buttons, which still work the same way). partner_id is deliberately not
+ * editable here — reassigning a perk to a different partner isn't a real
+ * edit case, it's closer to delete-and-recreate (addPerkForPartner below).
+ */
+export async function updatePerkAdmin(
+  input: UpdatePerkInput,
+): Promise<{ success: boolean; error?: string }> {
+  const title = input.perk_title.trim();
+  const description = input.perk_description.trim();
+  const discount = input.perk_discount.trim();
+  if (!title || !description || !discount) {
+    return { success: false, error: "Title, description, and discount are required" };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: existing } = await supabase
+    .from("perks")
+    .select("id, partner_id")
+    .eq("id", input.perkId)
+    .maybeSingle();
+  if (!existing) return { success: false, error: "Perk not found" };
+
+  if (input.location_id) {
+    const { data: loc } = await supabase
+      .from("partner_locations")
+      .select("id")
+      .eq("id", input.location_id)
+      .eq("partner_id", existing.partner_id)
+      .maybeSingle();
+    if (!loc) return { success: false, error: "Location not found" };
+  }
+
+  const { error } = await supabase
+    .from("perks")
+    .update({
+      status: input.status,
+      location_id: input.location_id,
+      partner_link: input.partner_link.trim() || null,
+      perk_title: title,
+      perk_description: description,
+      perk_discount: discount,
+      redemption_instructions: input.redemption_instructions.trim() || null,
+      perk_redemption_code: input.perk_redemption_code.trim() || null,
+      perk_redemption_url: input.perk_redemption_url.trim() || null,
+      expires_at: input.expires_at || null,
+      exclusive: input.exclusive,
+    })
+    .eq("id", input.perkId);
+
+  if (error) {
+    console.error("[updatePerkAdmin] update error:", error.message);
+    return { success: false, error: "Couldn't save — try again" };
+  }
+
+  // Category links: delete + re-insert, same as savePartnerPerk.
+  await supabase.from("perks_category_links").delete().eq("perk_id", input.perkId);
+  if (input.category_ids.length > 0) {
+    await supabase.from("perks_category_links").insert(
+      input.category_ids.map((category_id) => ({ perk_id: input.perkId, category_id })),
+    );
+  }
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Add perk directly (no partner-portal submission) — Alex adding a perk on
+// behalf of a partner she's already worked out the details with, so it's
+// there waiting the first time they open their own portal.
+// ---------------------------------------------------------------------------
+
+export type AdminPerkInput = {
+  partner_id: string;
+  location_id: string | null;
+  partner_link: string;
+  perk_title: string;
+  perk_description: string;
+  perk_discount: string;
+  redemption_instructions: string;
+  perk_redemption_code: string;
+  perk_redemption_url: string;
+  expires_at: string; // "" = no expiry
+  exclusive: boolean;
+  category_ids: string[];
+  status: PerkReviewStatus;
+};
+
+/**
+ * The admin counterpart to savePartnerPerk (app/actions/partners.ts):
+ * always forces source: 'manual' rather than 'partner_portal', and —
+ * unlike that action — trusts the admin-chosen status directly instead of
+ * forcing 'pending', since Alex is the one who'd be reviewing it anyway.
+ * listPartnerPerks has no source filter, so the perk shows up in that
+ * partner's own "Your Perks" tab right away; if they edit it there,
+ * savePartnerPerk's own rule sends it back to 'pending' for re-review,
+ * same as any partner-authored edit.
+ */
+export async function addPerkForPartner(
+  input: AdminPerkInput,
+): Promise<{ success: boolean; error?: string; perkId?: string }> {
+  const title = input.perk_title.trim();
+  const description = input.perk_description.trim();
+  const discount = input.perk_discount.trim();
+  if (!input.partner_id || !title || !description || !discount) {
+    return { success: false, error: "Partner, title, description, and discount are required" };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: partner } = await supabase
+    .from("partners")
+    .select("id")
+    .eq("id", input.partner_id)
+    .maybeSingle();
+  if (!partner) return { success: false, error: "Partner not found" };
+
+  // location_id, if set, must actually belong to this partner.
+  if (input.location_id) {
+    const { data: loc } = await supabase
+      .from("partner_locations")
+      .select("id")
+      .eq("id", input.location_id)
+      .eq("partner_id", input.partner_id)
+      .maybeSingle();
+    if (!loc) return { success: false, error: "Location not found" };
+  }
+
+  const row = {
+    partner_id: input.partner_id,
+    source: "manual" as const,
+    status: input.status,
+    location_id: input.location_id,
+    partner_link: input.partner_link.trim() || null,
+    perk_title: title,
+    perk_description: description,
+    perk_discount: discount,
+    redemption_instructions: input.redemption_instructions.trim() || null,
+    perk_redemption_code: input.perk_redemption_code.trim() || null,
+    perk_redemption_url: input.perk_redemption_url.trim() || null,
+    expires_at: input.expires_at || null,
+    exclusive: input.exclusive,
+  };
+
+  const { data: perk, error } = await supabase.from("perks").insert(row).select("id").single();
+  if (error || !perk) {
+    console.error("[addPerkForPartner] insert error:", error?.message);
+    return { success: false, error: "Couldn't save — try again" };
+  }
+
+  if (input.category_ids.length > 0) {
+    await supabase.from("perks_category_links").insert(
+      input.category_ids.map((category_id) => ({ perk_id: perk.id, category_id })),
+    );
+  }
+
+  return { success: true, perkId: perk.id as string };
+}
+
