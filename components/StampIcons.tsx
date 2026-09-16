@@ -75,3 +75,36 @@ export function GiftStamp({ fill = "rgba(212, 224, 155, 0.18)", stroke = "#8A9E3
     </StampSVG>
   );
 }
+
+/**
+ * Coral by default — matches the base palette of /perks' suggestion card
+ * (PerkIdeaForm), which is where this replaces the plain 🗺️ emoji. The
+ * center circle is punched through to `background` (default: the page's
+ * cream) rather than filled, like a real map-pin's window — pass
+ * background="white" when placing it on a white card, same convention as
+ * every other StampIcons usage.
+ */
+export function LocationStamp({ fill = "rgba(197, 104, 80, 0.08)", stroke = "#C56850", size = 64, background = "#F4EDE6" }: {
+  fill?: string;
+  stroke?: string;
+  size?: number;
+  background?: string;
+}) {
+  return (
+    <StampSVG fill={fill} stroke={stroke} size={size} background={background}>
+      {/* Pin body — narrower and taller than a balloon, with a longer
+          tapering tail, so it reads clearly as a map pin rather than a
+          plain teardrop/circle. */}
+      <path
+        d="M24 4 C16 4 9.5 10.5 9.5 18.5 C9.5 29.5 24 45 24 45 C24 45 38.5 29.5 38.5 18.5 C38.5 10.5 32 4 24 4 Z"
+        fill={stroke}
+        opacity="0.18"
+        stroke={stroke}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      {/* Center window, punched through to the surface behind the stamp */}
+      <circle cx="24" cy="17.5" r="6.75" fill={background} stroke={stroke} strokeWidth="1.2" />
+    </StampSVG>
+  );
+}
