@@ -62,12 +62,14 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 // manual test partners in this DB across a test run if you want them to
 // survive it.
 //
-// Two profiles on purpose, not one: "yoga-studio" has a location and
-// portal access (the common case); "renske" has neither — a Circle-of-
-// Experts-style contributor with no location and, deliberately, no perk —
-// exercising the "no portal access yet" state the admin Partners tab
-// renders (db/migrations/024_perks.sql documents this as a real, supported
-// partner shape, not an edge case).
+// Three profiles: "yoga-studio" has a location and portal access (the
+// common case); "renske" has neither — a Circle-of-Experts-style
+// contributor with no location and, deliberately, no perk — exercising the
+// "no portal access yet" state the admin Partners tab renders
+// (db/migrations/024_perks.sql documents this as a real, supported partner
+// shape, not an edge case); "app-test" is tied to Alex's real inbox
+// (amsterdamparentproject@gmail.com) so there's always a partner-portal
+// login that magic links actually reach after a test run wipes the table.
 // ---------------------------------------------------------------------------
 
 interface ReferenceLocation {
@@ -107,6 +109,16 @@ const REFERENCE_PARTNERS: ReferencePartner[] = [
     description: "IBCLC-certified lactation consultant, home visits across Amsterdam.",
     email: null,
     location: null,
+  },
+  {
+    slug: "app-test",
+    first_name: "Alex",
+    last_name: "Siega",
+    business_name: "Amsterdam Parent Project",
+    url: "https://amsterdamparentproject.nl",
+    description: "Reference partner tied to Alex's inbox for testing the partner portal end to end.",
+    email: "amsterdamparentproject@gmail.com",
+    location: { label: null, address: "Jan Pieter Heijestraat 1, Amsterdam", area: "West" },
   },
 ];
 
