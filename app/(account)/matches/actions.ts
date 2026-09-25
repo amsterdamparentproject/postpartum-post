@@ -177,6 +177,10 @@ export type MatchEntry = {
   active: boolean;
   rematchRequested: boolean;
   rematchRequestedBy: string | null;
+  /** This member's own answer to "Did you meet up?" (defaults to "planning"). */
+  meetupStatus: MeetupStatus;
+  /** Whether this member already submitted feedback tagged with this match. */
+  feedbackSubmitted: boolean;
 };
 
 export type MatchStatus =
@@ -197,13 +201,15 @@ export async function getMatchStatus(accessToken: string): Promise<MatchStatus> 
   const monthDate = monthToDate(currentMonth());
 
   // Fetch all matches ever for this member
-  const { data: rows } = await supabase
+  const { data: rows, error: rowsError } = await supabase
     .from("matches")
     .select(`
       id,
       matched_on,
       rematch_requested,
       rematch_requested_by,
+      met_up_status_1,
+      met_up_status_2,
       member_id_1,
       member_id_2,
       member1:member_id_1 ( id, first_name, last_name, email ),
@@ -212,11 +218,24 @@ export async function getMatchStatus(accessToken: string): Promise<MatchStatus> 
     .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`)
     .order("matched_on", { ascending: false });
 
+  // Don't fail silently — a bad select (e.g. a column from an unapplied
+  // migration) otherwise looks exactly like "this member has no matches".
+  if (rowsError) console.error("[getMatchStatus] matches query failed:", rowsError);
+
   // Look up this member's topic per month from their participation history
   const { data: participationRows } = await supabase
     .from("monthly_participation")
     .select("month, topics(name)")
     .eq("member_id", memberId);
+
+  // Match ids this member has already left feedback on (match_feedback.match_ids)
+  const { data: feedbackRows } = await supabase
+    .from("match_feedback")
+    .select("match_ids")
+    .eq("member_id", memberId);
+  const feedbackMatchIds = new Set<string>(
+    (feedbackRows ?? []).flatMap((r) => (r.match_ids as string[] | null) ?? [])
+  );
 
   const topicByMonth = new Map<string, string>(
     (participationRows ?? []).map((p) => [
@@ -243,6 +262,8 @@ export async function getMatchStatus(accessToken: string): Promise<MatchStatus> 
       active: isCurrentMonth,
       rematchRequested: !!match.rematch_requested,
       rematchRequestedBy: match.rematch_requested_by ?? null,
+      meetupStatus: ((isM1 ? match.met_up_status_1 : match.met_up_status_2) ?? "planning") as MeetupStatus,
+      feedbackSubmitted: feedbackMatchIds.has(match.id),
     };
   });
 
@@ -283,6 +304,64 @@ export async function getMatchStatus(accessToken: string): Promise<MatchStatus> 
   }
 
   return { type: "none", pastMatches };
+}
+
+// ---------------------------------------------------------------------------
+// Meetup check-in — "Did you meet up with <name>?" on the /matches card.
+// Each member answers for their own side of the match (met_up_status_1 for
+// member_id_1, met_up_status_2 for member_id_2); the other side's answer is
+// never touched.
+// ---------------------------------------------------------------------------
+
+export type MeetupStatus = "planning" | "met" | "not_met";
+
+const MEETUP_STATUSES: readonly MeetupStatus[] = ["planning", "met", "not_met"];
+
+export type SetMeetupStatusResult =
+  | { success: true }
+  | { success: false; error: "invalid" | "not_found" | "rematch_requested" | "server_error" };
+
+export async function setMeetupStatus(
+  accessToken: string,
+  matchId: string,
+  status: MeetupStatus,
+): Promise<SetMeetupStatusResult> {
+  if (!MEETUP_STATUSES.includes(status)) return { success: false, error: "invalid" };
+
+  const authed = await requireMember(accessToken);
+  if (!authed) return { success: false, error: "not_found" };
+  const memberId = authed.memberId;
+  const supabase = createAdminClient();
+
+  const { data: match } = await supabase
+    .from("matches")
+    .select("id, member_id_1, member_id_2, rematch_requested")
+    .eq("id", matchId)
+    .maybeSingle();
+
+  // Same "not found" whether the match doesn't exist or isn't theirs, so the
+  // action can't be used to probe other members' match ids.
+  if (!match || (match.member_id_1 !== memberId && match.member_id_2 !== memberId)) {
+    return { success: false, error: "not_found" };
+  }
+
+  // Current and past matches can both be checked in on; a rematch-requested
+  // match can't (mirrors the card, which hides the strip for those).
+  if (match.rematch_requested) {
+    return { success: false, error: "rematch_requested" };
+  }
+
+  const side = match.member_id_1 === memberId ? 1 : 2;
+  const { error } = await supabase
+    .from("matches")
+    .update({ [`met_up_status_${side}`]: status })
+    .eq("id", matchId);
+
+  if (error) {
+    console.error("[setMeetupStatus] update error:", error);
+    return { success: false, error: "server_error" };
+  }
+  return { success: true };
 }
 
 // ---------------------------------------------------------------------------

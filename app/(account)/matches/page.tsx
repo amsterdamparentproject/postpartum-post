@@ -12,7 +12,9 @@ import {
   addExclusionByMemberId,
   deleteExclusion,
   optInFromMatches,
+  setMeetupStatus,
   type MatchStatus,
+  type MeetupStatus,
   type MatchEntry,
   type Exclusion,
   type OptInAction,
@@ -154,8 +156,8 @@ function MatchAdmin({
     <div className="space-y-3">
       {hasAnyMatch && (
         <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-2">
-          <h2 className="font-semibold text-dark text-sm">Match feedback</h2>
-          <p className="text-xs text-muted">Met up with your match? We&apos;d love to hear how it went.</p>
+          <h2 className="font-semibold text-dark text-sm">How are things going?</h2>
+          <p className="text-xs text-muted">We&apos;d love to hear from you about your experiences — with your match and the service in general.</p>
           <Link
             href="/feedback"
             className="inline-block w-full text-center rounded-lg bg-dark text-white text-sm py-2 font-medium hover:opacity-80 transition-opacity"
@@ -192,7 +194,7 @@ function MatchAdmin({
         );
       })()}
       <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-5">
-      <h2 className="font-semibold text-dark text-sm">Parents you won't match with</h2>
+      <h2 className="font-semibold text-dark text-sm">Parents you won&apos;t match with</h2>
 
       {/* Add exclusion form */}
       <form onSubmit={handleAdd} className="space-y-3">
@@ -272,10 +274,30 @@ function MatchedCard({
   disabled?: boolean;
   onExclusionAdded?: () => void;
 }) {
-  const { matchId, token, topic, matchFirstName, matchLastName, matchEmail, matchMemberId, matchedOn, rematchRequested, rematchRequestedBy } = match;
+  const { matchId, token, topic, matchFirstName, matchLastName, matchEmail, matchMemberId, matchedOn, rematchRequested, rematchRequestedBy, meetupStatus, feedbackSubmitted } = match;
   const monthYear = new Date(matchedOn + "T00:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
   const isChanged = !disabled && rematchRequested;
   const isRequester = !!rematchRequestedBy && rematchRequestedBy === memberId;
+  // Meetup check-in + feedback: never for rematch-requested matches. Past
+  // matches always; the current match from the 7th (when matches are revealed).
+  const showMeetup = !rematchRequested && (disabled || new Date().getDate() >= 7);
+  const [meetupAnswer, setMeetupAnswer] = useState<MeetupStatus>(meetupStatus);
+  const [meetupError, setMeetupError] = useState(false);
+
+  function handleMeetupAnswer(next: MeetupStatus) {
+    if (next === meetupAnswer) return;
+    const previous = meetupAnswer;
+    setMeetupAnswer(next); // optimistic
+    setMeetupError(false);
+    setMeetupStatus(accessToken, matchId, next).then((result) => {
+      if (!result.success) {
+        setMeetupAnswer(previous);
+        setMeetupError(true);
+      }
+    });
+  }
+  // Feedback opens up once they've answered met / didn't meet.
+  const showFeedback = showMeetup && (meetupAnswer === "met" || meetupAnswer === "not_met");
   const [showConfirm, setShowConfirm] = useState(false);
   const [isExcluded, setIsExcluded] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -291,7 +313,15 @@ function MatchedCard({
   }
 
   return (
-    <div className={`bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm relative ${showConfirm ? "z-10" : "z-0"} ${disabled ? "opacity-50" : ""}`}>
+    <div
+      className={`backdrop-blur rounded-2xl border shadow-sm relative transition-colors ${showConfirm ? "z-10" : "z-0"} ${
+        showMeetup && meetupAnswer === "met"
+          ? "bg-green/30 border-green"
+          : showMeetup && meetupAnswer === "not_met"
+            ? "bg-purple/15 border-purple/40"
+            : "bg-white/80 border-border"
+      }`}
+    >
       <div className="p-6 space-y-3">
         {/* Content + quick actions */}
         <div className="flex flex-col sm:flex-row sm:items-start gap-3">
@@ -300,22 +330,61 @@ function MatchedCard({
             <div className="flex items-center gap-3">
               <span className="text-3xl">{topic === "coffee" ? "☕" : "🛝"}</span>
               <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
-                {isChanged || disabled
+                {rematchRequested
                   ? topic === "coffee" ? "Coffee match" : "Playdate match"
                   : topic === "coffee" ? `Coffee with ${matchFirstName}` : `Playdate with ${matchFirstName}`}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <p className="text-sm text-muted">{monthYear}</p>
-              <span className={`text-xs rounded-full px-2.5 py-0.5 ${
-                disabled ? "text-muted bg-gray-100" :
-                isChanged ? "text-purple bg-purple/10" :
-                "text-green-700 bg-green-50"
-              }`}>
-                {disabled ? "Past" : isChanged ? "Changed" : "Matched"}
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Current match with the check-in: the question replaces the month */}
+              <p className="text-sm text-muted">{showMeetup && !disabled ? "Met up?" : monthYear}</p>
+              {showMeetup ? (
+                // Meetup status pills stand in for the Matched / Past badge
+                <MeetupPills
+                  matchFirstName={matchFirstName}
+                  answer={meetupAnswer}
+                  onAnswer={handleMeetupAnswer}
+                  past={disabled}
+                  mobileHeader={disabled}
+                />
+              ) : (
+                <span className={`text-xs rounded-full px-2.5 py-0.5 ${
+                  disabled ? "text-muted bg-gray-100" :
+                  isChanged ? "text-purple bg-purple/10" :
+                  "text-green-700 bg-green-50"
+                }`}>
+                  {disabled ? "Past" : isChanged ? "Changed" : "Matched"}
+                </span>
+              )}
             </div>
+            {meetupError && <p className="text-xs text-red-600">Couldn&apos;t save that. Please try again.</p>}
+
           </div>
+
+          {/* Right: feedback quick action — past matches only, top-aligned */}
+          {disabled && showFeedback && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              {feedbackSubmitted ? (
+                <span
+                  title="Thanks for leaving feedback already!"
+                  aria-label="Thanks for leaving feedback already!"
+                  aria-disabled="true"
+                  className="p-2 rounded-lg border border-border bg-white/70 text-muted/40 cursor-not-allowed"
+                >
+                  <FeedbackIcon />
+                </span>
+              ) : (
+                <Link
+                  href={`/feedback?match=${matchId}`}
+                  title="Share feedback"
+                  aria-label="Share feedback"
+                  className="p-2 rounded-lg border border-border bg-white/70 text-muted hover:text-coral hover:border-coral transition-colors"
+                >
+                  <FeedbackIcon />
+                </Link>
+              )}
+            </div>
+          )}
 
           {/* Right: quick actions — active matches only, top-aligned */}
           {!disabled && !isChanged && (
@@ -418,15 +487,103 @@ function MatchedCard({
         )}
       </div>
 
-      {/* Full-width bottom button — active matches only */}
+      {/* Meetup check-in — active matches, from the 7th (when matches flip from pending to matched) */}
+      {/* Full-width bottom buttons — active match only: "Go to match page", plus
+          "Share feedback" once they've answered met / didn't meet */}
       {!disabled && !isChanged && (
-        <Link
-          href={`/matches/${matchId}?token=${token}`}
-          className="block w-full text-center text-sm font-medium bg-coral text-white py-3 hover:opacity-90 transition-opacity border-t border-coral/20 rounded-b-2xl"
-        >
-          Go to match page
-        </Link>
+        <div className="flex border-t border-coral/20 rounded-b-2xl overflow-hidden">
+          {showFeedback && (
+            <Link
+              href={`/feedback?match=${matchId}`}
+              className="flex-1 text-center text-sm font-medium bg-dark text-white py-3 hover:opacity-80 transition-opacity"
+            >
+              Share feedback
+            </Link>
+          )}
+          <Link
+            href={`/matches/${matchId}?token=${token}`}
+            className="flex-1 text-center text-sm font-medium bg-coral text-white py-3 hover:opacity-90 transition-opacity"
+          >
+            Go to match page
+          </Link>
+        </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Meetup status pills (answer state lives in MatchedCard)
+// ---------------------------------------------------------------------------
+
+function FeedbackIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8"/><path d="M8 13h5"/>
+    </svg>
+  );
+}
+
+const MEETUP_OPTIONS: { value: MeetupStatus; label: string }[] = [
+  { value: "planning", label: "Still planning" },
+  { value: "met", label: "We met!" },
+  { value: "not_met", label: "We didn't meet" },
+];
+
+function MeetupPills({
+  matchFirstName,
+  answer,
+  onAnswer,
+  past = false,
+  mobileHeader = true,
+}: {
+  matchFirstName: string;
+  answer: MeetupStatus;
+  onAnswer: (status: MeetupStatus) => void;
+  /** Month is over: no "Still planning" option, and 'planning' shows as unanswered. */
+  past?: boolean;
+  /** Show the small "Met up?" header on mobile — off when the card already says it. */
+  mobileHeader?: boolean;
+}) {
+  return (
+    // Mobile: own full-width row with a small "Met up?" header and extra
+    // vertical breathing room. sm+: inline next to the month, no header.
+    <div className={`w-full sm:w-auto sm:py-0 ${mobileHeader ? "py-3" : "pb-3"}`}>
+      {mobileHeader && (
+        <p className="sm:hidden text-xs font-medium text-muted mb-2" aria-hidden="true">Met up?</p>
+      )}
+      <div role="radiogroup" aria-label={`Did you meet up with ${matchFirstName}?`} className="flex flex-wrap gap-1.5">
+      {MEETUP_OPTIONS.filter((opt) => !past || opt.value !== "planning").map((opt) => {
+        const selected = answer === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onAnswer(opt.value)}
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition-all cursor-pointer ${
+              selected
+                ? opt.value === "met"
+                  ? "bg-green border-green text-dark font-medium"
+                  : opt.value === "not_met"
+                    ? "bg-purple border-purple text-dark font-medium"
+                    : "bg-white border-dark text-dark font-medium"
+                : "bg-white/70 border-border text-muted hover:border-dark hover:text-dark"
+            }`}
+          >
+            <span
+              className={`w-3 h-3 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                selected ? "border-dark" : "border-border"
+              }`}
+            >
+              {selected && <span className="w-1 h-1 rounded-full bg-dark" />}
+            </span>
+            {opt.label}
+          </button>
+        );
+      })}
+      </div>
     </div>
   );
 }

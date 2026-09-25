@@ -3,7 +3,8 @@
  *
  * Scenario: a member with two active matches requests a rematch on one of them.
  *
- *   1. Sign in — /matches shows two "Matched" cards with correct partner names
+ *   1. Sign in — /matches shows two active cards ("Matched" badge, or meetup
+ *      pills from the 7th) with correct partner names
  *   2. Navigate to match page for the second match — verify both member names
  *   3. Navigate back to /matches, request rematch on the second match via /rematch
  *   4. After submitting: lands on /rematch/confirmed
@@ -20,6 +21,7 @@ import {
   cleanupMember,
 } from "./helpers/db";
 import { currentMonth, buildMatchPagePath } from "./helpers/tokens";
+import { activeMatchStatus } from "./helpers/matches";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
@@ -44,7 +46,7 @@ test(
 
       await expect(page.getByText("Coffee with Beth").first()).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText("Coffee with Chris").first()).toBeVisible();
-      await expect(page.getByText("Matched", { exact: true })).toHaveCount(2);
+      await expect(activeMatchStatus(page)).toHaveCount(2);
 
       // ── Step 2: Navigate to second match page — verify member names ───────
       await page.goto(`${BASE_URL}${buildMatchPagePath(matchId2)}`);
@@ -84,7 +86,7 @@ test(
 
       // ── Step 6: First card unaffected — still "Matched" with quick actions ─
       await expect(page.getByText("Coffee with Beth")).toBeVisible();
-      await expect(page.getByText("Matched", { exact: true })).toBeVisible();
+      await expect(activeMatchStatus(page)).toHaveCount(1);
 
       // Go to match page button still present for the active match
       await expect(page.getByRole("link", { name: /go to match page/i }).first()).toBeVisible();

@@ -19,6 +19,13 @@ create type postpartumpost.rematch_reason as enum (
   'other'
 );
 
+-- Per-member meetup check-in on a match (see migrations/026_match_meetup_status.sql)
+create type postpartumpost.meetup_status as enum (
+  'planning', -- "Still planning" (default)
+  'met',      -- "We met!"
+  'not_met'   -- "We didn't meet"
+);
+
 create type postpartumpost.parent_type as enum (
   'mom',   -- open to meeting moms
   'dad',   -- open to meeting dads
@@ -86,6 +93,9 @@ create table postpartumpost.matches (
   rematch_requested_at timestamptz,
   rematch_requested_by uuid references postpartumpost.members(id) on delete set null,
   flagged_for_review boolean not null default false,
+  -- Each side's answer to "Did you meet up?"
+  met_up_status_1 postpartumpost.meetup_status not null default 'planning',
+  met_up_status_2 postpartumpost.meetup_status not null default 'planning',
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   constraint no_self_match check (member_id_1 != member_id_2)

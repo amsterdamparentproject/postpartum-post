@@ -7,10 +7,9 @@
  * members), but should be skipped when a member is genuinely ineligible, a
  * rematch was requested, or the match is flagged for review.
  *
- * sendMeetupReminderEmail is mocked so no real emails are sent. generateLink
- * (for the feedback magic link) is NOT mocked — it runs for real against the
- * test Supabase project, same as send-match-emails.test.ts does for its own
- * magic links.
+ * sendMeetupReminderEmail is mocked so no real emails are sent. The email's
+ * "We met!" / "We didn't meet" links are HMAC-signed URLs (lib/meetup-token.ts)
+ * built locally — no Supabase call at send time.
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";

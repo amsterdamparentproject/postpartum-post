@@ -8,7 +8,9 @@
 import { createAdminClient } from "@/lib/supabase";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { sendMeetupReminderEmail } from "@/lib/emails";
-import { feedbackMagicLink } from "@/lib/feedback-link";
+import { meetupStatusUrl } from "@/lib/meetup-token";
+
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 
 /** Statuses still eligible for the reminder — 'canceling' keeps access through period end. */
 const ELIGIBLE_STATUSES = ["active", "canceling"];
@@ -20,8 +22,6 @@ type MemberRow = {
   email: string;
   status: string;
 };
-
-type AdminClient = ReturnType<typeof createAdminClient>;
 
 export type MeetupReminderMatchResult =
   | { matchId: string; status: "sent"; recipients: string[] }
@@ -112,8 +112,11 @@ export async function runMeetupReminder(testEmail?: string, monthOverride?: stri
     for (const [recipient, partner] of recipients) {
       if (testEmail && recipient.email !== testEmail) continue;
       try {
-        const feedbackUrl = await feedbackMagicLink(supabase, recipient.email, recipient.id);
-        await sendMeetupReminderEmail(recipient.email, recipient.first_name, partner.first_name, partner.email, feedbackUrl);
+        // One-click "Did you meet up?" answers — each signs the member in at
+        // click time (fresh magic link) and lands them on feedback for this match.
+        const metUrl = meetupStatusUrl(SITE_URL, recipient.id, match.id, "met");
+        const notMetUrl = meetupStatusUrl(SITE_URL, recipient.id, match.id, "not_met");
+        await sendMeetupReminderEmail(recipient.email, recipient.first_name, partner.first_name, partner.email, metUrl, notMetUrl);
         sentTo.push(recipient.email);
         result.sent++;
       } catch (e: unknown) {

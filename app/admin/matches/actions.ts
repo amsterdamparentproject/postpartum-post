@@ -5,7 +5,8 @@ import { headers } from "next/headers";
 import { sendOptinEmail } from "@/lib/emails";
 import { generateOptinToken } from "@/lib/optin-token";
 import { currentMonth, monthToDate } from "@/lib/tokens";
-import { scorePair, parentTypeCompatible, maxAchievableScore, qualityTier, getLastMatchedMap, type MatchCandidate } from "@/lib/matcher";
+import { scorePair, maxAchievableScore, qualityTier, getLastMatchedMap, type MatchCandidate } from "@/lib/matcher";
+import { ALEX_TEST_EMAIL, ensureAlexPastMatches } from "@/lib/test-fixtures/alex-past-matches";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -619,7 +620,14 @@ export async function testResetRound(): Promise<TestStepResult> {
   // Clear monthly_skips for this month
   await supabase.from("monthly_skips").delete().eq("month", monthDate);
 
-  return { success: true, message: `Test data cleared for ${currentMonth()}. Ready to re-run.` };
+  // Keep Alex's test account at exactly two fixed past matches. Local only —
+  // these test controls aren't gated, and this must never write to prod.
+  let fixtureNote = "";
+  if (process.env.NODE_ENV !== "production") {
+    fixtureNote = ` ${await ensureAlexPastMatches(supabase)}`;
+  }
+
+  return { success: true, message: `Test data cleared for ${currentMonth()}. Ready to re-run.${fixtureNote}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -760,7 +768,79 @@ export async function testSendOptinEmail(): Promise<TestStepResult> {
 }
 
 export async function testRunMatcher(): Promise<TestStepResult> {
-  return callEndpoint("/api/run-matcher", { testMode: true, dryRun: false });
+  const result = await callEndpoint("/api/run-matcher", { testMode: true, dryRun: false });
+  if (!result.success) return result;
+
+  // Alex's test account must always come out of a test round with a match,
+  // so /matches has a current match to test against. Local only.
+  if (process.env.NODE_ENV === "production") return result;
+  const note = await ensureTestMemberMatched();
+  return { success: true, message: note ? `${note} · ${result.message}` : result.message };
+}
+
+/**
+ * If the test member (TEST_EMAIL, default Alex's account) opted in this month
+ * but the matcher left them unmatched, adds a draft pair for them with the
+ * best-scoring partner — preferring someone not already matched this round
+ * and not matched with them in the last three months. Creates the draft
+ * round if the matcher didn't (it only does when it matched at least one
+ * pair). Returns a short note for the test-controls output, or null if
+ * nothing needed doing.
+ */
+async function ensureTestMemberMatched(): Promise<string | null> {
+  const supabase = createAdminClient();
+  const monthDate = monthToDate(currentMonth());
+  const testEmail = process.env.TEST_EMAIL ?? ALEX_TEST_EMAIL;
+
+  const { data: testMember } = await supabase
+    .from("members")
+    .select("id, first_name")
+    .eq("email", testEmail)
+    .maybeSingle();
+  if (!testMember) return `No member found for ${testEmail}`;
+
+  const { data: participation } = await supabase
+    .from("monthly_participation")
+    .select("id")
+    .eq("member_id", testMember.id)
+    .eq("month", monthDate)
+    .maybeSingle();
+  if (!participation) return `${testMember.first_name} didn't opt in this month`;
+
+  let { data: round } = await supabase
+    .from("match_rounds")
+    .select("id")
+    .eq("month", monthDate)
+    .maybeSingle();
+
+  if (round) {
+    const { data: existing } = await supabase
+      .from("match_drafts")
+      .select("id")
+      .eq("round_id", round.id)
+      .or(`member_id_1.eq.${testMember.id},member_id_2.eq.${testMember.id}`)
+      .limit(1);
+    if (existing?.length) return null; // already matched
+  } else {
+    const { data: created, error } = await supabase
+      .from("match_rounds")
+      .insert({ month: monthDate, status: "draft", round_score: 0 })
+      .select("id")
+      .single();
+    if (error || !created) return `Couldn't create a round for ${testMember.first_name}: ${error?.message}`;
+    round = created;
+  }
+
+  const candidates = await computeCandidateScores(round.id, testMember.id);
+  const partner =
+    candidates.find((c) => !c.isAlreadyMatched && !c.recentMatch.withinThreeMonths) ??
+    candidates.find((c) => !c.recentMatch.withinThreeMonths) ??
+    candidates[0];
+  if (!partner) return `No one else opted in — couldn't match ${testMember.first_name}`;
+
+  const created = await createDraftPair(round.id, testMember.id, partner.member.id, currentMonth());
+  if (!created.success) return `Couldn't match ${testMember.first_name}: ${created.error}`;
+  return `${testMember.first_name} was unmatched — paired with ${partner.member.first_name}`;
 }
 
 export async function testCommitMatches(): Promise<TestStepResult> {

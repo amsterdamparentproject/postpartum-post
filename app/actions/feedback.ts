@@ -17,11 +17,39 @@ export type FeedbackContext = {
   monthLabel: string | null;
 };
 
-export async function getFeedbackContext(accessToken: string): Promise<FeedbackContext> {
+export async function getFeedbackContext(accessToken: string, matchId?: string): Promise<FeedbackContext> {
   const authed = await requireMember(accessToken);
   if (!authed) return { matchIds: [], monthLabel: null };
   const memberId = authed.memberId;
   const supabase = createAdminClient();
+
+  // Opened from a specific match card (/feedback?match=<id>) — scope the
+  // feedback to that one match if it's really theirs. Otherwise fall
+  // through to the most-recent-month default below.
+  if (matchId) {
+    const { data: match } = await supabase
+      .from("matches")
+      .select(`
+        id,
+        matched_on,
+        member_id_1,
+        member_id_2,
+        member1:member_id_1 ( first_name ),
+        member2:member_id_2 ( first_name )
+      `)
+      .eq("id", matchId)
+      .maybeSingle();
+
+    if (match && (match.member_id_1 === memberId || match.member_id_2 === memberId)) {
+      const partnerRaw = match.member_id_1 === memberId ? match.member2 : match.member1;
+      const partner = (Array.isArray(partnerRaw) ? partnerRaw[0] : partnerRaw) as { first_name: string } | null;
+      const monthName = new Date(`${match.matched_on}T00:00:00`).toLocaleString("en-US", { month: "long" });
+      return {
+        matchIds: [match.id],
+        monthLabel: partner?.first_name ? `${monthName} match with ${partner.first_name}` : `${monthName} match`,
+      };
+    }
+  }
 
   const { data } = await supabase
     .from("matches")

@@ -151,7 +151,7 @@ await send("member-update", () =>
 );
 
 await send("meetup-reminder", () =>
-  sendMeetupReminderEmail(TO, "Alex", "Sarah", "sarah.vanderberg@example.com", "https://postpartumpost.com/feedback")
+  sendMeetupReminderEmail(TO, "Alex", "Sarah", "sarah.vanderberg@example.com", "https://postpartumpost.com/matches", "https://postpartumpost.com/matches")
 );
 
 await send("pending-followup", () =>

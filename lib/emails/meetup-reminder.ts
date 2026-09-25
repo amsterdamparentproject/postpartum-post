@@ -4,7 +4,8 @@ function meetupReminderHtml(
   recipientFirstName: string,
   matchFirstName: string,
   matchEmail: string,
-  feedbackUrl: string,
+  metUrl: string,
+  notMetUrl: string,
 ): string {
   const mailtoSubject = encodeURIComponent("Let's find a time to meet up! (Postpartum Post)");
   const mailtoBody = encodeURIComponent(`Hi ${matchFirstName},`);
@@ -21,9 +22,10 @@ function meetupReminderHtml(
     ctaButton(`Email ${matchFirstName} now`, `mailto:${matchEmail}?subject=${mailtoSubject}&body=${mailtoBody}`) +
     bodySection(`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      If you've already met with your match, we'd love to hear how it went! Your perspective is incredibly valuable to help prioritize the features that make the Post as useful as possible to make deep connections with local parents ❤️
+                                      Already met up with ${matchFirstName}? Click below to let us know — and we'd love to hear how it went. Your perspective is incredibly valuable to help prioritize the features that make the Post as useful as possible to make deep connections with local parents ❤️
                                     </td></tr>`, true) +
-    ctaButton("Tell us how it went", feedbackUrl) +
+    ctaButton("We met! 🎉", metUrl, "#D4E09B") +
+    ctaButton("We won't meet this month", notMetUrl, "#E5E7EB") +
     `<tr><td style="padding:0 0 24px;font-size:0;line-height:0" aria-hidden="true">&nbsp;</td></tr>`;
 
   return baseEmail(content);
@@ -34,7 +36,8 @@ export async function sendMeetupReminderEmail(
   recipientFirstName: string,
   matchFirstName: string,
   matchEmail: string,
-  feedbackUrl: string,
+  metUrl: string,
+  notMetUrl: string,
 ): Promise<void> {
   const resend = getResend();
   const { error } = await resend.emails.send({
@@ -42,7 +45,7 @@ export async function sendMeetupReminderEmail(
     to: recipientEmail,
     replyTo: matchEmail,
     subject: `${subjectPrefix()}One week left to meet up! ⏰`,
-    html: meetupReminderHtml(recipientFirstName, matchFirstName, matchEmail, feedbackUrl),
+    html: meetupReminderHtml(recipientFirstName, matchFirstName, matchEmail, metUrl, notMetUrl),
   });
   if (error) {
     console.error("[resend] sendMeetupReminderEmail error:", error);

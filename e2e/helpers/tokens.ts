@@ -58,3 +58,31 @@ export function isMember1Initiator(matchId: string): boolean {
   }
   return hash % 2 === 0;
 }
+
+/**
+ * Build the one-click "We met!" / "We didn't meet" URL from the meetup
+ * reminder email. Replicates lib/meetup-token.ts.
+ */
+export function buildMeetupStatusUrl(
+  memberId: string,
+  matchId: string,
+  status: "met" | "not_met",
+  expiresAt: number = Date.now() + 1000 * 60 * 60 * 24 * 90, // matches MEETUP_TOKEN_TTL_MS
+): string {
+  const secret = process.env.OPTIN_TOKEN_SECRET;
+  if (!secret) throw new Error("OPTIN_TOKEN_SECRET not set");
+  const token = createHmac("sha256", secret)
+    .update(`meetup:${memberId}:${matchId}:${status}:${expiresAt}`)
+    .digest("hex");
+  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  return `${base}/api/meetup-status?member=${memberId}&match=${matchId}&status=${status}&exp=${expiresAt}&token=${token}`;
+}
+
+/**
+ * The current match card shows meetup pills from the 7th (reveal day) and
+ * the "Matched" badge before that — this picks the right status locator
+ * text for today so specs don't break depending on the day they run.
+ */
+export function currentCardShowsMeetupPills(): boolean {
+  return new Date().getDate() >= 7;
+}

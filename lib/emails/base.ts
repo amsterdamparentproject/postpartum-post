@@ -225,7 +225,8 @@ export function emailHeader({ centered = true }: { centered?: boolean } = {}): s
  * Purple pill CTA button — consistent styling across all emails.
  * Returns a full <tr> ready to drop into the email body.
  */
-export function ctaButton(label: string, url: string): string {
+/** @param fill  Button background — defaults to brand purple-light. */
+export function ctaButton(label: string, url: string, fill = "#caadff"): string {
   return `
                   <!-- CTA button -->
                   <tr><td style="padding:0 24px 16px">
@@ -237,13 +238,13 @@ export function ctaButton(label: string, url: string): string {
                             <a href="${url}" target="_blank" rel="noopener" style="color:#000000;text-decoration:none">
                               <!--[if mso]>
                               <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
-                                href="${url}" style="height:52px;width:317px;v-text-anchor:middle;" arcsize="100%" fillcolor="#caadff">
-                                <v:stroke dashstyle="Solid" weight="0px" color="#caadff"/>
+                                href="${url}" style="height:52px;width:317px;v-text-anchor:middle;" arcsize="100%" fillcolor="${fill}">
+                                <v:stroke dashstyle="Solid" weight="0px" color="${fill}"/>
                                 <w:anchorlock/>
                                 <v:textbox inset="0px,0px,0px,0px">
                                   <center dir="false" style="color:#000000;font-family:sans-serif;font-size:17.8px">
                               <![endif]-->
-                              <span style="background-color:#caadff;border-radius:134px;color:#000000;display:table;font-family:Arial,Helvetica,sans-serif;font-size:17.8px;font-weight:700;height:52px;text-align:center;width:100%;box-sizing:border-box;letter-spacing:0.047em;line-height:24.9px">
+                              <span style="background-color:${fill};border-radius:134px;color:#000000;display:table;font-family:Arial,Helvetica,sans-serif;font-size:17.8px;font-weight:700;height:52px;text-align:center;width:100%;box-sizing:border-box;letter-spacing:0.047em;line-height:24.9px">
                                 <span style="padding-left:8px;padding-right:8px;display:table-cell;height:100%;vertical-align:middle">
                                   ${label}
                                 </span>

@@ -44,6 +44,7 @@ import {
   getMemberMatchCount,
 } from "./helpers/db";
 import { currentMonth, buildOptinUrl, buildMatchPagePath, isMember1Initiator } from "./helpers/tokens";
+import { activeMatchStatus } from "./helpers/matches";
 
 // ---------------------------------------------------------------------------
 // Shared utilities
@@ -342,8 +343,8 @@ test(
 
       // ── Step 2: Two active "Matched" cards visible ────────────────────────
       // Wait for the async fetch to complete
-      await expect(page.getByText("Matched", { exact: true }).first()).toBeVisible({ timeout: 10_000 });
-      await expect(page.getByText("Matched", { exact: true })).toHaveCount(2);
+      await expect(activeMatchStatus(page).first()).toBeVisible({ timeout: 10_000 });
+      await expect(activeMatchStatus(page)).toHaveCount(2);
 
       // Both partner names appear in the card headings
       await expect(page.getByText("Coffee with Beth")).toBeVisible();

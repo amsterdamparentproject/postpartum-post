@@ -429,3 +429,17 @@ export async function getMemberMatchCount(memberId: string, month: string): Prom
     .eq("matched_on", `${month}-01`);
   return count ?? 0;
 }
+
+// ---------------------------------------------------------------------------
+// Meetup check-in helpers
+// ---------------------------------------------------------------------------
+
+/** Both sides' meetup answers for a match (met_up_status_1 / _2). */
+export async function getMeetupStatuses(matchId: string): Promise<{ side1: string; side2: string } | null> {
+  const { data } = await supabase()
+    .from("matches")
+    .select("met_up_status_1, met_up_status_2")
+    .eq("id", matchId)
+    .maybeSingle();
+  return data ? { side1: data.met_up_status_1, side2: data.met_up_status_2 } : null;
+}
