@@ -109,8 +109,8 @@ for (const member of members) {
     await sendPendingFollowupEmail(recipient, member.first_name, member.last_name, member.email);
     console.log(`✓ ${member.email}${dryRun ? ` → sent to ${TEST_EMAIL}` : ""}`);
     sent++;
-  } catch (e: any) {
-    console.error(`✗ ${member.email}:`, e?.message);
+  } catch (e) {
+    console.error(`✗ ${member.email}:`, e instanceof Error ? e.message : String(e));
     failed++;
   }
 }

@@ -5,7 +5,6 @@ import {
   MEMBER_COLORS,
   locationText,
   formatMeta,
-  effectiveDate,
   effectiveDayOfWeek,
   type MemberAvailability,
 } from "./activities-utils";

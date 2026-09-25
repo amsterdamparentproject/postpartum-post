@@ -457,7 +457,7 @@ export default function ProfileForm({ initialData, mode, section, sessionId }: P
           <div>
             <label className={labelClass}>Availability</label>
             <p className="text-xs italic text-muted mb-3">
-              When you're free to meet your match
+              When you&apos;re free to meet your match
             </p>
             <p className="flex items-center gap-1.5 text-xs font-medium text-muted my-2">
               <CalendarIcon />Days
@@ -575,7 +575,7 @@ export default function ProfileForm({ initialData, mode, section, sessionId }: P
         <div>
           <label htmlFor="parentType" className={labelClass}>Who would you like to meet?</label>
           <p className="text-xs italic text-muted mb-2">
-            Let us know if you'd prefer to meet with moms or dads — or anyone in our community.
+            Let us know if you&apos;d prefer to meet with moms or dads — or anyone in our community.
           </p>
           <div className="relative">
             <select
@@ -622,7 +622,7 @@ export default function ProfileForm({ initialData, mode, section, sessionId }: P
         <div>
           <label htmlFor="openToSecondMatch" className={labelClass}>Open to a second match?</label>
           <p className="text-xs italic text-muted mb-2">
-            If there's an odd number of members this month, we may pair you with two people instead of one.
+            If there&apos;s an odd number of members this month, we may pair you with two people instead of one.
           </p>
           <div className="relative">
             <select
@@ -631,7 +631,7 @@ export default function ProfileForm({ initialData, mode, section, sessionId }: P
               onChange={(e) => setOpenToSecondMatch(e.target.value === "yes")}
               className={selectClass}
             >
-              <option value="yes">Yes, I'm open to it</option>
+              <option value="yes">Yes, I&apos;m open to it</option>
               <option value="no">Only one match, please</option>
             </select>
             <ChevronDown />

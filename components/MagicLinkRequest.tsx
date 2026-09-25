@@ -20,7 +20,6 @@ export default function MagicLinkRequest({
   const [email, setEmail] = useState(defaultEmail ?? "");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [state, setState] = useState<State>("idle");
-  const [notFoundEmail, setNotFoundEmail] = useState<string>("");
   const [signupMeta, setSignupMeta] = useState<SignupMeta | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -42,7 +41,6 @@ export default function MagicLinkRequest({
       const normalizedEmail = email.toLowerCase();
       const exists = await checkMemberExists(normalizedEmail);
       if (!exists) {
-        setNotFoundEmail(normalizedEmail);
         setState("not_found");
         return;
       }

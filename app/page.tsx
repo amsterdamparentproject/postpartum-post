@@ -105,6 +105,7 @@ export default async function Home() {
   ]);
 
   const pilotOnly = first20SpotsRemaining === 0 ? false : PILOT_ONLY;
+  const now = new Date().getTime();
 
   return (
     <PageLayout showNav>
@@ -126,7 +127,7 @@ export default async function Home() {
             <span className="text-dark">Let us introduce you.</span>
           </h1>
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
-            Instead of searching for community, get it delivered right to you. Every month, we send you a curated friendship starter pack: a match with someone local who's navigating pregnancy or early parenthood like you, plus neighborhood activities handpicked for your families.
+            Instead of searching for community, get it delivered right to you. Every month, we send you a curated friendship starter pack: a match with someone local who&apos;s navigating pregnancy or early parenthood like you, plus neighborhood activities handpicked for your families.
           </p>
         </div>
 
@@ -169,7 +170,7 @@ export default async function Home() {
           </div>
           <div>
             <p className="text-sm text-dark leading-relaxed">
-              Hi, I&apos;m Alex 👋🏻 I'm a local toddler mom and someone who knows exactly how isolating and overwhelming parenthood can feel. Becoming a mom abroad and dealing with burnout led me to start the nonprofit {" "}
+              Hi, I&apos;m Alex 👋🏻 I&apos;m a local toddler mom and someone who knows exactly how isolating and overwhelming parenthood can feel. Becoming a mom abroad and dealing with burnout led me to start the nonprofit {" "}
               <a
                 href="https://amsterdamparentproject.nl"
                 target="_blank"
@@ -208,7 +209,7 @@ export default async function Home() {
                 <EnvelopeLogo width={22} height={16} className="shrink-0" />
                 <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.count} {memberStats.count === 1 ? "member" : "members"}</span> getting a match next month</span>
               </li>
-              {memberStats.lastJoinedAt && Date.now() - memberStats.lastJoinedAt.getTime() < 10 * 24 * 60 * 60 * 1000 && (
+              {memberStats.lastJoinedAt && now - memberStats.lastJoinedAt.getTime() < 10 * 24 * 60 * 60 * 1000 && (
                 <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0" />
                   <span>Last member joined <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(175, 153, 255, 0.45)" }}>{formatRelativeTime(memberStats.lastJoinedAt)}</span></span>

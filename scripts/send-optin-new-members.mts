@@ -143,8 +143,8 @@ for (const member of members) {
     );
     console.log(`✓ ${member.email}${dryRun ? ` → sent to ${TEST_EMAIL}` : ""} (joined ${member.created_at})`);
     sent++;
-  } catch (e: any) {
-    console.error(`✗ ${member.email}:`, e?.message);
+  } catch (e) {
+    console.error(`✗ ${member.email}:`, e instanceof Error ? e.message : String(e));
     failed++;
   }
 }

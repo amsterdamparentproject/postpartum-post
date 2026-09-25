@@ -36,7 +36,9 @@ import { TERM_AMOUNTS, nextRenewCheckDate, renewCheckDateAfterNextRound } from "
 import { getStripe } from "@/lib/stripe";
 import { SITE_URL } from "@/lib/emails/base";
 
-type AnySupabaseClient = import("@supabase/supabase-js").SupabaseClient<any, any, any>;
+// The actual type returned by createAdminClient()/createTestSupabase() — both
+// schema-scoped to "postpartumpost", which is all every caller here passes.
+type AnySupabaseClient = ReturnType<typeof import("@/lib/supabase").createAdminClient>;
 
 export type BillingNotice =
   // Comped (FYP) — no billing content in the reveal email at all.

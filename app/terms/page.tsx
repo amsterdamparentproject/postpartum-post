@@ -73,7 +73,7 @@ export default function TermsOfService() {
               <h2 className="text-xl font-semibold mb-3">Skipping and pausing</h2>
               <p>
                 You can skip any month by selecting the skip option in your monthly matching email.
-                If you skip, you won't receive a match introduction that month, and your subscription
+                If you skip, you won&apos;t receive a match introduction that month, and your subscription
                 continues as normal. There is no charge for skipping.
               </p>
             </section>
@@ -82,16 +82,16 @@ export default function TermsOfService() {
               <h2 className="text-xl font-semibold mb-3">Refunds</h2>
               <p>
                 Because Postpartum Post delivers a personal, handcrafted introduction each month,
-                we don't offer refunds once a match has been sent. If you experience a technical
-                issue or believe there's been an error with your billing, please get in touch and
-                we'll make it right.
+                we don&apos;t offer refunds once a match has been sent. If you experience a technical
+                issue or believe there&apos;s been an error with your billing, please get in touch and
+                we&apos;ll make it right.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold mb-3">The matching service</h2>
               <p>
-                We put genuine care into every match — but we can't guarantee compatibility or that
+                We put genuine care into every match — but we can&apos;t guarantee compatibility or that
                 a connection will form. Postpartum Post is an introduction service, not a social
                 network. What happens after the introduction is up to you and your match.
               </p>
@@ -112,8 +112,8 @@ export default function TermsOfService() {
               </p>
               <ul className="list-disc list-inside space-y-2 mb-4">
                 <li>Harassment, threats, or intimidation of any kind</li>
-                <li>Continued unwanted contact after a match has signaled they're not interested</li>
-                <li>Sharing a match's contact details with anyone else</li>
+                <li>Continued unwanted contact after a match has signaled they&apos;re not interested</li>
+                <li>Sharing a match&apos;s contact details with anyone else</li>
                 <li>Discriminatory behavior — including racist, homophobic, or transphobic conduct</li>
                 <li>Using the service to sell, recruit, solicit money, or promote a product or ideology</li>
                 <li>Misrepresenting yourself — including falsely claiming to be a parent or expecting</li>
@@ -122,9 +122,9 @@ export default function TermsOfService() {
               <p className="mb-3">
                 When we receive a report of a conduct violation, we review it and take action proportionate
                 to the severity. For serious safety concerns — threats, physical harm, stalking, or anything
-                involving a child's safety — we may suspend a member from matching immediately, pending review.
+                involving a child&apos;s safety — we may suspend a member from matching immediately, pending review.
                 Permanent removal is decided after that review. We may also remove a member at our discretion
-                for conduct that undermines the safety or trust of the community, even where it doesn't fit
+                for conduct that undermines the safety or trust of the community, even where it doesn&apos;t fit
                 a specific category above.
               </p>
               <p>
@@ -161,7 +161,7 @@ export default function TermsOfService() {
               <h2 className="text-xl font-semibold mb-3">Changes to these terms</h2>
               <p>
                 We may update these terms from time to time. If we make significant changes,
-                we'll let you know by email. Continuing to use Postpartum Post after changes
+                we&apos;ll let you know by email. Continuing to use Postpartum Post after changes
                 are posted means you accept the updated terms.
               </p>
             </section>

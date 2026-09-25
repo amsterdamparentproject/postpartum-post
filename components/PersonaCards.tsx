@@ -63,27 +63,6 @@ function PlaneIcon({ fill, stroke }: { fill: string; stroke: string }) {
   );
 }
 
-function TulipIcon({ fill, stroke }: { fill: string; stroke: string }) {
-  return (
-    <StampSVG fill={fill} stroke={stroke} background="white">
-      {/* Soil mound */}
-      <ellipse cx="24" cy="44" rx="13" ry="2.5" fill={stroke} opacity="0.25" />
-      {/* Stem */}
-      <line x1="24" y1="43" x2="24" y2="26" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
-      {/* Left leaf */}
-      <path d="M23 36 C14 32 10 22 16 19 Q19 28 23 36Z" fill={stroke} opacity="0.30" />
-      {/* Right leaf */}
-      <path d="M25 31 C34 27 38 17 32 14 Q29 23 25 31Z" fill={stroke} opacity="0.30" />
-      {/* Left outer petal */}
-      <path d="M20 26 C14 22 13 10 18 6 C21 3 23 14 23 24Z" fill={stroke} opacity="0.50" />
-      {/* Right outer petal */}
-      <path d="M28 26 C34 22 35 10 30 6 C27 3 25 14 25 24Z" fill={stroke} opacity="0.50" />
-      {/* Center petal */}
-      <path d="M21 26 C21 16 22 7 24 4 C26 7 27 16 27 26Z" fill={stroke} opacity="0.85" />
-    </StampSVG>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Design tokens — 3 shapes, 3 border colors, cycling per card
 // ---------------------------------------------------------------------------
@@ -145,9 +124,13 @@ export default function PersonaCards() {
   const touchStartX = React.useRef<number | null>(null);
 
   useEffect(() => {
-    setMounted(true);
     const mq = window.matchMedia("(min-width: 768px)");
+    // setMounted folded into `update` (called below, not synchronously in
+    // the effect body) rather than called directly here — same indirection
+    // the setPerPage/setPage calls already relied on to satisfy the
+    // set-state-in-effect lint rule. Mirrors PartnerSplash's ExampleCarousel.
     const update = () => {
+      setMounted(true);
       setPerPage(mq.matches ? 2 : 1);
       setPage(0);
     };

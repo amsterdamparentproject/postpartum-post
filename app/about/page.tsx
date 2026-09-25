@@ -33,12 +33,12 @@ export default function About() {
           </h1>
           <div className="space-y-4 text-dark leading-relaxed text-left">
             <p>
-              The postpartum period is one of the most transformative — and often loneliest — times in a parent's life.
+              The postpartum period is one of the most transformative — and often loneliest — times in a parent&apos;s life.
               Parent groups can be great for support, but <b>sometimes you need just one person</b>, not a room full of them.
             </p>
             <p>
-              We're here to <b>connect new and expecting parents in the neighborhood</b> for coffee, a playdate,
-              or an understanding chat. We'll warmly introduce you to one person each month, sharing their name and contact
+              We&apos;re here to <b>connect new and expecting parents in the neighborhood</b> for coffee, a playdate,
+              or an understanding chat. We&apos;ll warmly introduce you to one person each month, sharing their name and contact
               along with local activities handpicked for your families.
             </p>
             <p>

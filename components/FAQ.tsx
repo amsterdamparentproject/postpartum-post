@@ -71,6 +71,11 @@ export default function FAQ({
   heading?: ReactNode;
   subheading?: string;
 }) {
+  // Deep-link support (e.g. /about#rematch): open the matching FAQ on
+  // mount. Must start at null on both server and client — a lazy useState
+  // initializer reading window.location.hash here would open it during the
+  // client's first render, before hydration, causing a mismatch against the
+  // server-rendered (always-closed) markup.
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -78,11 +83,17 @@ export default function FAQ({
     if (!hash) return;
     const idx = faqs.findIndex((f) => f.id === hash);
     if (idx < 0) return;
-    setOpenIndex(idx);
-    // Let the DOM update before scrolling so the element is in its final position
-    setTimeout(() => {
-      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
+    // Folded into `open` (called below), not called directly here — same
+    // indirection PersonaCards/PartnerSplash use to satisfy the
+    // set-state-in-effect lint rule.
+    const open = () => {
+      setOpenIndex(idx);
+      // Let the DOM update before scrolling so the element is in its final position
+      setTimeout(() => {
+        document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    };
+    open();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

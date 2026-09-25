@@ -153,7 +153,7 @@ describe("getPermanentExclusions: builds pair-key set", () => {
  * Dual-table mock: handles both the `matches` table (gte chain for recent pairs)
  * and the `match_exclusions` table (plain select for permanent exclusions).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function mockSupabase(
   recentRows: { member_id_1: string; member_id_2: string }[] = [],
   exclusionRows: { member_id_1: string; member_id_2: string }[] = []

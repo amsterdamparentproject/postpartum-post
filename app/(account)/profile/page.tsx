@@ -21,7 +21,7 @@ function OptinBanner() {
       <p className="text-sm text-dark leading-relaxed">
         {optin === "skip"
           ? "You're skipping your match this month — all good! We've automatically adjusted your billing cycle so that you won't be charged. See you next month 💌"
-          : <>You're in! 🎉 We're excited to arrange your next <span className="font-semibold">{optin}</span>! Make sure your profile is up to date so we can find you the best match this month.</>
+          : <>You&apos;re in! 🎉 We&apos;re excited to arrange your next <span className="font-semibold">{optin}</span>! Make sure your profile is up to date so we can find you the best match this month.</>
         }
       </p>
       <button

@@ -7,11 +7,10 @@ import { effectiveDate, type MemberAvailability, type SortOrder } from "./activi
 interface Props {
   rec: Activity[];
   sortOrder: SortOrder;
-  isActivities: boolean;
   members?: [MemberAvailability, MemberAvailability];
 }
 
-export default function TabContent({ rec, sortOrder, isActivities, members }: Props) {
+export default function TabContent({ rec, sortOrder, members }: Props) {
   const sortFn = (a: Activity, b: Activity) => {
     if (sortOrder === "alpha") return a.title.localeCompare(b.title);
     if (sortOrder === "date") {

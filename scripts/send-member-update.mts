@@ -63,8 +63,8 @@ for (const member of members) {
     await sendMemberUpdateEmail(member.email, member.first_name, member.id);
     console.log(`✓ ${member.email}`);
     sent++;
-  } catch (e: any) {
-    console.error(`✗ ${member.email}:`, e?.message);
+  } catch (e) {
+    console.error(`✗ ${member.email}:`, e instanceof Error ? e.message : String(e));
     failed++;
   }
 }

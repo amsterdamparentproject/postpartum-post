@@ -37,7 +37,7 @@ test(
     const memberC = await seedMember({ firstName: "Chris", lastName: "Changed" });
 
     try {
-      const matchId1 = await seedMatchDirect(memberA.id, memberB.id, monthDate);
+      await seedMatchDirect(memberA.id, memberB.id, monthDate);
       const matchId2 = await seedMatchDirect(memberA.id, memberC.id, monthDate);
 
       // ── Step 1: /matches shows two active cards ───────────────────────────

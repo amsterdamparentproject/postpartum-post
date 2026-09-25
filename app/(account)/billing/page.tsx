@@ -70,19 +70,20 @@ function BillingContent() {
     optinParam === "skip" || optinParam === "already_skip" || optinParam === "skip_failed" || optinParam === "no_balance"
   );
   const [subscription, setSubscription] = useState<SubscriptionDetails | null>(null);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  // Tracks whether a fetch has resolved (not just whether the result was
+  // non-null — a member can legitimately have no subscription).
+  const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
+  const subscriptionLoading = !subscriptionLoaded;
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [isPortalPending, startPortalTransition] = useTransition();
   const [isCancelPending, startCancelTransition] = useTransition();
 
   useEffect(() => {
-    if (member && accessToken) {
-      setSubscriptionLoading(true);
-      getSubscriptionDetails(accessToken).then((data) => {
-        setSubscription(data);
-        setSubscriptionLoading(false);
-      });
-    }
+    if (!member || !accessToken) return;
+    getSubscriptionDetails(accessToken).then((data) => {
+      setSubscription(data);
+      setSubscriptionLoaded(true);
+    });
   }, [member, accessToken]);
 
   function handleManageBilling() {
@@ -224,7 +225,7 @@ function BillingContent() {
                   </span>
                 </div>
                 <p className="text-xs text-muted leading-relaxed">
-                  After 3 consecutive skips, your subscription will be automatically paused so you're not charged while things are busy.
+                  After 3 consecutive skips, your subscription will be automatically paused so you&apos;re not charged while things are busy.
                 </p>
               </div>
             )}

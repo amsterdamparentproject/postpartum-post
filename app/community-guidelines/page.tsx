@@ -24,7 +24,7 @@ export default function CommunityGuidelines() {
           </h1>
           <p className="text-dark leading-relaxed mb-10">
             Postpartum Post introduces real people to each other — often at a vulnerable, tender time in their lives.
-            We don't do heavy vetting at the door, which means the safety and warmth of this community rests on all of us.
+            We don&apos;t do heavy vetting at the door, which means the safety and warmth of this community rests on all of us.
             These guidelines are what we ask every member to agree to, and what we use to keep the community a good place to be.
           </p>
 
@@ -33,8 +33,8 @@ export default function CommunityGuidelines() {
             <section>
               <h2 className="text-xl font-semibold mb-3">Be who you say you are</h2>
               <p>
-                Postpartum Post is for parents and expecting parents who are 18 or older. By joining, you confirm that's you.
-                We can't verify everything — and that's okay — but misrepresenting yourself to gain access to other members is a serious violation of trust, and of these guidelines.
+                Postpartum Post is for parents and expecting parents who are 18 or older. By joining, you confirm that&apos;s you.
+                We can&apos;t verify everything — and that&apos;s okay — but misrepresenting yourself to gain access to other members is a serious violation of trust, and of these guidelines.
               </p>
             </section>
 
@@ -44,7 +44,7 @@ export default function CommunityGuidelines() {
               <ul className="list-disc list-inside space-y-2">
                 <li>Consider meeting in a public place the first time — a café, a park, anywhere with other people around.</li>
                 <li>You never owe anyone a second meeting. One cup of coffee and a friendly goodbye is always enough.</li>
-                <li>Don't share your match's contact details with anyone else.</li>
+                <li>Don&apos;t share your match&apos;s contact details with anyone else.</li>
                 <li>If something feels off, trust that feeling — and{" "}
                   <Link href="mailto:post@amsterdamparentproject.nl?subject=Postpartum%20Post%3A%20Report" className="underline underline-offset-2 hover:text-coral transition-colors">
                     tell us
@@ -66,25 +66,25 @@ export default function CommunityGuidelines() {
             <section>
               <h2 className="text-xl font-semibold mb-3">No selling, recruiting, or soliciting</h2>
               <p>
-                Postpartum Post is for connection, not business. Please don't use it to pitch products, recruit
+                Postpartum Post is for connection, not business. Please don&apos;t use it to pitch products, recruit
                 for MLMs, solicit money, or pressure anyone into a group or belief system. A match who came hoping
                 for a friend and got a sales pitch is not a good experience for anyone.
               </p>
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold mb-3">Respect people's boundaries after a meeting</h2>
+              <h2 className="text-xl font-semibold mb-3">Respect people&apos;s boundaries after a meeting</h2>
               <p>
-                If a match doesn't respond or signals they'd rather not stay in touch, please respect that.
+                If a match doesn&apos;t respond or signals they&apos;d rather not stay in touch, please respect that.
                 Continued unwanted contact — messages, showing up uninvited, or finding someone through other channels
-                after they've asked you not to — is not okay and will be treated as a serious violation.
+                after they&apos;ve asked you not to — is not okay and will be treated as a serious violation.
               </p>
             </section>
 
             <section>
               <h2 className="text-xl font-semibold mb-3">How to report a concern</h2>
               <p>
-                If something felt off, you don't need proof and you don't need to be certain. That's enough to tell us.
+                If something felt off, you don&apos;t need proof and you don&apos;t need to be certain. That&apos;s enough to tell us.
                 We read every report, and we keep all reports confidential — we will never tell the other person
                 who reported them, or that a report was made.
               </p>
@@ -93,8 +93,8 @@ export default function CommunityGuidelines() {
                 <Link href="mailto:post@amsterdamparentproject.nl?subject=Postpartum%20Post%3A%20Report" className="underline underline-offset-2 hover:text-coral transition-colors">
                   submit a report here
                 </Link>
-                {" "}— no login required. We'll acknowledge it within 24 hours and resolve it within 72.
-                If you're ever in immediate danger, contact emergency services: <strong>112</strong> in the Netherlands.
+                {" "}— no login required. We&apos;ll acknowledge it within 24 hours and resolve it within 72.
+                If you&apos;re ever in immediate danger, contact emergency services: <strong>112</strong> in the Netherlands.
               </p>
             </section>
 
@@ -121,7 +121,7 @@ export default function CommunityGuidelines() {
                 <a href="mailto:post@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
                   post@amsterdamparentproject.nl
                 </a>
-                . We'll review it with fresh eyes.
+                . We&apos;ll review it with fresh eyes.
               </p>
             </section>
 

@@ -42,8 +42,6 @@ export default function ActivitiesSection({
   const [activeTab, setActiveTab] = useState<Tab>("activities");
   const [sortOrder, setSortOrder] = useState<SortOrder>("date");
 
-  const places = useMemo(() => all.filter((a) => a.kind === "location"), [all]);
-
   // Filter Things to Do to events that match at least one member's availability
   const memberDays = useMemo(
     () => new Set(members.flatMap((m) => m.days.map((d) => d.toLowerCase()))),
@@ -155,10 +153,10 @@ export default function ActivitiesSection({
         Activities list
       </h3>
       <p className="text-muted text-sm">
-        This list has been made for just you two — it's meant to inspire you! It contains a mix of places to go and events and activities around the city that match your profiles. We've also included free playgrounds close by to meet up at, originally sourced (then Post-ified 😉) from <a href="https://www.buitenspeelkaart.nl/amsterdam/" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">here</a>. 
+        This list has been made for just you two — it&apos;s meant to inspire you! It contains a mix of places to go and events and activities around the city that match your profiles. We&apos;ve also included free playgrounds close by to meet up at, originally sourced (then Post-ified 😉) from <a href="https://www.buitenspeelkaart.nl/amsterdam/" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">here</a>. 
       </p>
       <p className="text-muted text-xs pb-2">
-        Heads up: We're adding and refining more and more activity data every day. We'd absolutely <a href="https://forms.gle/15dS6YvYucyeU8Cv9" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">love your feedback</a> on how useful this data is to you and your experience in general!
+        Heads up: We&apos;re adding and refining more and more activity data every day. We&apos;d absolutely <a href="https://forms.gle/15dS6YvYucyeU8Cv9" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">love your feedback</a> on how useful this data is to you and your experience in general!
       </p>
 
       {/* Tabs */}
@@ -222,7 +220,6 @@ export default function ActivitiesSection({
         <TabContent
           rec={recommendedPlaces}
           sortOrder={sortOrder}
-          isActivities={false}
         />
       ) : activeTab === "playgrounds" ? (
         <PlaygroundList playgrounds={sortedPlaygrounds} />
@@ -230,7 +227,6 @@ export default function ActivitiesSection({
         <TabContent
           rec={filteredRecActivities}
           sortOrder={sortOrder}
-          isActivities={true}
           members={members}
         />
       )}

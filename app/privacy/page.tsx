@@ -57,7 +57,7 @@ export default function PrivacyPolicy() {
                 <div>
                   <h3 className="font-semibold mb-1">Profile information</h3>
                   <p>
-                    Details you add to your profile — such as your neighborhood, your children's ages, your
+                    Details you add to your profile — such as your neighborhood, your children&apos;s ages, your
                     availability, and your interests. This is what we use to find you a good match each month.
                     Providing this information is voluntary, but the more you share, the better your matches will be.
                     The legal basis is <em>performance of a contract</em>.
@@ -67,9 +67,9 @@ export default function PrivacyPolicy() {
                 <div>
                   <h3 className="font-semibold mb-1">Monthly matching preferences</h3>
                   <p>
-                    Each month, we send you an email asking which topic you'd like to connect over.
+                    Each month, we send you an email asking which topic you&apos;d like to connect over.
                     Your response (or your choice to skip) is recorded so we can include or exclude you
-                    from that month's match run.
+                    from that month&apos;s match run.
                   </p>
                 </div>
 
@@ -139,7 +139,7 @@ export default function PrivacyPolicy() {
 
             <section>
               <h2 className="text-xl font-semibold mb-3">Your rights under GDPR</h2>
-              <p className="mb-3">Because we're based in the EU, you have the following rights over your personal data:</p>
+              <p className="mb-3">Because we&apos;re based in the EU, you have the following rights over your personal data:</p>
               <ul className="list-disc list-inside space-y-2 text-dark">
                 <li><strong>Access</strong> — request a copy of the data we hold about you</li>
                 <li><strong>Rectification</strong> — ask us to correct inaccurate data</li>
@@ -153,7 +153,7 @@ export default function PrivacyPolicy() {
                 <a href="mailto:hello@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
                   hello@amsterdamparentproject.nl
                 </a>
-                . We'll respond within 30 days.
+                . We&apos;ll respond within 30 days.
               </p>
               <p className="mt-3">
                 You also have the right to lodge a complaint with the Dutch Data Protection Authority (
@@ -181,7 +181,7 @@ export default function PrivacyPolicy() {
             <section>
               <h2 className="text-xl font-semibold mb-3">Changes to this policy</h2>
               <p>
-                If we make significant changes to this policy, we'll let you know by email. The "last updated"
+                If we make significant changes to this policy, we&apos;ll let you know by email. The &quot;last updated&quot;
                 date at the top of this page will always reflect the most recent version.
               </p>
             </section>
@@ -193,7 +193,7 @@ export default function PrivacyPolicy() {
                 <a href="mailto:hello@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
                   hello@amsterdamparentproject.nl
                 </a>
-                . We're happy to help.
+                . We&apos;re happy to help.
               </p>
             </section>
 

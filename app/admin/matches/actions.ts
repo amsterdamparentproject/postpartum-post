@@ -371,8 +371,6 @@ export async function reassignDraftMember(
   if (m2.lat && m2.lng) coordMap.set(m2.id, { lat: m2.lat, lng: m2.lng });
 
   const scored = scorePair(candidate1, candidate2, coordMap);
-
-  const newScore = Math.round(scored.score);
   const newTier = qualityTier(scored.score, maxAchievableScore(candidate1, candidate2, coordMap));
 
   // Update the draft
@@ -455,7 +453,6 @@ export async function createDraftPair(
   if (m2.lat && m2.lng) coordMap.set(m2.id, { lat: m2.lat, lng: m2.lng });
 
   const scored = scorePair(candidate1, candidate2, coordMap);
-  const score = Math.round(scored.score);
   const quality_tier = qualityTier(scored.score, maxAchievableScore(candidate1, candidate2, coordMap));
 
   await supabase.from("match_drafts").insert({

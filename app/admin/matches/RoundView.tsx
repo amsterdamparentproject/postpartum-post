@@ -436,12 +436,10 @@ function MemberProfileIcons({ member }: { member: DraftMember }) {
 
 function NeedsMatchCard({
   member,
-  allMembers,
   round,
   onUpdate,
 }: {
   member: DraftMember;
-  allMembers: DraftMember[];
   round: RoundData;
   onUpdate: (round: RoundData) => void;
 }) {
@@ -880,7 +878,6 @@ export default function RoundView({ initialRound }: { initialRound: RoundData })
           <NeedsMatchCard
             key={member.id}
             member={member}
-            allMembers={round.allMembers}
             round={round}
             onUpdate={setRound}
           />

@@ -42,9 +42,10 @@ async function send(name: string, fn: () => Promise<void>) {
     await fn();
     results.push({ name, ok: true });
     console.log(`✓ ${name}`);
-  } catch (e: any) {
-    results.push({ name, ok: false, error: e?.message });
-    console.error(`✗ ${name}:`, e?.message);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    results.push({ name, ok: false, error: message });
+    console.error(`✗ ${name}:`, message);
   }
 }
 

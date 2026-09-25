@@ -46,7 +46,7 @@ export default async function ConsentConfirmed({
             You&apos;re all set
           </h1>
           <p className="text-muted leading-relaxed mb-10">
-            Thanks for confirming — all good here! We'll be in touch soon when the next match round opens.
+            Thanks for confirming — all good here! We&apos;ll be in touch soon when the next match round opens.
           </p>
           <p className="text-muted leading-relaxed mb-10">
             In the meantime, check out the new profile & matching features we added so that we can match you with the best parent possible next month.

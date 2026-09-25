@@ -92,9 +92,6 @@ export interface MatchProfile {
 // Age bucket helpers
 // ---------------------------------------------------------------------------
 
-/** Age tags used in activities.categories. Must match values in the DB. */
-const AGE_TAGS = new Set(["expecting", "newborn", "baby", "toddler", "all ages"]);
-
 /** Maps a child record to its age bucket tag, or null if over 4 years. */
 export function childAgeBucket(c: ChildRecord): string | null {
   if (c.expected) return "expecting";

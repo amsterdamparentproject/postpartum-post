@@ -28,7 +28,6 @@ import { createAdminClient } from "@/lib/supabase";
 import {
   geocodeMembers,
   runMatcher,
-  scorePair,
   maxAchievableScore,
   qualityTier,
   type MatchCandidate,

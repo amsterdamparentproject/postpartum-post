@@ -53,7 +53,7 @@ try {
   console.log(`✓ Granted a free month to ${result.memberEmail} (reason: ${reason})`);
   console.log(`  Matches granted: +${result.matchesGranted}`);
   console.log(`  Matches remaining now: ${result.matchesRemaining}`);
-} catch (e: any) {
-  console.error("✗ Failed:", e?.message);
+} catch (e) {
+  console.error("✗ Failed:", e instanceof Error ? e.message : String(e));
   process.exit(1);
 }

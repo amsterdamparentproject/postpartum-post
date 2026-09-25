@@ -7,7 +7,9 @@
  * function itself (migration 022), not here.
  */
 
-type AnySupabaseClient = import("@supabase/supabase-js").SupabaseClient<any, any, any>;
+// The actual type returned by createAdminClient()/createTestSupabase() — both
+// schema-scoped to "postpartumpost", which is all every caller here passes.
+type AnySupabaseClient = ReturnType<typeof import("@/lib/supabase").createAdminClient>;
 
 export type EntitlementEvent =
   | "term_payment"
@@ -77,7 +79,7 @@ export const GIFT_ENTITLEMENT_NOTE = "gift";
  * table exactly (see __tests__/lib/match-ledger.test.ts).
  */
 export function countRoundsRemaining(today: Date, termEnd: Date): number {
-  let year = today.getUTCFullYear();
+  const year = today.getUTCFullYear();
   let month = today.getUTCMonth();
   let candidate = new Date(Date.UTC(year, month, 5));
   if (candidate < today) {

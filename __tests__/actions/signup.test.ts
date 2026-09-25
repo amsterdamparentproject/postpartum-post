@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import { signup, abandonCheckout, type SignupFormData } from "@/app/actions/signup";
+import { signup, abandonCheckout } from "@/app/actions/signup";
 import { cleanupMember, createTestSupabase } from "@tests/helpers";
 import { POST as webhookPost } from "@/app/api/webhooks/stripe/route";
 

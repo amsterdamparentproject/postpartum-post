@@ -17,7 +17,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { generateMagicLink, signInAs } from "./helpers/auth";
+import { signInAs } from "./helpers/auth";
 import { cleanupMemberByEmail, getMemberMatchesRemainingByEmail, getPriceIntervalCount } from "./helpers/db";
 
 // Real, deliverable domain — this flow follows a real magic link generated
