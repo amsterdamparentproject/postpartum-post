@@ -44,7 +44,12 @@ async function getActiveMemberStats(): Promise<{ count: number; lastJoinedAt: Da
       { count: recentCount, error: recentError },
       { data: feedbackData, error: feedbackError },
     ] = await Promise.all([
-      supabase.from("members").select("id", { count: "exact", head: true }).eq("status", "active"),
+      // Active members always get a match next month (renew-check bills them at 0).
+      // Canceling members only count while they still have matches left on their term.
+      supabase
+        .from("members")
+        .select("id", { count: "exact", head: true })
+        .or("status.eq.active,and(status.eq.canceling,matches_remaining.gt.0)"),
       supabase.from("members").select("created_at").eq("status", "active").order("created_at", { ascending: false }).limit(1).single(),
       supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").gte("created_at", thirtyDaysAgo),
       supabase.from("match_feedback").select("happy_with_match, matching_process_rating"),

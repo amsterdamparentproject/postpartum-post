@@ -363,7 +363,7 @@ export async function convertLeadToPartner(
     console.error("[convertLeadToPartner] lead update error:", leadError.message);
   }
 
-  // Signed magic link so "Sign in to your portal" in the welcome email
+  // Signed magic link so "Go to your portal" in the welcome email
   // signs the partner straight into /partners/profile — same pattern
   // app/api/send-match-emails/route.ts uses for member emails. Falls back
   // to a plain /partners/login URL (a normal, if slightly slower, sign-in)
