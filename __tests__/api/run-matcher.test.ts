@@ -35,11 +35,17 @@ vi.mock("@/lib/matcher", async (importOriginal) => {
 
 const BASE_URL = "http://localhost";
 
+// A fake future month, distinct from every other test file's sentinel
+// (2099-01 commit-matches, 2099-02/2099-03 match-page, 2099-04
+// send-match-emails, 2099-05 send-meetup-reminder, 2099-06 meetup-status) —
+// see the "why a sentinel month" note on the describe block below.
+const TEST_MONTH = "2099-07";
+
 function makeRequest(body: Record<string, unknown> = {}) {
   const secret = process.env.MATCHER_API_SECRET;
   return new NextRequest(`${BASE_URL}/api/run-matcher`, {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ month: TEST_MONTH, ...body }),
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${secret}`,
@@ -89,66 +95,30 @@ async function cleanupMatchRound(month: string) {
 // Tests
 // ---------------------------------------------------------------------------
 
-const THIS_MONTH_DATE = new Date().toISOString().slice(0, 7) + "-01"; // YYYY-MM-01
+// TEST_MONTH is a fake future month (never the real current month), not
+// `new Date()`-derived like this file used to be. This test DB doubles as
+// the shared dev DB (.env.local and .env.test point at the same Supabase
+// project), and the route used to have no way to ask for anything but the
+// real current month — so these tests ran against whatever reference
+// members (scripts/seed-test-members.mts) or Alex's own account happened to
+// be opted in for real that month, and assertions like `toHaveLength(1)`
+// broke as soon as that pool wasn't empty. /api/run-matcher now takes an
+// optional `month` override (mirrors /api/commit-matches, /api/send-match-
+// emails, etc.) specifically so tests can point at a month real opt-ins
+// never touch.
+const THIS_MONTH_DATE = `${TEST_MONTH}-01`;
 
 describe("POST /api/run-matcher", () => {
   let memberIds: string[] = [];
 
   beforeEach(async () => {
     memberIds = [];
-    // Purge stale match_rounds/monthly_participation left by a crashed
-    // previous run of *this* suite, so each test starts with a clean pool.
-    //
-    // Scoped, not blanket-by-month: this test DB doubles as the shared dev
-    // DB (.env.local and .env.test point at the same Supabase project), so
-    // a plain `.delete().eq("month", THIS_MONTH_DATE)` here was silently
-    // wiping real opt-ins — including the reference members from
-    // scripts/seed-test-members.mts (Sofia, Daan, etc.) whenever any of
-    // them had opted in for the real current month. Only ever touch rows
-    // owned by this suite's own seedMember()/seedParticipation() calls
-    // (testEmail() in __tests__/helpers.ts always uses the
-    // "amsterdamparentproject+test-*@gmail.com" pattern — seeded reference
-    // members use their own first names, e.g. "+sofia@gmail.com", so they
-    // never match).
+    // Purge anything left by a crashed previous run of *this* suite. Safe to
+    // do unconditionally (unlike a real-month sweep) — nothing but this file
+    // ever writes to TEST_MONTH.
     const supabase = createTestSupabase();
-
-    const { data: staleTestMembers } = await supabase
-      .from("members")
-      .select("id")
-      .like("email", "amsterdamparentproject+test-%@gmail.com");
-    const staleTestMemberIds = (staleTestMembers ?? []).map((m) => m.id);
-
-    if (staleTestMemberIds.length > 0) {
-      await supabase
-        .from("monthly_participation")
-        .delete()
-        .eq("month", THIS_MONTH_DATE)
-        .in("member_id", staleTestMemberIds);
-    }
-
-    // match_rounds isn't member-scoped, so apply the same principle at the
-    // round level: only purge an existing round for this month if every
-    // match_drafts row on it belongs to this suite's own test members (or
-    // it has none). Otherwise leave it alone — a test failing loudly beats
-    // silently deleting a real match round.
-    const { data: existingRound } = await supabase
-      .from("match_rounds")
-      .select("id")
-      .eq("month", THIS_MONTH_DATE)
-      .maybeSingle();
-
-    if (existingRound) {
-      const { data: drafts } = await supabase
-        .from("match_drafts")
-        .select("member_id_1, member_id_2")
-        .eq("round_id", existingRound.id);
-      const draftMemberIds = (drafts ?? []).flatMap((d) => [d.member_id_1, d.member_id_2]);
-      const allStaleTestOwned = draftMemberIds.every((id) => staleTestMemberIds.includes(id));
-
-      if (allStaleTestOwned) {
-        await supabase.from("match_rounds").delete().eq("id", existingRound.id);
-      }
-    }
+    await supabase.from("monthly_participation").delete().eq("month", THIS_MONTH_DATE);
+    await supabase.from("match_rounds").delete().eq("month", THIS_MONTH_DATE);
   });
 
   afterEach(async () => {

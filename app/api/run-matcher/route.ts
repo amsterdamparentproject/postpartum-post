@@ -11,7 +11,7 @@
  * Authentication: Bearer token via MATCHER_API_SECRET env var.
  *
  * Request body (JSON):
- *   { dryRun?: boolean }
+ *   { dryRun?: boolean, month?: "YYYY-MM" }   // month overrides current month, for testing / manual runs
  *
  * Response:
  *   {
@@ -54,15 +54,16 @@ export async function POST(req: NextRequest) {
   // Parse body
   // -------------------------------------------------------------------------
   let dryRun = false;
+  let month = currentMonth();
   try {
     const body = await req.json();
     dryRun = body?.dryRun === true;
+    if (body?.month && typeof body.month === "string") month = body.month;
   } catch {
-    // Empty body is fine — treat as non-dry run
+    // Empty body is fine — treat as non-dry run, current month
   }
 
   const supabase = createAdminClient();
-  const month = currentMonth();       // YYYY-MM
   const monthDate = monthToDate(month); // YYYY-MM-01
 
   // -------------------------------------------------------------------------
