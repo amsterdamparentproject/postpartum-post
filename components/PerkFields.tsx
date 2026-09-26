@@ -59,6 +59,7 @@ export default function PerkFields({
         </div>
         <input
           value={value.title}
+          aria-label="Headline"
           onChange={(e) => set("title", e.target.value)}
           required
           maxLength={PERK_TITLE_MAX}
@@ -76,6 +77,7 @@ export default function PerkFields({
         </div>
         <textarea
           value={value.description}
+          aria-label="Description"
           onChange={(e) => set("description", e.target.value)}
           required
           rows={2}
@@ -92,6 +94,7 @@ export default function PerkFields({
         <input
           type="url"
           value={value.url}
+          aria-label="Link"
           onChange={(e) => set("url", e.target.value)}
           required={value.redemption_type === "online"}
           className={inputClass}
@@ -161,6 +164,7 @@ export default function PerkFields({
           </p>
           <select
             value={value.location_id ?? ""}
+            aria-label="Location"
             onChange={(e) => set("location_id", e.target.value || null)}
             className={inputClass}
           >
@@ -176,6 +180,7 @@ export default function PerkFields({
           <input
             type="date"
             value={value.expires_at}
+            aria-label="Expires"
             onChange={(e) => set("expires_at", e.target.value)}
             // iOS Safari gives date inputs a fixed intrinsic width that ignores
             // w-full, and collapses them when empty without a min height.
