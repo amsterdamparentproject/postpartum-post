@@ -12,6 +12,7 @@ import {
   PLACE_SORTS,
   ACTIVITY_SORTS,
   PLAYGROUND_SORTS,
+  PERK_SORTS,
   effectiveDayOfWeek,
   TOP_N,
   formatDistance,
@@ -48,7 +49,7 @@ export default function ActivitiesSection({
 }: Props) {
   // Perks lead the List view when there are any.
   const [activeTab, setActiveTab] = useState<Tab>(perks.length > 0 ? "perks" : "activities");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("date");
+  const [sortOrder, setSortOrder] = useState<SortOrder>(perks.length > 0 ? "distance" : "date");
 
   // Filter Things to Do to events that match at least one member's availability
   const memberDays = useMemo(
@@ -117,6 +118,7 @@ export default function ActivitiesSection({
   const sortOptions =
     activeTab === "places" ? PLACE_SORTS :
     activeTab === "playgrounds" ? PLAYGROUND_SORTS :
+    activeTab === "perks" ? PERK_SORTS :
     ACTIVITY_SORTS;
 
   // Sorted playgrounds for the tab list
@@ -127,10 +129,19 @@ export default function ActivitiesSection({
     return pg;
   }, [playgrounds, sortOrder]);
 
+  // Sorted perks for the tab list — "score" keeps the most-popular order
+  // they arrived in (lib/perk-ranking.ts), "distance" is nearest-first.
+  const sortedPerks = useMemo(() => {
+    if (sortOrder === "alpha") return [...perks].sort((a, b) => a.title.localeCompare(b.title));
+    if (sortOrder === "score") return perks;
+    return [...perks].sort((a, b) => a.distanceKm - b.distanceKm); // "distance" or fallback
+  }, [perks, sortOrder]);
+
   function switchTab(tab: Tab) {
     setActiveTab(tab);
     if (tab === "activities") setSortOrder("date");
     else if (tab === "playgrounds") setSortOrder("distance");
+    else if (tab === "perks") setSortOrder("distance");
     else setSortOrder("score");
   }
 
@@ -142,7 +153,23 @@ export default function ActivitiesSection({
         <h2 className="text-2xl sm:text-3xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
           Where to meet up
         </h2>
-        <PerkList perks={perks} />
+        <div className="flex flex-wrap gap-2">
+          {PERK_SORTS.map(({ label, value }) => (
+            <button
+              key={value}
+              onClick={() => setSortOrder(value)}
+              className={`px-3 py-1 text-xs rounded-full border transition-colors cursor-pointer ${
+                sortOrder === value
+                  ? ""
+                  : "bg-white text-muted border-border hover:border-dark hover:text-dark"
+              }`}
+              style={sortOrder === value ? { background: "#8A9E3A", borderColor: "#8A9E3A", color: "#fff" } : undefined}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <PerkList perks={sortedPerks} />
       </section>
     );
   }
@@ -262,8 +289,7 @@ export default function ActivitiesSection({
         })}
       </div>
 
-      {/* Sort pills (not for perks — they keep their "most popular" order) */}
-      {activeTab !== "perks" && (
+      {/* Sort pills */}
       <div className="flex flex-wrap gap-2">
         {sortOptions.map(({ label, value }) => {
           const isActive = sortOrder === value;
@@ -272,6 +298,8 @@ export default function ActivitiesSection({
               ? { background: "#AF99FF", borderColor: "#AF99FF", color: "#fff" }
               : activeTab === "playgrounds"
               ? { background: "#D4A373", borderColor: "#D4A373", color: "#fff" }
+              : activeTab === "perks"
+              ? { background: "#8A9E3A", borderColor: "#8A9E3A", color: "#fff" }
               : { background: "#D4E09B", borderColor: "#D4E09B", color: "#3a3a3a" };
           return (
             <button
@@ -289,11 +317,10 @@ export default function ActivitiesSection({
           );
         })}
       </div>
-      )}
 
       {/* Tab content */}
       {activeTab === "perks" ? (
-        <PerkList perks={perks} />
+        <PerkList perks={sortedPerks} />
       ) : activeTab === "places" ? (
         <TabContent
           rec={recommendedPlaces}

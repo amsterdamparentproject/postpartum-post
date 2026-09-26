@@ -58,6 +58,12 @@ export const PLAYGROUND_SORTS: { label: string; value: SortOrder }[] = [
   { label: "Alphabetical", value: "alpha" },
 ];
 
+export const PERK_SORTS: { label: string; value: SortOrder }[] = [
+  { label: "Nearest", value: "distance" },
+  { label: "Most popular", value: "score" },
+  { label: "Alphabetical", value: "alpha" },
+];
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
