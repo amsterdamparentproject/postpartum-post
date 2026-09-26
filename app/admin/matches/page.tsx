@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { getRoundData, type RoundData, testSendOptinEmail, testRunMatcher, testCommitMatches, testSendMatchEmails, testLockRound, testResetRound } from "./actions";
+import { getRoundData, type RoundData, testSimulateOptins, testRunMatcher, testCommitMatches, testSimulateMatchEmails, testLockRound, testResetRound } from "./actions";
 import RoundView from "./RoundView";
 import AdminNav from "../AdminNav";
 
@@ -51,24 +51,27 @@ export default function AdminMatchesPage() {
 
 const TEST_STEPS = [
   { label: "Reset round",        action: testResetRound,       note: "Clears this month's test data — run first" },
-  { label: "Send opt-in email",  action: testSendOptinEmail,   note: "Sends to test DB members" },
-  { label: "Run matcher",        action: testRunMatcher,       note: "Writes drafts to test DB" },
+  { label: "Simulate opt-ins",   action: testSimulateOptins,   note: "No emails — you're always coffee, everyone else random" },
+  { label: "Run matcher",        action: testRunMatcher,       note: "Writes drafts — you always get a match" },
   { label: "Commit matches",     action: testCommitMatches,    note: "Promotes drafts → matches in test DB" },
-  { label: "Send match emails",  action: testSendMatchEmails,  note: "Sends to test DB member emails" },
+  { label: "Simulate match emails", action: testSimulateMatchEmails, note: "No emails — gives you your match page link" },
   { label: "Lock round",         action: testLockRound,        note: "Locks the test round" },
 ] as const;
 
 function TestControls() {
   const [open, setOpen] = useState(false);
-  const [results, setResults] = useState<Record<string, string>>({});
+  const [results, setResults] = useState<Record<string, { text: string; link?: string }>>({});
   const [isPending, startTransition] = useTransition();
 
-  function run(label: string, action: () => Promise<{ success: boolean; message?: string; error?: string }>) {
+  function run(label: string, action: () => Promise<{ success: boolean; message?: string; error?: string; link?: string }>) {
     startTransition(async () => {
       const result = await action();
       setResults((prev) => ({
         ...prev,
-        [label]: result.success ? `✓ ${result.message ?? "ok"}` : `✗ ${result.error}`,
+        [label]: {
+          text: result.success ? `✓ ${result.message ?? "ok"}` : `✗ ${result.error}`,
+          link: result.success ? result.link : undefined,
+        },
       }));
     });
   }
@@ -97,8 +100,21 @@ function TestControls() {
               </button>
               <span className="text-xs text-muted">{note}</span>
               {results[label] && (
-                <span className={`text-xs font-mono ml-auto ${results[label].startsWith("✓") ? "text-green-600" : "text-red-600"}`}>
-                  {results[label].slice(0, 80)}
+                <span className={`text-xs font-mono ml-auto ${results[label].text.startsWith("✓") ? "text-green-600" : "text-red-600"}`}>
+                  {results[label].text.slice(0, 80)}
+                  {results[label].link && (
+                    <>
+                      {" "}
+                      <a
+                        href={results[label].link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-sans font-semibold text-coral hover:underline"
+                      >
+                        Open match page →
+                      </a>
+                    </>
+                  )}
                 </span>
               )}
             </div>
