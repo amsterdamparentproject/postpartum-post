@@ -146,7 +146,7 @@ export default function PartnerLocationsManager({
         )}
       </div>
       {locations.length === 0 && !addingNew && (
-        <p className="text-sm text-muted">No locations yet — add one if you operate from a physical address.</p>
+        <p className="text-sm text-muted">No locations yet. Add one if you have a regular address, or skip this if your location varies.</p>
       )}
       <div>
         {locations.map((loc) => (

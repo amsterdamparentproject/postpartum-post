@@ -111,7 +111,6 @@ describe("authenticated partner profile actions", () => {
         business_name: "Nope",
         url: "",
         description: "",
-        image_url: "",
       });
       expect(result.success).toBe(false);
     });
@@ -121,7 +120,6 @@ describe("authenticated partner profile actions", () => {
         business_name: "Renamed Business",
         url: "",
         description: "A cozy neighborhood spot",
-        image_url: "",
       });
       expect(result.success).toBe(true);
 

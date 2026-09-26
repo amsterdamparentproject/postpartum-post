@@ -13,12 +13,15 @@ const labelClass = "block text-sm font-medium text-dark mb-1";
 
 /**
  * Business-level fields on postpartumpost.partners (business_name/url/
- * description/image_url) — autosaves (see lib/use-autosave.ts) rather than
+ * description) — autosaves (see lib/use-autosave.ts) rather than
  * requiring an explicit Save click. business_name and url are required in
  * this form (url isn't NOT NULL at the DB level, but a save is still
  * skipped while either is empty mid-edit, same reasoning as business_name:
  * don't fire — and fail — on every keystroke of someone clearing a field
  * to retype it).
+ *
+ * The photo (image_url) lives in its own box, PartnerPhotoCard, and saves
+ * on its own — so a pending autosave here can never overwrite a fresh upload.
  *
  * The partner's own name/email live in PartnerContactForm ("Your info")
  * instead — kept separate because email edits need special handling
@@ -31,31 +34,28 @@ export default function PartnerProfileForm({
 }: {
   partner: PartnerProfile;
   accessToken: string;
-  onSaved: (updated: Pick<PartnerProfile, "business_name" | "url" | "description" | "image_url">) => void;
+  onSaved: (updated: Pick<PartnerProfile, "business_name" | "url" | "description">) => void;
 }) {
   const [businessName, setBusinessName] = useState(partner.business_name);
   const [url, setUrl] = useState(partner.url ?? "");
   const [description, setDescription] = useState(partner.description ?? "");
-  const [imageUrl, setImageUrl] = useState(partner.image_url ?? "");
 
   const businessNameField = useRequiredField("Business name");
   const urlField = useRequiredField("Website");
 
   const { status, error } = useAutosave(
-    { businessName, url, description, imageUrl },
+    { businessName, url, description },
     async (v) => {
       const result = await savePartnerProfile(accessToken, {
         business_name: v.businessName,
         url: v.url,
         description: v.description,
-        image_url: v.imageUrl,
       });
       if (result.success) {
         onSaved({
           business_name: v.businessName.trim(),
           url: v.url.trim() || null,
           description: v.description.trim() || null,
-          image_url: v.imageUrl.trim() || null,
         });
       }
       return result;
@@ -106,10 +106,6 @@ export default function PartnerProfileForm({
           className={inputClass}
           placeholder="What you offer, in a sentence or two"
         />
-      </div>
-      <div>
-        <label className={labelClass}>Logo image URL</label>
-        <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} className={inputClass} placeholder="https://" />
       </div>
     </form>
   );

@@ -1,11 +1,15 @@
 "use server";
 
+import { revalidatePerksPage } from "@/lib/revalidate-perks";
 import { createAdminClient } from "@/lib/supabase";
 import { requirePartner } from "@/lib/require-partner";
 import { geocodeAddress } from "@/lib/geocode";
 import { sendPartnerLeadEmail } from "@/lib/emails/partner-lead";
 import { createLeadNote } from "@/lib/lead-notes";
 import { findMatchingLead, mergeIntoLead } from "@/lib/lead-matching";
+import { commitPartnerImage, createPartnerImageUploadFor, type ImageUploadTicket } from "@/lib/partner-image-save";
+import { normalizePerkInput, type PerkInput, type SavedPerkFields } from "@/lib/perk-input";
+import { resolvePerkLocation } from "@/lib/perk-save";
 
 export type PartnerLocation = {
   id: string;
@@ -76,11 +80,13 @@ export async function getPartnerProfile(accessToken: string): Promise<PartnerPro
   return { ...partner, locations: locations ?? [] } as PartnerProfile;
 }
 
+// image_url is not here: the photo saves on its own through the upload
+// actions below (createPartnerImageUpload / setPartnerImage), so the
+// autosaving profile form can never overwrite a fresh upload.
 export type PartnerProfileInput = {
   business_name: string;
   url: string;
   description: string;
-  image_url: string;
 };
 
 export async function savePartnerProfile(
@@ -97,7 +103,6 @@ export async function savePartnerProfile(
       business_name: input.business_name.trim(),
       url: input.url.trim() || null,
       description: input.description.trim() || null,
-      image_url: input.image_url.trim() || null,
     })
     .eq("id", authed.partnerId);
 
@@ -461,36 +466,40 @@ export async function submitPerkIdea(
 }
 
 // ---------------------------------------------------------------------------
+// Partner photo (partners.image_url) — see lib/partner-image-save.ts
+// ---------------------------------------------------------------------------
+
+export async function createPartnerImageUpload(
+  accessToken: string,
+  contentType: string,
+): Promise<ImageUploadTicket> {
+  const authed = await requirePartner(accessToken);
+  if (!authed) return { success: false, error: "Not signed in" };
+  return createPartnerImageUploadFor(createAdminClient(), authed.partnerId, contentType);
+}
+
+/** path = the uploaded file's bucket path, or null to remove the photo. */
+export async function setPartnerImage(
+  accessToken: string,
+  path: string | null,
+): Promise<{ success: boolean; error?: string; imageUrl?: string | null }> {
+  const authed = await requirePartner(accessToken);
+  if (!authed) return { success: false, error: "Not signed in" };
+  const result = await commitPartnerImage(createAdminClient(), authed.partnerId, path);
+  if (result.success) revalidatePerksPage();
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Your Perks tab
 // ---------------------------------------------------------------------------
 
-export type PerkCategory = { id: string; name: string };
-
-export type PartnerPerk = {
-  id: string;
+export type PartnerPerk = SavedPerkFields & {
   status: "pending" | "coming_soon" | "published" | "rejected" | "archived";
-  location_id: string | null;
-  partner_link: string | null;
-  perk_title: string;
-  perk_description: string;
-  perk_discount: string;
-  redemption_instructions: string | null;
-  perk_redemption_code: string | null;
-  perk_redemption_url: string | null;
-  expires_at: string | null;
-  exclusive: boolean;
-  category_ids: string[];
 };
 
-export async function listPerkCategories(): Promise<PerkCategory[]> {
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("perk_categories")
-    .select("id, name")
-    .order("name", { ascending: true });
-  if (error) console.error("[listPerkCategories] query error:", error.message);
-  return data ?? [];
-}
+const PERK_FIELDS =
+  "id, status, location_id, title, description, redemption_type, redemption_code, url, expires_at, exclusive";
 
 export async function listPartnerPerks(accessToken: string): Promise<PartnerPerk[]> {
   const authed = await requirePartner(accessToken);
@@ -499,39 +508,18 @@ export async function listPartnerPerks(accessToken: string): Promise<PartnerPerk
   const supabase = createAdminClient();
   const { data: perks, error } = await supabase
     .from("perks")
-    .select("id, status, location_id, partner_link, perk_title, perk_description, perk_discount, redemption_instructions, perk_redemption_code, perk_redemption_url, expires_at, exclusive")
+    .select(PERK_FIELDS)
     .eq("partner_id", authed.partnerId)
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[listPartnerPerks] query error:", error.message);
     return [];
   }
-  if (!perks || perks.length === 0) return [];
-
-  const { data: links } = await supabase
-    .from("perks_category_links")
-    .select("perk_id, category_id")
-    .in("perk_id", perks.map((p) => p.id));
-
-  return perks.map((p) => ({
-    ...p,
-    category_ids: (links ?? []).filter((l) => l.perk_id === p.id).map((l) => l.category_id),
-  })) as PartnerPerk[];
+  return (perks ?? []) as PartnerPerk[];
 }
 
-export type PartnerPerkInput = {
+export type PartnerPerkInput = PerkInput & {
   id?: string; // present = update, absent = create
-  location_id: string | null;
-  partner_link: string;
-  perk_title: string;
-  perk_description: string;
-  perk_discount: string;
-  redemption_instructions: string;
-  perk_redemption_code: string;
-  perk_redemption_url: string;
-  expires_at: string; // "" = no expiry
-  exclusive: boolean;
-  category_ids: string[];
 };
 
 /**
@@ -549,12 +537,8 @@ export async function savePartnerPerk(
   const authed = await requirePartner(accessToken);
   if (!authed) return { success: false, error: "Not signed in" };
 
-  const title = input.perk_title.trim();
-  const description = input.perk_description.trim();
-  const discount = input.perk_discount.trim();
-  if (!title || !description || !discount) {
-    return { success: false, error: "Title, description, and discount are required" };
-  }
+  const normalized = normalizePerkInput(input);
+  if (!normalized.ok) return { success: false, error: normalized.error };
 
   const supabase = createAdminClient();
 
@@ -568,31 +552,15 @@ export async function savePartnerPerk(
     if (!existing) return { success: false, error: "Perk not found" };
   }
 
-  // location_id, if set, must actually belong to this partner.
-  if (input.location_id) {
-    const { data: loc } = await supabase
-      .from("partner_locations")
-      .select("id")
-      .eq("id", input.location_id)
-      .eq("partner_id", authed.partnerId)
-      .maybeSingle();
-    if (!loc) return { success: false, error: "Location not found" };
-  }
+  const location = await resolvePerkLocation(supabase, authed.partnerId, input.location_id);
+  if (!location.ok) return { success: false, error: location.error };
 
   const row = {
+    ...normalized.row,
     partner_id: authed.partnerId,
     source: "partner_portal" as const,
     status: "pending" as const,
-    location_id: input.location_id,
-    partner_link: input.partner_link.trim() || null,
-    perk_title: title,
-    perk_description: description,
-    perk_discount: discount,
-    redemption_instructions: input.redemption_instructions.trim() || null,
-    perk_redemption_code: input.perk_redemption_code.trim() || null,
-    perk_redemption_url: input.perk_redemption_url.trim() || null,
-    expires_at: input.expires_at || null,
-    exclusive: input.exclusive,
+    location_id: location.locationId,
   };
 
   const { data: perk, error } = input.id
@@ -604,14 +572,7 @@ export async function savePartnerPerk(
     return { success: false, error: "Couldn't save — try again" };
   }
 
-  // Category links: delete + re-insert is simplest and correct here — a
-  // perk has at most a handful of categories, no ordering to preserve.
-  await supabase.from("perks_category_links").delete().eq("perk_id", perk.id);
-  if (input.category_ids.length > 0) {
-    await supabase.from("perks_category_links").insert(
-      input.category_ids.map((category_id) => ({ perk_id: perk.id, category_id })),
-    );
-  }
-
+  // An edit sends a live perk back to review, so it leaves /perks.
+  revalidatePerksPage();
   return { success: true, perkId: perk.id as string };
 }
