@@ -226,7 +226,7 @@ export default function ActivitiesSection({
       </p>
 
       {/* Tabs */}
-      <div className="flex">
+      <div className="flex flex-wrap">
         {([
           ...(perks.length > 0 ? ["perks"] : []),
           "activities",
@@ -336,7 +336,7 @@ function PlaygroundList({ playgrounds }: { playgrounds: Playground[] }) {
             title={pg.name ?? "Playground"}
             meta={distance ? `${distance} from your halfway point` : null}
             description={formatPlaygroundType(pg.playground_type)}
-            action={{ label: "Open in Maps", href: `https://www.google.com/maps?q=${pg.lat},${pg.lng}`, external: true }}
+            mapsUrl={`https://www.google.com/maps?q=${pg.lat},${pg.lng}`}
           />
         );
       })}

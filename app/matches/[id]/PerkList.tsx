@@ -53,6 +53,7 @@ export function PerkList({ perks }: { perks: MatchPerk[] }) {
               )
             }
             action={{ label: "Redeem now", onClick: () => router.push(`/my-perks?perk=${perk.id}`) }}
+            mapsUrl={perk.lat != null && perk.lng != null ? `https://www.google.com/maps?q=${perk.lat},${perk.lng}` : null}
           />
         );
       })}

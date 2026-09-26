@@ -53,9 +53,9 @@ export default function ActivityCard({ activity, members }: Props) {
       kind={isEvent ? "event" : "place"}
       title={activity.title}
       highlight={activity.isRecommended}
-      chipAside={
+      belowImage={
         freeMembers.length > 0 && (
-          <div className="flex gap-0.5 shrink-0">
+          <div className="flex gap-0.5">
             {freeMembers.map((m) => (
               <span
                 key={m.initial}
@@ -71,6 +71,7 @@ export default function ActivityCard({ activity, members }: Props) {
       }
       meta={meta}
       description={description}
+      mapsUrl={activity.lat != null && activity.lng != null ? `https://www.google.com/maps?q=${activity.lat},${activity.lng}` : null}
       extras={
         (activity.organization || ageCategories.length > 0) && (
           <div className="space-y-1">
