@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { Activity, Playground } from "@/lib/activities";
+import type { MapPerk } from "@/components/ActivitiesMap";
 
 const ActivitiesMap = dynamic(() => import("@/components/ActivitiesMap"), {
   ssr: false,
@@ -18,11 +19,21 @@ export default function ActivitiesMapClient({
   center,
   memberCoords,
   playgrounds,
+  perks,
 }: {
   activities: Activity[];
   center: { lat: number; lng: number } | null;
   memberCoords: { lat: number; lng: number }[];
   playgrounds?: Playground[];
+  perks?: MapPerk[];
 }) {
-  return <ActivitiesMap activities={activities} center={center} memberCoords={memberCoords} playgrounds={playgrounds} />;
+  return (
+    <ActivitiesMap
+      activities={activities}
+      center={center}
+      memberCoords={memberCoords}
+      playgrounds={playgrounds}
+      perks={perks}
+    />
+  );
 }

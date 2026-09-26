@@ -29,7 +29,18 @@ export default function MyPerksPage() {
   const [open, setOpen] = useState<MemberPerk | null>(null);
 
   useEffect(() => {
-    if (member && accessToken) listMemberPerks(accessToken).then(setPerks);
+    if (!member || !accessToken) return;
+    listMemberPerks(accessToken).then((list) => {
+      setPerks(list);
+      // Deep link from the match page's perks strip: /my-perks?perk=<id>
+      // opens that perk's dialog straight away (and counts as a view).
+      const perkId = new URLSearchParams(window.location.search).get("perk");
+      const linked = perkId ? list.find((p) => p.id === perkId) : undefined;
+      if (linked) {
+        setOpen(linked);
+        if (!linked.reveal) void viewPerk(accessToken, linked.id);
+      }
+    });
   }, [member, accessToken]);
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;

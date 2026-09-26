@@ -9,8 +9,22 @@ export interface MemberAvailability {
   days: string[]; // lowercase: "monday", "tuesday", …
 }
 
-export type Tab = "places" | "activities" | "playgrounds";
+export type Tab = "places" | "activities" | "playgrounds" | "perks";
 export type SortOrder = "score" | "alpha" | "date" | "distance";
+
+/**
+ * How many of each kind the match page shows — places, events and
+ * playgrounds each keep their best TOP_N (by score; playgrounds by
+ * distance), across the map, calendar and lists, so the page isn't
+ * overwhelming.
+ */
+export const TOP_N = 5;
+
+/** "850m" / "1.2km", or null when there's no distance (no coordinates). */
+export function formatDistance(km: number): string | null {
+  if (!Number.isFinite(km)) return null;
+  return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
+}
 
 export interface WeekGroup {
   ws: string;

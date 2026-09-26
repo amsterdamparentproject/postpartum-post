@@ -60,3 +60,16 @@ body {
 button:not(:disabled) {
   cursor: pointer;
 }
+
+/* Match-page map popups (components/ActivitiesMap.tsx): one compact card
+   layout for every marker type — no Leaflet padding, card corners. */
+.map-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.map-popup .leaflet-popup-content {
+  margin: 0;
+  width: 250px !important;
+  line-height: normal;
+}

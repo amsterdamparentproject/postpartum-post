@@ -5,12 +5,16 @@ import ActivitiesMapClient from "@/components/ActivitiesMapClient";
 import type { Activity, Playground } from "@/lib/activities";
 import { formatPlaygroundType } from "@/lib/activities";
 import CalendarView from "./CalendarView";
+import { PerkList, type MatchPerk } from "./PerkList";
+import ListRow from "./ListRow";
 import TabContent from "./TabContent";
 import {
   PLACE_SORTS,
   ACTIVITY_SORTS,
   PLAYGROUND_SORTS,
   effectiveDayOfWeek,
+  TOP_N,
+  formatDistance,
   type MemberAvailability,
   type Tab,
   type SortOrder,
@@ -27,19 +31,23 @@ interface Props {
   members: [MemberAvailability, MemberAvailability];
   matchedOn: string; // YYYY-MM-DD
   playgrounds: Playground[];
+  /** Live perks, nearest first: map markers and the List view's Perks tab (the first tab). */
+  perks: MatchPerk[];
 }
 
 export default function ActivitiesSection({
-  recommendedPlaces,
+  recommendedPlaces: allRecommendedPlaces,
   recommendedActivities,
   all,
   center,
   memberCoords,
   members,
   matchedOn,
-  playgrounds,
+  playgrounds: allPlaygrounds,
+  perks,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("activities");
+  // Perks lead the List view when there are any.
+  const [activeTab, setActiveTab] = useState<Tab>(perks.length > 0 ? "perks" : "activities");
   const [sortOrder, setSortOrder] = useState<SortOrder>("date");
 
   // Filter Things to Do to events that match at least one member's availability
@@ -58,14 +66,47 @@ export default function ActivitiesSection({
     [all, memberDays],
   );
 
+  // Top TOP_N of each kind — used everywhere below (map, calendar, lists).
   const filteredRecActivities = useMemo(
-    () => recommendedActivities.filter((a) => activities.some((b) => b.id === a.id)),
+    () =>
+      recommendedActivities
+        .filter((a) => activities.some((b) => b.id === a.id))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, TOP_N),
     [recommendedActivities, activities],
+  );
+  const recommendedPlaces = useMemo(
+    () => [...allRecommendedPlaces].sort((a, b) => b.score - a.score).slice(0, TOP_N),
+    [allRecommendedPlaces],
+  );
+  const playgrounds = useMemo(
+    () => [...allPlaygrounds].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, TOP_N),
+    [allPlaygrounds],
   );
 
   const calendarEvents = useMemo(
     () => filteredRecActivities.filter((a) => a.kind === "event"),
     [filteredRecActivities],
+  );
+
+  const mapPerks = useMemo(
+    () =>
+      perks.flatMap((p) =>
+        p.lat != null && p.lng != null
+          ? [{
+              id: p.id,
+              title: p.title,
+              partnerName: p.partner.business_name,
+              locationLabel: p.location_label,
+              description: p.description,
+              imageUrl: p.partner.image_url,
+              exclusive: p.exclusive,
+              lat: p.lat,
+              lng: p.lng,
+            }]
+          : [],
+      ),
+    [perks],
   );
 
   const mapActivities = useMemo(
@@ -93,12 +134,34 @@ export default function ActivitiesSection({
     else setSortOrder("score");
   }
 
-  if (all.length === 0 && playgrounds.length === 0) return null;
+  // No activities or playgrounds: just the perks, if any.
+  if (all.length === 0 && playgrounds.length === 0) {
+    if (perks.length === 0) return null;
+    return (
+      <section className="space-y-6">
+        <h2 className="text-2xl sm:text-3xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
+          Where to meet up
+        </h2>
+        <PerkList perks={perks} />
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-6">
+      {/* When to meet up */}
+      <div className="space-y-4">
+        <h2
+          className="text-2xl sm:text-3xl text-dark"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          When to meet up
+        </h2>
+        <CalendarView events={calendarEvents} members={members} matchedOn={matchedOn} />
+      </div>
+
       <h2
-        className="text-2xl sm:text-3xl text-dark"
+        className="text-2xl sm:text-3xl text-dark pt-6"
         style={{ fontFamily: "var(--font-serif)" }}
       >
         Where to meet up
@@ -110,17 +173,31 @@ export default function ActivitiesSection({
         center={center}
         memberCoords={memberCoords}
         playgrounds={playgrounds}
+        perks={mapPerks}
       />
 
-      {/* Map legend */}
+      {/* Map legend — same order as the List view tabs */}
       <div className="flex flex-wrap gap-4 text-xs text-muted">
-        <span className="flex items-center gap-1.5">
-          <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: "#D4E09B", flexShrink: 0 }} />
-          Places
-        </span>
+        {mapPerks.length > 0 && (
+          <span className="flex items-center gap-1.5">
+            {/* Mini version of the perk map marker: white sparkle on dark green. */}
+            <span
+              className="flex items-center justify-center shrink-0 rounded-full"
+              style={{ width: 16, height: 16, background: "#8A9E3A" }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/sparkle.svg" alt="" style={{ width: 10, height: 10, filter: "brightness(0) invert(1)" }} />
+            </span>
+            Perks
+          </span>
+        )}
         <span className="flex items-center gap-1.5">
           <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: "#AF99FF", flexShrink: 0 }} />
           Events
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: "#D4E09B", flexShrink: 0 }} />
+          Places
         </span>
         {playgrounds.length > 0 && (
           <span className="flex items-center gap-1.5">
@@ -134,23 +211,12 @@ export default function ActivitiesSection({
         privacy, we do not show your locations here.
       </p>
 
-      {/* When to meet up */}
-      <div className="space-y-4">
-        <h3
-          className="text-2xl sm:text-3xl text-dark pt-6"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          When to meet up
-        </h3>
-        <CalendarView events={calendarEvents} members={members} matchedOn={matchedOn} />
-      </div>
-
       {/* Activities list */}
       <h3
         className="text-2xl sm:text-3xl text-dark pt-6 mb-2"
         style={{ fontFamily: "var(--font-serif)" }}
       >
-        Activities list
+        List view
       </h3>
       <p className="text-muted text-sm">
         This list has been made for just you two — it&apos;s meant to inspire you! It contains a mix of places to go and events and activities around the city that match your profiles. We&apos;ve also included free playgrounds close by to meet up at, originally sourced (then Post-ified 😉) from <a href="https://www.buitenspeelkaart.nl/amsterdam/" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">here</a>. 
@@ -161,17 +227,25 @@ export default function ActivitiesSection({
 
       {/* Tabs */}
       <div className="flex">
-        {(["activities", "places", ...(playgrounds.length > 0 ? ["playgrounds"] : [])] as Tab[]).map((tab, i, arr) => {
+        {([
+          ...(perks.length > 0 ? ["perks"] : []),
+          "activities",
+          "places",
+          ...(playgrounds.length > 0 ? ["playgrounds"] : []),
+        ] as Tab[]).map((tab, i, arr) => {
           const labels: Record<Tab, string> = {
             places: "Places",
             activities: "Events",
             playgrounds: "Playgrounds",
+            perks: "Perks",
           };
           const activeStyle =
             tab === "activities"
               ? { background: "#AF99FF", color: "#fff" }
               : tab === "playgrounds"
               ? { background: "#D4A373", color: "#fff" }
+              : tab === "perks"
+              ? { background: "#8A9E3A", color: "#fff" } // Post Perks wordmark green
               : { background: "#D4E09B", color: "#3a3a3a" };
           return (
             <button
@@ -188,7 +262,8 @@ export default function ActivitiesSection({
         })}
       </div>
 
-      {/* Sort pills */}
+      {/* Sort pills (not for perks — they keep their "most popular" order) */}
+      {activeTab !== "perks" && (
       <div className="flex flex-wrap gap-2">
         {sortOptions.map(({ label, value }) => {
           const isActive = sortOrder === value;
@@ -214,9 +289,12 @@ export default function ActivitiesSection({
           );
         })}
       </div>
+      )}
 
       {/* Tab content */}
-      {activeTab === "places" ? (
+      {activeTab === "perks" ? (
+        <PerkList perks={perks} />
+      ) : activeTab === "places" ? (
         <TabContent
           rec={recommendedPlaces}
           sortOrder={sortOrder}
@@ -250,40 +328,16 @@ function PlaygroundList({ playgrounds }: { playgrounds: Playground[] }) {
   return (
     <div className="space-y-3">
       {playgrounds.map((pg) => {
-        const distLabel =
-          pg.distanceKm < Infinity
-            ? (pg.distanceKm < 1
-              ? `${Math.round(pg.distanceKm * 1000)}m`
-              : `${pg.distanceKm.toFixed(1)}km`) + " from your halfway point."
-            : null;
-        const mapsUrl = `https://www.google.com/maps?q=${pg.lat},${pg.lng}`;
-        const typeLabel = formatPlaygroundType(pg.playground_type);
-
+        const distance = formatDistance(pg.distanceKm);
         return (
-          <div
+          <ListRow
             key={pg.id}
-            className="rounded-xl border border-border p-5 bg-white space-y-2 transition-shadow hover:shadow-sm"
-          >
-            <p className="font-semibold text-dark text-base leading-snug">
-              {pg.name ?? "Playground"}
-            </p>
-            <div className="flex flex-wrap gap-1">
-              <span className="px-2 py-0.5 rounded-full bg-border/50 text-muted text-[11px]">
-                {typeLabel}
-              </span>
-            </div>
-            {distLabel && (
-              <p className="text-dark text-sm leading-relaxed">{distLabel}</p>
-            )}
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-1 px-3 py-1 rounded-md bg-coral text-white text-xs font-medium transition-opacity hover:opacity-80"
-            >
-              Open in Maps →
-            </a>
-          </div>
+            kind="playground"
+            title={pg.name ?? "Playground"}
+            meta={distance ? `${distance} from your halfway point` : null}
+            description={formatPlaygroundType(pg.playground_type)}
+            action={{ label: "Open in Maps", href: `https://www.google.com/maps?q=${pg.lat},${pg.lng}`, external: true }}
+          />
         );
       })}
     </div>

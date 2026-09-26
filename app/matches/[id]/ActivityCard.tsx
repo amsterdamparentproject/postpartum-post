@@ -1,9 +1,9 @@
 "use client";
 
 import type { Activity } from "@/lib/activities";
+import ListRow from "./ListRow";
 import {
   MEMBER_COLORS,
-  locationText,
   formatMeta,
   effectiveDayOfWeek,
   type MemberAvailability,
@@ -16,14 +16,21 @@ interface Props {
 
 const AGE_CATEGORY_ORDER = ["expecting", "newborn", "baby", "toddler", "all ages"];
 
+/**
+ * An event or place in the List view, in the shared ListRow layout (same as
+ * the map popups): type chip, title, a coral meta line (events: date/time —
+ * neighborhood; places: neighborhood/area — never a street address), the
+ * description, who's free (events), "By <organization>", age chips, and
+ * "Check it out →" when there's a link.
+ */
 export default function ActivityCard({ activity, members }: Props) {
-  const loc = locationText(activity);
-  const description = activity.kind === "event"
+  const isEvent = activity.kind === "event";
+  const description = isEvent
     ? (activity.newsletter_description ?? activity.description)
     : activity.description;
-  const meta = formatMeta(activity);
+  const meta = isEvent ? formatMeta(activity) : activity.neighborhood ?? activity.area ?? null;
 
-  const eventDay = activity.kind === "event" ? effectiveDayOfWeek(activity) : null;
+  const eventDay = isEvent ? effectiveDayOfWeek(activity) : null;
   const freeMembers =
     members && eventDay
       ? members
@@ -35,21 +42,19 @@ export default function ActivityCard({ activity, members }: Props) {
           .filter((m) => m.free)
       : [];
 
+  const ageCategories = [...activity.age_categories].sort((a, b) => {
+    const ai = AGE_CATEGORY_ORDER.indexOf(a);
+    const bi = AGE_CATEGORY_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
   return (
-    <div
-      className={`rounded-xl border p-5 bg-white space-y-2 transition-shadow hover:shadow-sm ${
-        activity.isRecommended
-          ? activity.kind === "location"
-            ? "border-green ring-1 ring-green/40"
-            : "border-purple ring-1 ring-purple/40"
-          : "border-border"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-semibold text-dark text-base leading-snug">
-          {activity.title}
-        </p>
-        {freeMembers.length > 0 && (
+    <ListRow
+      kind={isEvent ? "event" : "place"}
+      title={activity.title}
+      highlight={activity.isRecommended}
+      chipAside={
+        freeMembers.length > 0 && (
           <div className="flex gap-0.5 shrink-0">
             {freeMembers.map((m) => (
               <span
@@ -62,71 +67,27 @@ export default function ActivityCard({ activity, members }: Props) {
               </span>
             ))}
           </div>
-        )}
-      </div>
-      {meta && (
-        <p className="text-xs text-coral">{meta}</p>
-      )}
-      {activity.kind === "location" && loc && (
-        <p className="text-xs text-coral">
-          <a
-            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline"
-          >
-            {loc}
-          </a>
-        </p>
-      )}
-      {description && (
-        <p className="text-dark text-sm leading-relaxed">
-          {description}
-        </p>
-      )}
-      <div className="text-xs text-muted space-y-0.5">
-        {activity.organization && <p>By {activity.organization}</p>}
-        {activity.kind === "event" && loc && (
-          <p>
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-coral hover:underline"
-            >
-              {loc}
-            </a>
-          </p>
-        )}
-      </div>
-      {activity.age_categories.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-1">
-          {[...activity.age_categories]
-            .sort((a, b) => {
-              const ai = AGE_CATEGORY_ORDER.indexOf(a);
-              const bi = AGE_CATEGORY_ORDER.indexOf(b);
-              return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-            })
-            .map((cat) => (
-            <span
-              key={cat}
-              className="px-2 py-0.5 rounded-full bg-border/50 text-muted text-[11px]"
-            >
-              {cat.charAt(0).toUpperCase() + cat.slice(1)}
-            </span>
-          ))}
-        </div>
-      )}
-      {activity.url && (
-        <a
-          href={activity.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 mt-1 px-3 py-1 rounded-md bg-coral text-white text-xs font-medium transition-opacity hover:opacity-80"
-        >
-          Check it out →
-        </a>
-      )}
-    </div>
+        )
+      }
+      meta={meta}
+      description={description}
+      extras={
+        (activity.organization || ageCategories.length > 0) && (
+          <div className="space-y-1">
+            {activity.organization && <p className="text-xs text-muted">By {activity.organization}</p>}
+            {ageCategories.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {ageCategories.map((cat) => (
+                  <span key={cat} className="px-2 py-0.5 rounded-full bg-border/50 text-muted text-[11px]">
+                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      }
+      action={activity.url ? { label: "Check it out", href: activity.url, external: true } : null}
+    />
   );
 }

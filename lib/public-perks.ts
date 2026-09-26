@@ -17,6 +17,9 @@ export type PublicPerk = PerkCardPerk & {
   status: "published" | "coming_soon";
   partner: PerkCardPartner;
   location_label: string | null;
+  /** The perk's location coordinates, for map markers (null when there's no location or it wasn't geocoded). */
+  lat: number | null;
+  lng: number | null;
 };
 
 export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean } = {}): Promise<PublicPerk[]> {
@@ -25,7 +28,7 @@ export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean
   const { data, error } = await supabase
     .from("perks_partners")
     .select(
-      "id, status, title, description, expires_at, exclusive, featured, created_at, partner_name, partner_image_url, location_neighborhood, location_area",
+      "id, status, title, description, expires_at, exclusive, featured, created_at, partner_name, partner_image_url, location_neighborhood, location_area, location_latitude, location_longitude",
     )
     .in("status", liveOnly ? ["published"] : ["published", "coming_soon"])
     .or(`expires_at.is.null,expires_at.gte.${today}`);
@@ -75,5 +78,8 @@ export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean
       neighborhood: p.location_neighborhood as string | null,
       area: p.location_area as string | null,
     }),
+    // numeric columns come back as strings from PostgREST
+    lat: p.location_latitude == null ? null : Number(p.location_latitude),
+    lng: p.location_longitude == null ? null : Number(p.location_longitude),
   }));
 }

@@ -14,6 +14,7 @@
  */
 
 import { createActivitiesClient } from "@/lib/supabase";
+import { haversineKm } from "@/lib/geo-distance";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -120,24 +121,7 @@ function ageCompatible(age_categories: string[], pairBuckets: Set<string>): bool
   return age_categories.some((t) => pairBuckets.has(t));
 }
 
-// ---------------------------------------------------------------------------
-// Geo helpers
-// ---------------------------------------------------------------------------
-
-function haversineKm(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
-): number {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const x =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((a.lat * Math.PI) / 180) *
-      Math.cos((b.lat * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-}
+// Geo helpers: haversineKm lives in lib/geo-distance.ts (shared with the client).
 
 /** 0–1: 1 = within 1 km, 0 = 15+ km away */
 function distanceScore(
