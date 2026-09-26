@@ -12,7 +12,7 @@ const NAV_LINKS = [
   // "Your Post" covers the whole (account) route group, not just /profile —
   // those routes share a URL prefix only through the group's folder name,
   // which Next.js drops from the actual path, so each one is listed here.
-  { href: "/profile", label: "Your Post", activeOn: ["/profile", "/matches", "/billing", "/feedback"] },
+  { href: "/profile", label: "Your Post", activeOn: ["/profile", "/matches", "/my-perks", "/billing", "/feedback"] },
 ];
 
 interface HeaderProps {
