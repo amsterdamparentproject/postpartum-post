@@ -22,7 +22,7 @@ export default function TermsOfService() {
           >
             Terms of Service
           </h1>
-          <p className="text-muted text-sm mb-10">Last updated: June 2026</p>
+          <p className="text-muted text-sm mb-10">Last updated: September 2026</p>
 
           <div className="space-y-10 text-dark leading-relaxed">
 
@@ -98,6 +98,44 @@ export default function TermsOfService() {
               <p className="mt-3">
                 We match based on the profile information you provide. The more complete your profile,
                 the better your match is likely to be.
+              </p>
+            </section>
+
+            <section id="post-perks" className="scroll-mt-24">
+              <h2 className="text-xl font-semibold mb-3">Post Perks</h2>
+              <p className="mb-3">
+                Post Perks are little treats from local businesses who want to support Amsterdam&apos;s parents.
+                They work on the honor system, so please enjoy them the way they&apos;re meant to be enjoyed:
+                thoughtfully, and with the rest of the community in mind.
+              </p>
+              <ul className="list-disc list-inside space-y-2 mb-3">
+                <li>
+                  <strong>Once a month per perk.</strong> Each perk is designed to be used no more than once a
+                  month. When you redeem a perk in your Perks tab, it&apos;s marked as used until the 1st of the
+                  next month.
+                </li>
+                <li>
+                  <strong>Perks are for you.</strong> Please don&apos;t share perk codes publicly or pass them on to
+                  people who aren&apos;t members. They&apos;re a thank-you from our partners to this community.
+                </li>
+                <li>
+                  <strong>Partners run their own perks.</strong> Each perk is offered and honored by the business
+                  itself, not by Postpartum Post. Details like availability, opening hours, what&apos;s included and
+                  whether a perk is still running are up to the partner. Perks can change or end at any time. If
+                  something doesn&apos;t go as expected, let us know and we&apos;ll follow up with the partner, but we
+                  can&apos;t guarantee that a perk will be honored.
+                </li>
+                <li>
+                  <strong>Using perks fairly.</strong> If we see a perk being misused, for example redeemed more
+                  than intended or shared outside the community, we may take action, which can include removing
+                  your account.
+                </li>
+              </ul>
+              <p>
+                Questions about a perk? Email us at{" "}
+                <a href="mailto:post@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
+                  post@amsterdamparentproject.nl
+                </a>.
               </p>
             </section>
 

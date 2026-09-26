@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import PerkCard from "@/components/PerkCard";
 import PerkIdeaCard from "@/components/PerkIdeaCard";
@@ -46,8 +47,16 @@ export default function MyPerksPage() {
           Your <PostPerksWordMark size="text-2xl" />
         </h2>
         <p className="text-sm text-muted mt-1">
-          Treats at local spots, just for members. Each perk can be used once a month.
+          Treats at local spots, just for members and their families. Perks run on the honor system and are
+          honored by each business directly. <b className="text-coral">Each Post Perk can be used once per month</b>, to keep things
+          sustainable for both businesses and members alike.
         </p>
+        <Link
+          href="/terms#post-perks"
+          className="inline-block mt-3 px-4 py-2 text-sm font-semibold rounded-lg border border-coral text-coral hover:bg-coral/5 transition"
+        >
+          How Post Perks work
+        </Link>
       </div>
 
       {perks === null && <p className="text-sm text-muted">Loading…</p>}
