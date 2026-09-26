@@ -3,7 +3,7 @@
 import { revalidatePerksPage } from "@/lib/revalidate-perks";
 import { createAdminClient } from "@/lib/supabase";
 import { requirePartner } from "@/lib/require-partner";
-import { geocodeAddress } from "@/lib/geocode";
+import { deletePartnerLocationFor, savePartnerLocationFor } from "@/lib/partner-location-save";
 import { sendPartnerLeadEmail } from "@/lib/emails/partner-lead";
 import { createLeadNote } from "@/lib/lead-notes";
 import { findMatchingLead, mergeIntoLead } from "@/lib/lead-matching";
@@ -180,71 +180,16 @@ export type PartnerLocationInput = {
   address: string;
 };
 
-/**
- * Geocodes server-side on every save (address or label change) via the
- * shared lib/geocode.ts helper — same Nominatim call the activities.events
- * pipeline uses, extended with addressdetails=1 for the non-AI area/
- * neighborhood suggestion (see that file's docblock). area/neighborhood
- * are stored as plain best-effort suggestions, not re-shown for manual
- * editing in this first pass — a wrong guess just means those two fields
- * stay null, which is a fine fallback (they're the app's own AREAS
- * vocabulary, not user-facing copy).
- */
+/** Partner portal: add or edit one of your own locations (geocoded on save). */
 export async function upsertPartnerLocation(
   accessToken: string,
   input: PartnerLocationInput,
 ): Promise<{ success: boolean; error?: string; location?: PartnerLocation }> {
   const authed = await requirePartner(accessToken);
   if (!authed) return { success: false, error: "Not signed in" };
-
-  const address = input.address.trim();
-  if (!address) return { success: false, error: "Address is required" };
-
-  const supabase = createAdminClient();
-
-  // Ownership check on update — never trust a client-supplied location id
-  // without confirming it belongs to this partner (same rule as requirePartner
-  // itself: identity from the verified session, everything else re-checked).
-  if (input.id) {
-    const { data: existing } = await supabase
-      .from("partner_locations")
-      .select("id")
-      .eq("id", input.id)
-      .eq("partner_id", authed.partnerId)
-      .maybeSingle();
-    if (!existing) return { success: false, error: "Location not found" };
-  }
-
-  const geo = await geocodeAddress(address);
-
-  const row = {
-    partner_id: authed.partnerId,
-    label: input.label.trim() || null,
-    address,
-    latitude: geo?.latitude ?? null,
-    longitude: geo?.longitude ?? null,
-    area: geo?.area ?? null,
-    neighborhood: geo?.neighborhood ?? null,
-  };
-
-  const { data, error } = input.id
-    ? await supabase
-        .from("partner_locations")
-        .update(row)
-        .eq("id", input.id)
-        .select("id, label, address, area, neighborhood")
-        .single()
-    : await supabase
-        .from("partner_locations")
-        .insert(row)
-        .select("id, label, address, area, neighborhood")
-        .single();
-
-  if (error || !data) {
-    console.error("[upsertPartnerLocation] write error:", error?.message);
-    return { success: false, error: "Couldn't save — try again" };
-  }
-  return { success: true, location: data as PartnerLocation };
+  const result = await savePartnerLocationFor(createAdminClient(), authed.partnerId, input);
+  if (result.success) revalidatePerksPage(); // perk cards show the location
+  return result;
 }
 
 export async function deletePartnerLocation(
@@ -253,19 +198,9 @@ export async function deletePartnerLocation(
 ): Promise<{ success: boolean; error?: string }> {
   const authed = await requirePartner(accessToken);
   if (!authed) return { success: false, error: "Not signed in" };
-
-  const supabase = createAdminClient();
-  const { error } = await supabase
-    .from("partner_locations")
-    .delete()
-    .eq("id", locationId)
-    .eq("partner_id", authed.partnerId); // ownership check baked into the delete itself
-
-  if (error) {
-    console.error("[deletePartnerLocation] delete error:", error.message);
-    return { success: false, error: "Couldn't delete — try again" };
-  }
-  return { success: true };
+  const result = await deletePartnerLocationFor(createAdminClient(), authed.partnerId, locationId);
+  if (result.success) revalidatePerksPage();
+  return result;
 }
 
 export type PartnerLeadInput = {

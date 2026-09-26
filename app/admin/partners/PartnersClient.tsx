@@ -22,6 +22,8 @@ import {
   updatePerkAdmin,
   createPartnerImageUploadAdmin,
   setPartnerImageAdmin,
+  upsertPartnerLocationAdmin,
+  deletePartnerLocationAdmin,
   type PartnerLead,
   type LeadStatus,
   type ReviewPerk,
@@ -31,6 +33,7 @@ import {
 } from "./actions";
 import PerkFields from "@/components/PerkFields";
 import PhotoUpload from "@/components/PhotoUpload";
+import PartnerLocationsManager from "@/components/PartnerLocationsManager";
 import {
   REDEMPTION_TYPE_LABELS,
   defaultLocationId,
@@ -814,8 +817,13 @@ function EditPartnerForm({
   const [lastName, setLastName] = useState(partner.last_name);
   const [email, setEmail] = useState(partner.email ?? "");
   const [imageUrl, setImageUrl] = useState<string | null>(partner.image_url);
+  const [locations, setLocations] = useState<PartnerLocationOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    listPartnerLocations(partner.id).then(setLocations);
+  }, [partner.id]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -863,6 +871,21 @@ function EditPartnerForm({
         hint="Their space, or them for an expert. Saves right away, separate from Save changes."
         labelClass={labelClass}
       />
+      {/* Locations save on their own too (geocoded on save), like the photo. */}
+      <div className="pt-2">
+        {locations === null ? (
+          <p className="text-xs text-muted">Loading locations…</p>
+        ) : (
+          <PartnerLocationsManager
+            locations={locations}
+            actions={{
+              save: (input) => upsertPartnerLocationAdmin(partner.id, input),
+              remove: (id) => deletePartnerLocationAdmin(partner.id, id),
+            }}
+            emptyHint="No locations yet. Skip this for partners whose location varies."
+          />
+        )}
+      </div>
       {error && <p className="text-xs text-coral">{error}</p>}
       <div className="flex gap-3">
         <button

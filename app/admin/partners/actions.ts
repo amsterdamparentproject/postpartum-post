@@ -10,6 +10,8 @@ import { SITE_URL } from "@/lib/emails/base";
 import { commitPartnerImage, createPartnerImageUploadFor, type ImageUploadTicket } from "@/lib/partner-image-save";
 import { normalizePerkInput, type PerkInput, type SavedPerkFields } from "@/lib/perk-input";
 import { resolvePerkLocation } from "@/lib/perk-save";
+import { deletePartnerLocationFor, savePartnerLocationFor } from "@/lib/partner-location-save";
+import type { PartnerLocation, PartnerLocationInput } from "@/app/actions/partners";
 
 // ---------------------------------------------------------------------------
 // Leads
@@ -477,13 +479,15 @@ export type PartnerLocationOption = {
   id: string;
   label: string | null;
   address: string;
+  area: string | null;
+  neighborhood: string | null;
 };
 
 export async function listPartnerLocations(partnerId: string): Promise<PartnerLocationOption[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("partner_locations")
-    .select("id, label, address")
+    .select("id, label, address, area, neighborhood")
     .eq("partner_id", partnerId)
     .order("created_at", { ascending: true });
   if (error) {
@@ -491,6 +495,25 @@ export async function listPartnerLocations(partnerId: string): Promise<PartnerLo
     return [];
   }
   return (data ?? []) as PartnerLocationOption[];
+}
+
+/** Admin: add or edit a location for any partner (geocoded on save). */
+export async function upsertPartnerLocationAdmin(
+  partnerId: string,
+  input: PartnerLocationInput,
+): Promise<{ success: boolean; error?: string; location?: PartnerLocation }> {
+  const result = await savePartnerLocationFor(createAdminClient(), partnerId, input);
+  if (result.success) revalidatePerksPage();
+  return result;
+}
+
+export async function deletePartnerLocationAdmin(
+  partnerId: string,
+  locationId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const result = await deletePartnerLocationFor(createAdminClient(), partnerId, locationId);
+  if (result.success) revalidatePerksPage();
+  return result;
 }
 
 /**
