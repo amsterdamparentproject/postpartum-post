@@ -17,9 +17,15 @@
  * everything else.
  */
 
+import type { Metadata } from "next";
 import MatchPageClient from "@/app/matches/[id]/MatchPageClient";
 import MonthlyWhimsy from "@/app/matches/[id]/MonthlyWhimsy";
 import { listPublicPerks } from "@/lib/public-perks";
+
+export const metadata: Metadata = {
+  title: "Your Match · Postpartum Post",
+  robots: { index: false },
+};
 
 interface Props {
   params: Promise<{ id: string }>;
