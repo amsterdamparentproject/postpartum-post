@@ -14,13 +14,11 @@ interface Props {
   members?: [MemberAvailability, MemberAvailability];
 }
 
-const AGE_CATEGORY_ORDER = ["expecting", "newborn", "baby", "toddler", "all ages"];
-
 /**
  * An event or place in the List view, in the shared ListRow layout (same as
  * the map popups): type chip, title, a coral meta line (events: date/time —
  * neighborhood; places: neighborhood/area — never a street address), the
- * description, who's free (events), "By <organization>", age chips, and
+ * description, who's free (events), "By <organization>", and
  * "Check it out →" when there's a link.
  */
 export default function ActivityCard({ activity, members }: Props) {
@@ -41,12 +39,6 @@ export default function ActivityCard({ activity, members }: Props) {
           }))
           .filter((m) => m.free)
       : [];
-
-  const ageCategories = [...activity.age_categories].sort((a, b) => {
-    const ai = AGE_CATEGORY_ORDER.indexOf(a);
-    const bi = AGE_CATEGORY_ORDER.indexOf(b);
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-  });
 
   return (
     <ListRow
@@ -73,20 +65,7 @@ export default function ActivityCard({ activity, members }: Props) {
       description={description}
       mapsUrl={activity.lat != null && activity.lng != null ? `https://www.google.com/maps?q=${activity.lat},${activity.lng}` : null}
       extras={
-        (activity.organization || ageCategories.length > 0) && (
-          <div className="space-y-1">
-            {activity.organization && <p className="text-xs text-muted">By {activity.organization}</p>}
-            {ageCategories.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {ageCategories.map((cat) => (
-                  <span key={cat} className="px-2 py-0.5 rounded-full bg-border/50 text-muted text-[11px]">
-                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )
+        activity.organization && <p className="text-xs text-muted">By {activity.organization}</p>
       }
       action={activity.url ? { label: "Check it out", href: activity.url, external: true } : null}
     />
