@@ -278,7 +278,15 @@ export async function submitPartnerLead(
  * pencil on the resulting lead if it's off. Handles the common case of a
  * Google Maps share link (.../maps/place/<Name>/...) specially, since the
  * hostname alone ("www.google.com") is useless there; otherwise falls
- * back to the hostname.
+ * back to the hostname, plus the path when there is one.
+ *
+ * The path matters: a bare hostname fallback used to be the guessed name
+ * for EVERY link sharing that hostname — most visibly every shortened
+ * Google Maps link (maps.app.goo.gl/<token>), which all guessed the same
+ * "maps.app.goo.gl" name, so findMatchingLead's business-name check
+ * silently merged unrelated suggestions into one lead. Including the path
+ * makes each shortened link's guess unique again, without needing to
+ * follow the redirect.
  */
 function guessBusinessNameFromUrl(url: string): string {
   try {
@@ -288,7 +296,9 @@ function guessBusinessNameFromUrl(url: string): string {
       const decoded = segment ? decodeURIComponent(segment.replace(/\+/g, " ")).trim() : "";
       if (decoded) return decoded;
     }
-    return parsed.hostname.replace(/^www\./, "");
+    const hostname = parsed.hostname.replace(/^www\./, "");
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return `${hostname}${path}`;
   } catch {
     return "New perk idea";
   }
