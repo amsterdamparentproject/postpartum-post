@@ -32,6 +32,12 @@ export default function PerkIdeaCard() {
     });
   }
 
+  function resetForm() {
+    setUrl("");
+    setError(null);
+    setSubmitted(false);
+  }
+
   return (
     <div className="w-full bg-white/80 backdrop-blur rounded-2xl border border-purple-light/40 shadow-sm overflow-hidden flex flex-col">
       {/* Same 16:9 top as PerkCard's photo, so the card lines up in a grid. */}
@@ -45,9 +51,18 @@ export default function PerkIdeaCard() {
 
       <div className="p-4 flex flex-col gap-2 flex-1">
         {submitted ? (
-          <p className="text-sm text-dark leading-relaxed">
-            Thanks for submitting your favorite place! We&apos;re on it 🫡
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-dark leading-relaxed">
+              Thanks for submitting your favorite place! We&apos;re on it 🫡
+            </p>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="text-sm font-medium text-coral hover:underline underline-offset-2"
+            >
+              Submit another
+            </button>
+          </div>
         ) : (
           <>
             <h3 className="text-lg leading-snug text-dark" style={{ fontFamily: "var(--font-serif)" }}>

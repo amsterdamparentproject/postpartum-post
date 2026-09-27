@@ -59,6 +59,16 @@ export default function PerkIdeaForm() {
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
 
+  function resetForm() {
+    setUrl("");
+    setWantsGiveaway(false);
+    setName("");
+    setEmail("");
+    setError(null);
+    setGiveawayError(null);
+    setSubmitted(false);
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -115,6 +125,13 @@ export default function PerkIdeaForm() {
           </p>
         )}
         {giveawayError && <p className="text-sm text-coral mt-2">{giveawayError}</p>}
+        <button
+          type="button"
+          onClick={resetForm}
+          className="mt-6 text-sm font-medium text-coral hover:underline underline-offset-2"
+        >
+          Submit another
+        </button>
       </div>
     );
   }
