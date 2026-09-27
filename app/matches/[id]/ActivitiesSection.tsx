@@ -246,10 +246,10 @@ export default function ActivitiesSection({
         List view
       </h3>
       <p className="text-muted text-sm">
-        This list has been made for just you two — it&apos;s meant to inspire you! It contains a mix of places to go and events and activities around the city that match your profiles. We&apos;ve also included free playgrounds close by to meet up at, originally sourced (then Post-ified 😉) from <a href="https://www.buitenspeelkaart.nl/amsterdam/" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">here</a>. 
+        This list has been made for just you two — it&apos;s meant to inspire you! It contains a mix of places to go and events and activities around the city that match your profiles — including Post Perks for you to enjoy together. We&apos;ve also included free playgrounds close by to meet up at, originally sourced (then Post-ified 😉) from <a href="https://www.buitenspeelkaart.nl/amsterdam/" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">here</a>. 
       </p>
       <p className="text-muted text-xs pb-2">
-        Heads up: We&apos;re adding and refining more and more activity data every day. We&apos;d absolutely <a href="https://forms.gle/15dS6YvYucyeU8Cv9" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">love your feedback</a> on how useful this data is to you and your experience in general!
+        Have a favorite spot that you think other Postpartum Post members would love? <a href="/perks" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">Submit a Post Perk idea</a> — who knows, maybe next month you'll get a discount or a freebie there!
       </p>
 
       {/* Tabs */}
