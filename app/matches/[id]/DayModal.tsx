@@ -33,7 +33,10 @@ export default function DayModal({ day, events, members, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+      // Above Leaflet's internal panes (marker/popup panes go up to z-index
+      // 700), which otherwise render on top of this modal since neither
+      // establishes its own stacking context.
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40"
       onClick={onClose}
     >
       <div
