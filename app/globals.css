@@ -52,11 +52,30 @@
   --color-tan: var(--tan);
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--cream);
   color: var(--dark);
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 button:not(:disabled) {
   cursor: pointer;
+}
+
+/* Match-page map popups (components/ActivitiesMap.tsx): one compact card
+   layout for every marker type — no Leaflet padding, card corners. */
+.map-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.map-popup .leaflet-popup-content {
+  margin: 0;
+  width: 250px !important;
+  line-height: normal;
 }

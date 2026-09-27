@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React from "react";
 import Link from "next/link";
 import PartnerLeadForm from "@/components/PartnerLeadForm";
 import { StampSVG } from "@/components/StampIcons";
@@ -10,6 +10,9 @@ import PostPerksWordMark from "@/components/PostPerksWordMark";
 import AnimatedSparkleDivider from "@/components/AnimatedSparkleDivider";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 import FAQ, { type FAQItem } from "@/components/FAQ";
+import BlobCarousel, { blobColors } from "@/components/BlobCarousel";
+import PublicPerksCarousel from "@/components/PublicPerksCarousel";
+import type { PublicPerk } from "@/lib/public-perks";
 
 // ---------------------------------------------------------------------------
 // Category icons — same stamp-frame language as PersonaCards' icons
@@ -62,37 +65,8 @@ function MusicNoteIcon({ fill, stroke }: { fill: string; stroke: string }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Card design tokens — same palette as PersonaCards (green, purple, tan)
-// ---------------------------------------------------------------------------
-
-const CARD_SHAPES = [
-  "62% 38% 46% 54% / 60% 44% 56% 40%",
-  "38% 62% 54% 46% / 44% 56% 40% 60%",
-  "54% 46% 38% 62% / 56% 40% 60% 44%",
-  "28% 72% 42% 58% / 68% 32% 62% 38%",
-];
-
-const BORDER_COLORS = [
-  "rgba(212, 224, 155, 0.70)",
-  "rgba(175, 153, 255, 0.45)",
-  "rgba(212, 163, 115, 0.55)",
-  "rgba(212, 224, 155, 0.70)",
-];
-
-const STAMP_FILLS = [
-  "rgba(212, 224, 155, 0.18)",
-  "rgba(175, 153, 255, 0.10)",
-  "rgba(212, 163, 115, 0.12)",
-  "rgba(212, 224, 155, 0.18)",
-];
-
-const HIGHLIGHT_COLORS = ["#8A9E3A", "#7B6FD4", "#C07830", "#8A9E3A"];
-
 // Illustrative only — no partners are live yet, so these aren't real
-// listings. Categories match postpartumpost.perk_categories (see
-// db/migrations/024_perks.sql) so the examples stay honest about what
-// kinds of perks the taxonomy actually supports.
+// listings.
 const EXAMPLE_PERKS: { icon: (fill: string, stroke: string) => React.ReactNode; text: (color: string) => React.ReactNode }[] = [
   {
     icon: (f, s) => <CupIcon fill={f} stroke={s} />,
@@ -123,110 +97,23 @@ const EXAMPLE_PERKS: { icon: (fill: string, stroke: string) => React.ReactNode; 
 // AnimatedSparkleDivider now lives in components/AnimatedSparkleDivider.tsx (shared with /perks).
 
 /**
- * Carousel for the example-perk cards — mirrors PersonaCards' pagination
- * exactly (2-per-page desktop / 1-per-page mobile, swipe + arrows + dots)
- * so the two feel like the same visual system.
+ * Carousel for the example-perk cards — the shared BlobCarousel (also used
+ * for the real perks on /perks), so the two feel like the same visual system.
  */
 function ExampleCarousel() {
-  const [mounted, setMounted] = useState(false);
-  const [perPage, setPerPage] = useState(2);
-  const [page, setPage] = useState(0);
-  const touchStartX = useRef<number | null>(null);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    // setMounted folded into `update` (called below, not synchronously in
-    // the effect body) rather than called directly here — same indirection
-    // the setPerPage/setPage calls already relied on to satisfy the
-    // set-state-in-effect lint rule.
-    const update = () => {
-      setMounted(true);
-      setPerPage(mq.matches ? 2 : 1);
-      setPage(0);
-    };
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-
-  const totalPages = Math.ceil(EXAMPLE_PERKS.length / perPage);
-
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX;
-  }
-
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return;
-    const delta = touchStartX.current - e.changedTouches[0].clientX;
-    if (Math.abs(delta) > 40) {
-      setPage((p) => (delta > 0 ? Math.min(p + 1, totalPages - 1) : Math.max(p - 1, 0)));
-    }
-    touchStartX.current = null;
-  }
-
   return (
-    <div>
-      <div className="overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-        <div
-          className="flex transition-transform duration-300 ease-in-out"
-          style={{ transform: `translateX(-${page * 100}%)` }}
-        >
-          {Array.from({ length: totalPages }).map((_, pageIndex) => (
-            <div key={pageIndex} className="w-full shrink-0 flex gap-4 px-1 pt-1 pb-2">
-              {EXAMPLE_PERKS.slice(pageIndex * perPage, (pageIndex + 1) * perPage).map((perk, cardIndex) => {
-                const global = pageIndex * perPage + cardIndex;
-                return (
-                  <div
-                    key={cardIndex}
-                    className="flex-1 bg-white/90 backdrop-blur shadow-sm p-[18px] min-h-[225px] flex flex-col items-center justify-center gap-4 text-center"
-                    style={{
-                      borderRadius: CARD_SHAPES[global],
-                      border: `1.5px solid ${BORDER_COLORS[global]}`,
-                    }}
-                  >
-                    {perk.icon(STAMP_FILLS[global], HIGHLIGHT_COLORS[global])}
-                    <p className="text-sm text-dark leading-relaxed max-w-[24ch]">{perk.text(HIGHLIGHT_COLORS[global])}</p>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-center gap-4 mt-5">
-        <button
-          onClick={() => setPage((p) => p - 1)}
-          disabled={mounted && page === 0}
-          aria-label="Previous"
-          className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-dark hover:border-coral/40 transition disabled:opacity-25 disabled:cursor-not-allowed"
-        >
-          ←
-        </button>
-
-        <div className="flex items-center gap-1.5">
-          {Array.from({ length: totalPages }).map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setPage(i)}
-              aria-label={`Go to page ${i + 1}`}
-              className={`rounded-full transition-all duration-200 ${
-                i === page ? "w-5 h-2 bg-coral" : "w-2 h-2 bg-border hover:bg-coral/40"
-              }`}
-            />
-          ))}
-        </div>
-
-        <button
-          onClick={() => setPage((p) => p + 1)}
-          disabled={mounted && page >= totalPages - 1}
-          aria-label="Next"
-          className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-dark hover:border-coral/40 transition disabled:opacity-25 disabled:cursor-not-allowed"
-        >
-          →
-        </button>
-      </div>
-    </div>
+    <BlobCarousel
+      items={EXAMPLE_PERKS}
+      renderItem={(perk, index) => {
+        const { fill, highlight } = blobColors(index);
+        return (
+          <>
+            {perk.icon(fill, highlight)}
+            <p className="text-sm text-dark leading-relaxed max-w-[24ch]">{perk.text(highlight)}</p>
+          </>
+        );
+      }}
+    />
   );
 }
 
@@ -266,7 +153,7 @@ const PARTNER_FAQS: FAQItem[] = [
   },
 ];
 
-export default function PartnerSplash() {
+export default function PartnerSplash({ perks }: { perks: PublicPerk[] }) {
   return (
     <div className="space-y-16">
       {/* Hero */}
@@ -397,6 +284,19 @@ export default function PartnerSplash() {
           </li>
         </ul>
       </div>
+
+      {/* Real live perks, right before the form. Ranked by members who
+          redeemed, then viewed (last 30 days), then featured, exclusive,
+          newest — see lib/perk-ranking.ts. Until members can redeem, the
+          counts are all 0 and it's effectively featured → exclusive → newest. */}
+      {perks.length > 0 && (
+        <div className="w-full max-w-sm md:max-w-xl mx-auto">
+          <h2 className="text-2xl text-dark text-center mb-6" style={{ fontFamily: "var(--font-serif)" }}>
+            Our most popular <PostPerksWordMark size="text-2xl" />
+          </h2>
+          <PublicPerksCarousel perks={perks} />
+        </div>
+      )}
 
       {/* Lead capture — primary CTA */}
       <div className="max-w-lg mx-auto">

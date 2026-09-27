@@ -8,6 +8,7 @@ import { createBrowserClient } from "@/lib/supabase";
 const TABS = [
   { href: "/profile", label: "Profile" },
   { href: "/matches", label: "Matches" },
+  { href: "/my-perks", label: "Perks" },
   { href: "/billing", label: "Billing" },
 ];
 

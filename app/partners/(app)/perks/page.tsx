@@ -5,10 +5,10 @@ import PartnerPerksManager from "@/components/PartnerPerksManager";
 import { usePartner } from "@/app/partners/PartnerContext";
 
 export default function PartnerPerksPage() {
-  const { loading, email, partner, accessToken } = usePartner();
+  const { loading, email, partner, accessToken, refresh } = usePartner();
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!email || !partner || !accessToken) return <PartnerLoginRequest />;
 
-  return <PartnerPerksManager accessToken={accessToken} locations={partner.locations} />;
+  return <PartnerPerksManager accessToken={accessToken} partner={partner} onPartnerChange={refresh} />;
 }

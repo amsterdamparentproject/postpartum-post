@@ -3,8 +3,10 @@
 import PartnerLoginRequest from "@/components/PartnerLoginRequest";
 import PartnerContactForm from "@/components/PartnerContactForm";
 import PartnerProfileForm from "@/components/PartnerProfileForm";
+import PartnerPhotoCard from "@/components/PartnerPhotoCard";
 import PartnerLocationsManager from "@/components/PartnerLocationsManager";
 import { usePartner } from "@/app/partners/PartnerContext";
+import { upsertPartnerLocation, deletePartnerLocation } from "@/app/actions/partners";
 
 /**
  * The signed-in partner dashboard — split out of the public /partners
@@ -22,15 +24,26 @@ export default function PartnerProfilePage() {
 
   return (
     <div className="grid md:grid-cols-2 gap-6 items-start">
-      <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-        <PartnerProfileForm partner={partner} accessToken={accessToken} onSaved={refresh} />
-      </div>
       <div className="space-y-6">
-        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
+        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-5 sm:p-8">
+          <PartnerProfileForm partner={partner} accessToken={accessToken} onSaved={refresh} />
+        </div>
+        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-5 sm:p-8">
           <PartnerContactForm partner={partner} accessToken={accessToken} />
         </div>
-        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-          <PartnerLocationsManager locations={partner.locations} accessToken={accessToken} />
+      </div>
+      <div className="space-y-6">
+        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-5 sm:p-8">
+          <PartnerPhotoCard partner={partner} accessToken={accessToken} onSaved={refresh} />
+        </div>
+        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-5 sm:p-8">
+          <PartnerLocationsManager
+            locations={partner.locations}
+            actions={{
+              save: (input) => upsertPartnerLocation(accessToken, input),
+              remove: (id) => deletePartnerLocation(accessToken, id),
+            }}
+          />
         </div>
       </div>
     </div>

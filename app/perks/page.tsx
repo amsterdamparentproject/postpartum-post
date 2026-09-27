@@ -4,13 +4,27 @@ import PerkIdeaForm from "@/components/PerkIdeaForm";
 import PostPerksWordMark from "@/components/PostPerksWordMark";
 import AnimatedSparkleDivider from "@/components/AnimatedSparkleDivider";
 import Link from "next/link";
+import PublicPerksCarousel from "@/components/PublicPerksCarousel";
+import { listPublicPerks } from "@/lib/public-perks";
 
 export const metadata: Metadata = {
   title: "Perks · Postpartum Post",
 };
 
+// Same cadence as the homepage; perk and partner-photo actions also call
+// revalidatePerksPage() (lib/revalidate-perks.ts) so an approval shows up right away.
+export const revalidate = 300;
+
 /**
- * Placeholder for the eventual public Post Perks page — mirrors
+ * The public Post Perks page. The "coming soon" hero, idea form and
+ * partner CTA stay as they are; live and coming-soon perks (the first
+ * ones!) list under the idea form as PerkCards, paged like the /partners
+ * carousel (PublicPerksCarousel), and the section simply doesn't render
+ * while there are none. Cards are display-only: no codes
+ * or links leave the server here (see lib/public-perks.ts) — redeeming is
+ * the future members-only "Use this perk" flow.
+ *
+ * Originally a placeholder for the eventual public Post Perks page — mirrors
  * not-found.tsx's look on purpose (same emoji/serif-heading/muted-subtext
  * shape) since there's nothing to show here yet either. Linked from
  * PartnerTerms's "public Perks page" mention.
@@ -21,7 +35,9 @@ export const metadata: Metadata = {
  * coral-text heading this page started with, so the two pages read as the
  * same brand rather than two different ad-hoc treatments of "Post Perks."
  */
-export default function PerksPage() {
+export default async function PerksPage() {
+  const perks = await listPublicPerks();
+
   return (
     <PageLayout>
       <main className="flex-1 flex flex-col items-center justify-center gap-10 px-6 py-8 text-center">
@@ -37,7 +53,19 @@ export default function PerksPage() {
             We&apos;ll be launching <span className="text-coral font-bold">discounts, freebies, and more</span> at your favorite family-friendly local spots in Fall 2026.
           </p>
         </div>
+
         <PerkIdeaForm />
+
+        {perks.length > 0 && (
+          <section className="w-full max-w-sm md:max-w-xl mx-auto">
+            <h2 className="text-2xl text-dark text-center" style={{ fontFamily: "var(--font-serif)" }}>
+              Sneak peek at our first <PostPerksWordMark size="text-2xl" />
+            </h2>
+            <p className="text-muted text-center mt-2 mb-6">Just for Postpartum Post members 💌 More coming soon!</p>
+            <PublicPerksCarousel perks={perks} />
+          </section>
+        )}
+
         <div className="bg-white/80 border border-green-light rounded-2xl shadow-sm px-6 py-4 max-w-md mx-auto text-sm text-dark hover:bg-green-light/20 transition-colors">
           Want to offer a Post Perk?{" "}
           <Link

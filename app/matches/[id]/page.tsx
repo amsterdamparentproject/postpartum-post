@@ -17,8 +17,15 @@
  * everything else.
  */
 
+import type { Metadata } from "next";
 import MatchPageClient from "@/app/matches/[id]/MatchPageClient";
 import MonthlyWhimsy from "@/app/matches/[id]/MonthlyWhimsy";
+import { listPublicPerks } from "@/lib/public-perks";
+
+export const metadata: Metadata = {
+  title: "Your Match · Postpartum Post",
+  robots: { index: false },
+};
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -28,8 +35,16 @@ interface Props {
 export default async function MatchPage({ params, searchParams }: Props) {
   const { id } = await params;
   const { token } = await searchParams;
+  // Live perks are public data (same as /perks), so they're fetched here;
+  // MatchPageClient only renders them once the viewer is authorized.
+  const perks = await listPublicPerks({ liveOnly: true });
 
   return (
-    <MatchPageClient matchId={id} token={token} monthlyWhimsy={<MonthlyWhimsy />} />
+    <MatchPageClient
+      matchId={id}
+      token={token}
+      monthlyWhimsy={<MonthlyWhimsy />}
+      perks={perks}
+    />
   );
 }

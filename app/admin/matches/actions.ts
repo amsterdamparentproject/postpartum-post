@@ -2,11 +2,10 @@
 
 import { createAdminClient } from "@/lib/supabase";
 import { headers } from "next/headers";
-import { sendOptinEmail } from "@/lib/emails";
-import { generateOptinToken } from "@/lib/optin-token";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { scorePair, maxAchievableScore, qualityTier, getLastMatchedMap, type MatchCandidate } from "@/lib/matcher";
 import { ALEX_TEST_EMAIL, ensureAlexPastMatches } from "@/lib/test-fixtures/alex-past-matches";
+import { generateMatchToken } from "@/lib/match-token";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -633,7 +632,8 @@ export async function testResetRound(): Promise<TestStepResult> {
 // is never exposed to the browser.
 // ---------------------------------------------------------------------------
 
-type TestStepResult = { success: true; message: string } | { success: false; error: string };
+/** `link`: an optional URL the test controls show as a clickable link. */
+type TestStepResult = { success: true; message: string; link?: string } | { success: false; error: string };
 
 async function callEndpoint(path: string, body: Record<string, unknown>): Promise<TestStepResult> {
   const secret = process.env.MATCHER_API_SECRET;
@@ -661,118 +661,132 @@ async function callEndpoint(path: string, body: Record<string, unknown>): Promis
 }
 
 /**
- * Test opt-in simulation:
- * - Sends a real opt-in email to the first test member so you can see it fire.
- * - Randomly assigns coffee | playdate | skip | no-response to the rest,
- *   guaranteeing all four outcomes are represented in the round.
- * - Writes monthly_participation / monthly_skips rows directly to the test DB.
- *   Skip does NOT call Stripe (test subscriptions aren't real).
+ * Test opt-in simulation — no emails. Writes monthly_participation /
+ * monthly_skips rows directly:
+ * - the test member (TEST_EMAIL, default Alex's account) always opts into
+ *   coffee, so there's always a coffee match to look at;
+ * - everyone else gets a random coffee | playdate | skip | no-response, with
+ *   at least one other coffee and one playdate so the test member always has
+ *   someone to match with and both topics show up in the round.
+ * Skips never call Stripe (test subscriptions aren't real). Refuses to run in
+ * production: these controls write to whatever database the app points at.
  */
-export async function testSendOptinEmail(): Promise<TestStepResult> {
-  const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
-  const supabase = createAdminClient();
-  const month = currentMonth();
-  const monthDate = monthToDate(month);
+export async function testSimulateOptins(): Promise<TestStepResult> {
+  if (process.env.NODE_ENV === "production") {
+    return { success: false, error: "Test controls are disabled in production." };
+  }
+  return simulateOptins();
+}
 
-  // Fetch all active members from the test DB (includes "canceling" — paid through end of period)
+async function simulateOptins(): Promise<TestStepResult> {
+  const supabase = createAdminClient();
+  const monthDate = monthToDate(currentMonth());
+
+  // All active members (includes "canceling" — paid through end of period)
   const { data: members, error } = await supabase
     .from("members")
     .select("id, first_name, email")
     .in("status", ["active", "canceling"]);
-
   if (error || !members?.length) {
     return { success: false, error: error?.message ?? "No active members in test DB." };
   }
 
-  const buildOptinUrl = (memberId: string, action: "coffee" | "playdate" | "skip") => {
-    const token = generateOptinToken(memberId, month, action);
-    return `${SITE_URL}/api/optin?member=${memberId}&month=${month}&action=${action}&token=${token}`;
-  };
-
-  // --- Step 1: Send a real email to the test member ---
-  const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
-  const testMember = members.find(m => m.email === TEST_EMAIL) ?? members[0];
-  try {
-    await sendOptinEmail(
-      testMember.email,
-      testMember.first_name,
-      buildOptinUrl(testMember.id, "coffee"),
-      buildOptinUrl(testMember.id, "playdate"),
-      buildOptinUrl(testMember.id, "skip")
-    );
-  } catch (err) {
-    return { success: false, error: `Failed to send email to ${testMember.email}: ${err}` };
-  }
-
-  // Fetch topic IDs once
   const { data: topics } = await supabase.from("topics").select("id, name");
   const coffeeId = topics?.find((t) => t.name === "coffee")?.id;
   const playdateId = topics?.find((t) => t.name === "playdate")?.id;
+  if (!coffeeId || !playdateId) return { success: false, error: "coffee/playdate topics missing." };
 
-  // --- Step 2: Opt testMember into coffee so they're always matchable ---
-  if (coffeeId) {
-    await supabase.from("monthly_participation").upsert(
-      { member_id: testMember.id, month: monthDate, topic_id: coffeeId },
-      { onConflict: "member_id,month" }
-    );
+  const testEmail = process.env.TEST_EMAIL ?? ALEX_TEST_EMAIL;
+  const testMember = members.find((m) => m.email === testEmail);
+  const summary: string[] = [];
+
+  if (testMember) {
+    await optInTestMemberToCoffee(testMember.id, coffeeId);
+    summary.push(`${testMember.first_name}: coffee`);
+  } else {
+    summary.push(`No active member for ${testEmail}`);
   }
 
-  // --- Step 3: Simulate responses for remaining members ---
-  // Guarantee coffee + playdate appear at least once (skip/no_response are
-  // optional extras) so the pool always has enough participants to match.
-  const rest = members.filter(m => m.id !== testMember.id);
-  const allActions: Array<"coffee" | "playdate" | "skip" | "no_response"> =
-    ["coffee", "playdate", "skip", "no_response"];
-  const shuffled = [...rest].sort(() => Math.random() - 0.5);
-  const assignments: Array<{ member: typeof testMember; action: typeof allActions[number] }> = [];
-
-  const guaranteed: typeof allActions = ["coffee", "playdate"];
-  for (const m of shuffled) {
+  const rest = members.filter((m) => m.id !== testMember?.id);
+  const allActions = ["coffee", "playdate", "skip", "no_response"] as const;
+  const guaranteed: Array<(typeof allActions)[number]> = ["coffee", "playdate"];
+  for (const member of [...rest].sort(() => Math.random() - 0.5)) {
     const action = guaranteed.length > 0
       ? guaranteed.splice(Math.floor(Math.random() * guaranteed.length), 1)[0]
       : allActions[Math.floor(Math.random() * allActions.length)];
-    assignments.push({ member: m, action });
-  }
 
-  const summary: string[] = [`Sent email to ${testMember.email} (opted in: coffee)`];
-
-  for (const { member, action } of assignments) {
-    if (action === "coffee" && coffeeId) {
+    if (action === "coffee" || action === "playdate") {
       await supabase.from("monthly_participation").upsert(
-        { member_id: member.id, month: monthDate, topic_id: coffeeId },
+        { member_id: member.id, month: monthDate, topic_id: action === "coffee" ? coffeeId : playdateId },
         { onConflict: "member_id,month" }
       );
-      summary.push(`${member.first_name}: coffee`);
-    } else if (action === "playdate" && playdateId) {
-      await supabase.from("monthly_participation").upsert(
-        { member_id: member.id, month: monthDate, topic_id: playdateId },
-        { onConflict: "member_id,month" }
-      );
-      summary.push(`${member.first_name}: playdate`);
     } else if (action === "skip") {
       await supabase.from("monthly_skips").upsert(
         { member_id: member.id, month: monthDate },
         { onConflict: "member_id,month" }
       );
-      // No Stripe call in test mode
-      summary.push(`${member.first_name}: skip`);
-    } else {
-      summary.push(`${member.first_name}: no response`);
     }
+    summary.push(`${member.first_name}: ${action.replace("_", " ")}`);
   }
 
   return { success: true, message: summary.join(" · ") };
 }
 
+/** Test member → coffee this month, clearing any skip. */
+async function optInTestMemberToCoffee(memberId: string, coffeeId: string): Promise<void> {
+  const supabase = createAdminClient();
+  const monthDate = monthToDate(currentMonth());
+  await supabase.from("monthly_skips").delete().eq("member_id", memberId).eq("month", monthDate);
+  await supabase.from("monthly_participation").upsert(
+    { member_id: memberId, month: monthDate, topic_id: coffeeId },
+    { onConflict: "member_id,month" }
+  );
+}
+
 export async function testRunMatcher(): Promise<TestStepResult> {
+  // Local only: make the round self-sufficient so "Reset → Run matcher"
+  // always ends with the test member (Alex) in a coffee match. If nobody
+  // has opted in yet (the simulate step was skipped), simulate first;
+  // either way, the test member is opted into coffee.
+  const notes: string[] = [];
+  if (process.env.NODE_ENV !== "production") {
+    const prep = await prepareTestRound();
+    if (prep) notes.push(prep);
+  }
+
   const result = await callEndpoint("/api/run-matcher", { testMode: true, dryRun: false });
   if (!result.success) return result;
 
   // Alex's test account must always come out of a test round with a match,
   // so /matches has a current match to test against. Local only.
-  if (process.env.NODE_ENV === "production") return result;
-  const note = await ensureTestMemberMatched();
-  return { success: true, message: note ? `${note} · ${result.message}` : result.message };
+  if (process.env.NODE_ENV !== "production") {
+    const note = await ensureTestMemberMatched();
+    if (note) notes.push(note);
+  }
+  return { success: true, message: [...notes, result.message].join(" · ") };
+}
+
+/** Before the matcher: simulate opt-ins if there are none, and put the test member in coffee. */
+async function prepareTestRound(): Promise<string | null> {
+  const supabase = createAdminClient();
+  const monthDate = monthToDate(currentMonth());
+
+  const { count } = await supabase
+    .from("monthly_participation")
+    .select("id", { count: "exact", head: true })
+    .eq("month", monthDate);
+  if ((count ?? 0) < 2) {
+    const simulated = await simulateOptins();
+    return simulated.success ? "Simulated opt-ins" : simulated.error;
+  }
+
+  const testEmail = process.env.TEST_EMAIL ?? ALEX_TEST_EMAIL;
+  const [{ data: testMember }, { data: coffee }] = await Promise.all([
+    supabase.from("members").select("id").eq("email", testEmail).maybeSingle(),
+    supabase.from("topics").select("id").eq("name", "coffee").maybeSingle(),
+  ]);
+  if (testMember && coffee) await optInTestMemberToCoffee(testMember.id as string, coffee.id as string);
+  return null;
 }
 
 /**
@@ -844,8 +858,47 @@ export async function testCommitMatches(): Promise<TestStepResult> {
   return callEndpoint("/api/commit-matches", { testMode: true });
 }
 
-export async function testSendMatchEmails(): Promise<TestStepResult> {
-  return callEndpoint("/api/send-match-emails", { testMode: true });
+/**
+ * Stand-in for "Send match emails": sends nothing, and returns the test
+ * member's (Alex's) match page link for this month — the same signed URL
+ * the real email would contain (see app/api/send-match-emails). The real
+ * send route only reads, so skipping it changes no round state; Lock round
+ * still works afterwards. Local only.
+ */
+export async function testSimulateMatchEmails(): Promise<TestStepResult> {
+  if (process.env.NODE_ENV === "production") {
+    return { success: false, error: "Test controls are disabled in production." };
+  }
+  const supabase = createAdminClient();
+  const monthDate = monthToDate(currentMonth());
+  const testEmail = process.env.TEST_EMAIL ?? ALEX_TEST_EMAIL;
+
+  const { data: testMember } = await supabase
+    .from("members")
+    .select("id, first_name")
+    .eq("email", testEmail)
+    .maybeSingle();
+  if (!testMember) return { success: false, error: `No member found for ${testEmail}` };
+
+  const { data: match } = await supabase
+    .from("matches")
+    .select("id, member_id_1, member_id_2")
+    .eq("matched_on", monthDate)
+    .or(`member_id_1.eq.${testMember.id},member_id_2.eq.${testMember.id}`)
+    .limit(1)
+    .maybeSingle();
+  if (!match) {
+    return { success: false, error: `No committed match for ${testMember.first_name} yet — run Commit matches first` };
+  }
+
+  const otherId = match.member_id_1 === testMember.id ? match.member_id_2 : match.member_id_1;
+  const { data: other } = await supabase.from("members").select("first_name").eq("id", otherId).maybeSingle();
+
+  return {
+    success: true,
+    message: `${testMember.first_name} & ${other?.first_name ?? "their match"} — no emails sent`,
+    link: `/matches/${match.id}?token=${generateMatchToken(match.id as string)}`,
+  };
 }
 
 export async function testLockRound(): Promise<TestStepResult> {

@@ -12,7 +12,7 @@ const NAV_LINKS = [
   // "Your Post" covers the whole (account) route group, not just /profile —
   // those routes share a URL prefix only through the group's folder name,
   // which Next.js drops from the actual path, so each one is listed here.
-  { href: "/profile", label: "Your Post", activeOn: ["/profile", "/matches", "/billing", "/feedback"] },
+  { href: "/profile", label: "Your Post", activeOn: ["/profile", "/matches", "/my-perks", "/billing", "/feedback"] },
 ];
 
 interface HeaderProps {
@@ -28,14 +28,14 @@ export default function Header({ showNav = true }: HeaderProps) {
   const pathname = usePathname();
 
   return (
-    <header className="px-6 py-5 flex items-center justify-between max-w-5xl mx-auto w-full">
+    <header className="px-6 py-5 flex items-center justify-between gap-3 max-w-5xl mx-auto w-full">
       <Link href="/" className="flex items-center gap-3">
         <EnvelopeLogo width={40} height={29} />
         <WordMark size="text-xl" className="hidden sm:inline" />
       </Link>
 
       {showNav && (
-        <nav className="flex gap-4 sm:gap-6 text-sm font-medium text-muted">
+        <nav className="flex flex-wrap justify-end gap-x-3 gap-y-1 sm:gap-x-6 text-sm font-medium text-muted">
           {NAV_LINKS.map(({ href, label, activeOn }) => {
             const active = (activeOn ?? [href]).some((path) => isActivePath(pathname, path));
             return (

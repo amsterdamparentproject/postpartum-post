@@ -26,6 +26,7 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 import { createClient } from "@supabase/supabase-js";
+import { geocodeAddress } from "../lib/geocode";
 
 config({ path: resolve(process.cwd(), ".env.test") });
 
@@ -62,20 +63,27 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 // manual test partners in this DB across a test run if you want them to
 // survive it.
 //
-// Three profiles: "yoga-studio" has a location and portal access (the
+// Four profiles: "yoga-studio" has a location and portal access (the
 // common case); "renske" has neither — a Circle-of-Experts-style
 // contributor with no location and, deliberately, no perk — exercising the
 // "no portal access yet" state the admin Partners tab renders
 // (db/migrations/024_perks.sql documents this as a real, supported partner
 // shape, not an edge case); "app-test" is tied to Alex's real inbox
 // (amsterdamparentproject@gmail.com) so there's always a partner-portal
-// login that magic links actually reach after a test run wipes the table.
+// login that magic links actually reach after a test run wipes the table;
+// "rijksmuseum" has a location with real coordinates, so its perks show
+// on the match map.
 // ---------------------------------------------------------------------------
 
 interface ReferenceLocation {
   label: string | null;
   address: string;
   area: string | null;
+  // Optional: set these to put the location on the match map without
+  // relying on a live geocoding call.
+  neighborhood?: string | null;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface ReferencePartner {
@@ -119,6 +127,26 @@ const REFERENCE_PARTNERS: ReferencePartner[] = [
     description: "Reference partner tied to Alex's inbox for testing the partner portal end to end.",
     email: "amsterdamparentproject@gmail.com",
     location: { label: null, address: "Jan Pieter Heijestraat 1, Amsterdam", area: "West" },
+  },
+  {
+    // A well-known venue with real coordinates, so there's always a
+    // reference partner whose perks show up on the match map. No portal
+    // access — add perks for it from /admin/partners.
+    slug: "rijksmuseum",
+    first_name: "Museum",
+    last_name: "Guide",
+    business_name: "Rijksmuseum",
+    url: "https://www.rijksmuseum.nl",
+    description: "The Netherlands' national museum of art and history, in the Museumkwartier.",
+    email: null,
+    location: {
+      label: null,
+      address: "Museumstraat 1, 1071 XX Amsterdam",
+      area: "South",
+      neighborhood: "Museumkwartier",
+      latitude: 52.359997,
+      longitude: 4.885219,
+    },
   },
 ];
 
@@ -181,23 +209,68 @@ async function insertReferencePartners() {
       continue;
     }
 
-    // Locations have no natural upsert key across reruns — clear and
-    // re-insert rather than trying to match rows up.
-    await supabase.from("partner_locations").delete().eq("partner_id", partnerRow.id);
-    if (p.location) {
-      const { error: locError } = await supabase.from("partner_locations").insert({
-        partner_id: partnerRow.id,
-        label: p.location.label,
-        address: p.location.address,
-        area: p.location.area,
-      });
-      if (locError) console.error(`  Failed to insert location for ${p.business_name}:`, locError.message);
-    }
+    await syncReferenceLocation(partnerRow.id as string, p);
 
     console.log(`  - ${p.business_name} (${p.email ?? "no portal access"})`);
   }
 
   console.log(`\nDone inserting reference partners.`);
+}
+
+/**
+ * Keeps each reference partner's location row STABLE across reruns (same
+ * id), updating it in place when the address matches, instead of the old
+ * delete-and-reinsert — perks.location_id is "on delete set null", so a
+ * fresh row every run silently detached every perk from its location after
+ * each test run.
+ *
+ * Coordinates come from the reference data when given, otherwise from the
+ * same Nominatim lookup the app runs on save (lib/geocode.ts) — without
+ * them the location never shows on the match map. Area/neighborhood fall
+ * back to the lookup's suggestions the same way.
+ */
+async function syncReferenceLocation(partnerId: string, p: ReferencePartner) {
+  const { data: existing } = await supabase
+    .from("partner_locations")
+    .select("id, address")
+    .eq("partner_id", partnerId);
+
+  if (!p.location) {
+    await supabase.from("partner_locations").delete().eq("partner_id", partnerId);
+    return;
+  }
+
+  const keep = (existing ?? []).find((l) => l.address === p.location!.address);
+  const stale = (existing ?? []).filter((l) => l.id !== keep?.id).map((l) => l.id);
+  if (stale.length > 0) await supabase.from("partner_locations").delete().in("id", stale);
+
+  let { latitude, longitude, neighborhood, area } = p.location;
+  if (latitude == null || longitude == null) {
+    await new Promise((r) => setTimeout(r, 1100)); // Nominatim: max 1 request/second
+    const geo = await geocodeAddress(p.location.address);
+    if (geo) {
+      latitude = geo.latitude;
+      longitude = geo.longitude;
+      neighborhood = neighborhood ?? geo.neighborhood;
+      area = area ?? geo.area;
+    } else {
+      console.warn(`  Couldn't geocode "${p.location.address}" — ${p.business_name} won't show on the map`);
+    }
+  }
+
+  const row = {
+    partner_id: partnerId,
+    label: p.location.label,
+    address: p.location.address,
+    area,
+    neighborhood: neighborhood ?? null,
+    latitude: latitude ?? null,
+    longitude: longitude ?? null,
+  };
+  const { error } = keep
+    ? await supabase.from("partner_locations").update(row).eq("id", keep.id)
+    : await supabase.from("partner_locations").insert(row);
+  if (error) console.error(`  Failed to save location for ${p.business_name}:`, error.message);
 }
 
 async function main() {

@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import {
   listPartnerPerks,
-  listPerkCategories,
   type PartnerPerk,
-  type PerkCategory,
+  type PartnerProfile,
 } from "@/app/actions/partners";
-import type { PartnerLocation } from "@/app/actions/partners";
 import PartnerPerkForm from "@/components/PartnerPerkForm";
+import PerkCard from "@/components/PerkCard";
+import { perkLocationLabel } from "@/lib/perk-display";
 
 const STATUS_STYLES: Record<PartnerPerk["status"], string> = {
   pending: "bg-amber-50 text-amber-700 border-amber-200",
@@ -27,55 +27,50 @@ const STATUS_LABELS: Record<PartnerPerk["status"], string> = {
 };
 
 /**
- * The "Your Perks" tab — mirrors the /matches list-of-cards shape Alex
- * asked for. A perk is always partner-authored here (source:
+ * The "Your Perks" tab — each perk shown as the same PerkCard members will
+ * see, with its review status on top, so partners get a live preview while
+ * a perk is still in review. Clicking a card opens it for editing. A perk is always partner-authored here (source:
  * 'partner_portal', forced server-side in savePartnerPerk), and always
  * starts — or returns to — 'pending' until Alex reviews it in
  * /admin/perks.
  */
 export default function PartnerPerksManager({
   accessToken,
-  locations,
+  partner,
+  onPartnerChange,
 }: {
   accessToken: string;
-  locations: PartnerLocation[];
+  partner: PartnerProfile;
+  onPartnerChange: () => void; // refetch the partner, e.g. after a photo change
 }) {
+  const { locations } = partner;
   const [perks, setPerks] = useState<PartnerPerk[] | null>(null);
-  const [categories, setCategories] = useState<PerkCategory[]>([]);
   const [editing, setEditing] = useState<PartnerPerk | null | "new">(null);
 
-  // .then()-chained, same shape as MagicLinkRequest's getSignupMeta() fetch
-  // — a plain useEffect-called async function whose body calls setState
-  // directly trips the set-state-in-effect lint rule; this doesn't.
-  function fetchPerksAndCategories() {
-    return Promise.all([listPartnerPerks(accessToken), listPerkCategories()]);
-  }
-
   function reload() {
-    fetchPerksAndCategories().then(([perkList, categoryList]) => {
-      setPerks(perkList);
-      setCategories(categoryList);
-    });
+    listPartnerPerks(accessToken).then(setPerks);
   }
 
   useEffect(() => {
-    fetchPerksAndCategories().then(([perkList, categoryList]) => {
+    // .then()-chained so setState never runs synchronously in the effect body
+    // (the set-state-in-effect lint rule).
+    listPartnerPerks(accessToken).then((perkList) => {
       setPerks(perkList);
-      setCategories(categoryList);
       // Nothing to show yet — skip straight to the form instead of an
       // empty list + a button the partner has to notice and click first.
       if (perkList.length === 0) setEditing("new");
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
   if (editing !== null) {
     return (
-      <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
+      <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-5 sm:p-8">
         <PartnerPerkForm
           perk={editing === "new" ? null : editing}
           locations={locations}
-          categories={categories}
+          website={partner.url}
+          imageUrl={partner.image_url}
+          onImageChange={onPartnerChange}
           accessToken={accessToken}
           onSaved={() => { setEditing(null); reload(); }}
           onCancel={() => setEditing(null)}
@@ -105,24 +100,32 @@ export default function PartnerPerksManager({
         </p>
       )}
 
-      <div className="space-y-3">
-        {perks?.map((perk) => (
-          <button
-            key={perk.id}
-            onClick={() => setEditing(perk)}
-            className="w-full text-left bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 hover:border-coral/40 transition"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="font-medium text-dark">{perk.perk_title}</p>
-                <p className="text-sm text-muted mt-0.5">{perk.perk_discount}</p>
-              </div>
-              <span className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border ${STATUS_STYLES[perk.status]}`}>
-                {STATUS_LABELS[perk.status]}
-              </span>
-            </div>
-          </button>
-        ))}
+      {perks && perks.length > 0 && (
+        <p className="text-sm text-muted">
+          This is how members will see your perks. Only <span className="font-medium text-dark">Live</span> perks
+          are visible to them. Tap a perk to edit it.
+        </p>
+      )}
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        {perks?.map((perk) => {
+          const loc = locations.find((l) => l.id === perk.location_id);
+          return (
+            <PerkCard
+              key={perk.id}
+              perk={perk}
+              partner={partner}
+              locationLabel={perkLocationLabel(loc)}
+              onClick={() => setEditing(perk)}
+              actionLabel="Edit perk"
+              badge={
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full border shadow-sm ${STATUS_STYLES[perk.status]}`}>
+                  {STATUS_LABELS[perk.status]}
+                </span>
+              }
+            />
+          );
+        })}
       </div>
     </div>
   );

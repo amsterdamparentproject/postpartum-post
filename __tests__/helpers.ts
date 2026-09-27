@@ -296,7 +296,7 @@ export async function cleanupPartnerLeadByUrl(url: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Partners, partner_locations, perks (db/migrations/024_perks.sql)
+// Partners, partner_locations, perks (db/migrations/024_perks.sql, 027_simplify_perks.sql)
 // ---------------------------------------------------------------------------
 
 function testPartnerEmail(label: string): string {
@@ -374,20 +374,4 @@ export async function getPerkRaw(id: string): Promise<Record<string, unknown> | 
   const supabase = createTestSupabase();
   const { data } = await supabase.from("perks").select("*").eq("id", id).maybeSingle();
   return data ?? null;
-}
-
-export async function getPerkCategoryLinks(perkId: string): Promise<string[]> {
-  const supabase = createTestSupabase();
-  const { data } = await supabase.from("perks_category_links").select("category_id").eq("perk_id", perkId);
-  return (data ?? []).map((r) => r.category_id as string);
-}
-
-/** perk_categories is seeded once by the migration (Fitness, Food & Drink,
- *  Services, Other) — tests reuse those real rows rather than inserting
- *  more. */
-export async function getSeededPerkCategoryIds(limit = 2): Promise<string[]> {
-  const supabase = createTestSupabase();
-  const { data, error } = await supabase.from("perk_categories").select("id").limit(limit);
-  if (error) throw new Error(`getSeededPerkCategoryIds failed: ${error.message}`);
-  return (data ?? []).map((r) => r.id as string);
 }

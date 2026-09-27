@@ -20,6 +20,10 @@ import {
   updatePartner,
   deletePartner,
   updatePerkAdmin,
+  createPartnerImageUploadAdmin,
+  setPartnerImageAdmin,
+  upsertPartnerLocationAdmin,
+  deletePartnerLocationAdmin,
   type PartnerLead,
   type LeadStatus,
   type ReviewPerk,
@@ -27,7 +31,16 @@ import {
   type PartnerOption,
   type PartnerLocationOption,
 } from "./actions";
-import { listPerkCategories, type PerkCategory } from "@/app/actions/partners";
+import PerkFields from "@/components/PerkFields";
+import PhotoUpload from "@/components/PhotoUpload";
+import PartnerLocationsManager from "@/components/PartnerLocationsManager";
+import {
+  REDEMPTION_TYPE_LABELS,
+  defaultLocationId,
+  emptyPerkInput,
+  perkToInput,
+  type PerkInput,
+} from "@/lib/perk-input";
 import type { LeadNote } from "@/lib/lead-notes";
 import RequiredMark from "@/components/RequiredMark";
 
@@ -803,8 +816,14 @@ function EditPartnerForm({
   const [firstName, setFirstName] = useState(partner.first_name);
   const [lastName, setLastName] = useState(partner.last_name);
   const [email, setEmail] = useState(partner.email ?? "");
+  const [imageUrl, setImageUrl] = useState<string | null>(partner.image_url);
+  const [locations, setLocations] = useState<PartnerLocationOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    listPartnerLocations(partner.id).then(setLocations);
+  }, [partner.id]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -842,6 +861,30 @@ function EditPartnerForm({
       <div>
         <label className={labelClass}>Login email</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="Optional — no email means no portal access" />
+      </div>
+      <PhotoUpload
+        imageUrl={imageUrl}
+        createUpload={(contentType) => createPartnerImageUploadAdmin(partner.id, contentType)}
+        commit={(path) => setPartnerImageAdmin(partner.id, path)}
+        onChange={setImageUrl}
+        label="Photo"
+        hint="Their space, or them for an expert. Saves right away, separate from Save changes."
+        labelClass={labelClass}
+      />
+      {/* Locations save on their own too (geocoded on save), like the photo. */}
+      <div className="pt-2">
+        {locations === null ? (
+          <p className="text-xs text-muted">Loading locations…</p>
+        ) : (
+          <PartnerLocationsManager
+            locations={locations}
+            actions={{
+              save: (input) => upsertPartnerLocationAdmin(partner.id, input),
+              remove: (id) => deletePartnerLocationAdmin(partner.id, id),
+            }}
+            emptyHint="No locations yet. Skip this for partners whose location varies."
+          />
+        )}
       </div>
       {error && <p className="text-xs text-coral">{error}</p>}
       <div className="flex gap-3">
@@ -936,7 +979,8 @@ function PartnerCard({ partner, onChanged }: { partner: PartnerOption; onChanged
         <EditPartnerForm
           partner={partner}
           onDone={() => { setEditing(false); onChanged(); }}
-          onCancel={() => setEditing(false)}
+          // Reload on cancel too: the photo saves on its own, before Save/Cancel.
+          onCancel={() => { setEditing(false); onChanged(); }}
         />
       )}
     </div>
@@ -995,35 +1039,23 @@ function PartnersTab() {
 /**
  * Alex adding a perk herself and attaching it to a partner she's already
  * worked out the details with — no lead-capture or partner-portal signup
- * needed first. Mirrors PartnerPerkForm's field set, but this one picks
- * the partner explicitly (locations/categories load once one's chosen)
- * and trusts the admin-picked status directly instead of forcing
- * 'pending' — see addPerkForPartner's docblock. Either way, the perk
- * shows up in that partner's own "Your Perks" tab right away.
+ * needed first. Same PerkFields as the partner portal's PartnerPerkForm,
+ * plus a partner picker (locations load once one's chosen) and a status
+ * that's trusted directly instead of forced to 'pending' — see
+ * addPerkForPartner's docblock. Either way, the perk shows up in that
+ * partner's own "Your Perks" tab right away.
  */
 function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const [partners, setPartners] = useState<PartnerOption[] | null>(null);
   const [partnerId, setPartnerId] = useState("");
   const [locations, setLocations] = useState<PartnerLocationOption[]>([]);
-  const [locationId, setLocationId] = useState("");
-  const [categories, setCategories] = useState<PerkCategory[]>([]);
-  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [value, setValue] = useState<PerkInput>(emptyPerkInput());
   const [status, setStatus] = useState<PerkReviewStatus>("published");
-  const [partnerLink, setPartnerLink] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [discount, setDiscount] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [code, setCode] = useState("");
-  const [redemptionUrl, setRedemptionUrl] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
-  const [exclusive, setExclusive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     listPartners().then(setPartners);
-    listPerkCategories().then(setCategories);
   }, []);
 
   // All setState calls stay inside the .then() callback (never synchronous
@@ -1032,12 +1064,17 @@ function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
   useEffect(() => {
     (partnerId ? listPartnerLocations(partnerId) : Promise.resolve([])).then((locs) => {
       setLocations(locs);
-      setLocationId("");
+      setValue((v) => ({ ...v, location_id: defaultLocationId(locs) }));
     });
   }, [partnerId]);
 
-  function toggleCategory(id: string) {
-    setCategoryIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
+  // Prefill the link with the partner's website — and swap it when the
+  // partner changes, unless Alex has already typed a different link.
+  function pickPartner(id: string) {
+    const previousWebsite = partners?.find((p) => p.id === partnerId)?.url ?? "";
+    const nextWebsite = partners?.find((p) => p.id === id)?.url ?? "";
+    setPartnerId(id);
+    setValue((v) => ({ ...v, url: !v.url || v.url === previousWebsite ? nextWebsite : v.url }));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -1048,21 +1085,7 @@ function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
       return;
     }
     startTransition(async () => {
-      const result = await addPerkForPartner({
-        partner_id: partnerId,
-        location_id: locationId || null,
-        partner_link: partnerLink,
-        perk_title: title,
-        perk_description: description,
-        perk_discount: discount,
-        redemption_instructions: instructions,
-        perk_redemption_code: code,
-        perk_redemption_url: redemptionUrl,
-        expires_at: expiresAt,
-        exclusive,
-        category_ids: categoryIds,
-        status,
-      });
+      const result = await addPerkForPartner({ ...value, partner_id: partnerId, status });
       if (!result.success) {
         setError(result.error ?? "Couldn't save — try again");
         return;
@@ -1079,7 +1102,7 @@ function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
 
       <div>
         <label className={labelClass}>Partner <RequiredMark /></label>
-        <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)} required className={inputClass}>
+        <select value={partnerId} onChange={(e) => pickPartner(e.target.value)} required className={inputClass}>
           <option value="">Select a partner…</option>
           {partners?.map((p) => (
             <option key={p.id} value={p.id}>
@@ -1094,96 +1117,31 @@ function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
         )}
       </div>
 
-      <div>
-        <label className={labelClass}>Perk title <RequiredMark /></label>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} required className={inputClass} placeholder="20% off your first class" />
-      </div>
+      <PerkFields
+        value={value}
+        onChange={setValue}
+        locations={locations}
+        inputClass={inputClass}
+        labelClass={labelClass}
+        photo={
+          selectedPartner && (
+            <PhotoUpload
+              key={selectedPartner.id}
+              imageUrl={selectedPartner.image_url}
+              createUpload={(contentType) => createPartnerImageUploadAdmin(selectedPartner.id, contentType)}
+              commit={(path) => setPartnerImageAdmin(selectedPartner.id, path)}
+              onChange={(next) =>
+                setPartners((list) => list?.map((p) => (p.id === selectedPartner.id ? { ...p, image_url: next } : p)) ?? null)
+              }
+              label="Photo"
+              hint="All of this partner's perks share one image. Changing it here applies to all of them."
+              labelClass={labelClass}
+            />
+          )
+        }
+      />
 
-      <div>
-        <label className={labelClass}>Discount <RequiredMark /></label>
-        <input value={discount} onChange={(e) => setDiscount(e.target.value)} required className={inputClass} placeholder="20% off, 1 free class, €10 off…" />
-      </div>
-
-      <div>
-        <label className={labelClass}>Description <RequiredMark /></label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} required rows={3} className={inputClass} />
-      </div>
-
-      {locations.length > 0 && (
-        <div>
-          <label className={labelClass}>Location</label>
-          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputClass}>
-            <option value="">Not tied to a specific location</option>
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>{loc.label || loc.address}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {categories.length > 0 && (
-        <div>
-          <label className={labelClass}>Category</label>
-          <div className="flex flex-wrap gap-2">
-            {categories.map((cat) => {
-              const active = categoryIds.includes(cat.id);
-              return (
-                <button
-                  type="button"
-                  key={cat.id}
-                  onClick={() => toggleCategory(cat.id)}
-                  className={`px-3 py-1.5 text-sm rounded-full border transition ${
-                    active ? "bg-coral text-white border-coral" : "border-border text-muted hover:text-dark"
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Redemption code</label>
-          <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} placeholder="Optional" />
-        </div>
-        <div>
-          <label className={labelClass}>Redemption link</label>
-          <input value={redemptionUrl} onChange={(e) => setRedemptionUrl(e.target.value)} className={inputClass} placeholder="Optional" />
-        </div>
-      </div>
-
-      <div>
-        <label className={labelClass}>How members redeem it</label>
-        <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={2} className={inputClass} placeholder="e.g. Show this code at checkout" />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Perk-specific link</label>
-          <input value={partnerLink} onChange={(e) => setPartnerLink(e.target.value)} className={inputClass} placeholder="If different from their website" />
-        </div>
-        <div>
-          <label className={labelClass}>Expires</label>
-          <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className={inputClass} />
-        </div>
-      </div>
-
-      <div>
-        <label className={labelClass}>Status</label>
-        <select value={status} onChange={(e) => setStatus(e.target.value as PerkReviewStatus)} className={inputClass}>
-          {(Object.keys(PERK_STATUS_LABELS) as PerkReviewStatus[]).map((s) => (
-            <option key={s} value={s}>{PERK_STATUS_LABELS[s]}</option>
-          ))}
-        </select>
-      </div>
-
-      <label className="flex items-center gap-2 text-sm text-dark">
-        <input type="checkbox" checked={exclusive} onChange={(e) => setExclusive(e.target.checked)} />
-        Exclusive to Postpartum Post
-      </label>
+      <PerkStatusSelect status={status} onChange={setStatus} />
 
       {error && <p className="text-xs text-coral">{error}</p>}
 
@@ -1203,14 +1161,30 @@ function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
   );
 }
 
+function PerkStatusSelect({
+  status,
+  onChange,
+}: {
+  status: PerkReviewStatus;
+  onChange: (s: PerkReviewStatus) => void;
+}) {
+  return (
+    <div>
+      <label className={labelClass}>Status</label>
+      <select value={status} onChange={(e) => onChange(e.target.value as PerkReviewStatus)} className={inputClass}>
+        {(Object.keys(PERK_STATUS_LABELS) as PerkReviewStatus[]).map((s) => (
+          <option key={s} value={s}>{PERK_STATUS_LABELS[s]}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 /**
- * Full-content edit for a perk from the admin queue — title, discount,
- * description, location/category/redemption details, and status all in
- * one form, via updatePerkAdmin. Same field set as AdminPerkForm (the
- * "+ Add perk" form) minus the partner picker: partner_id isn't editable
- * here (see updatePerkAdmin's docblock), so locations/categories load
- * immediately for this perk's own partner rather than waiting on a
- * selection.
+ * Full-content edit for a perk from the admin queue, via updatePerkAdmin.
+ * Same PerkFields as AdminPerkForm minus the partner picker: partner_id
+ * isn't editable here (see updatePerkAdmin's docblock), so locations load
+ * immediately for this perk's own partner.
  */
 function EditPerkForm({
   perk,
@@ -1222,53 +1196,25 @@ function EditPerkForm({
   onCancel: () => void;
 }) {
   const [locations, setLocations] = useState<PartnerLocationOption[]>([]);
-  const [categories, setCategories] = useState<PerkCategory[]>([]);
-  const [locationId, setLocationId] = useState(perk.location_id ?? "");
-  const [categoryIds, setCategoryIds] = useState<string[]>(perk.category_ids);
+  const [value, setValue] = useState<PerkInput>(() => {
+    const initial = perkToInput(perk);
+    return { ...initial, url: initial.url || perk.partner_url || "" };
+  });
   const [status, setStatus] = useState<PerkReviewStatus>(perk.status);
-  const [partnerLink, setPartnerLink] = useState(perk.partner_link ?? "");
-  const [title, setTitle] = useState(perk.perk_title);
-  const [description, setDescription] = useState(perk.perk_description);
-  const [discount, setDiscount] = useState(perk.perk_discount);
-  const [instructions, setInstructions] = useState(perk.redemption_instructions ?? "");
-  const [code, setCode] = useState(perk.perk_redemption_code ?? "");
-  const [redemptionUrl, setRedemptionUrl] = useState(perk.perk_redemption_url ?? "");
-  const [expiresAt, setExpiresAt] = useState(perk.expires_at ?? "");
-  const [exclusive, setExclusive] = useState(perk.exclusive);
+  const [imageUrl, setImageUrl] = useState<string | null>(perk.partner_image_url);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    Promise.all([listPartnerLocations(perk.partner_id), listPerkCategories()]).then(([locs, cats]) => {
-      setLocations(locs);
-      setCategories(cats);
-    });
+    listPartnerLocations(perk.partner_id).then(setLocations);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function toggleCategory(id: string) {
-    setCategoryIds((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
-  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await updatePerkAdmin({
-        perkId: perk.id,
-        status,
-        location_id: locationId || null,
-        partner_link: partnerLink,
-        perk_title: title,
-        perk_description: description,
-        perk_discount: discount,
-        redemption_instructions: instructions,
-        perk_redemption_code: code,
-        perk_redemption_url: redemptionUrl,
-        expires_at: expiresAt,
-        exclusive,
-        category_ids: categoryIds,
-      });
+      const result = await updatePerkAdmin({ ...value, perkId: perk.id, status });
       if (!result.success) {
         setError(result.error ?? "Couldn't save — try again");
         return;
@@ -1279,96 +1225,26 @@ function EditPerkForm({
 
   return (
     <form onSubmit={handleSubmit} className="mt-4 pt-4 border-t border-border space-y-4">
-      <div>
-        <label className={labelClass}>Perk title <RequiredMark /></label>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} required className={inputClass} />
-      </div>
+      <PerkFields
+        value={value}
+        onChange={setValue}
+        locations={locations}
+        inputClass={inputClass}
+        labelClass={labelClass}
+        photo={
+          <PhotoUpload
+            imageUrl={imageUrl}
+            createUpload={(contentType) => createPartnerImageUploadAdmin(perk.partner_id, contentType)}
+            commit={(path) => setPartnerImageAdmin(perk.partner_id, path)}
+            onChange={setImageUrl}
+            label="Photo"
+            hint="All of this partner's perks share one image. Changing it here applies to all of them."
+            labelClass={labelClass}
+          />
+        }
+      />
 
-      <div>
-        <label className={labelClass}>Discount <RequiredMark /></label>
-        <input value={discount} onChange={(e) => setDiscount(e.target.value)} required className={inputClass} />
-      </div>
-
-      <div>
-        <label className={labelClass}>Description <RequiredMark /></label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} required rows={3} className={inputClass} />
-      </div>
-
-      {locations.length > 0 && (
-        <div>
-          <label className={labelClass}>Location</label>
-          <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className={inputClass}>
-            <option value="">Not tied to a specific location</option>
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>{loc.label || loc.address}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {categories.length > 0 && (
-        <div>
-          <label className={labelClass}>Category</label>
-          <div className="flex flex-wrap gap-2">
-            {categories.map((cat) => {
-              const active = categoryIds.includes(cat.id);
-              return (
-                <button
-                  type="button"
-                  key={cat.id}
-                  onClick={() => toggleCategory(cat.id)}
-                  className={`px-3 py-1.5 text-sm rounded-full border transition ${
-                    active ? "bg-coral text-white border-coral" : "border-border text-muted hover:text-dark"
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Redemption code</label>
-          <input value={code} onChange={(e) => setCode(e.target.value)} className={inputClass} placeholder="Optional" />
-        </div>
-        <div>
-          <label className={labelClass}>Redemption link</label>
-          <input value={redemptionUrl} onChange={(e) => setRedemptionUrl(e.target.value)} className={inputClass} placeholder="Optional" />
-        </div>
-      </div>
-
-      <div>
-        <label className={labelClass}>How members redeem it</label>
-        <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={2} className={inputClass} placeholder="e.g. Show this code at checkout" />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelClass}>Perk-specific link</label>
-          <input value={partnerLink} onChange={(e) => setPartnerLink(e.target.value)} className={inputClass} placeholder="If different from their website" />
-        </div>
-        <div>
-          <label className={labelClass}>Expires</label>
-          <input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className={inputClass} />
-        </div>
-      </div>
-
-      <div>
-        <label className={labelClass}>Status</label>
-        <select value={status} onChange={(e) => setStatus(e.target.value as PerkReviewStatus)} className={inputClass}>
-          {(Object.keys(PERK_STATUS_LABELS) as PerkReviewStatus[]).map((s) => (
-            <option key={s} value={s}>{PERK_STATUS_LABELS[s]}</option>
-          ))}
-        </select>
-      </div>
-
-      <label className="flex items-center gap-2 text-sm text-dark">
-        <input type="checkbox" checked={exclusive} onChange={(e) => setExclusive(e.target.checked)} />
-        Exclusive to Postpartum Post
-      </label>
+      <PerkStatusSelect status={status} onChange={setStatus} />
 
       {error && <p className="text-xs text-coral">{error}</p>}
 
@@ -1404,18 +1280,21 @@ function PerkCard({ perk, onChanged }: { perk: ReviewPerk; onChanged: () => void
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <p className="font-medium text-dark">{perk.perk_title}</p>
+            <p className="font-medium text-dark">{perk.title}</p>
             {perk.exclusive && (
               <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-light/30 text-dark">
                 Exclusive
               </span>
             )}
           </div>
-          <p className="text-sm text-muted mt-0.5">{perk.partner_name} · {perk.perk_discount}</p>
+          <p className="text-sm text-muted mt-0.5">
+            {perk.partner_name} · {REDEMPTION_TYPE_LABELS[perk.redemption_type]}
+            {perk.redemption_code && <> · <span className="font-mono">{perk.redemption_code}</span></>}
+          </p>
         </div>
         <StatusBadge label={PERK_STATUS_LABELS[perk.status]} className={PERK_STATUS_STYLES[perk.status]} />
       </div>
-      <p className="text-sm text-dark leading-relaxed mt-3">{perk.perk_description}</p>
+      <p className="text-sm text-dark leading-relaxed mt-3">{perk.description}</p>
       <p className="text-xs text-muted mt-2">Submitted {new Date(perk.created_at).toLocaleDateString()}</p>
 
       {editing ? (

@@ -203,7 +203,7 @@ export interface SeededPartner {
  * signInAs() to sign the resulting Supabase Auth user in as this partner.
  */
 export async function seedPartner(
-  overrides: { email?: string; businessName?: string; firstName?: string; lastName?: string } = {}
+  overrides: { email?: string; businessName?: string; firstName?: string; lastName?: string; url?: string } = {}
 ): Promise<SeededPartner> {
   const db = supabase();
   const id = crypto.randomUUID();
@@ -216,6 +216,7 @@ export async function seedPartner(
     business_name: businessName,
     first_name: overrides.firstName ?? "Test",
     last_name: overrides.lastName ?? "Partner",
+    url: overrides.url ?? null,
   });
   if (error) throw new Error(`seedPartner failed: ${error.message}`);
   return { id, email, businessName };
@@ -224,6 +225,90 @@ export async function seedPartner(
 /** Deletes the partner row — partner_locations and perks cascade with it. */
 export async function cleanupPartner(partnerId: string): Promise<void> {
   await supabase().from("partners").delete().eq("id", partnerId);
+}
+
+export async function seedPartnerLocation(
+  partnerId: string,
+  location: { label?: string; address?: string; neighborhood?: string | null; area?: string | null },
+): Promise<{ id: string }> {
+  const id = crypto.randomUUID();
+  const { error } = await supabase().from("partner_locations").insert({
+    id,
+    partner_id: partnerId,
+    label: location.label ?? null,
+    address: location.address ?? "Kinkerstraat 1, Amsterdam",
+    neighborhood: location.neighborhood ?? null,
+    area: location.area ?? null,
+  });
+  if (error) throw new Error(`seedPartnerLocation failed: ${error.message}`);
+  return { id };
+}
+
+export async function updatePartnerLocation(
+  locationId: string,
+  fields: { neighborhood?: string | null; area?: string | null },
+): Promise<void> {
+  const { error } = await supabase().from("partner_locations").update(fields).eq("id", locationId);
+  if (error) throw new Error(`updatePartnerLocation failed: ${error.message}`);
+}
+
+// ---------------------------------------------------------------------------
+// Perk helpers (db/migrations/027_simplify_perks.sql)
+// ---------------------------------------------------------------------------
+
+/** Insert a perk directly — e.g. an already-published one to redeem. */
+export async function seedPerk(
+  partnerId: string,
+  perk: {
+    title: string;
+    description?: string;
+    redemptionType: "code" | "in_person" | "online";
+    code?: string | null;
+    url?: string | null;
+    status?: "pending" | "published";
+    exclusive?: boolean;
+  },
+): Promise<{ id: string }> {
+  const id = crypto.randomUUID();
+  const { error } = await supabase().from("perks").insert({
+    id,
+    partner_id: partnerId,
+    status: perk.status ?? "published",
+    source: "manual",
+    title: perk.title,
+    description: perk.description ?? "An e2e test perk.",
+    redemption_type: perk.redemptionType,
+    redemption_code: perk.code ?? null,
+    url: perk.url ?? null,
+    exclusive: perk.exclusive ?? false,
+  });
+  if (error) throw new Error(`seedPerk failed: ${error.message}`);
+  return { id };
+}
+
+export async function getPartnerPerks(partnerId: string): Promise<Record<string, unknown>[]> {
+  const { data } = await supabase().from("perks").select("*").eq("partner_id", partnerId);
+  return data ?? [];
+}
+
+export async function setPerkStatus(perkId: string, status: "pending" | "published" | "archived"): Promise<void> {
+  const { error } = await supabase().from("perks").update({ status }).eq("id", perkId);
+  if (error) throw new Error(`setPerkStatus failed: ${error.message}`);
+}
+
+/** Number of perk_events rows of a type for one member and perk. */
+export async function countPerkEvents(
+  perkId: string,
+  memberId: string,
+  eventType: "viewed" | "redeemed",
+): Promise<number> {
+  const { count } = await supabase()
+    .from("perk_events")
+    .select("id", { count: "exact", head: true })
+    .eq("perk_id", perkId)
+    .eq("member_id", memberId)
+    .eq("event_type", eventType);
+  return count ?? 0;
 }
 
 // ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@
  * on this specific match.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@/lib/supabase";
 import { getMatchPageData, type MatchPageResult } from "@/app/actions/match-page";
@@ -20,17 +20,23 @@ import EnvelopeLogo from "@/components/EnvelopeLogo";
 import CalloutBox from "@/components/CalloutBox";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import ActivitiesSection from "@/app/matches/[id]/ActivitiesSection";
+import { PerkList, type MatchPerk } from "@/app/matches/[id]/PerkList";
+import { haversineKm } from "@/lib/geo-distance";
+import { PERK_SORTS, type SortOrder } from "@/app/matches/[id]/activities-utils";
+import type { PublicPerk } from "@/lib/public-perks";
 
 interface Props {
   matchId: string;
   token?: string;
   /** Non-sensitive server-rendered content (e.g. MonthlyWhimsy) passed through as-is. */
   monthlyWhimsy?: React.ReactNode;
+  /** Live Post Perks (public data), shown once authorized. */
+  perks: PublicPerk[];
 }
 
 type ReadyResult = Extract<MatchPageResult, { authorized: true; rematchRequested: false }>;
 
-export default function MatchPageClient({ matchId, token, monthlyWhimsy }: Props) {
+export default function MatchPageClient({ matchId, token, monthlyWhimsy, perks }: Props) {
   const [result, setResult] = useState<MatchPageResult | null>(null);
   const [checking, setChecking] = useState(true);
 
@@ -173,21 +179,46 @@ export default function MatchPageClient({ matchId, token, monthlyWhimsy }: Props
     );
   }
 
-  return <MatchPageReady data={result} matchId={matchId} monthlyWhimsy={monthlyWhimsy} />;
+  return <MatchPageReady data={result} matchId={matchId} monthlyWhimsy={monthlyWhimsy} perks={perks} />;
 }
 
 function MatchPageReady({
   data,
   matchId,
   monthlyWhimsy,
+  perks,
 }: {
   data: ReadyResult;
   matchId: string;
   monthlyWhimsy?: React.ReactNode;
+  perks: PublicPerk[];
 }) {
   const { m1, m2, monthLabel, matchedOn, viewerIsM1, viewerIsInitiator, viewerMemberId, topic, hasActivities, recommendedPlaces, recommendedActivities, allActivities, center, memberCoords, playgrounds } = data;
 
   const them = viewerIsM1 ? m2 : m1;
+
+  // Perks with their distance from the pair's halfway point attached; perks
+  // without coordinates get Infinity, sorting last under "Nearest".
+  const nearbyPerks: MatchPerk[] = useMemo(
+    () =>
+      perks.map((p) => ({
+        ...p,
+        distanceKm:
+          center && p.lat != null && p.lng != null
+            ? haversineKm(center, { lat: p.lat, lng: p.lng })
+            : Infinity,
+      })),
+    [perks, center],
+  );
+
+  // Sort for the "no activities" perks-only section below — mirrors
+  // ActivitiesSection's own Perks tab sort pills.
+  const [noActivitiesPerkSort, setNoActivitiesPerkSort] = useState<SortOrder>("distance");
+  const sortedNearbyPerks = useMemo(() => {
+    if (noActivitiesPerkSort === "alpha") return [...nearbyPerks].sort((a, b) => a.title.localeCompare(b.title));
+    if (noActivitiesPerkSort === "score") return nearbyPerks;
+    return [...nearbyPerks].sort((a, b) => a.distanceKm - b.distanceKm);
+  }, [nearbyPerks, noActivitiesPerkSort]);
 
   const mailtoSubject = encodeURIComponent(`Let's meet for a ${topic || "hang"}! (Postpartum Post)`);
   const mailtoBody = encodeURIComponent(`Hi ${them.first_name},`);
@@ -300,7 +331,35 @@ function MatchPageReady({
           </div>
           </div>
 
-          {/* Activities */}
+          {/* Without activities, perks still show on their own. */}
+          {!hasActivities && nearbyPerks.length > 0 && (
+            <section className="space-y-6">
+              <h2 className="text-2xl sm:text-3xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
+                Where to meet up
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {PERK_SORTS.map(({ label, value }) => (
+                  <button
+                    key={value}
+                    onClick={() => setNoActivitiesPerkSort(value)}
+                    className={`px-3 py-1 text-xs rounded-full border transition-colors cursor-pointer ${
+                      noActivitiesPerkSort === value
+                        ? ""
+                        : "bg-white text-muted border-border hover:border-dark hover:text-dark"
+                    }`}
+                    style={
+                      noActivitiesPerkSort === value
+                        ? { background: "#8A9E3A", borderColor: "#8A9E3A", color: "#fff" }
+                        : undefined
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <PerkList perks={sortedNearbyPerks} />
+            </section>
+          )}
           {hasActivities && (
             <ActivitiesSection
               recommendedPlaces={recommendedPlaces}
@@ -314,6 +373,7 @@ function MatchPageReady({
               ]}
               matchedOn={matchedOn}
               playgrounds={playgrounds}
+              perks={nearbyPerks}
             />
           )}
 

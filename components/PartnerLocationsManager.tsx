@@ -1,11 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import {
-  upsertPartnerLocation,
-  deletePartnerLocation,
-  type PartnerLocation,
-} from "@/app/actions/partners";
+import type { PartnerLocation, PartnerLocationInput } from "@/app/actions/partners";
 import RequiredMark from "@/components/RequiredMark";
 
 const inputClass =
@@ -13,15 +9,21 @@ const inputClass =
 
 type DraftLocation = PartnerLocation | { id: undefined; label: string; address: string; area: null; neighborhood: null };
 
+/** Where saves go: the partner's own actions, or the admin ones for a given partner. */
+export type LocationActions = {
+  save: (input: PartnerLocationInput) => Promise<{ success: boolean; error?: string; location?: PartnerLocation }>;
+  remove: (locationId: string) => Promise<{ success: boolean; error?: string }>;
+};
+
 function LocationRow({
   location,
-  accessToken,
+  actions,
   onSaved,
   onDeleted,
   onCancelNew,
 }: {
   location: DraftLocation;
-  accessToken: string;
+  actions: LocationActions;
   onSaved: (loc: PartnerLocation) => void;
   onDeleted: (id: string) => void;
   onCancelNew: () => void;
@@ -35,7 +37,7 @@ function LocationRow({
   function handleSave() {
     setError(null);
     startTransition(async () => {
-      const result = await upsertPartnerLocation(accessToken, { id: location.id, label, address });
+      const result = await actions.save({ id: location.id, label, address });
       if (!result.success || !result.location) {
         setError(result.error ?? "Couldn't save — try again");
         return;
@@ -48,7 +50,7 @@ function LocationRow({
   function handleDelete() {
     if (!location.id) return;
     startTransition(async () => {
-      const result = await deletePartnerLocation(accessToken, location.id!);
+      const result = await actions.remove(location.id!);
       if (result.success) onDeleted(location.id!);
     });
   }
@@ -64,8 +66,8 @@ function LocationRow({
           )}
         </div>
         <div className="flex gap-3 shrink-0">
-          <button onClick={() => setEditing(true)} className="text-xs text-muted hover:text-coral transition">Edit</button>
-          <button onClick={handleDelete} disabled={isPending} className="text-xs text-muted hover:text-coral transition">
+          <button type="button" onClick={() => setEditing(true)} className="text-xs text-muted hover:text-coral transition">Edit</button>
+          <button type="button" onClick={handleDelete} disabled={isPending} className="text-xs text-muted hover:text-coral transition">
             {isPending ? "Removing…" : "Remove"}
           </button>
         </div>
@@ -91,6 +93,12 @@ function LocationRow({
         <input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (address.trim()) handleSave();
+            }
+          }}
           required
           className={inputClass}
         />
@@ -98,6 +106,7 @@ function LocationRow({
       {error && <p className="text-xs text-coral">{error}</p>}
       <div className="flex gap-3">
         <button
+          type="button"
           onClick={handleSave}
           disabled={isPending || !address.trim()}
           className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-coral hover:bg-coral-dark text-white transition disabled:opacity-60"
@@ -105,9 +114,9 @@ function LocationRow({
           {isPending ? "Saving…" : "Save location"}
         </button>
         {location.id ? (
-          <button onClick={() => setEditing(false)} className="text-sm text-muted hover:text-dark transition">Cancel</button>
+          <button type="button" onClick={() => setEditing(false)} className="text-sm text-muted hover:text-dark transition">Cancel</button>
         ) : (
-          <button onClick={onCancelNew} className="text-sm text-muted hover:text-dark transition">Cancel</button>
+          <button type="button" onClick={onCancelNew} className="text-sm text-muted hover:text-dark transition">Cancel</button>
         )}
       </div>
     </div>
@@ -124,10 +133,12 @@ function LocationRow({
  */
 export default function PartnerLocationsManager({
   locations: initialLocations,
-  accessToken,
+  actions,
+  emptyHint = "No locations yet. Add one if you have a regular address, or skip this if your location varies.",
 }: {
   locations: PartnerLocation[];
-  accessToken: string;
+  actions: LocationActions;
+  emptyHint?: string;
 }) {
   const [locations, setLocations] = useState(initialLocations);
   const [addingNew, setAddingNew] = useState(false);
@@ -138,6 +149,7 @@ export default function PartnerLocationsManager({
         <h2 className="text-base font-semibold text-dark">Locations</h2>
         {!addingNew && (
           <button
+            type="button"
             onClick={() => setAddingNew(true)}
             className="text-sm font-semibold text-coral hover:text-coral-dark transition"
           >
@@ -146,14 +158,14 @@ export default function PartnerLocationsManager({
         )}
       </div>
       {locations.length === 0 && !addingNew && (
-        <p className="text-sm text-muted">No locations yet — add one if you operate from a physical address.</p>
+        <p className="text-sm text-muted">{emptyHint}</p>
       )}
       <div>
         {locations.map((loc) => (
           <LocationRow
             key={loc.id}
             location={loc}
-            accessToken={accessToken}
+            actions={actions}
             onSaved={(updated) => setLocations((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))}
             onDeleted={(id) => setLocations((prev) => prev.filter((l) => l.id !== id))}
             onCancelNew={() => {}}
@@ -162,7 +174,7 @@ export default function PartnerLocationsManager({
         {addingNew && (
           <LocationRow
             location={{ id: undefined, label: "", address: "", area: null, neighborhood: null }}
-            accessToken={accessToken}
+            actions={actions}
             onSaved={(created) => {
               setLocations((prev) => [...prev, created]);
               setAddingNew(false);
