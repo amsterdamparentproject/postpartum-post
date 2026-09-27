@@ -82,10 +82,12 @@ function escapeHtml(value: string): string {
 
 // ---------------------------------------------------------------------------
 // Popups — one shared layout for every marker type, so they read as one
-// system and say what they are: a type chip in the marker's color, a square
-// on the left (partner photo for perks, the type's color + icon otherwise),
-// the title, up to two lines of description (never an address), and one coral
-// action. The "map-popup" class (app/globals.css) strips Leaflet's padding.
+// system: a square on the left (partner photo for perks, the type's color +
+// icon otherwise — that color is what says what kind of marker it is), a
+// type chip only for perks (Exclusive/free perks still need calling out),
+// the title, up to two lines of description (never an address), and one
+// coral action. The "map-popup" class (app/globals.css) strips Leaflet's
+// padding.
 // ---------------------------------------------------------------------------
 
 type PopupItem = {
@@ -101,8 +103,10 @@ function popupItemHtml(item: PopupItem): string {
   const square = item.imageUrl
     ? `<img src="${escapeHtml(item.imageUrl)}" alt="" style="width:100%;height:100%;object-fit:cover" />`
     : kind.icon(26);
-  const chipSparkle = item.kind === "perk"
-    ? `<img src="/sparkle.svg" alt="" style="width:9px;height:9px;filter:brightness(0) invert(1)" />`
+  const chip = item.kind === "perk"
+    ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:0 6px;border-radius:999px;background:${kind.color};color:${kind.ink};font-size:10px;font-weight:700;line-height:15px">
+         <img src="/sparkle.svg" alt="" style="width:9px;height:9px;filter:brightness(0) invert(1)" />${kind.label}
+       </span>`
     : "";
   const action = item.action
     ? `<a href="${escapeHtml(item.action.href)}" ${item.action.external ? 'target="_blank" rel="noopener noreferrer"' : ""}
@@ -115,7 +119,7 @@ function popupItemHtml(item: PopupItem): string {
         ${square}
       </div>
       <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;align-items:flex-start">
-        <span style="display:inline-flex;align-items:center;gap:3px;padding:0 6px;border-radius:999px;background:${kind.color};color:${kind.ink};font-size:10px;font-weight:700;line-height:15px">${chipSparkle}${kind.label}</span>
+        ${chip}
         <div style="font-family:var(--font-serif);font-size:14px;line-height:1.25;color:#242424">${escapeHtml(item.title)}</div>
         ${item.line ? `<div style="max-width:100%;font-size:11px;line-height:1.4;color:#4a4a4a;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(item.line)}</div>` : ""}
         ${action}

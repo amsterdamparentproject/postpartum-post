@@ -41,7 +41,7 @@ export function PerkList({ perks }: { perks: MatchPerk[] }) {
             imageUrl={perk.partner.image_url}
             meta={meta || null}
             description={perk.description}
-            extras={
+            topBadge={
               perk.exclusive && (
                 <span
                   className="inline-flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full text-[11px] font-bold text-white"

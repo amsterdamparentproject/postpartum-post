@@ -11,17 +11,18 @@ export type ListRowAction =
  * One row in the match page's List view — the same layout as the Local
  * spots map popups (components/ActivitiesMap.tsx), just roomier: a square
  * on the left (partner photo for perks, otherwise the kind's color + icon),
- * a type chip in the kind's color, the title, an optional coral meta line
- * (date/time, distance…), the description, optional extras (age chips…),
- * and one coral action. Colors, labels and icons come from
- * lib/listing-kinds.ts, shared with the map.
+ * the title, an optional top badge (e.g. Exclusive), an optional coral meta
+ * line (date/time, distance…), the description, optional extras, and one
+ * coral action. No type chip — the icon square's color already says what
+ * kind of row it is. Colors and icons come from lib/listing-kinds.ts,
+ * shared with the map.
  */
 export default function ListRow({
   kind,
   title,
   imageUrl,
   belowImage,
-  chipAside,
+  topBadge,
   meta,
   description,
   extras,
@@ -34,8 +35,8 @@ export default function ListRow({
   imageUrl?: string | null;
   /** Shown under the image/icon square, e.g. who's free for an event. */
   belowImage?: ReactNode;
-  /** Shown to the right of the chip. */
-  chipAside?: ReactNode;
+  /** Shown above the title, e.g. an Exclusive pill for perks. */
+  topBadge?: ReactNode;
   meta?: ReactNode;
   description?: string | null;
   extras?: ReactNode;
@@ -72,19 +73,7 @@ export default function ListRow({
       </div>
 
       <div className="flex-1 min-w-0 space-y-1">
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className="inline-flex items-center gap-1 px-2 rounded-full text-[11px] font-bold leading-[18px]"
-            style={{ background: k.color, color: k.ink }}
-          >
-            {kind === "perk" && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src="/sparkle.svg" alt="" className="w-2.5 h-2.5" style={{ filter: "brightness(0) invert(1)" }} />
-            )}
-            {k.label}
-          </span>
-          {chipAside}
-        </div>
+        {topBadge && <div className="flex items-center gap-2">{topBadge}</div>}
         <p className="font-semibold text-dark text-base leading-snug">{title}</p>
         {meta && <p className="text-xs text-coral">{meta}</p>}
         {description && <p className="text-dark text-sm leading-relaxed">{description}</p>}
