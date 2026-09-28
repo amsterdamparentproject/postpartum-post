@@ -344,6 +344,30 @@ describe("admin perk review (listPerksForReview / setPerkStatus)", () => {
     await setPerkStatus(created.perkId!, "archived");
     expect((await getPerkRaw(created.perkId!))?.status).toBe("archived");
   });
+
+  it("surfaces all of a multi-location perk's location_ids, grouped correctly across perks", async () => {
+    // Two locations on this describe block's own partner, plus a perk with
+    // none, to make sure the perk_locations grouping query (listPerksForReview,
+    // app/admin/partners/actions.ts) doesn't leak one perk's locations onto
+    // another's -- same risk savePartnerPerk's own tests cover on the write
+    // side ("perk locations (optional, multiple)" above), but never checked
+    // on this read path.
+    const west = await seedPartnerLocation(partner.id, { label: "West" });
+    const east = await seedPartnerLocation(partner.id, { label: "East" });
+
+    const multi = await savePartnerPerk(accessToken, perkInput({ location_ids: [west.id, east.id] }));
+    const none = await savePartnerPerk(accessToken, perkInput({ location_ids: [] }));
+
+    const queue = await listPerksForReview();
+
+    const multiEntry = queue.find((p) => p.id === multi.perkId);
+    expect(multiEntry).toBeTruthy();
+    expect(new Set(multiEntry?.location_ids)).toEqual(new Set([west.id, east.id]));
+
+    const noneEntry = queue.find((p) => p.id === none.perkId);
+    expect(noneEntry).toBeTruthy();
+    expect(noneEntry?.location_ids).toEqual([]);
+  });
 });
 
 describe("perk-live email (notifyPerkLive)", () => {
