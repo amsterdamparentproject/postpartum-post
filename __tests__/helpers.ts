@@ -137,17 +137,51 @@ export async function cleanupMember(memberId: string) {
 }
 
 /**
- * A rate-limit rejection needs a couple seconds to clear; the JWT-kid quirk
+ * A rate-limit rejection needs real backoff to clear; the JWT-kid quirk
  * (see getAccessTokenForEmail below) tends to clear on the next attempt.
  * Backing off harder for the former keeps the common case fast — capped
- * low enough that maxAttempts retries still fit inside vitest's 20s
- * hookTimeout/testTimeout (vitest.config.ts) with room to spare.
+ * to fit inside vitest's 30s hookTimeout/testTimeout (vitest.config.ts)
+ * alongside authCallGate's own spacing, with room to spare.
  */
 function backoffMs(attempt: number, lastError: string | undefined): number {
   if (lastError?.toLowerCase().includes("rate limit")) {
-    return Math.min(1000 * 2 ** (attempt - 1), 4000);
+    return Math.min(2000 * 2 ** (attempt - 1), 8000);
   }
   return 500 * attempt;
+}
+
+/**
+ * Spaces out real calls to admin.auth.admin.generateLink — the specific
+ * endpoint that trips Supabase's "Request rate limit reached" under
+ * full-suite load (see getAccessTokenForEmail's own comment) — so a burst
+ * of calls across many test files doesn't reach the limit in the first
+ * place. Cheaper than backoffMs's after-the-fact retry, and the two are
+ * complementary: this smooths ordinary bursts, backoffMs is the fallback
+ * for whatever it doesn't catch (e.g. the limit was already low from
+ * activity outside this run).
+ *
+ * Module-level state shared by every call in the process: safe because
+ * vitest runs this whole suite single-threaded (poolOptions.threads
+ * .singleThread, vitest.config.ts), so there's no real concurrency to
+ * race — callers just chain onto one shared promise.
+ */
+const AUTH_CALL_GAP_MS = 600;
+let authCallGate: Promise<number> = Promise.resolve(0);
+
+function throttledAuthCall<T>(fn: () => Promise<T>): Promise<T> {
+  const call = authCallGate.then(async (lastFinishedAt) => {
+    const wait = lastFinishedAt + AUTH_CALL_GAP_MS - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    return fn();
+  });
+  // Record completion time regardless of outcome, so a failed call still
+  // holds the next one's gap — an immediate retry after a 429 would just
+  // trip it again.
+  authCallGate = call.then(
+    () => Date.now(),
+    () => Date.now(),
+  );
+  return call;
 }
 
 /**
@@ -191,10 +225,15 @@ export async function getAccessTokenForEmail(email: string): Promise<string> {
   // trip Supabase's own "Request rate limit reached" on admin.generateLink
   // — a short-lived throttle, not the JWT-kid quirk above, so it needs a
   // real backoff (seconds, not milliseconds) rather than a quick retry.
+  // throttledAuthCall spaces every attempt's generateLink call out from
+  // every other in-flight call in the process, which is the main defense;
+  // backoffMs below is what's left for whatever that doesn't catch.
   const maxAttempts = 4;
   let lastError: string | undefined;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const linkResult = await admin.auth.admin.generateLink({ type: "magiclink", email });
+    const linkResult = await throttledAuthCall(() =>
+      admin.auth.admin.generateLink({ type: "magiclink", email })
+    );
     const hashedToken = linkResult.data?.properties?.hashed_token;
     if (linkResult.error || !hashedToken) {
       lastError = linkResult.error?.message ?? "no hashed_token returned";

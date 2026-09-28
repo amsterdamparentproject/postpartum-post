@@ -14,8 +14,12 @@ export default defineConfig({
     // 5000ms/10000ms defaults under any load, and a timed-out (but
     // server-side still-completing) write leaves data behind that then
     // collides with the next run. Generous margin, not a mask for hangs.
-    testTimeout: 20_000,
-    hookTimeout: 20_000,
+    // 30s (not 20s) gives getAccessTokenForEmail's own rate-limit backoff
+    // (__tests__/helpers.ts — up to ~14s of retries, plus its
+    // throttledAuthCall spacing) room to actually recover instead of the
+    // hook/test just timing out first.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     poolOptions: {
       threads: { singleThread: true },
     },
