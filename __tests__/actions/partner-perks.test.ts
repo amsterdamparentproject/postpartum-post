@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
 import { savePartnerPerk, listPartnerPerks, type PartnerPerkInput } from "@/app/actions/partners";
 import { listPerksForReview, setPerkStatus, addPerkForPartner, updatePerkAdmin } from "@/app/admin/partners/actions";
 import {
@@ -9,6 +9,24 @@ import {
   cleanupAuthUser,
   getPerkRaw,
 } from "@tests/helpers";
+
+// ---------------------------------------------------------------------------
+// Mocks — publishing a perk emails its partner (lib/emails/perk-live.ts);
+// never send a real one from tests.
+// ---------------------------------------------------------------------------
+
+const { mockSendPerkLiveEmail } = vi.hoisted(() => ({
+  mockSendPerkLiveEmail: vi.fn(),
+}));
+
+vi.mock("@/lib/emails/perk-live", () => ({
+  sendPerkLiveEmail: mockSendPerkLiveEmail,
+}));
+
+beforeEach(() => {
+  mockSendPerkLiveEmail.mockReset();
+  mockSendPerkLiveEmail.mockResolvedValue(undefined);
+});
 
 function perkInput(overrides: Partial<PartnerPerkInput> = {}): PartnerPerkInput {
   return {
@@ -266,5 +284,74 @@ describe("admin perk review (listPerksForReview / setPerkStatus)", () => {
 
     await setPerkStatus(created.perkId!, "archived");
     expect((await getPerkRaw(created.perkId!))?.status).toBe("archived");
+  });
+});
+
+describe("perk-live email (notifyPerkLive)", () => {
+  it("emails the partner when setPerkStatus publishes a perk, and not again on a re-publish", async () => {
+    const partner = await seedPartner({ first_name: "Robin" });
+    try {
+      const created = await addPerkForPartner({ ...perkInput({ title: "2 for 1 classes" }), partner_id: partner.id, status: "pending" });
+      expect(mockSendPerkLiveEmail).not.toHaveBeenCalled();
+
+      await setPerkStatus(created.perkId!, "published");
+      expect(mockSendPerkLiveEmail).toHaveBeenCalledTimes(1);
+      expect(mockSendPerkLiveEmail).toHaveBeenCalledWith({
+        firstName: "Robin",
+        businessName: partner.business_name,
+        email: partner.email,
+        perkTitle: "2 for 1 classes",
+      });
+
+      await setPerkStatus(created.perkId!, "published");
+      await updatePerkAdmin({ ...perkInput({ title: "2 for 1 classes" }), perkId: created.perkId!, status: "published" });
+      expect(mockSendPerkLiveEmail).toHaveBeenCalledTimes(1);
+    } finally {
+      await cleanupPartner(partner.id);
+    }
+  });
+
+  it("doesn't email for non-published statuses (including coming_soon)", async () => {
+    const partner = await seedPartner();
+    try {
+      const created = await addPerkForPartner({ ...perkInput(), partner_id: partner.id, status: "coming_soon" });
+      await setPerkStatus(created.perkId!, "rejected");
+      await updatePerkAdmin({ ...perkInput(), perkId: created.perkId!, status: "archived" });
+      expect(mockSendPerkLiveEmail).not.toHaveBeenCalled();
+    } finally {
+      await cleanupPartner(partner.id);
+    }
+  });
+
+  it("emails when updatePerkAdmin or addPerkForPartner publishes", async () => {
+    const partner = await seedPartner();
+    try {
+      const pending = await addPerkForPartner({ ...perkInput(), partner_id: partner.id, status: "pending" });
+      await updatePerkAdmin({ ...perkInput(), perkId: pending.perkId!, status: "published" });
+      expect(mockSendPerkLiveEmail).toHaveBeenCalledTimes(1);
+
+      await addPerkForPartner({ ...perkInput(), partner_id: partner.id, status: "published" });
+      expect(mockSendPerkLiveEmail).toHaveBeenCalledTimes(2);
+    } finally {
+      await cleanupPartner(partner.id);
+    }
+  });
+
+  it("skips a partner with no email, and a failed send doesn't fail the status change", async () => {
+    const noEmail = await seedPartner({ email: null });
+    const partner = await seedPartner();
+    try {
+      await addPerkForPartner({ ...perkInput(), partner_id: noEmail.id, status: "published" });
+      expect(mockSendPerkLiveEmail).not.toHaveBeenCalled();
+
+      mockSendPerkLiveEmail.mockRejectedValueOnce(new Error("resend down"));
+      const created = await addPerkForPartner({ ...perkInput(), partner_id: partner.id, status: "pending" });
+      const result = await setPerkStatus(created.perkId!, "published");
+      expect(result.success).toBe(true);
+      expect((await getPerkRaw(created.perkId!))?.status).toBe("published");
+    } finally {
+      await cleanupPartner(noEmail.id);
+      await cleanupPartner(partner.id);
+    }
   });
 });

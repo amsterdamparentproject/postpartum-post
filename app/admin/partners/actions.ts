@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { createLeadNote, type LeadNote } from "@/lib/lead-notes";
 import { findMatchingLead, mergeIntoLead } from "@/lib/lead-matching";
 import { sendPartnerWelcomeEmail } from "@/lib/emails/partner-welcome";
+import { sendPerkLiveEmail } from "@/lib/emails/perk-live";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 import { SITE_URL } from "@/lib/emails/base";
 import { commitPartnerImage, createPartnerImageUploadFor, type ImageUploadTicket } from "@/lib/partner-image-save";
@@ -662,13 +663,54 @@ export async function setPerkStatus(
   status: PerkReviewStatus,
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createAdminClient();
+  const { data: existing } = await supabase.from("perks").select("status").eq("id", perkId).maybeSingle();
   const { error } = await supabase.from("perks").update({ status }).eq("id", perkId);
   if (error) {
     console.error("[setPerkStatus] update error:", error.message);
     return { success: false, error: "Couldn't update — try again" };
   }
   revalidatePerksPage();
+  if (status === "published" && existing?.status !== "published") {
+    await notifyPerkLive(supabase, perkId);
+  }
   return { success: true };
+}
+
+/**
+ * Emails the perk's partner that it's live (lib/emails/perk-live.ts).
+ * Callers only invoke this on a transition *into* 'published', so an
+ * admin re-saving an already-live perk doesn't re-send it. A partner edit
+ * sends a live perk back to 'pending' (savePartnerPerk), so re-approving
+ * that edit does send it again — intended, since it's live again.
+ *
+ * Skips partners with no email (no portal access yet, e.g. a Circle of
+ * Experts contributor from addPartner). Fire-and-forget like the welcome
+ * email: the status change is already saved regardless of whether this
+ * succeeds.
+ */
+async function notifyPerkLive(supabase: ReturnType<typeof createAdminClient>, perkId: string): Promise<void> {
+  try {
+    const { data: perk } = await supabase
+      .from("perks")
+      .select("title, partners(first_name, business_name, email)")
+      .eq("id", perkId)
+      .maybeSingle();
+    const partner = (perk?.partners ?? null) as unknown as {
+      first_name: string | null;
+      business_name: string;
+      email: string | null;
+    } | null;
+    if (!perk || !partner?.email) return;
+
+    await sendPerkLiveEmail({
+      firstName: partner.first_name,
+      businessName: partner.business_name,
+      email: partner.email,
+      perkTitle: perk.title as string,
+    });
+  } catch (emailError) {
+    console.error("[notifyPerkLive] perk-live email failed:", emailError);
+  }
 }
 
 export type UpdatePerkInput = PerkInput & {
@@ -697,7 +739,7 @@ export async function updatePerkAdmin(
 
   const { data: existing } = await supabase
     .from("perks")
-    .select("id, partner_id")
+    .select("id, partner_id, status")
     .eq("id", input.perkId)
     .maybeSingle();
   if (!existing) return { success: false, error: "Perk not found" };
@@ -716,6 +758,9 @@ export async function updatePerkAdmin(
   }
 
   revalidatePerksPage();
+  if (input.status === "published" && existing.status !== "published") {
+    await notifyPerkLive(supabase, input.perkId);
+  }
   return { success: true };
 }
 
@@ -777,5 +822,8 @@ export async function addPerkForPartner(
   }
 
   revalidatePerksPage();
+  if (input.status === "published") {
+    await notifyPerkLive(supabase, perk.id as string);
+  }
   return { success: true, perkId: perk.id as string };
 }

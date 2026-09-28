@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { listMemberPerks, redeemPerk, viewPerk } from "@/app/(account)/my-perks/actions";
 import { addPerkForPartner } from "@/app/admin/partners/actions";
 import {
@@ -10,6 +10,12 @@ import {
   getAccessTokenForEmail,
   cleanupAuthUser,
 } from "@tests/helpers";
+
+// addPerkForPartner(status: "published") emails the partner — never send a
+// real one from tests (see partner-perks.test.ts for the behavior itself).
+vi.mock("@/lib/emails/perk-live", () => ({
+  sendPerkLiveEmail: vi.fn().mockResolvedValue(undefined),
+}));
 
 /**
  * The members' Perks tab (app/(account)/my-perks/actions.ts): codes stay
