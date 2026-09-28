@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { verifyOptinToken, type OptinAction } from "@/lib/optin-token";
 import { monthToDate } from "@/lib/tokens";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
+import { debitLatePerksIfRoundCommitted } from "@/lib/match-ledger";
 
 /**
  * GET /api/optin?member={memberId}&month={YYYY-MM}&action={coffee|playdate|skip}&token={hmac}
@@ -146,6 +147,11 @@ export async function GET(request: NextRequest) {
       .from("members")
       .update({ consecutive_skips: 0 })
       .eq("id", memberId);
+
+    // A no-op unless this month's round already committed -- see the
+    // function's own doc comment for why commit-matches' own sweep can't
+    // catch a perks opt-in landing after it's already run.
+    await debitLatePerksIfRoundCommitted(supabase, memberId, monthDate);
 
     return signInAndRedirect(supabase, memberRow.email, `${origin}/my-perks?optin=perks`, origin);
   }

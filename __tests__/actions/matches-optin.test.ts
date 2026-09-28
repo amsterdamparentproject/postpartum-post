@@ -418,6 +418,111 @@ describe("optInFromMatches", () => {
     expect(attempt).toEqual({ success: false, error: "already_responded" });
   });
 
+  // ---------------------------------------------------------------------------
+  // Late perks debit -- a "perks" opt-in landing after this month's round
+  // has already committed. commit-matches' own no_response/perks_only
+  // sweep runs exactly once (EOD the 6th), so a perks opt-in after that
+  // point needs its own debit -- see debitLatePerksIfRoundCommitted
+  // (lib/match-ledger.ts).
+  // ---------------------------------------------------------------------------
+
+  describe("late perks debit — round already committed", () => {
+    async function seedMatchRound(status: "draft" | "committed" | "locked") {
+      const supabase = createTestSupabase();
+      const { error } = await supabase
+        .from("match_rounds")
+        .insert({ month: monthDate, status, round_score: 800 });
+      if (error) throw new Error(`seedMatchRound failed: ${error.message}`);
+    }
+
+    async function entitlementsFor(id: string) {
+      const supabase = createTestSupabase();
+      const { data, error } = await supabase
+        .from("match_entitlements")
+        .select("event, delta, month")
+        .eq("member_id", id);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    }
+
+    async function matchesRemainingFor(id: string) {
+      const supabase = createTestSupabase();
+      const { data, error } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", id)
+        .single();
+      if (error) throw new Error(error.message);
+      return data.matches_remaining as number;
+    }
+
+    afterEach(async () => {
+      const supabase = createTestSupabase();
+      await supabase.from("match_rounds").delete().eq("month", monthDate);
+    });
+
+    it("round still draft — no entitlement recorded (commit-matches' own sweep will handle it)", async () => {
+      const member = await seedMember({ matches_remaining: 3 });
+      memberId = member.id;
+      await seedMatchRound("draft");
+
+      const result = await optInFromMatches(memberId, "perks");
+      expect(result).toEqual({ success: true });
+
+      expect(await matchesRemainingFor(memberId)).toBe(3);
+      expect(await entitlementsFor(memberId)).toEqual([]);
+    });
+
+    it("no match_round row at all for the month — treated like draft, no entitlement recorded", async () => {
+      const member = await seedMember({ matches_remaining: 3 });
+      memberId = member.id;
+
+      const result = await optInFromMatches(memberId, "perks");
+      expect(result).toEqual({ success: true });
+
+      expect(await matchesRemainingFor(memberId)).toBe(3);
+      expect(await entitlementsFor(memberId)).toEqual([]);
+    });
+
+    it("round committed — debits matches_remaining by 1 via a perks_only entitlement", async () => {
+      const member = await seedMember({ matches_remaining: 3 });
+      memberId = member.id;
+      await seedMatchRound("committed");
+
+      const result = await optInFromMatches(memberId, "perks");
+      expect(result).toEqual({ success: true });
+
+      expect(await matchesRemainingFor(memberId)).toBe(2);
+      expect(await entitlementsFor(memberId)).toEqual([
+        { event: "perks_only", delta: -1, month: monthDate },
+      ]);
+    });
+
+    it("round locked — also debits matches_remaining by 1", async () => {
+      const member = await seedMember({ matches_remaining: 1 });
+      memberId = member.id;
+      await seedMatchRound("locked");
+
+      const result = await optInFromMatches(memberId, "perks");
+      expect(result).toEqual({ success: true });
+
+      expect(await matchesRemainingFor(memberId)).toBe(0);
+    });
+
+    it("already skipped, round committed, then perks — clears the skip row and still debits", async () => {
+      const member = await seedMember({ matches_remaining: 2, consecutive_skips: 1 });
+      memberId = member.id;
+      await seedSubscription(memberId);
+      await optInFromMatches(memberId, "skip");
+      await seedMatchRound("committed");
+
+      const result = await optInFromMatches(memberId, "perks");
+      expect(result).toEqual({ success: true });
+
+      expect(await matchesRemainingFor(memberId)).toBe(1);
+    });
+  });
+
   it("already opted in — a skip call afterward is rejected", async () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;

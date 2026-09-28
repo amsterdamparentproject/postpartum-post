@@ -606,4 +606,78 @@ describe("GET /api/optin", () => {
       .maybeSingle();
     expect(participation).toBeNull();
   });
+
+  // ---------------------------------------------------------------------------
+  // Late perks debit — a "perks" link clicked after this month's round has
+  // already committed. commit-matches' own no_response/perks_only sweep
+  // runs exactly once (EOD the 6th), so this route needs its own debit —
+  // see debitLatePerksIfRoundCommitted (lib/match-ledger.ts), mirrored from
+  // optInFromMatches (app/(account)/matches/actions.ts).
+  // ---------------------------------------------------------------------------
+
+  describe("late perks debit — round already committed", () => {
+    async function seedMatchRound(status: "draft" | "committed" | "locked") {
+      const supabase = createTestSupabase();
+      const { error } = await supabase
+        .from("match_rounds")
+        .insert({ month: MONTH_DATE, status, round_score: 800 });
+      if (error) throw new Error(`seedMatchRound failed: ${error.message}`);
+    }
+
+    async function matchesRemainingFor(id: string) {
+      const supabase = createTestSupabase();
+      const { data, error } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", id)
+        .single();
+      if (error) throw new Error(error.message);
+      return data.matches_remaining as number;
+    }
+
+    afterEach(async () => {
+      const supabase = createTestSupabase();
+      await supabase.from("match_rounds").delete().eq("month", MONTH_DATE);
+    });
+
+    it("round still draft — no debit (commit-matches' own sweep will handle it)", async () => {
+      const member = await seedMember({ matches_remaining: 3 });
+      memberId = member.id;
+      await seedMatchRound("draft");
+
+      const token = generateOptinToken(memberId, MONTH, "perks");
+      const res = await GET(makeRequest(memberId, MONTH, "perks", token));
+
+      expect(getRedirectTarget(res.headers.get("location"))).toContain("/my-perks?optin=perks");
+      expect(await matchesRemainingFor(memberId)).toBe(3);
+    });
+
+    it("round committed — debits matches_remaining by 1", async () => {
+      const member = await seedMember({ matches_remaining: 3 });
+      memberId = member.id;
+      await seedMatchRound("committed");
+
+      const token = generateOptinToken(memberId, MONTH, "perks");
+      const res = await GET(makeRequest(memberId, MONTH, "perks", token));
+
+      expect(getRedirectTarget(res.headers.get("location"))).toContain("/my-perks?optin=perks");
+      expect(await matchesRemainingFor(memberId)).toBe(2);
+    });
+
+    it("already skipped, round committed, then perks — still debits", async () => {
+      const member = await seedMember({ matches_remaining: 2, consecutive_skips: 1 });
+      memberId = member.id;
+      await seedSubscription(memberId);
+
+      const skipToken = generateOptinToken(memberId, MONTH, "skip");
+      await GET(makeRequest(memberId, MONTH, "skip", skipToken));
+      await seedMatchRound("committed");
+
+      const perksToken = generateOptinToken(memberId, MONTH, "perks");
+      const res = await GET(makeRequest(memberId, MONTH, "perks", perksToken));
+
+      expect(getRedirectTarget(res.headers.get("location"))).toContain("/my-perks?optin=perks");
+      expect(await matchesRemainingFor(memberId)).toBe(1);
+    });
+  });
 });

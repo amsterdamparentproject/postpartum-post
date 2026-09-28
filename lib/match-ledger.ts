@@ -56,6 +56,45 @@ export async function recordEntitlement(
 }
 
 /**
+ * A "perks" opt-in normally gets its -1 debit from commit-matches' own
+ * no_response/perks_only sweep at EOD the 6th (Track E3) — but that sweep
+ * runs exactly once per month. A member who skips (or never responds) and
+ * then later claims perks from the closed-window /matches card or the
+ * still-open email link isn't caught by a second sweep, since there isn't
+ * one: matches_remaining's gate check in optInFromMatches/`/api/optin`
+ * only reads the balance, it doesn't debit it. Call this right after
+ * inserting that late monthly_perks row so the credit still gets spent —
+ * a no-op when the round hasn't committed yet, since the normal sweep
+ * will pick it up as usual. record_entitlement()'s own uniqueness (one
+ * decrement per member per month, migration 022) means this can't stack
+ * with -- or duplicate -- that sweep's debit if timing is ever close.
+ */
+export async function debitLatePerksIfRoundCommitted(
+  supabase: AnySupabaseClient,
+  memberId: string,
+  monthDate: string
+): Promise<void> {
+  const { data: round } = await supabase
+    .from("match_rounds")
+    .select("status")
+    .eq("month", monthDate)
+    .maybeSingle();
+
+  if (!round || round.status === "draft") return;
+
+  try {
+    await recordEntitlement(supabase, {
+      memberId,
+      event: "perks_only",
+      delta: -1,
+      month: monthDate,
+    });
+  } catch (e) {
+    console.error(`[debitLatePerksIfRoundCommitted] record_entitlement failed for ${memberId}:`, e);
+  }
+}
+
+/**
  * FYP's own €55/month product shares this Stripe account but is out of
  * scope for the counter (plan §4, §5) — excluded from backfill and refill.
  */

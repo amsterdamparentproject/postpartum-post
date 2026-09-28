@@ -5,6 +5,7 @@ import { requireMember } from "@/lib/require-member";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { generateMatchToken } from "@/lib/match-token";
 import { isOptinWindowOpen } from "@/lib/optin-window";
+import { debitLatePerksIfRoundCommitted } from "@/lib/match-ledger";
 
 // ---------------------------------------------------------------------------
 // Match exclusions
@@ -495,6 +496,9 @@ export async function optInFromMatches(
     }
 
     await supabase.from("members").update({ consecutive_skips: 0 }).eq("id", memberId);
+    // A no-op unless this month's round already committed -- see the
+    // function's own doc comment for why that sweep can't catch this.
+    await debitLatePerksIfRoundCommitted(supabase, memberId, monthDate);
     return { success: true };
   }
 
