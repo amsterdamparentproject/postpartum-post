@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import PerkCard from "@/components/PerkCard";
@@ -9,9 +9,20 @@ import PostPerksWordMark from "@/components/PostPerksWordMark";
 import Sparkle from "@/components/Sparkle";
 import { useAccount } from "@/app/(account)/AccountContext";
 import { listMemberPerks, redeemPerk, viewPerk, type MemberPerk, type PerkReveal } from "./actions";
+import { optInFromMatches, type OptInAction } from "@/app/(account)/matches/actions";
+import { isOptinWindowOpen } from "@/lib/optin-window";
 
 // The Post Perks wordmark green (PostPerksWordMark).
 const PERK_GREEN = "#8A9E3A";
+
+type PerkFilter = "nearest" | "exclusive" | "unredeemed" | "all";
+
+const PERK_FILTERS: { label: string; value: PerkFilter }[] = [
+  { label: "Nearest", value: "nearest" },
+  { label: "Exclusive", value: "exclusive" },
+  { label: "Not yet redeemed", value: "unredeemed" },
+  { label: "All", value: "all" },
+];
 
 function monthName(): string {
   return new Date().toLocaleDateString("en-US", { month: "long", timeZone: "Europe/Amsterdam" });
@@ -26,22 +37,44 @@ function monthName(): string {
 export default function MyPerksPage() {
   const { loading, member, accessToken } = useAccount();
   const [perks, setPerks] = useState<MemberPerk[] | null>(null);
+  // Whether the member has opted into anything this month (coffee, playdate,
+  // or perks-only). null while loading; once perks is non-null this is
+  // always a real boolean. See lib/monthly-opt-in.ts.
+  const [optedIn, setOptedIn] = useState<boolean | null>(null);
   const [open, setOpen] = useState<MemberPerk | null>(null);
+  const [filter, setFilter] = useState<PerkFilter>("nearest");
 
-  useEffect(() => {
-    if (!member || !accessToken) return;
-    listMemberPerks(accessToken).then((list) => {
-      setPerks(list);
+  function fetchPerks(token: string) {
+    listMemberPerks(token).then((result) => {
+      setOptedIn(result.optedIn);
+      setPerks(result.perks);
       // Deep link from the match page's perks strip: /my-perks?perk=<id>
       // opens that perk's dialog straight away (and counts as a view).
       const perkId = new URLSearchParams(window.location.search).get("perk");
-      const linked = perkId ? list.find((p) => p.id === perkId) : undefined;
+      const linked = perkId ? result.perks.find((p) => p.id === perkId) : undefined;
       if (linked) {
         setOpen(linked);
-        if (!linked.reveal) void viewPerk(accessToken, linked.id);
+        if (!linked.reveal) void viewPerk(token, linked.id);
       }
     });
+  }
+
+  useEffect(() => {
+    if (!member || !accessToken) return;
+    fetchPerks(accessToken);
   }, [member, accessToken]);
+
+  // "All" keeps the server's own ranking (lib/perk-ranking.ts); the other
+  // three re-sort or narrow that same list rather than re-fetching. Hook
+  // stays above the early returns below (loading / not signed in) so it
+  // runs on every render, same rule every other hook here follows.
+  const filteredPerks = useMemo(() => {
+    if (!perks) return perks;
+    if (filter === "nearest") return [...perks].sort((a, b) => a.distanceKm - b.distanceKm);
+    if (filter === "exclusive") return perks.filter((p) => p.exclusive);
+    if (filter === "unredeemed") return perks.filter((p) => !p.reveal);
+    return perks;
+  }, [perks, filter]);
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!member) return <MagicLinkRequest />;
@@ -59,7 +92,7 @@ export default function MyPerksPage() {
         </h2>
         <p className="text-sm text-muted mt-1">
           Treats at local spots, just for members and their families. Perks run on the honor system and are
-          honored by each business directly. <b className="text-coral">Each Post Perk can be used once per month</b>, to keep things
+          honored by each business directly. <b className="text-coral">Each Post Perk can be used either once (intro offers) or once per month</b>, to keep things
           sustainable for both businesses and members alike.
         </p>
         <Link
@@ -71,12 +104,44 @@ export default function MyPerksPage() {
       </div>
 
       {perks === null && <p className="text-sm text-muted">Loading…</p>}
-      {perks?.length === 0 && (
+
+      {perks !== null && optedIn === false && accessToken && (
+        <NotOptedInPrompt accessToken={accessToken} onOptedIn={() => fetchPerks(accessToken)} />
+      )}
+
+      {perks !== null && optedIn === true && perks.length === 0 && (
         <p className="text-sm text-muted">No perks are live yet — check back soon! In the meantime, tell us where you&apos;d love one.</p>
       )}
 
+      {perks !== null && optedIn === true && perks.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {PERK_FILTERS.map(({ label, value }) => {
+            const isActive = filter === value;
+            return (
+              <button
+                key={value}
+                onClick={() => setFilter(value)}
+                data-umami-event="Perks: Filter"
+                data-umami-event-filter={value}
+                className={`px-3 py-1 text-xs rounded-full border transition-colors cursor-pointer ${
+                  isActive ? "" : "bg-white text-muted border-border hover:border-dark hover:text-dark"
+                }`}
+                style={isActive ? { background: PERK_GREEN, borderColor: PERK_GREEN, color: "#fff" } : undefined}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {perks !== null && optedIn === true && perks.length > 0 && filteredPerks?.length === 0 && (
+        <p className="text-sm text-muted">No perks match this filter.</p>
+      )}
+
+      {perks !== null && optedIn === true && (
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {perks?.map((perk) => (
+        {filteredPerks?.map((perk) => (
           <PerkCard
             key={perk.id}
             perk={perk}
@@ -89,13 +154,20 @@ export default function MyPerksPage() {
               if (!perk.reveal && accessToken) void viewPerk(accessToken, perk.id);
             }}
             actionLabel={perk.reveal ? "View perk" : "Redeem now"}
+            umamiEvent="Perks: Open card"
             badge={
               perk.reveal ? (
                 <span
                   className="text-xs font-bold px-2.5 py-1 rounded-full shadow-sm text-white"
                   style={{ backgroundColor: PERK_GREEN }}
                 >
-                  Redeemed this month
+                  {perk.frequency === "once" ? "Redeemed" : "Redeemed this month"}
+                </span>
+              ) : perk.frequency === "once" ? (
+                <span
+                  className="text-xs font-bold px-2.5 py-1 rounded-full shadow-sm text-white bg-coral"
+                >
+                  Intro offer
                 </span>
               ) : undefined
             }
@@ -103,6 +175,7 @@ export default function MyPerksPage() {
         ))}
         {perks !== null && <PerkIdeaCard />}
       </div>
+      )}
 
       {open && (
         <RedeemDialog
@@ -113,6 +186,87 @@ export default function MyPerksPage() {
           onClose={() => setOpen(null)}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Shown on /my-perks in place of the perk grid when the member hasn't
+ * responded to this month's opt-in at all (no monthly_participation or
+ * monthly_perks row) -- true non-responders and members who already
+ * skipped both land here (a skip can still be changed to any of these,
+ * see optInFromMatches in matches/actions.ts). Once they pick something,
+ * onOptedIn() re-fetches so the grid replaces this prompt.
+ */
+function NotOptedInPrompt({ accessToken, onOptedIn }: { accessToken: string; onOptedIn: () => void }) {
+  const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] = useState<OptInAction | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const windowOpen = isOptinWindowOpen();
+
+  function handleChoice(action: OptInAction) {
+    setError(null);
+    setPendingAction(action);
+    startTransition(async () => {
+      const result = await optInFromMatches(accessToken, action);
+      if (result.success) {
+        onOptedIn();
+      } else {
+        const messages: Record<string, string> = {
+          closed: "The opt-in window for this month has closed.",
+          already_responded: "You've already responded for this month.",
+          no_balance: "You're between terms right now — check your billing page for when you'll be matched again.",
+          server_error: "Something went wrong. Please try again.",
+        };
+        setError(messages[result.error] ?? "Something went wrong.");
+        setPendingAction(null);
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-2xl border border-dashed border-border p-6 space-y-4">
+      <p className="text-sm text-dark">
+        You haven&apos;t opted into Postpartum Post this month. If you&apos;d like to access Post Perks, select:
+      </p>
+      {windowOpen ? (
+        <div className="grid gap-2 sm:grid-cols-3">
+          <button
+            onClick={() => handleChoice("coffee")}
+            disabled={isPending}
+            data-umami-event="Perks Prompt: Coffee + Perks"
+            className="rounded-lg bg-coral text-white text-sm py-2.5 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+          >
+            {isPending && pendingAction === "coffee" ? "One sec…" : "☕ Coffee + Perks"}
+          </button>
+          <button
+            onClick={() => handleChoice("playdate")}
+            disabled={isPending}
+            data-umami-event="Perks Prompt: Playdate + Perks"
+            className="rounded-lg bg-coral text-white text-sm py-2.5 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+          >
+            {isPending && pendingAction === "playdate" ? "One sec…" : "🛝 Playdate + Perks"}
+          </button>
+          <button
+            onClick={() => handleChoice("perks")}
+            disabled={isPending}
+            data-umami-event="Perks Prompt: Just Perks"
+            className="rounded-lg bg-dark text-white text-sm py-2.5 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+          >
+            {isPending && pendingAction === "perks" ? "One sec…" : "🎁 Just Perks"}
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => handleChoice("perks")}
+          disabled={isPending}
+          data-umami-event="Perks Prompt: Get this month's perks"
+          className="rounded-lg bg-dark text-white text-sm py-2.5 px-4 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {isPending ? "One sec…" : "🎁 Get this month's Post Perks"}
+        </button>
+      )}
+      {error && <p className="text-xs text-coral">{error}</p>}
     </div>
   );
 }
@@ -167,6 +321,8 @@ function RedeemDialog({
         <button
           onClick={handleRedeem}
           disabled={isPending}
+          data-umami-event="Perks: Redeem"
+          data-umami-event-perk={perk.title}
           className="px-6 py-2.5 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60"
         >
           {isPending ? "One sec…" : isCode ? "Reveal code" : "Use this perk"}
@@ -217,7 +373,9 @@ function RedeemDialog({
         )}
         {!reveal && (
           <p className="text-xs text-muted">
-            This uses your {monthName()} perk at {partnerName}. You can use each perk once a month.
+            {perk.frequency === "once"
+              ? `This is a one-time intro offer at ${partnerName} — once you redeem it, it can't be used again.`
+              : `This uses your ${monthName()} perk at ${partnerName}. You can use each perk once a month.`}
           </p>
         )}
 
@@ -244,7 +402,7 @@ function RedeemDialog({
                   {firstName} · Postpartum Post member
                 </p>
                 <p className="text-sm font-semibold" style={{ color: PERK_GREEN }}>
-                  Redeemed for {monthName()}
+                  {perk.frequency === "once" ? "Redeemed" : `Redeemed for ${monthName()}`}
                 </p>
                 <p className="text-xs text-muted">Show this screen at {partnerName}.</p>
               </div>
@@ -254,10 +412,14 @@ function RedeemDialog({
               <div className="rounded-xl border-2 border-dashed p-4 space-y-2" style={{ borderColor: PERK_GREEN }}>
                 <Sparkle className="w-10 h-auto mx-auto" />
                 <p className="text-sm font-semibold" style={{ color: PERK_GREEN }}>
-                  Redeemed for {monthName()}
+                  {perk.frequency === "once" ? "Redeemed" : `Redeemed for ${monthName()}`}
                 </p>
                 <p className="text-xs text-muted">The discount applies at the link below, no code needed.</p>
               </div>
+            )}
+
+            {perk.frequency === "once" && (
+              <p className="text-xs text-muted">This intro offer can only be used once during your membership.</p>
             )}
 
             {reveal.url && (

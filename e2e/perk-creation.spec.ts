@@ -20,7 +20,9 @@ import {
   seedPartnerLocation,
   updatePartnerLocation,
   seedMember,
+  seedMonthlyPerks,
   getPartnerPerks,
+  getPerkLocationIds,
   setPerkStatus,
   cleanupPartner,
   cleanupMember,
@@ -45,6 +47,10 @@ test("a partner creates a perk; once published it shows on /perks and in a membe
   const partner = await seedPartner({ businessName: `E2E Studio ${run}`, url: website });
   const location = await seedPartnerLocation(partner.id, { label: internalLabel, neighborhood, area });
   const member = await seedMember({ firstName: "Mira" });
+  // Perks access is gated on opting into something this month -- see
+  // lib/monthly-opt-in.ts. Give this member perks-only access directly;
+  // this test is about perk creation/visibility, not the opt-in flow.
+  await seedMonthlyPerks(member.id, new Date().toISOString().slice(0, 7));
 
   const partnerSide = await newPage(browser);
   const memberSide = await newPage(browser);
@@ -58,9 +64,10 @@ test("a partner creates a perk; once published it shows on /perks and in a membe
     // No perks yet, so the form opens straight away.
     await expect(p.getByRole("heading", { name: "Add new perk" })).toBeVisible();
 
-    // Prefills: link = their website, location = their only location.
+    // Prefills: link = their website, location = their only location
+    // (checked by default via defaultLocationIds -- lib/perk-input.ts).
     await expect(p.getByLabel("Link")).toHaveValue(website);
-    await expect(p.getByLabel("Location")).toHaveValue(location.id);
+    await expect(p.getByLabel(internalLabel)).toBeChecked();
 
     await p.getByLabel("Headline").fill(headline);
     await p.getByLabel("Description").fill("Show this at the front desk.");
@@ -85,9 +92,9 @@ test("a partner creates a perk; once published it shows on /perks and in a membe
       redemption_type: "code",
       redemption_code: code,
       url: website,
-      location_id: location.id,
       exclusive: true,
     });
+    expect(await getPerkLocationIds(perk.id as string)).toEqual([location.id]);
 
     // ── 3. Published → public /perks, no code ───────────────────────────────
     await setPerkStatus(perk.id as string, "published");

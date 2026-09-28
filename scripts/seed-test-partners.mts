@@ -1,7 +1,10 @@
 /**
  * Cleans up throwaway rows in the test DB's partners table and restores a
- * small set of reference partner profiles for testing the admin Partners /
- * Leads / Perks views and the partner portal.
+ * small set of reference partner profiles -- and reference perks on them
+ * covering all three redemption types (code / in_person / online) plus a
+ * 'once'-frequency intro offer, with all three types on app-test alone so
+ * Alex's own partner-portal login always has one of each -- for testing
+ * the admin Partners / Leads / Perks views and the partner portal.
  *
  * Mirrors scripts/seed-test-members.mts exactly (see that file for the
  * full rationale) — .env.test and .env.local point at the same Supabase
@@ -73,6 +76,17 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 // login that magic links actually reach after a test run wipes the table;
 // "rijksmuseum" has a location with real coordinates, so its perks show
 // on the match map.
+//
+// Each of the other three also carries reference perks, together covering
+// all three redemption types and both frequencies: yoga-studio is 'code' +
+// exclusive + a 'once' intro offer; app-test carries all three types
+// (code / in_person / online) since it's Alex's own partner-portal login
+// and should always have one of each to test against; rijksmuseum is
+// 'in_person' + monthly. Reinserted the same way as the partners
+// themselves (find-by-title-and-partner, then update or insert), so
+// manually edited fields on them (e.g. flipping status to 'pending' while
+// testing the review queue) get reset on the next run — same tradeoff the
+// partner/location sync already makes.
 // ---------------------------------------------------------------------------
 
 interface ReferenceLocation {
@@ -86,6 +100,18 @@ interface ReferenceLocation {
   longitude?: number;
 }
 
+interface ReferencePerk {
+  title: string;
+  description: string;
+  redemption_type: "code" | "in_person" | "online";
+  redemption_code?: string; // required when redemption_type is 'code'
+  url?: string;             // required when redemption_type is 'online'
+  exclusive?: boolean;      // default false
+  // 'once' = an intro offer, redeemable a single time per member ever
+  // (db/migrations/028_perk_intro_offers.sql). Default 'monthly'.
+  frequency?: "monthly" | "once";
+}
+
 interface ReferencePartner {
   slug: string;
   first_name: string;
@@ -95,6 +121,12 @@ interface ReferencePartner {
   description: string | null;
   email: string | null;
   location: ReferenceLocation | null;
+  // Usually one reference perk is enough to cover a redemption type
+  // without the seed becoming its own perk-catalog to maintain — app-test
+  // is the exception, carrying all three so Alex's own partner-portal
+  // login always has one of every type to test against. [] = no perk
+  // (e.g. "renske", deliberately, below).
+  perks: ReferencePerk[];
 }
 
 const REFERENCE_PARTNERS: ReferencePartner[] = [
@@ -107,6 +139,16 @@ const REFERENCE_PARTNERS: ReferencePartner[] = [
     description: "Prenatal and postnatal yoga classes in Oud-West.",
     email: "amsterdamparentproject+partner-yoga@gmail.com",
     location: { label: "Studio", address: "Kinkerstraat 100, Amsterdam", area: "West" },
+    perks: [
+      {
+        title: "20% off your first Carry & Groove workshop",
+        description: "New here? Get 20% off your first workshop — show this code at the front desk.",
+        redemption_type: "code",
+        redemption_code: "CARRYGROOVE20",
+        exclusive: true,
+        frequency: "once",
+      },
+    ],
   },
   {
     slug: "renske",
@@ -117,6 +159,8 @@ const REFERENCE_PARTNERS: ReferencePartner[] = [
     description: "IBCLC-certified lactation consultant, home visits across Amsterdam.",
     email: null,
     location: null,
+    // Deliberately no perks — see the comment above REFERENCE_PARTNERS.
+    perks: [],
   },
   {
     slug: "app-test",
@@ -127,11 +171,36 @@ const REFERENCE_PARTNERS: ReferencePartner[] = [
     description: "Reference partner tied to Alex's inbox for testing the partner portal end to end.",
     email: "amsterdamparentproject@gmail.com",
     location: { label: null, address: "Jan Pieter Heijestraat 1, Amsterdam", area: "West" },
+    // All three redemption types on one partner, so Alex's own
+    // partner-portal login (this is her inbox) always has one of each to
+    // test against without hunting across the other reference partners.
+    perks: [
+      {
+        title: "10% off a first consultation",
+        description: "Mention Postpartum Post when you book for 10% off, every month.",
+        redemption_type: "online",
+        url: "https://amsterdamparentproject.nl",
+        frequency: "monthly",
+      },
+      {
+        title: "€10 off your welcome kit",
+        description: "Enter this code at checkout for €10 off.",
+        redemption_type: "code",
+        redemption_code: "WELCOME10",
+        frequency: "monthly",
+      },
+      {
+        title: "Free 15-minute new-parent chat",
+        description: "Just mention Postpartum Post when you stop by.",
+        redemption_type: "in_person",
+        frequency: "monthly",
+      },
+    ],
   },
   {
     // A well-known venue with real coordinates, so there's always a
     // reference partner whose perks show up on the match map. No portal
-    // access — add perks for it from /admin/partners.
+    // access — add more perks for it from /admin/partners.
     slug: "rijksmuseum",
     first_name: "Museum",
     last_name: "Guide",
@@ -147,6 +216,14 @@ const REFERENCE_PARTNERS: ReferencePartner[] = [
       latitude: 52.359997,
       longitude: 4.885219,
     },
+    perks: [
+      {
+        title: "Free entry for you and your little one",
+        description: "Show this screen at the ticket desk for free entry, once a month.",
+        redemption_type: "in_person",
+        frequency: "monthly",
+      },
+    ],
   },
 ];
 
@@ -209,7 +286,8 @@ async function insertReferencePartners() {
       continue;
     }
 
-    await syncReferenceLocation(partnerRow.id as string, p);
+    const locationId = await syncReferenceLocation(partnerRow.id as string, p);
+    await syncReferencePerks(partnerRow.id as string, locationId, p);
 
     console.log(`  - ${p.business_name} (${p.email ?? "no portal access"})`);
   }
@@ -220,16 +298,16 @@ async function insertReferencePartners() {
 /**
  * Keeps each reference partner's location row STABLE across reruns (same
  * id), updating it in place when the address matches, instead of the old
- * delete-and-reinsert — perks.location_id is "on delete set null", so a
- * fresh row every run silently detached every perk from its location after
- * each test run.
+ * delete-and-reinsert — a fresh row every run would silently detach every
+ * perk from its location after each test run (perk_locations rows cascade
+ * on the location's delete — db/migrations/031_perk_multi_location.sql).
  *
  * Coordinates come from the reference data when given, otherwise from the
  * same Nominatim lookup the app runs on save (lib/geocode.ts) — without
  * them the location never shows on the match map. Area/neighborhood fall
  * back to the lookup's suggestions the same way.
  */
-async function syncReferenceLocation(partnerId: string, p: ReferencePartner) {
+async function syncReferenceLocation(partnerId: string, p: ReferencePartner): Promise<string | null> {
   const { data: existing } = await supabase
     .from("partner_locations")
     .select("id, address")
@@ -237,7 +315,7 @@ async function syncReferenceLocation(partnerId: string, p: ReferencePartner) {
 
   if (!p.location) {
     await supabase.from("partner_locations").delete().eq("partner_id", partnerId);
-    return;
+    return null;
   }
 
   const keep = (existing ?? []).find((l) => l.address === p.location!.address);
@@ -267,10 +345,88 @@ async function syncReferenceLocation(partnerId: string, p: ReferencePartner) {
     latitude: latitude ?? null,
     longitude: longitude ?? null,
   };
-  const { error } = keep
-    ? await supabase.from("partner_locations").update(row).eq("id", keep.id)
-    : await supabase.from("partner_locations").insert(row);
-  if (error) console.error(`  Failed to save location for ${p.business_name}:`, error.message);
+  const { data: saved, error } = keep
+    ? await supabase.from("partner_locations").update(row).eq("id", keep.id).select("id").single()
+    : await supabase.from("partner_locations").insert(row).select("id").single();
+  if (error || !saved) {
+    console.error(`  Failed to save location for ${p.business_name}:`, error?.message);
+    return keep?.id ?? null;
+  }
+  return saved.id as string;
+}
+
+/**
+ * Same find-by-key, then update-or-insert pattern as the partner and
+ * location syncs above, keyed on (partner_id, title). Always 'published'
+ * / source 'manual' — these exist to be visible everywhere (admin queue,
+ * partner portal, /perks, the match page) without a review step.
+ *
+ * Self-heals duplicates instead of assuming at most one match: an earlier
+ * version used .maybeSingle(), which *throws* when more than one row
+ * matches, silently making `existing` fall through to undefined and the
+ * "no match" branch fire an INSERT — so once any duplicate existed (a
+ * manual perk added by hand while testing, an interrupted run, whatever),
+ * every subsequent run added one more instead of fixing it. Selecting
+ * every match, keeping the oldest, and deleting the rest converges back
+ * to exactly one perk per (partner, title) on the very next run,
+ * regardless of how many accumulated before.
+ */
+async function syncReferencePerks(
+  partnerId: string,
+  locationId: string | null,
+  p: ReferencePartner,
+): Promise<void> {
+  for (const perk of p.perks) {
+    const { data: matches } = await supabase
+      .from("perks")
+      .select("id")
+      .eq("partner_id", partnerId)
+      .eq("title", perk.title)
+      .order("created_at", { ascending: true });
+
+    const [keep, ...duplicates] = matches ?? [];
+    if (duplicates.length > 0) {
+      await supabase.from("perks").delete().in("id", duplicates.map((d) => d.id));
+      console.log(`  - removed ${duplicates.length} duplicate "${perk.title}" row(s) for ${p.business_name}`);
+    }
+
+    const row = {
+      partner_id: partnerId,
+      status: "published" as const,
+      source: "manual" as const,
+      title: perk.title,
+      description: perk.description,
+      redemption_type: perk.redemption_type,
+      redemption_code: perk.redemption_type === "code" ? perk.redemption_code ?? null : null,
+      url: perk.url ?? null,
+      exclusive: perk.exclusive ?? false,
+      frequency: perk.frequency ?? "monthly",
+    };
+
+    let perkId = keep?.id as string | undefined;
+    if (keep) {
+      const { error } = await supabase.from("perks").update(row).eq("id", keep.id);
+      if (error) console.error(`  Failed to save perk "${perk.title}" for ${p.business_name}:`, error.message);
+    } else {
+      const { data: inserted, error } = await supabase.from("perks").insert(row).select("id").single();
+      if (error || !inserted) {
+        console.error(`  Failed to save perk "${perk.title}" for ${p.business_name}:`, error?.message);
+      } else {
+        perkId = inserted.id as string;
+      }
+    }
+
+    // Locations live in a join table since db/migrations/031_perk_multi_location.sql
+    // -- a reference perk still gets at most the partner's one location, but
+    // through the same delete-then-insert sync every save path uses.
+    if (perkId) {
+      await supabase.from("perk_locations").delete().eq("perk_id", perkId);
+      if (locationId) {
+        const { error } = await supabase.from("perk_locations").insert({ perk_id: perkId, location_id: locationId });
+        if (error) console.error(`  Failed to link location for "${perk.title}" (${p.business_name}):`, error.message);
+      }
+    }
+  }
 }
 
 async function main() {

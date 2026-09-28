@@ -1,7 +1,14 @@
 import { createAdminClient } from "@/lib/supabase";
 import type { PerkCardPartner, PerkCardPerk } from "@/components/PerkCard";
-import { perkLocationLabel } from "@/lib/perk-display";
+import { perkLocationLabel, type PerkLocationLite } from "@/lib/perk-display";
 import { comparePerks, countEventsByPerk, POPULARITY_WINDOW_DAYS } from "@/lib/perk-ranking";
+
+/** One of a perk's locations, as shown/plotted for members -- never the partner's internal label or street address. */
+export type PublicPerkLocation = PerkLocationLite & {
+  /** Null when this location hasn't been geocoded -- excluded from map markers, still counted in the label. */
+  lat: number | null;
+  lng: number | null;
+};
 
 /**
  * Perks shown on the public pages, not expired: /perks lists 'published'
@@ -17,10 +24,11 @@ export type PublicPerk = PerkCardPerk & {
   status: "published" | "coming_soon";
   partner: PerkCardPartner;
   location_label: string | null;
-  /** The perk's location coordinates, for map markers (null when there's no location or it wasn't geocoded). */
-  lat: number | null;
-  lng: number | null;
+  /** Every one of the perk's locations (db/migrations/031_perk_multi_location.sql) -- for map markers, one pin per geocoded entry. */
+  locations: PublicPerkLocation[];
 };
+
+type ViewLocation = { neighborhood: string | null; area: string | null; latitude: number | null; longitude: number | null };
 
 export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean } = {}): Promise<PublicPerk[]> {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Amsterdam" }); // YYYY-MM-DD
@@ -28,7 +36,7 @@ export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean
   const { data, error } = await supabase
     .from("perks_partners")
     .select(
-      "id, status, title, description, expires_at, exclusive, featured, created_at, partner_name, partner_image_url, location_neighborhood, location_area, location_latitude, location_longitude",
+      "id, status, title, description, expires_at, exclusive, frequency, featured, created_at, partner_name, partner_image_url, is_online, locations",
     )
     .in("status", liveOnly ? ["published"] : ["published", "coming_soon"])
     .or(`expires_at.is.null,expires_at.gte.${today}`);
@@ -63,23 +71,31 @@ export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean
     }))
     .sort(comparePerks);
 
-  return ranked.map((p) => ({
-    id: p.id as string,
-    status: p.status as PublicPerk["status"],
-    title: p.title as string,
-    description: p.description as string,
-    expires_at: p.expires_at as string | null,
-    exclusive: p.exclusive as boolean,
-    partner: {
-      business_name: p.partner_name as string,
-      image_url: p.partner_image_url as string | null,
-    },
-    location_label: perkLocationLabel({
-      neighborhood: p.location_neighborhood as string | null,
-      area: p.location_area as string | null,
-    }),
-    // numeric columns come back as strings from PostgREST
-    lat: p.location_latitude == null ? null : Number(p.location_latitude),
-    lng: p.location_longitude == null ? null : Number(p.location_longitude),
-  }));
+  return ranked.map((p) => {
+    // jsonb from the view (db/migrations/031_perk_multi_location.sql) -- already
+    // parsed JSON by the time it's here, so no coordinate string parsing needed.
+    const viewLocations = (p.locations as ViewLocation[] | null) ?? [];
+    const locations: PublicPerkLocation[] = viewLocations.map((l) => ({
+      neighborhood: l.neighborhood,
+      area: l.area,
+      lat: l.latitude,
+      lng: l.longitude,
+    }));
+
+    return {
+      id: p.id as string,
+      status: p.status as PublicPerk["status"],
+      title: p.title as string,
+      description: p.description as string,
+      expires_at: p.expires_at as string | null,
+      exclusive: p.exclusive as boolean,
+      frequency: p.frequency as "monthly" | "once",
+      partner: {
+        business_name: p.partner_name as string,
+        image_url: p.partner_image_url as string | null,
+      },
+      location_label: perkLocationLabel(locations, p.is_online as boolean),
+      locations,
+    };
+  });
 }

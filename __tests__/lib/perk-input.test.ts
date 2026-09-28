@@ -28,11 +28,13 @@ describe("normalizePerkInput", () => {
       row: {
         title: "20% off",
         description: "Valid on any weekday class.",
+        is_online: false,
         redemption_type: "code",
         redemption_code: "CODE",
         url: null,
         expires_at: null,
         exclusive: false,
+        frequency: "monthly",
       },
     });
   });
@@ -86,5 +88,17 @@ describe("normalizePerkInput", () => {
 
   it("rejects an unknown redemption type", () => {
     expect(normalizePerkInput(input({ redemption_type: "bogus" as PerkInput["redemption_type"] })).ok).toBe(false);
+  });
+
+  it("passes is_online through, independent of location_ids (they can combine freely)", () => {
+    const online = normalizePerkInput(input({ is_online: true, location_ids: [] }));
+    expect(online.ok && online.row.is_online).toBe(true);
+    const notOnline = normalizePerkInput(input({ is_online: false }));
+    expect(notOnline.ok && notOnline.row.is_online).toBe(false);
+    // Locations aren't part of PerkRow -- they're saved separately as a
+    // join table (lib/perk-save.ts) -- so a perk can be online AND tied to
+    // one or more locations with no rejection here.
+    const both = normalizePerkInput(input({ is_online: true, location_ids: ["loc-1", "loc-2"] }));
+    expect(both.ok).toBe(true);
   });
 });

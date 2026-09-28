@@ -109,13 +109,13 @@ export default function PartnerPerksManager({
 
       <div className="grid sm:grid-cols-2 gap-4">
         {perks?.map((perk) => {
-          const loc = locations.find((l) => l.id === perk.location_id);
+          const perkLocations = locations.filter((l) => perk.location_ids.includes(l.id));
           return (
             <PerkCard
               key={perk.id}
               perk={perk}
               partner={partner}
-              locationLabel={perkLocationLabel(loc)}
+              locationLabel={perkLocationLabel(perkLocations, perk.is_online)}
               onClick={() => setEditing(perk)}
               actionLabel="Edit perk"
               badge={

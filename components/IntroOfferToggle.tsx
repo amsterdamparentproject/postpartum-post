@@ -1,21 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import Sparkle from "@/components/Sparkle";
 
-// The Post Perks wordmark green (PostPerksWordMark).
 const PERK_GREEN = "#8A9E3A";
 
 /**
- * The "Exclusive to Postpartum Post" choice on the perk forms (PerkFields),
- * as a selectable box instead of a plain checkbox. Carries the Post Perks
- * visual language: the sparkle (grayed out when off, full color and a
- * one-time .wiggle when switched on) and the wordmark green for the
- * selected state. Still a real checkbox underneath, so keyboard and
- * screen readers work as before.
+ * The "Intro offer" choice on the perk forms (PerkFields) -- same selectable-box
+ * pattern as ExclusiveToggle, so the two sit consistently in the form, but with
+ * its own copy and no sparkle (that's reserved for Exclusive). Checked = the
+ * perk's `frequency` is 'once' instead of the default 'monthly': a member can
+ * redeem it a single time, ever, rather than every month. Enforcement is in
+ * db/migrations/028_perk_intro_offers.sql -- this toggle only sets the flag.
  */
-export default function ExclusiveToggle({
+export default function IntroOfferToggle({
   checked,
   onChange,
 }: {
@@ -44,26 +41,24 @@ export default function ExclusiveToggle({
         checked={checked}
         onChange={(e) => toggle(e.target.checked)}
       />
-      <Sparkle
-        className={`w-10 h-auto shrink-0 transition ${checked ? "" : "grayscale opacity-40"}${wiggling ? " wiggle" : ""}`}
-      />
+      <span
+        aria-hidden="true"
+        className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg transition ${
+          checked ? "" : "grayscale opacity-40"
+        }${wiggling ? " wiggle" : ""}`}
+        style={{ backgroundColor: checked ? `${PERK_GREEN}1a` : undefined }}
+      >
+        🎉
+      </span>
       <span className="flex-1 min-w-0 text-sm leading-relaxed">
         <span
           className="block text-base"
           style={{ fontFamily: "var(--font-serif)", color: checked ? PERK_GREEN : undefined }}
         >
-          Exclusive to Postpartum Post
+          Intro offer
         </span>
         <span className="text-muted">
-          Your perk gets an exclusive badge and extra promotion.{" "}
-          <Link
-            href="/partners/terms#exclusivity"
-            target="_blank"
-            onClick={(e) => e.stopPropagation()}
-            className="text-coral hover:underline underline-offset-2"
-          >
-            See terms
-          </Link>
+          For first-timers only -- each member can redeem it once, ever, instead of every month.
         </span>
       </span>
       <span

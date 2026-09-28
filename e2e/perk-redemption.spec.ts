@@ -17,6 +17,7 @@ import {
   seedPartner,
   seedPerk,
   seedMember,
+  seedMonthlyPerks,
   countPerkEvents,
   cleanupPartner,
   cleanupMember,
@@ -38,6 +39,12 @@ test("a member redeems a code perk once a month, and an in-person perk shows the
     description: "Show this screen at the counter.",
   });
   const member = await seedMember({ firstName: "Robin" });
+  // Perks access is gated on opting into something this month (coffee,
+  // playdate, or perks-only) -- see lib/monthly-opt-in.ts. This test is
+  // about redemption itself, not the opt-in flow, so give the member
+  // perks-only access directly.
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  await seedMonthlyPerks(member.id, currentMonth);
 
   try {
     await signInAs(page, member.email);

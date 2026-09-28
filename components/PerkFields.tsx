@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import RequiredMark from "@/components/RequiredMark";
 import ExclusiveToggle from "@/components/ExclusiveToggle";
+import IntroOfferToggle from "@/components/IntroOfferToggle";
 import {
   PERK_DESCRIPTION_MAX,
   PERK_TITLE_MAX,
@@ -24,9 +25,14 @@ const DEFAULT_LABEL_CLASS = "block text-sm font-medium text-dark mb-1";
  * Validation mirrors normalizePerkInput (lib/perk-input.ts), which every
  * save action runs again server-side.
  *
- * Location always shows and is optional. Callers preselect a partner's only
- * location on a new perk (defaultLocationId); "No specific location" means
- * it isn't tied to one place (see resolvePerkLocation in lib/perk-save.ts).
+ * Locations always show and are optional, multi-select (any number of the
+ * partner's own locations -- db/migrations/031_perk_multi_location.sql).
+ * Callers preselect a partner's only location on a new perk
+ * (defaultLocationIds); none checked means it isn't tied to one place (see
+ * resolvePerkLocations in lib/perk-save.ts). "Online" is a separate,
+ * partner-agnostic checkbox (is_online) for a perk that's online
+ * everywhere, with no address to give it -- independent of, and
+ * combinable with, the location checkboxes.
  */
 export default function PerkFields({
   value,
@@ -158,21 +164,47 @@ export default function PerkFields({
         {/* min-w-0: grid items default to their content's width, so a long
             location name would otherwise push the form wider than the screen. */}
         <div className="min-w-0">
-          <label className={labelClass}>Location</label>
+          <label className={labelClass}>Locations</label>
           <p className="text-xs text-muted mb-1.5">
             Perks with locations will show up on the match map! Add them in the profile tab.
+            Check any that apply, plus Online if it works that way too.
           </p>
-          <select
-            value={value.location_id ?? ""}
-            aria-label="Location"
-            onChange={(e) => set("location_id", e.target.value || null)}
-            className={inputClass}
-          >
-            <option value="">{locations.length === 0 ? "No locations yet" : "No specific location"}</option>
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>{loc.label || loc.address}</option>
-            ))}
-          </select>
+          <div className={`space-y-2 rounded-lg border border-border bg-white px-4 py-3`}>
+            <label className="flex items-center gap-2 text-sm text-dark cursor-pointer">
+              <input
+                type="checkbox"
+                checked={value.is_online}
+                onChange={(e) => set("is_online", e.target.checked)}
+                className="rounded border-border text-coral focus:ring-2 focus:ring-coral/40"
+              />
+              Online
+            </label>
+            {locations.length === 0 ? (
+              <p className="text-xs text-muted">No locations yet — add them in the profile tab.</p>
+            ) : (
+              locations.map((loc) => {
+                const checked = value.location_ids.includes(loc.id);
+                return (
+                  <label key={loc.id} className="flex items-center gap-2 text-sm text-dark cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) =>
+                        set(
+                          "location_ids",
+                          e.target.checked
+                            ? [...value.location_ids, loc.id]
+                            : value.location_ids.filter((id) => id !== loc.id),
+                        )
+                      }
+                      className="rounded border-border text-coral focus:ring-2 focus:ring-coral/40"
+                    />
+                    {loc.label || loc.address}
+                  </label>
+                );
+              })
+            )}
+          </div>
         </div>
         <div className="min-w-0">
           <label className={labelClass}>Expires</label>
@@ -189,7 +221,13 @@ export default function PerkFields({
         </div>
       </div>
 
-      <ExclusiveToggle checked={value.exclusive} onChange={(v) => set("exclusive", v)} />
+      <div className="space-y-3 my-6">
+        <ExclusiveToggle checked={value.exclusive} onChange={(v) => set("exclusive", v)} />
+        <IntroOfferToggle
+          checked={value.frequency === "once"}
+          onChange={(v) => set("frequency", v ? "once" : "monthly")}
+        />
+      </div>
     </div>
   );
 }

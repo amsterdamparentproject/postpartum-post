@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import { LISTING_KINDS, type ListingKind } from "@/lib/listing-kinds";
 
 export type ListRowAction =
-  | { label: string; href: string; external?: boolean }
-  | { label: string; onClick: () => void };
+  | { label: string; href: string; external?: boolean; umamiEvent?: string }
+  | { label: string; onClick: () => void; umamiEvent?: string };
 
 /**
  * One row in the match page's List view — the same layout as the Local
@@ -85,12 +85,13 @@ export default function ListRow({
                 <a
                   href={action.href}
                   {...(action.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  data-umami-event={action.umamiEvent}
                   className={actionClass}
                 >
                   {action.label} →
                 </a>
               ) : (
-                <button type="button" onClick={action.onClick} className={actionClass}>
+                <button type="button" onClick={action.onClick} data-umami-event={action.umamiEvent} className={actionClass}>
                   {action.label} →
                 </button>
               ))}

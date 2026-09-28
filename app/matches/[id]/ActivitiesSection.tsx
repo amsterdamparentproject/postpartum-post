@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import ActivitiesMapClient from "@/components/ActivitiesMapClient";
 import type { Activity, Playground } from "@/lib/activities";
 import { formatPlaygroundType } from "@/lib/activities";
+import { perkLocationLabel } from "@/lib/perk-display";
 import CalendarView from "./CalendarView";
 import { PerkList, type MatchPerk } from "./PerkList";
 import ListRow from "./ListRow";
@@ -90,22 +91,26 @@ export default function ActivitiesSection({
     [filteredRecActivities],
   );
 
+  // One marker per geocoded location -- a perk with several locations
+  // (db/migrations/031_perk_multi_location.sql) gets a pin at each. Every
+  // marker for the same perk shares its id, so redeeming from any of its
+  // popups goes to the same perk.
   const mapPerks = useMemo(
     () =>
       perks.flatMap((p) =>
-        p.lat != null && p.lng != null
-          ? [{
-              id: p.id,
-              title: p.title,
-              partnerName: p.partner.business_name,
-              locationLabel: p.location_label,
-              description: p.description,
-              imageUrl: p.partner.image_url,
-              exclusive: p.exclusive,
-              lat: p.lat,
-              lng: p.lng,
-            }]
-          : [],
+        p.locations
+          .filter((l): l is typeof l & { lat: number; lng: number } => l.lat != null && l.lng != null)
+          .map((l) => ({
+            id: p.id,
+            title: p.title,
+            partnerName: p.partner.business_name,
+            locationLabel: perkLocationLabel([{ neighborhood: l.neighborhood, area: l.area }]),
+            description: p.description,
+            imageUrl: p.partner.image_url,
+            exclusive: p.exclusive,
+            lat: l.lat,
+            lng: l.lng,
+          })),
       ),
     [perks],
   );

@@ -21,7 +21,7 @@ import CalloutBox from "@/components/CalloutBox";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import ActivitiesSection from "@/app/matches/[id]/ActivitiesSection";
 import { PerkList, type MatchPerk } from "@/app/matches/[id]/PerkList";
-import { haversineKm } from "@/lib/geo-distance";
+import { nearestKm } from "@/lib/geo-distance";
 import { PERK_SORTS, type SortOrder } from "@/app/matches/[id]/activities-utils";
 import type { PublicPerk } from "@/lib/public-perks";
 
@@ -197,16 +197,20 @@ function MatchPageReady({
 
   const them = viewerIsM1 ? m2 : m1;
 
-  // Perks with their distance from the pair's halfway point attached; perks
-  // without coordinates get Infinity, sorting last under "Nearest".
+  // Perks with their distance from the pair's halfway point attached --
+  // the nearest of the perk's own locations (it can have several since
+  // db/migrations/031_perk_multi_location.sql); perks with no geocoded
+  // location get Infinity, sorting last under "Nearest".
   const nearbyPerks: MatchPerk[] = useMemo(
     () =>
       perks.map((p) => ({
         ...p,
-        distanceKm:
-          center && p.lat != null && p.lng != null
-            ? haversineKm(center, { lat: p.lat, lng: p.lng })
-            : Infinity,
+        distanceKm: center
+          ? nearestKm(
+              center,
+              p.locations.filter((l): l is typeof l & { lat: number; lng: number } => l.lat != null && l.lng != null),
+            )
+          : Infinity,
       })),
     [perks, center],
   );

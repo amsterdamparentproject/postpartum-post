@@ -36,7 +36,7 @@ import PhotoUpload from "@/components/PhotoUpload";
 import PartnerLocationsManager from "@/components/PartnerLocationsManager";
 import {
   REDEMPTION_TYPE_LABELS,
-  defaultLocationId,
+  defaultLocationIds,
   emptyPerkInput,
   perkToInput,
   type PerkInput,
@@ -1064,7 +1064,7 @@ function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
   useEffect(() => {
     (partnerId ? listPartnerLocations(partnerId) : Promise.resolve([])).then((locs) => {
       setLocations(locs);
-      setValue((v) => ({ ...v, location_id: defaultLocationId(locs) }));
+      setValue((v) => ({ ...v, location_ids: defaultLocationIds(locs) }));
     });
   }, [partnerId]);
 
@@ -1284,6 +1284,11 @@ function PerkCard({ perk, onChanged }: { perk: ReviewPerk; onChanged: () => void
             {perk.exclusive && (
               <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-light/30 text-dark">
                 Exclusive
+              </span>
+            )}
+            {perk.frequency === "once" && (
+              <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-dark text-white">
+                Intro offer
               </span>
             )}
           </div>

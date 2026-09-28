@@ -10,7 +10,7 @@ import {
 } from "@/app/actions/partners";
 import PhotoUpload from "@/components/PhotoUpload";
 import PerkFields from "@/components/PerkFields";
-import { defaultLocationId, emptyPerkInput, perkToInput, type PerkInput } from "@/lib/perk-input";
+import { defaultLocationIds, emptyPerkInput, perkToInput, type PerkInput } from "@/lib/perk-input";
 
 /**
  * Create/edit form for a single perk. Always submits through
@@ -44,7 +44,7 @@ export default function PartnerPerkForm({
   onCancel: () => void;
 }) {
   const [value, setValue] = useState<PerkInput>(() => {
-    const initial = perk ? perkToInput(perk) : { ...emptyPerkInput(), location_id: defaultLocationId(locations) };
+    const initial = perk ? perkToInput(perk) : { ...emptyPerkInput(), location_ids: defaultLocationIds(locations) };
     return { ...initial, url: initial.url || website || "" };
   });
   const [imageUrl, setImageUrl] = useState(initialImageUrl);

@@ -126,10 +126,10 @@ function LocationRow({
 /**
  * A partner can operate from more than one physical location (Life in
  * Bloom Yoga: Center + West studios) — see partner_locations in
- * db/migrations/024_perks.sql. Each perk later points at one of these via
- * a nullable location_id. area/neighborhood are geocoded server-side on
- * save (lib/geocode.ts) and shown read-only here — no manual override in
- * this first pass.
+ * db/migrations/024_perks.sql. Each perk can later point at any number of
+ * these (perk_locations, db/migrations/031_perk_multi_location.sql).
+ * area/neighborhood are geocoded server-side on save (lib/geocode.ts) and
+ * shown read-only here — no manual override in this first pass.
  */
 export default function PartnerLocationsManager({
   locations: initialLocations,

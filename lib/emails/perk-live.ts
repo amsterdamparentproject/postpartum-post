@@ -29,7 +29,7 @@ function perkLiveHtml(payload: PerkLiveEmailPayload): string {
       <span> Your perk <span style="font-weight:700">${escapeHtml(payload.perkTitle)}</span> has been approved and is now live on Post Perks. ✨</span>
     </td></tr>
     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4">
-      Postpartum Post members can now discover ${escapeHtml(payload.businessName)} — and perhaps bring their match along for a visit.
+      Postpartum Post members can now discover ${escapeHtml(payload.businessName)} — and perhaps share the experience with their match this month, too.
     </td></tr>
     <tr><td dir="ltr" style="font-size:16px;text-align:left;line-height:1.4">
       Want to change it or add another? Just <a href="${SITE_URL}/partners/login" style="color:#000">sign in to your partner portal</a>. Any edits get a quick review from us before they go live again.

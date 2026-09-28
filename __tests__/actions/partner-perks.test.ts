@@ -8,6 +8,7 @@ import {
   getAccessTokenForEmail,
   cleanupAuthUser,
   getPerkRaw,
+  getPerkLocationIds,
 } from "@tests/helpers";
 
 // ---------------------------------------------------------------------------
@@ -30,7 +31,8 @@ beforeEach(() => {
 
 function perkInput(overrides: Partial<PartnerPerkInput> = {}): PartnerPerkInput {
   return {
-    location_id: null,
+    location_ids: [],
+    is_online: false,
     title: "20% off your first visit",
     description: "A discount for Postpartum Post members",
     redemption_type: "code",
@@ -38,6 +40,7 @@ function perkInput(overrides: Partial<PartnerPerkInput> = {}): PartnerPerkInput 
     url: "",
     expires_at: "",
     exclusive: false,
+    frequency: "monthly",
     ...overrides,
   };
 }
@@ -154,12 +157,12 @@ describe("savePartnerPerk", () => {
     }
   });
 
-  it("refuses a location_id that belongs to a different partner", async () => {
+  it("refuses a location that belongs to a different partner", async () => {
     const other = await seedPartner();
     try {
       const othersLocation = await seedPartnerLocation(other.id);
 
-      const result = await savePartnerPerk(accessToken, perkInput({ location_id: othersLocation.id }));
+      const result = await savePartnerPerk(accessToken, perkInput({ location_ids: [othersLocation.id] }));
       expect(result.success).toBe(false);
       expect(result.error).toMatch(/location not found/i);
     } finally {
@@ -168,30 +171,86 @@ describe("savePartnerPerk", () => {
   });
 });
 
-describe("perk location (optional)", () => {
-  it("saves with no location, even when the partner has one", async () => {
+describe("perk locations (optional, multiple)", () => {
+  it("saves with no locations, even when the partner has one", async () => {
     const partner = await seedPartner();
     try {
       await seedPartnerLocation(partner.id);
       const result = await addPerkForPartner({ ...perkInput(), partner_id: partner.id, status: "pending" });
       expect(result.success).toBe(true);
-      expect((await getPerkRaw(result.perkId!))?.location_id).toBeNull();
+      expect(await getPerkLocationIds(result.perkId!)).toEqual([]);
     } finally {
       await cleanupPartner(partner.id);
     }
   });
 
-  it("saves a picked location that belongs to the partner", async () => {
+  it("saves a single picked location that belongs to the partner", async () => {
     const partner = await seedPartner();
     try {
       await seedPartnerLocation(partner.id, { label: "West" });
       const east = await seedPartnerLocation(partner.id, { label: "East" });
       const result = await addPerkForPartner({
-        ...perkInput({ location_id: east.id }),
+        ...perkInput({ location_ids: [east.id] }),
         partner_id: partner.id,
         status: "pending",
       });
-      expect((await getPerkRaw(result.perkId!))?.location_id).toBe(east.id);
+      expect(await getPerkLocationIds(result.perkId!)).toEqual([east.id]);
+    } finally {
+      await cleanupPartner(partner.id);
+    }
+  });
+
+  it("saves several locations that belong to the partner", async () => {
+    const partner = await seedPartner();
+    try {
+      const west = await seedPartnerLocation(partner.id, { label: "West" });
+      const east = await seedPartnerLocation(partner.id, { label: "East" });
+      const result = await addPerkForPartner({
+        ...perkInput({ location_ids: [west.id, east.id] }),
+        partner_id: partner.id,
+        status: "pending",
+      });
+      expect(new Set(await getPerkLocationIds(result.perkId!))).toEqual(new Set([west.id, east.id]));
+    } finally {
+      await cleanupPartner(partner.id);
+    }
+  });
+
+  it("updating a perk's locations replaces the old set, not adds to it", async () => {
+    const partner = await seedPartner();
+    try {
+      const west = await seedPartnerLocation(partner.id, { label: "West" });
+      const east = await seedPartnerLocation(partner.id, { label: "East" });
+      const created = await addPerkForPartner({
+        ...perkInput({ location_ids: [west.id] }),
+        partner_id: partner.id,
+        status: "pending",
+      });
+
+      await updatePerkAdmin({
+        ...perkInput({ location_ids: [east.id] }),
+        perkId: created.perkId!,
+        status: "pending",
+      });
+
+      expect(await getPerkLocationIds(created.perkId!)).toEqual([east.id]);
+    } finally {
+      await cleanupPartner(partner.id);
+    }
+  });
+
+  it("can be both online and tied to a location at once", async () => {
+    const partner = await seedPartner();
+    try {
+      const west = await seedPartnerLocation(partner.id, { label: "West" });
+      const result = await addPerkForPartner({
+        ...perkInput({ is_online: true, location_ids: [west.id] }),
+        partner_id: partner.id,
+        status: "pending",
+      });
+      expect(result.success).toBe(true);
+      expect((await getPerkRaw(result.perkId!))?.is_online).toBe(true);
+      expect(await getPerkLocationIds(result.perkId!)).toEqual([west.id]);
     } finally {
       await cleanupPartner(partner.id);
     }

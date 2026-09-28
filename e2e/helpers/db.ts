@@ -291,6 +291,12 @@ export async function getPartnerPerks(partnerId: string): Promise<Record<string,
   return data ?? [];
 }
 
+/** A perk's linked location ids -- perk_locations join table (db/migrations/031_perk_multi_location.sql). */
+export async function getPerkLocationIds(perkId: string): Promise<string[]> {
+  const { data } = await supabase().from("perk_locations").select("location_id").eq("perk_id", perkId);
+  return (data ?? []).map((row) => row.location_id as string);
+}
+
 export async function setPerkStatus(perkId: string, status: "pending" | "published" | "archived"): Promise<void> {
   const { error } = await supabase().from("perks").update({ status }).eq("id", perkId);
   if (error) throw new Error(`setPerkStatus failed: ${error.message}`);

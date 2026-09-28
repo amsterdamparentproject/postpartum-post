@@ -387,9 +387,18 @@ export async function seedPartnerLocation(
 }
 
 /** Raw perk row, including fields (status, source, partner_id) the
- *  app-facing PartnerPerk/ReviewPerk types don't select. */
+ *  app-facing PartnerPerk/ReviewPerk types don't select. Locations live in
+ *  a separate join table since db/migrations/031_perk_multi_location.sql --
+ *  see getPerkLocationIds. */
 export async function getPerkRaw(id: string): Promise<Record<string, unknown> | null> {
   const supabase = createTestSupabase();
   const { data } = await supabase.from("perks").select("*").eq("id", id).maybeSingle();
   return data ?? null;
+}
+
+/** A perk's linked location ids, straight from perk_locations (unordered). */
+export async function getPerkLocationIds(perkId: string): Promise<string[]> {
+  const supabase = createTestSupabase();
+  const { data } = await supabase.from("perk_locations").select("location_id").eq("perk_id", perkId);
+  return (data ?? []).map((row) => row.location_id as string);
 }

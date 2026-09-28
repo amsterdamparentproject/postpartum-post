@@ -10,7 +10,7 @@ import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 import { SITE_URL } from "@/lib/emails/base";
 import { commitPartnerImage, createPartnerImageUploadFor, type ImageUploadTicket } from "@/lib/partner-image-save";
 import { normalizePerkInput, type PerkInput, type SavedPerkFields } from "@/lib/perk-input";
-import { resolvePerkLocation } from "@/lib/perk-save";
+import { resolvePerkLocations, savePerkLocations } from "@/lib/perk-save";
 import { deletePartnerLocationFor, savePartnerLocationFor } from "@/lib/partner-location-save";
 import type { PartnerLocation, PartnerLocationInput } from "@/app/actions/partners";
 
@@ -648,14 +648,36 @@ export async function listPerksForReview(): Promise<ReviewPerk[]> {
   const { data: perks, error } = await supabase
     .from("perks_partners")
     .select(
-      "id, status, created_at, location_id, title, description, redemption_type, redemption_code, url, expires_at, exclusive, partner_id, partner_name, partner_url, partner_image_url",
+      "id, status, created_at, is_online, title, description, redemption_type, redemption_code, url, expires_at, exclusive, frequency, partner_id, partner_name, partner_url, partner_image_url",
     )
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[listPerksForReview] query error:", error.message);
     return [];
   }
-  return (perks ?? []) as ReviewPerk[];
+  if (!perks || perks.length === 0) return [];
+
+  // perk_locations is a join table (db/migrations/031_perk_multi_location.sql);
+  // fetch each perk's ids in one query and group by perk_id, same pattern
+  // as listPartnerPerks (app/actions/partners.ts).
+  const { data: links, error: linksError } = await supabase
+    .from("perk_locations")
+    .select("perk_id, location_id")
+    .in("perk_id", perks.map((p) => p.id as string));
+  if (linksError) {
+    console.error("[listPerksForReview] locations query error:", linksError.message);
+  }
+  const locationIdsByPerk = new Map<string, string[]>();
+  for (const link of links ?? []) {
+    const ids = locationIdsByPerk.get(link.perk_id as string) ?? [];
+    ids.push(link.location_id as string);
+    locationIdsByPerk.set(link.perk_id as string, ids);
+  }
+
+  return perks.map((p) => ({
+    ...p,
+    location_ids: locationIdsByPerk.get(p.id as string) ?? [],
+  })) as ReviewPerk[];
 }
 
 export async function setPerkStatus(
@@ -744,18 +766,21 @@ export async function updatePerkAdmin(
     .maybeSingle();
   if (!existing) return { success: false, error: "Perk not found" };
 
-  const location = await resolvePerkLocation(supabase, existing.partner_id as string, input.location_id);
+  const location = await resolvePerkLocations(supabase, existing.partner_id as string, input.location_ids);
   if (!location.ok) return { success: false, error: location.error };
 
   const { error } = await supabase
     .from("perks")
-    .update({ ...normalized.row, status: input.status, location_id: location.locationId })
+    .update({ ...normalized.row, status: input.status })
     .eq("id", input.perkId);
 
   if (error) {
     console.error("[updatePerkAdmin] update error:", error.message);
     return { success: false, error: "Couldn't save — try again" };
   }
+
+  const linked = await savePerkLocations(supabase, input.perkId, location.locationIds);
+  if (!linked.ok) return { success: false, error: linked.error };
 
   revalidatePerksPage();
   if (input.status === "published" && existing.status !== "published") {
@@ -802,7 +827,7 @@ export async function addPerkForPartner(
     .maybeSingle();
   if (!partner) return { success: false, error: "Partner not found" };
 
-  const location = await resolvePerkLocation(supabase, input.partner_id, input.location_id);
+  const location = await resolvePerkLocations(supabase, input.partner_id, input.location_ids);
   if (!location.ok) return { success: false, error: location.error };
 
   const { data: perk, error } = await supabase
@@ -812,7 +837,6 @@ export async function addPerkForPartner(
       partner_id: input.partner_id,
       source: "manual" as const,
       status: input.status,
-      location_id: location.locationId,
     })
     .select("id")
     .single();
@@ -820,6 +844,9 @@ export async function addPerkForPartner(
     console.error("[addPerkForPartner] insert error:", error?.message);
     return { success: false, error: "Couldn't save — try again" };
   }
+
+  const linked = await savePerkLocations(supabase, perk.id as string, location.locationIds);
+  if (!linked.ok) return { success: false, error: linked.error, perkId: perk.id as string };
 
   revalidatePerksPage();
   if (input.status === "published") {

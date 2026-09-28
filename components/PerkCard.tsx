@@ -10,6 +10,8 @@ export type PerkCardPerk = {
   description: string;
   expires_at: string | null;
   exclusive: boolean;
+  /** 'once' = an intro offer, redeemable a single time per member ever. */
+  frequency?: "monthly" | "once";
 };
 
 export type PerkCardPartner = {
@@ -42,6 +44,7 @@ export default function PerkCard({
   badge,
   onClick,
   actionLabel,
+  umamiEvent,
 }: {
   perk: PerkCardPerk;
   partner: PerkCardPartner;
@@ -49,6 +52,10 @@ export default function PerkCard({
   badge?: ReactNode;
   onClick?: () => void;
   actionLabel?: string;
+  /** Optional data-umami-event label for the members' /my-perks and match-page
+   *  uses of this card. Left unset for the partner portal/admin uses so their
+   *  edit clicks aren't tracked as member perk engagement. */
+  umamiEvent?: string;
 }) {
   const expiry = formatExpiry(perk.expires_at);
   const body = (
@@ -84,6 +91,11 @@ export default function PerkCard({
               Exclusive
             </span>
           )}
+          {perk.frequency === "once" && (
+            <span className="pl-2.5 pr-2.5 py-0.5 rounded-full text-xs font-bold text-white bg-dark">
+              Intro offer
+            </span>
+          )}
           {locationLabel && <span className="truncate max-w-[12rem]">{locationLabel}</span>}
           {expiry && <span className={`ml-auto ${expiry === "Expired" ? "text-coral" : ""}`}>{expiry}</span>}
         </div>
@@ -99,6 +111,8 @@ export default function PerkCard({
       type="button"
       onClick={onClick}
       aria-label={actionLabel ? `${actionLabel}: ${perk.title}` : undefined}
+      data-umami-event={umamiEvent}
+      data-umami-event-perk={umamiEvent ? perk.title : undefined}
       className={`group relative ${shell} hover:border-coral/40 hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-coral/40`}
     >
       {body}

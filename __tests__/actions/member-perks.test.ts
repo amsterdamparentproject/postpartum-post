@@ -9,6 +9,7 @@ import {
   cleanupPartner,
   getAccessTokenForEmail,
   cleanupAuthUser,
+  seedMonthlyPerks,
 } from "@tests/helpers";
 
 // addPerkForPartner(status: "published") emails the partner — never send a
@@ -31,12 +32,18 @@ describe("member perks", () => {
 
   beforeAll(async () => {
     member = await seedMember();
+    // Perks access is gated on having opted into something this month
+    // (see lib/monthly-opt-in.ts) -- these tests are about redemption
+    // itself, so give the member perks-only access rather than a real
+    // match opt-in.
+    await seedMonthlyPerks(member.id);
     token = await getAccessTokenForEmail(member.email);
     partner = await seedPartner({ url: "https://example.com" });
     const created = await addPerkForPartner({
       partner_id: partner.id,
       status: "published",
-      location_id: null,
+      location_ids: [],
+      is_online: false,
       title: "Free babyccino",
       description: "With any coffee.",
       redemption_type: "code",
@@ -44,6 +51,7 @@ describe("member perks", () => {
       url: "",
       expires_at: "",
       exclusive: false,
+      frequency: "monthly",
     });
     perkId = created.perkId!;
   });
@@ -55,7 +63,8 @@ describe("member perks", () => {
   });
 
   it("lists live perks without the code until redeemed", async () => {
-    const perks = await listMemberPerks(token);
+    const { optedIn, perks } = await listMemberPerks(token);
+    expect(optedIn).toBe(true);
     const perk = perks.find((p) => p.id === perkId);
     expect(perk).toBeTruthy();
     expect(perk?.reveal).toBeNull();
@@ -80,7 +89,7 @@ describe("member perks", () => {
       .eq("event_type", "redeemed");
     expect(rows).toHaveLength(1);
 
-    const listed = (await listMemberPerks(token)).find((p) => p.id === perkId);
+    const listed = (await listMemberPerks(token)).perks.find((p) => p.id === perkId);
     expect(listed?.reveal?.code).toBe("MAMA20");
   });
 
@@ -103,12 +112,28 @@ describe("member perks", () => {
   it("refuses a member without a current subscription", async () => {
     const inactive = await seedMember({ status: "inactive" });
     try {
+      await seedMonthlyPerks(inactive.id);
       const inactiveToken = await getAccessTokenForEmail(inactive.email);
       const result = await redeemPerk(inactiveToken, perkId);
       expect(result.success).toBe(false);
     } finally {
       await cleanupAuthUser(inactive.email);
       await cleanupMember(inactive.id);
+    }
+  });
+
+  it("refuses a member who hasn't opted into anything this month", async () => {
+    const notOptedIn = await seedMember();
+    try {
+      const notOptedInToken = await getAccessTokenForEmail(notOptedIn.email);
+      const listed = await listMemberPerks(notOptedInToken);
+      expect(listed).toEqual({ optedIn: false, perks: [] });
+
+      const result = await redeemPerk(notOptedInToken, perkId);
+      expect(result.success).toBe(false);
+    } finally {
+      await cleanupAuthUser(notOptedIn.email);
+      await cleanupMember(notOptedIn.id);
     }
   });
 });
