@@ -29,6 +29,7 @@ import {
   hasMemberPerks,
   hasMemberParticipation,
   getMemberMatchesRemainingByEmail,
+  isMatchRoundCommitted,
 } from "./helpers/db";
 import { currentMonth, buildOptinUrl, isOptinWindowOpenNow } from "./helpers/tokens";
 
@@ -73,9 +74,15 @@ test.describe("no match, just perks", () => {
       const month = currentMonth();
       expect(await hasMemberPerks(member.id, month)).toBe(true);
       expect(await hasMemberParticipation(member.id, month)).toBe(false);
-      // Choosing "just perks" is gated on having a credit, but doesn't spend
-      // one itself — that happens when a round actually commits.
-      expect(await getMemberMatchesRemainingByEmail(member.email)).toBe(1);
+      // Choosing "just perks" is gated on having a credit, and doesn't spend
+      // one itself UNLESS this month's round already committed -- then
+      // debitLatePerksIfRoundCommitted (lib/match-ledger.ts) debits it
+      // immediately instead of waiting for a round that already happened.
+      // Whether that's true depends on where the shared e2e project's
+      // current-month round actually stands, not on anything this test
+      // controls, so check it rather than assuming either way.
+      const expectedRemaining = (await isMatchRoundCommitted(month)) ? 0 : 1;
+      expect(await getMemberMatchesRemainingByEmail(member.email)).toBe(expectedRemaining);
     } finally {
       await cleanupPartner(partner.id); // cascades to perks
       await cleanupMember(member.id);
@@ -88,7 +95,7 @@ test.describe("no match, just perks", () => {
     const perkTitle = `E2E perks-link test perk ${run}`;
     const member = await seedMember({ firstName: "Noor", lastName: "Perks" });
     const partner = await seedPartner({ businessName: `E2E Perks Studio ${run}` });
-    await seedPerk(partner.id, { title: perkTitle, redemptionType: "online" });
+    await seedPerk(partner.id, { title: perkTitle, redemptionType: "online", url: `https://e2e-${run}.example.com` });
     const month = currentMonth();
 
     try {

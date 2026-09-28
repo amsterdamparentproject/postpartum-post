@@ -319,7 +319,7 @@ describe("optInFromMatches", () => {
     expect(updated?.consecutive_skips).toBe(0);
   });
 
-  it("already skipped — a re-skip is rejected as already responded, consecutive_skips unchanged", async () => {
+  it("already skipped — a re-skip is rejected as already responded, consecutive_skips unchanged by the rejected call", async () => {
     const member = await seedMember({ consecutive_skips: 1 });
     memberId = member.id;
     await seedSubscription(memberId);
@@ -334,7 +334,9 @@ describe("optInFromMatches", () => {
       .select("consecutive_skips")
       .eq("id", memberId)
       .single();
-    expect(updated?.consecutive_skips).toBe(1);
+    // The first skip call already bumped 1 -> 2; the rejected second call
+    // must not bump it again.
+    expect(updated?.consecutive_skips).toBe(2);
   });
 
   // ---------------------------------------------------------------------------

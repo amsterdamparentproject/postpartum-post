@@ -519,6 +519,24 @@ export async function hasMemberPerks(memberId: string, month: string): Promise<b
   return !!data;
 }
 
+/**
+ * Whether this month's match_rounds row is committed/locked -- perks-only
+ * opt-ins made after that point get debited immediately
+ * (debitLatePerksIfRoundCommitted, lib/match-ledger.ts) instead of waiting
+ * for a round that already happened. Specs use this to compute the
+ * matches_remaining they expect after a "perks" opt-in, since the shared
+ * e2e project's current-month round may or may not have committed yet
+ * depending on when the suite runs.
+ */
+export async function isMatchRoundCommitted(month: string): Promise<boolean> {
+  const { data } = await supabase()
+    .from("match_rounds")
+    .select("status")
+    .eq("month", `${month}-01`)
+    .maybeSingle();
+  return data?.status === "committed" || data?.status === "locked";
+}
+
 /** Returns true if a monthly_skips row exists for the member this month. */
 export async function hasMemberSkip(memberId: string, month: string): Promise<boolean> {
   const { data } = await supabase()
