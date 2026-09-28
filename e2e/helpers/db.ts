@@ -321,6 +321,7 @@ export async function cleanupMember(memberId: string): Promise<void> {
   await db.from("matches").delete().or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`);
   await db.from("monthly_participation").delete().eq("member_id", memberId);
   await db.from("monthly_skips").delete().eq("member_id", memberId);
+  await db.from("monthly_perks").delete().eq("member_id", memberId);
   await db.from("subscriptions").delete().eq("member_id", memberId);
   await db.from("members").delete().eq("id", memberId);
   // Delete the Supabase Auth user so test runs don't accumulate orphaned accounts
@@ -449,6 +450,17 @@ export async function seedParticipation(
 }
 
 /**
+ * Directly insert a monthly_perks row -- simulates a member choosing "no
+ * match, just perks" without going through the browser. See
+ * db/migrations/029_monthly_perks.sql and lib/monthly-opt-in.ts.
+ */
+export async function seedMonthlyPerks(memberId: string, month: string /* "YYYY-MM" */): Promise<void> {
+  const db = supabase();
+  const { error } = await db.from("monthly_perks").insert({ member_id: memberId, month: `${month}-01` });
+  if (error) throw new Error(`seedMonthlyPerks failed: ${error.message}`);
+}
+
+/**
  * Insert a match row directly, bypassing run-matcher + commit-matches.
  * Used to test the match reveal page without running a full commit round.
  * Returns the generated match ID.
@@ -483,6 +495,17 @@ export async function getStripeTrialEnd(subscriptionId: string): Promise<number 
 export async function hasMemberParticipation(memberId: string, month: string): Promise<boolean> {
   const { data } = await supabase()
     .from("monthly_participation")
+    .select("id")
+    .eq("member_id", memberId)
+    .eq("month", `${month}-01`)
+    .maybeSingle();
+  return !!data;
+}
+
+/** Returns true if a monthly_perks row exists for the member this month. */
+export async function hasMemberPerks(memberId: string, month: string): Promise<boolean> {
+  const { data } = await supabase()
+    .from("monthly_perks")
     .select("id")
     .eq("member_id", memberId)
     .eq("month", `${month}-01`)

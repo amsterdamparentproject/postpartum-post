@@ -25,6 +25,7 @@ async function sendWithNotice(lastMatchNotice?: boolean): Promise<string> {
     "Robin",
     "https://postpartumpost.com/api/optin?action=coffee",
     "https://postpartumpost.com/api/optin?action=playdate",
+    "https://postpartumpost.com/api/optin?action=perks",
     "https://postpartumpost.com/api/optin?action=skip",
     lastMatchNotice
   );
@@ -55,8 +56,9 @@ describe("opt-in email — soft last-match notice (Track E)", () => {
 
   it("still includes the ordinary opt-in content regardless of the notice", async () => {
     const html = await sendWithNotice(true);
-    expect(html).toContain("Meet for coffee");
-    expect(html).toContain("Meet for a playdate");
+    expect(html).toContain("Coffee + perks");
+    expect(html).toContain("Playdate + perks");
+    expect(html).toContain("No meetup, just perks");
     expect(html).toContain("Skip this month");
   });
 });

@@ -67,6 +67,7 @@ await send("optin", () =>
     "Alex",
     "https://postpartumpost.com/optin?action=coffee",
     "https://postpartumpost.com/optin?action=playdate",
+    "https://postpartumpost.com/optin?action=perks",
     "https://postpartumpost.com/optin?action=skip"
   )
 );
@@ -78,6 +79,7 @@ await send("optin-last-match", () =>
     "Alex",
     "https://postpartumpost.com/optin?action=coffee",
     "https://postpartumpost.com/optin?action=playdate",
+    "https://postpartumpost.com/optin?action=perks",
     "https://postpartumpost.com/optin?action=skip",
     true
   )

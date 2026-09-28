@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
   const targets = testMode ? members.filter(m => m.email === TEST_EMAIL) : members;
 
   for (const member of targets) {
-    const buildUrl = (action: "coffee" | "playdate" | "skip") => {
+    const buildUrl = (action: "coffee" | "playdate" | "perks" | "skip") => {
       const token = generateOptinToken(member.id, month, action);
       return `${SITE_URL}/api/optin?member=${member.id}&month=${month}&action=${action}&token=${token}`;
     };
@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
         member.first_name,
         buildUrl("coffee"),
         buildUrl("playdate"),
+        buildUrl("perks"),
         buildUrl("skip"),
         lastMatchNotice
       );

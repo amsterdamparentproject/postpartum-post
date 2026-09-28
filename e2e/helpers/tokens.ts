@@ -23,7 +23,7 @@ export function currentMonth(): string {
 export function buildOptinUrl(
   memberId: string,
   month: string,
-  action: "coffee" | "playdate" | "skip",
+  action: "coffee" | "playdate" | "perks" | "skip",
 ): string {
   const secret = process.env.OPTIN_TOKEN_SECRET;
   if (!secret) throw new Error("OPTIN_TOKEN_SECRET not set");
@@ -85,4 +85,18 @@ export function buildMeetupStatusUrl(
  */
 export function currentCardShowsMeetupPills(): boolean {
   return new Date().getDate() >= 7;
+}
+
+/**
+ * Whether today (Amsterdam time) is on or before the opt-in deadline day —
+ * mirrors lib/optin-window.ts's isOptinWindowOpen()/OPTIN_DEADLINE_DAY (5)
+ * without importing that Next.js-bound module. The /my-perks opt-in prompt
+ * shows a different button set on either side of this, so specs use it to
+ * pick the right one regardless of what day they run.
+ */
+export function isOptinWindowOpenNow(): boolean {
+  const day = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Amsterdam", day: "numeric" }).format(new Date())
+  );
+  return day <= 5;
 }

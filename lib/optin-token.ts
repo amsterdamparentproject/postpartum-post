@@ -5,7 +5,7 @@ import { createHmac, timingSafeEqual } from "crypto";
  *
  * Token = HMAC-SHA256( "{memberId}:{YYYY-MM}:{action}", OPTIN_TOKEN_SECRET )
  *
- * action is one of: "coffee" | "playdate" | "skip"
+ * action is one of: "coffee" | "playdate" | "perks" | "skip"
  *
  * A token is valid for exactly one member, one month, and one action.
  * It can't be guessed, replayed for a different month, or used by another member.
@@ -14,7 +14,7 @@ import { createHmac, timingSafeEqual } from "crypto";
  * Generate one with: openssl rand -hex 32
  */
 
-export type OptinAction = "coffee" | "playdate" | "skip";
+export type OptinAction = "coffee" | "playdate" | "perks" | "skip";
 
 function getSecret(): string {
   const secret = process.env.OPTIN_TOKEN_SECRET;

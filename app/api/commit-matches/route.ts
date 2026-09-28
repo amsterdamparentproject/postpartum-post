@@ -219,19 +219,31 @@ export async function POST(req: NextRequest) {
       .select("member_id")
       .eq("month", monthDate);
 
-    if (billableError || participationError || skipsError) {
+    // "No match, just perks" (monthly_perks, db/migrations/029_monthly_perks.sql)
+    // — a member who chose this responded, so they're excluded from
+    // no_response below same as a real opt-in, but they consume their own
+    // 'perks_only' credit here since (unlike coffee/playdate) they're never
+    // in insertedMatches to pick up match_delivered.
+    const { data: perksOnly, error: perksOnlyError } = await supabase
+      .from("monthly_perks")
+      .select("member_id")
+      .eq("month", monthDate);
+
+    if (billableError || participationError || skipsError || perksOnlyError) {
       console.error("[commit-matches] failed to load no_response population:", {
         billableError,
         participationError,
         skipsError,
+        perksOnlyError,
       });
     } else {
       const participatedIds = new Set((participation ?? []).map((p) => p.member_id));
       const skippedIds = new Set((skips ?? []).map((s) => s.member_id));
+      const perksOnlyIds = new Set((perksOnly ?? []).map((p) => p.member_id));
 
       const noResponseIds = (billableMembers ?? [])
         .map((m) => m.id)
-        .filter((id) => !participatedIds.has(id) && !skippedIds.has(id));
+        .filter((id) => !participatedIds.has(id) && !skippedIds.has(id) && !perksOnlyIds.has(id));
 
       for (const memberId of noResponseIds) {
         try {
@@ -243,6 +255,19 @@ export async function POST(req: NextRequest) {
           });
         } catch (e) {
           console.error(`[commit-matches] record_entitlement (no_response) failed for ${memberId}:`, e);
+        }
+      }
+
+      for (const memberId of perksOnlyIds) {
+        try {
+          await recordEntitlement(supabase, {
+            memberId,
+            event: "perks_only",
+            delta: -1,
+            month: monthDate,
+          });
+        } catch (e) {
+          console.error(`[commit-matches] record_entitlement (perks_only) failed for ${memberId}:`, e);
         }
       }
     }

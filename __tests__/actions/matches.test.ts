@@ -39,7 +39,7 @@ const BASE_MATCH = {
   member2: { id: MEMBER_B, first_name: "Beth", last_name: "B", email: "b@test.com" },
 };
 
-function mockSupabase(matchRow = BASE_MATCH, { skipped = false } = {}) {
+function mockSupabase(matchRow = BASE_MATCH, { skipped = false, perksOnly = false } = {}) {
   return {
     createAdminClient: () => ({
       from: (table: string) => {
@@ -56,6 +56,20 @@ function mockSupabase(matchRow = BASE_MATCH, { skipped = false } = {}) {
           return {
             select: () => ({
               eq: () => Promise.resolve({ data: [], error: null }),
+            }),
+          };
+        }
+        if (table === "monthly_perks") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({
+                    data: perksOnly ? { month: "2026-06-01" } : null,
+                    error: null,
+                  }),
+                }),
+              }),
             }),
           };
         }
@@ -79,7 +93,7 @@ function mockSupabase(matchRow = BASE_MATCH, { skipped = false } = {}) {
   };
 }
 
-function mockSupabaseNoMatch({ skipped = false } = {}) {
+function mockSupabaseNoMatch({ skipped = false, perksOnly = false } = {}) {
   return {
     createAdminClient: () => ({
       from: (table: string) => {
@@ -98,6 +112,20 @@ function mockSupabaseNoMatch({ skipped = false } = {}) {
               eq: () => ({
                 eq: () => ({
                   maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "monthly_perks") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: () => Promise.resolve({
+                    data: perksOnly ? { month: "2026-06-01" } : null,
+                    error: null,
+                  }),
                 }),
               }),
             }),
@@ -182,6 +210,17 @@ describe("getMatchStatus — rematchRequestedBy", () => {
 
     const status = await getMatchStatus(MEMBER_A);
     expect(status.type).toBe("none");
+  });
+
+  it("returns type 'perks_only' when member has a monthly_perks row for the current month", async () => {
+    vi.doMock("@/lib/supabase", () => mockSupabaseNoMatch({ perksOnly: true }));
+    const { getMatchStatus } = await import("@/app/(account)/matches/actions");
+
+    const status = await getMatchStatus(MEMBER_A);
+    expect(status.type).toBe("perks_only");
+    if (status.type !== "perks_only") return;
+    expect(status.month).toBe("2026-06-01");
+    expect(status.pastMatches).toHaveLength(0);
   });
 
   it("returns null rematchRequestedBy when no rematch has been requested", async () => {

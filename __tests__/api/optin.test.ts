@@ -373,7 +373,7 @@ describe("GET /api/optin", () => {
     expect(skip).not.toBeNull();
   });
 
-  it("coffee after skip — redirects to /billing?optin=already_skip and does not write a participation row", async () => {
+  it("coffee after skip — now allowed: writes participation, clears the skip row, resets consecutive_skips", async () => {
     const member = await seedMember({ consecutive_skips: 1 });
     memberId = member.id;
     await seedSubscription(memberId);
@@ -382,15 +382,130 @@ describe("GET /api/optin", () => {
     const skipToken = generateOptinToken(memberId, MONTH, "skip");
     await GET(makeRequest(memberId, MONTH, "skip", skipToken));
 
-    // Then: try to opt in with coffee
+    // Then: change their mind to coffee
     const coffeeToken = generateOptinToken(memberId, MONTH, "coffee");
     const res = await GET(makeRequest(memberId, MONTH, "coffee", coffeeToken));
 
-    expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=already_skip");
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/profile?optin=coffee");
 
     const supabase = createTestSupabase();
 
-    // No participation row written
+    const { data: participation } = await supabase
+      .from("monthly_participation")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(participation).not.toBeNull();
+
+    const { data: skip } = await supabase
+      .from("monthly_skips")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(skip).toBeNull();
+
+    const { data: updated } = await supabase
+      .from("members")
+      .select("consecutive_skips")
+      .eq("id", memberId)
+      .single();
+    expect(updated?.consecutive_skips).toBe(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Perks-only ("no match, just perks")
+  // ---------------------------------------------------------------------------
+
+  it("perks — records a monthly_perks row, resets consecutive_skips, redirects to /my-perks", async () => {
+    const member = await seedMember({ consecutive_skips: 2 });
+    memberId = member.id;
+
+    const token = generateOptinToken(memberId, MONTH, "perks");
+    const res = await GET(makeRequest(memberId, MONTH, "perks", token));
+
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/my-perks?optin=perks");
+
+    const supabase = createTestSupabase();
+    const { data: perksRow } = await supabase
+      .from("monthly_perks")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(perksRow).not.toBeNull();
+
+    const { data: updated } = await supabase
+      .from("members")
+      .select("consecutive_skips")
+      .eq("id", memberId)
+      .single();
+    expect(updated?.consecutive_skips).toBe(0);
+  });
+
+  it("perks with no balance — redirects to /billing?optin=no_balance and writes no monthly_perks row", async () => {
+    const member = await seedMember({ matches_remaining: 0 });
+    memberId = member.id;
+
+    const token = generateOptinToken(memberId, MONTH, "perks");
+    const res = await GET(makeRequest(memberId, MONTH, "perks", token));
+
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/billing?optin=no_balance");
+
+    const supabase = createTestSupabase();
+    const { data: perksRow } = await supabase
+      .from("monthly_perks")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(perksRow).toBeNull();
+  });
+
+  it("perks after skip — clears the skip row and records monthly_perks", async () => {
+    const member = await seedMember({ consecutive_skips: 1 });
+    memberId = member.id;
+    await seedSubscription(memberId);
+
+    const skipToken = generateOptinToken(memberId, MONTH, "skip");
+    await GET(makeRequest(memberId, MONTH, "skip", skipToken));
+
+    const perksToken = generateOptinToken(memberId, MONTH, "perks");
+    await GET(makeRequest(memberId, MONTH, "perks", perksToken));
+
+    const supabase = createTestSupabase();
+    const { data: skip } = await supabase
+      .from("monthly_skips")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(skip).toBeNull();
+
+    const { data: perksRow } = await supabase
+      .from("monthly_perks")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", MONTH_DATE)
+      .maybeSingle();
+    expect(perksRow).not.toBeNull();
+  });
+
+  it("coffee after perks — a real answer is final, redirects home without changing anything", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+
+    const perksToken = generateOptinToken(memberId, MONTH, "perks");
+    await GET(makeRequest(memberId, MONTH, "perks", perksToken));
+
+    const coffeeToken = generateOptinToken(memberId, MONTH, "coffee");
+    const res = await GET(makeRequest(memberId, MONTH, "coffee", coffeeToken));
+
+    expect(getRedirectTarget(res.headers.get("location"))).toContain("/profile");
+    expect(getRedirectTarget(res.headers.get("location"))).not.toContain("optin=coffee");
+
+    const supabase = createTestSupabase();
     const { data: participation } = await supabase
       .from("monthly_participation")
       .select("id")
@@ -398,14 +513,6 @@ describe("GET /api/optin", () => {
       .eq("month", MONTH_DATE)
       .maybeSingle();
     expect(participation).toBeNull();
-
-    // consecutive_skips not reset
-    const { data: updated } = await supabase
-      .from("members")
-      .select("consecutive_skips")
-      .eq("id", memberId)
-      .single();
-    expect(updated?.consecutive_skips).toBe(2);
   });
 
   // ---------------------------------------------------------------------------

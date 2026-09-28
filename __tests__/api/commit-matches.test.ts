@@ -95,6 +95,15 @@ async function seedSkip(memberId: string) {
   if (error) throw new Error(`seedSkip failed: ${error.message}`);
 }
 
+/** Opts a member into "no match, just perks" for this round's month. */
+async function seedMonthlyPerks(memberId: string) {
+  const supabase = createTestSupabase();
+  const { error } = await supabase
+    .from("monthly_perks")
+    .insert({ member_id: memberId, month: TEST_MONTH_DATE });
+  if (error) throw new Error(`seedMonthlyPerks failed: ${error.message}`);
+}
+
 async function matchEntitlementsFor(memberId: string) {
   const supabase = createTestSupabase();
   const { data, error } = await supabase
@@ -379,6 +388,29 @@ describe("POST /api/commit-matches", () => {
       const rows = await matchEntitlementsFor(silent.id);
       expect(rows).toHaveLength(1);
       expect(rows[0].event).toBe("no_response");
+      expect(rows[0].delta).toBe(-1);
+    });
+
+    it("decrements a perks-only member by 1 (perks_only), and excludes them from no_response", async () => {
+      const perksOnly = await seedMember();
+      const b = await seedMember();
+      const c = await seedMember();
+      memberIds.push(perksOnly.id, b.id, c.id);
+      await seedMonthlyPerks(perksOnly.id);
+      await seedParticipation(b.id);
+      await seedParticipation(c.id);
+      await setMatchesRemaining(perksOnly.id, 2);
+
+      const roundId = await seedMatchRound("draft");
+      await seedMatchDraft(roundId, b.id, c.id);
+
+      const res = await POST(makeRequest({ month: TEST_MONTH }));
+      expect(res.status).toBe(200);
+
+      expect(await matchesRemainingFor(perksOnly.id)).toBe(1);
+      const rows = await matchEntitlementsFor(perksOnly.id);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].event).toBe("perks_only");
       expect(rows[0].delta).toBe(-1);
     });
 

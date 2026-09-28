@@ -186,6 +186,7 @@ export type MatchEntry = {
 export type MatchStatus =
   | { type: "pending"; topic: "coffee" | "playdate"; pastMatches: MatchEntry[] }
   | { type: "matched"; matches: MatchEntry[]; pastMatches: MatchEntry[] }
+  | { type: "perks_only"; month: string; pastMatches: MatchEntry[] }
   | { type: "skipped"; month: string; pastMatches: MatchEntry[] }
   | { type: "none"; pastMatches: MatchEntry[] };
 
@@ -291,6 +292,23 @@ export async function getMatchStatus(accessToken: string): Promise<MatchStatus> 
     };
   }
 
+  // "No match, just perks" this month -- see lib/monthly-opt-in.ts and
+  // db/migrations/029_monthly_perks.sql. Checked before skip since a real
+  // answer like this is what the skip branch below is for -- a member
+  // can't have both a monthly_perks and monthly_skips row for the same
+  // month (optInFromMatches/optin route clear the skip row when this is
+  // chosen), but checking order-independent is cheap insurance either way.
+  const { data: perksOnly } = await supabase
+    .from("monthly_perks")
+    .select("month")
+    .eq("member_id", memberId)
+    .eq("month", monthDate)
+    .maybeSingle();
+
+  if (perksOnly) {
+    return { type: "perks_only", month: monthDate, pastMatches };
+  }
+
   // Check if they skipped this month
   const { data: skip } = await supabase
     .from("monthly_skips")
@@ -370,17 +388,40 @@ export async function setMeetupStatus(
 // coffee/playdate/skip logic in /api/optin/route.ts.
 // ---------------------------------------------------------------------------
 
-export type OptInAction = "coffee" | "playdate" | "skip";
+export type OptInAction = "coffee" | "playdate" | "perks" | "skip";
 
 export type OptInResult =
   | { success: true }
   | { success: false; error: "closed" | "already_responded" | "no_balance" | "server_error" };
 
+/**
+ * Records a member's response for the month: coffee/playdate (joins the
+ * matcher pool via monthly_participation), "perks" (Post Perks access
+ * without matching — monthly_perks, see lib/monthly-opt-in.ts and
+ * db/migrations/029_monthly_perks.sql), or skip.
+ *
+ * coffee/playdate/skip close after the 5th (isOptinWindowOpen) -- perks
+ * doesn't, since it needs no matcher round to mean anything.
+ *
+ * A member who already skipped this month CAN still change to
+ * coffee/playdate/perks (deletes the stale monthly_skips row and resets
+ * consecutive_skips, same as any other opt-in) -- but a real opt-in
+ * (participation or perks) is final for the month, and a second skip is a
+ * no-op "already responded" rather than a fresh skip. This mirrors
+ * coffee/playdate/skip logic in /api/optin/route.ts, except that route's
+ * one-click email links additionally allow a skip -> * override there too;
+ * kept consistent here for the same reason (a member changing their mind
+ * mid-window shouldn't be told they already answered).
+ */
 export async function optInFromMatches(
   accessToken: string,
   action: OptInAction
 ): Promise<OptInResult> {
-  if (!isOptinWindowOpen()) {
+  // Matching itself closes after the 5th, but perks-only doesn't need a
+  // matcher round to mean anything -- it stays available all month (the
+  // /my-perks prompt and the closed-window /matches card both rely on
+  // this to let a member "Get your Perks" any time after the deadline).
+  if (!isOptinWindowOpen() && action !== "perks") {
     return { success: false, error: "closed" };
   }
 
@@ -398,13 +439,19 @@ export async function optInFromMatches(
 
   if (!memberRow) return { success: false, error: "server_error" };
 
-  // Don't allow silently overwriting an existing response for the month
-  const [{ data: existingSkip }, { data: existingParticipation }] = await Promise.all([
+  const [{ data: existingSkip }, { data: existingParticipation }, { data: existingPerks }] = await Promise.all([
     supabase.from("monthly_skips").select("id").eq("member_id", memberId).eq("month", monthDate).maybeSingle(),
     supabase.from("monthly_participation").select("id").eq("member_id", memberId).eq("month", monthDate).maybeSingle(),
+    supabase.from("monthly_perks").select("id").eq("member_id", memberId).eq("month", monthDate).maybeSingle(),
   ]);
 
-  if (existingSkip || existingParticipation) {
+  // A real opt-in (matched or perks-only) is final for the month.
+  if (existingParticipation || existingPerks) {
+    return { success: false, error: "already_responded" };
+  }
+
+  // Re-skipping an already-skipped month is a no-op, not a fresh skip.
+  if (existingSkip && action === "skip") {
     return { success: false, error: "already_responded" };
   }
 
@@ -422,10 +469,33 @@ export async function optInFromMatches(
     return { success: true };
   }
 
-  // coffee or playdate — Track E3: gate on the counter, same as
-  // /api/optin/route.ts. Skip stays free regardless of balance.
+  // coffee, playdate, or perks — Track E3: gate on the counter, same as
+  // /api/optin/route.ts. Skip stays free regardless of balance; perks-only
+  // consumes a credit exactly like a real match (commit-matches records a
+  // 'perks_only' entitlement event for it).
   if ((memberRow.matches_remaining ?? 0) <= 0) {
     return { success: false, error: "no_balance" };
+  }
+
+  // Changing their mind from a skip to a real answer -- clear the stale
+  // skip row first so it can't double-count as both "skipped" and "opted
+  // in" (admin stats reads monthly_skips' row count directly).
+  if (existingSkip) {
+    await supabase.from("monthly_skips").delete().eq("member_id", memberId).eq("month", monthDate);
+  }
+
+  if (action === "perks") {
+    const { error: perksError } = await supabase
+      .from("monthly_perks")
+      .insert({ member_id: memberId, month: monthDate });
+
+    if (perksError) {
+      if (perksError.code === "23505") return { success: false, error: "already_responded" };
+      return { success: false, error: "server_error" };
+    }
+
+    await supabase.from("members").update({ consecutive_skips: 0 }).eq("id", memberId);
+    return { success: true };
   }
 
   const { data: topic, error: topicError } = await supabase

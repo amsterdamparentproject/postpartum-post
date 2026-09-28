@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     !memberId ||
     !month ||
     !action ||
-    !["coffee", "playdate", "skip"].includes(action)
+    !["coffee", "playdate", "perks", "skip"].includes(action)
   ) {
     return NextResponse.redirect(`${origin}/`);
   }
@@ -94,27 +94,70 @@ export async function GET(request: NextRequest) {
     return signInAndRedirect(supabase, memberRow.email, `${origin}/billing?optin=skip`, origin);
   }
 
-  // coffee or playdate
+  // coffee, playdate, or perks
   // Track E3: gate on the counter — a member with nothing left to spend
   // isn't enrolled in the round (they still get the opt-in email; the gate
   // is only at the click). Skipping stays free regardless of balance, so
   // this check only applies here, not in the "skip" branch above.
+  // perks-only consumes a credit exactly like a real match (commit-matches
+  // records a 'perks_only' entitlement event for it) -- same gate.
   if ((memberRow.matches_remaining ?? 0) <= 0) {
     return signInAndRedirect(supabase, memberRow.email, `${origin}/billing?optin=no_balance`, origin);
   }
 
   const monthDate = monthToDate(month);
 
-  // Block if they've already skipped this month
-  const { data: existingSkip } = await supabase
+  // A member who already skipped this month can still change their mind to
+  // coffee/playdate/perks -- clear the stale skip row so it can't
+  // double-count as both "skipped" and "opted in" (admin stats reads
+  // monthly_skips' row count directly).
+  await supabase
     .from("monthly_skips")
+    .delete()
+    .eq("member_id", memberId)
+    .eq("month", monthDate);
+
+  // A real answer (matched or perks-only) is final for the month -- unlike
+  // a skip, it isn't overridden by clicking a different link from the same
+  // original email. Rare in practice (two different one-click links from
+  // the same still-valid email), so this just lands them back on /profile
+  // rather than needing its own banner copy.
+  if (action === "perks") {
+    const { data: existingParticipation } = await supabase
+      .from("monthly_participation")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", monthDate)
+      .maybeSingle();
+    if (existingParticipation) {
+      return signInAndRedirect(supabase, memberRow.email, `${origin}/profile`, origin);
+    }
+
+    const { error: perksError } = await supabase
+      .from("monthly_perks")
+      .insert({ member_id: memberId, month: monthDate });
+
+    if (perksError && perksError.code !== "23505") {
+      console.error("[optin] Failed to record perks-only opt-in:", perksError);
+      return NextResponse.redirect(`${origin}/`);
+    }
+
+    await supabase
+      .from("members")
+      .update({ consecutive_skips: 0 })
+      .eq("id", memberId);
+
+    return signInAndRedirect(supabase, memberRow.email, `${origin}/my-perks?optin=perks`, origin);
+  }
+
+  const { data: existingPerks } = await supabase
+    .from("monthly_perks")
     .select("id")
     .eq("member_id", memberId)
     .eq("month", monthDate)
     .maybeSingle();
-
-  if (existingSkip) {
-    return signInAndRedirect(supabase, memberRow.email, `${origin}/billing?optin=already_skip`, origin);
+  if (existingPerks) {
+    return signInAndRedirect(supabase, memberRow.email, `${origin}/profile`, origin);
   }
 
   const { data: topic, error: topicError } = await supabase

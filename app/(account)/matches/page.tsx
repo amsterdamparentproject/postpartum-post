@@ -56,6 +56,7 @@ export default function MatchesPage() {
             />
           ))}
           {status?.type === "pending" && <PendingCard topic={status.topic} />}
+          {status?.type === "perks_only" && <PerksOnlyCard month={status.month} />}
           {status?.type === "skipped" && <SkippedCard month={status.month} />}
           {status?.type === "none" && (
             isOptinWindowOpen() ? (
@@ -66,7 +67,10 @@ export default function MatchesPage() {
             ) : pastMatches.length === 0 ? (
               <EmptyCard />
             ) : (
-              <ClosedCard />
+              <ClosedCard
+                accessToken={accessToken ?? ""}
+                onOptIn={() => getMatchStatus(accessToken ?? "").then(setStatus)}
+              />
             )
           )}
         </section>
@@ -588,6 +592,30 @@ function MeetupPills({
   );
 }
 
+function PerksOnlyCard({ month }: { month: string }) {
+  const monthYear = new Date(month + "T00:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
+
+  return (
+    <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-6 space-y-3">
+      <div className="flex items-center gap-3">
+        <span className="text-3xl">🎁</span>
+        <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>Just Post Perks</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-muted">{monthYear}</p>
+        <span className="text-xs text-muted bg-gray-100 rounded-full px-2.5 py-0.5">No match this month</span>
+      </div>
+      <p className="text-sm text-muted">
+        You chose Post Perks without a meetup this month.{" "}
+        <Link href="/my-perks" className="text-coral hover:text-coral-dark transition-colors underline">
+          See your perks
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}
+
 function SkippedCard({ month }: { month: string }) {
   const monthYear = new Date(month + "T00:00:00").toLocaleString("en-US", { month: "long", year: "numeric" });
 
@@ -642,10 +670,11 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         Let us know how you&apos;d like to meet this month — we&apos;ll take care of the rest.
         You have until the {OPTIN_DEADLINE_DAY}th to respond.
       </p>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-3">
         <button
           onClick={() => handleChoice("coffee")}
           disabled={isPending}
+          data-umami-event="Optin: Coffee"
           className="rounded-lg bg-coral text-white text-sm py-2.5 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
         >
           {isPending && pendingAction === "coffee" ? "Joining…" : "☕ Meet for coffee"}
@@ -653,14 +682,24 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         <button
           onClick={() => handleChoice("playdate")}
           disabled={isPending}
+          data-umami-event="Optin: Playdate"
           className="rounded-lg bg-coral text-white text-sm py-2.5 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
         >
           {isPending && pendingAction === "playdate" ? "Joining…" : "🛝 Meet for a playdate"}
+        </button>
+        <button
+          onClick={() => handleChoice("perks")}
+          disabled={isPending}
+          data-umami-event="Optin: Perks only"
+          className="rounded-lg bg-dark text-white text-sm py-2.5 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+        >
+          {isPending && pendingAction === "perks" ? "Joining…" : "🎁 No meetup, just perks"}
         </button>
       </div>
       <button
         onClick={() => handleChoice("skip")}
         disabled={isPending}
+        data-umami-event="Optin: Skip"
         className="text-xs text-muted underline hover:text-dark transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
       >
         {isPending && pendingAction === "skip" ? "Skipping…" : "Skip this month"}
@@ -670,15 +709,50 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
   );
 }
 
-function ClosedCard() {
+function ClosedCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () => void }) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  function handleGetPerks() {
+    setError(null);
+    startTransition(async () => {
+      const result = await optInFromMatches(accessToken, "perks");
+      if (result.success) {
+        setDone(true);
+        onOptIn();
+      } else {
+        const messages: Record<string, string> = {
+          closed: "The opt-in window for this month has closed.",
+          already_responded: "You've already responded for this month.",
+          no_balance: "You're between terms right now — check your billing page for when you'll be matched again.",
+          server_error: "Something went wrong. Please try again.",
+        };
+        setError(messages[result.error] ?? "Something went wrong.");
+      }
+    });
+  }
+
   return (
     <div className="rounded-2xl border border-dashed border-border p-6">
       <div className="flex items-center gap-3">
         <span className="text-2xl">🗓️</span>
         <p className="text-sm text-muted">
-          This month&apos;s opt-in window has closed. Check your email around the 1st of next month to join the match pool again.
+          This month&apos;s match opt-in window has closed.{" "}
+          {!done && (
+            <button
+              onClick={handleGetPerks}
+              disabled={isPending}
+              data-umami-event="Optin: Perks only (closed window)"
+              className="text-coral hover:text-coral-dark underline transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+            >
+              {isPending ? "Getting your perks…" : "Get your Perks"}
+            </button>
+          )}
+          {done && <span className="text-dark font-medium">Perks unlocked!</span>} this month or check your email around the 1st of next month to join the match pool again.
         </p>
       </div>
+      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
     </div>
   );
 }

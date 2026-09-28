@@ -108,12 +108,30 @@ export async function seedSubscription(
   return sub;
 }
 
+/**
+ * Directly insert a monthly_perks row -- simulates a member choosing "no
+ * match, just perks" without going through the browser (see
+ * db/migrations/029_monthly_perks.sql, lib/monthly-opt-in.ts). Defaults to
+ * the current Amsterdam month, matching the gate every Perks call site
+ * checks against (app/(account)/my-perks/actions.ts's own local
+ * currentMonth()).
+ */
+export async function seedMonthlyPerks(memberId: string, monthDate?: string) {
+  const supabase = createTestSupabase();
+  const month =
+    monthDate ??
+    new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Amsterdam" }).slice(0, 7) + "-01";
+  const { error } = await supabase.from("monthly_perks").insert({ member_id: memberId, month });
+  if (error) throw new Error(`seedMonthlyPerks failed: ${error.message}`);
+}
+
 export async function cleanupMember(memberId: string) {
   const supabase = createTestSupabase();
   // Delete in dependency order
   await supabase.from("matches").delete().or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`);
   await supabase.from("monthly_participation").delete().eq("member_id", memberId);
   await supabase.from("monthly_skips").delete().eq("member_id", memberId);
+  await supabase.from("monthly_perks").delete().eq("member_id", memberId);
   await supabase.from("subscriptions").delete().eq("member_id", memberId);
   await supabase.from("members").delete().eq("id", memberId);
 }

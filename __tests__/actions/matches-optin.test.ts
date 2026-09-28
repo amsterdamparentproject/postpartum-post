@@ -2,10 +2,15 @@
  * optInFromMatches — unit tests
  *
  * In-app equivalent of the emailed opt-in link (GET /api/optin), reachable
- * from /matches. Same coffee/playdate/skip semantics, plus:
+ * from /matches and from the /my-perks opt-in prompt. Same
+ * coffee/playdate/perks/skip semantics, plus:
  *   - a hard deadline (closes after the 5th of the month)
  *   - an explicit "already responded" guard (no silent overwrite of a prior
  *     choice, unlike the route's upsert-on-topic-change behavior)
+ *   - one exception to that guard: a member who already skipped this month
+ *     CAN still change to coffee/playdate/perks (deletes the stale
+ *     monthly_skips row, resets consecutive_skips) -- see
+ *     db/migrations/029_monthly_perks.sql and lib/monthly-opt-in.ts
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -68,6 +73,24 @@ describe("optInFromMatches", () => {
       .eq("member_id", memberId)
       .maybeSingle();
     expect(participation).toBeNull();
+  });
+
+  it("perks after the 5th — still succeeds (perks-only needs no matcher round, so it stays open all month, unlike coffee/playdate/skip)", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+
+    vi.setSystemTime(AFTER_DEADLINE);
+    const result = await optInFromMatches(memberId, "perks");
+    expect(result).toEqual({ success: true });
+
+    const supabase = createTestSupabase();
+    const { data: perksRow } = await supabase
+      .from("monthly_perks")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", monthDate)
+      .maybeSingle();
+    expect(perksRow).not.toBeNull();
   });
 
   // ---------------------------------------------------------------------------
@@ -262,16 +285,78 @@ describe("optInFromMatches", () => {
     expect(topic?.name).toBe("coffee");
   });
 
-  it("already skipped — a coffee/playdate call afterward is rejected, consecutive_skips unchanged", async () => {
+  it("already skipped — a coffee call afterward succeeds, clears the skip row, and resets consecutive_skips", async () => {
     const member = await seedMember({ consecutive_skips: 1 });
     memberId = member.id;
     await seedSubscription(memberId);
 
     await optInFromMatches(memberId, "skip");
     const attempt = await optInFromMatches(memberId, "coffee");
+    expect(attempt).toEqual({ success: true });
+
+    const supabase = createTestSupabase();
+    const { data: participation } = await supabase
+      .from("monthly_participation")
+      .select("topic_id")
+      .eq("member_id", memberId)
+      .eq("month", monthDate)
+      .maybeSingle();
+    expect(participation).not.toBeNull();
+
+    const { data: skip } = await supabase
+      .from("monthly_skips")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", monthDate)
+      .maybeSingle();
+    expect(skip).toBeNull();
+
+    const { data: updated } = await supabase
+      .from("members")
+      .select("consecutive_skips")
+      .eq("id", memberId)
+      .single();
+    expect(updated?.consecutive_skips).toBe(0);
+  });
+
+  it("already skipped — a re-skip is rejected as already responded, consecutive_skips unchanged", async () => {
+    const member = await seedMember({ consecutive_skips: 1 });
+    memberId = member.id;
+    await seedSubscription(memberId);
+
+    await optInFromMatches(memberId, "skip");
+    const attempt = await optInFromMatches(memberId, "skip");
     expect(attempt).toEqual({ success: false, error: "already_responded" });
 
     const supabase = createTestSupabase();
+    const { data: updated } = await supabase
+      .from("members")
+      .select("consecutive_skips")
+      .eq("id", memberId)
+      .single();
+    expect(updated?.consecutive_skips).toBe(1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Perks-only ("no match, just perks")
+  // ---------------------------------------------------------------------------
+
+  it("perks — records monthly_perks (not monthly_participation) and resets consecutive_skips", async () => {
+    const member = await seedMember({ consecutive_skips: 2 });
+    memberId = member.id;
+
+    const result = await optInFromMatches(memberId, "perks");
+    expect(result).toEqual({ success: true });
+
+    const supabase = createTestSupabase();
+    const { data: perksRow } = await supabase
+      .from("monthly_perks")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", monthDate)
+      .maybeSingle();
+    expect(perksRow).not.toBeNull();
+
     const { data: participation } = await supabase
       .from("monthly_participation")
       .select("id")
@@ -285,7 +370,52 @@ describe("optInFromMatches", () => {
       .select("consecutive_skips")
       .eq("id", memberId)
       .single();
-    expect(updated?.consecutive_skips).toBe(2);
+    expect(updated?.consecutive_skips).toBe(0);
+  });
+
+  it("perks with no balance — returns 'no_balance' and writes no monthly_perks row", async () => {
+    const member = await seedMember({ matches_remaining: 0 });
+    memberId = member.id;
+
+    const result = await optInFromMatches(memberId, "perks");
+    expect(result).toEqual({ success: false, error: "no_balance" });
+
+    const supabase = createTestSupabase();
+    const { data: perksRow } = await supabase
+      .from("monthly_perks")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", monthDate)
+      .maybeSingle();
+    expect(perksRow).toBeNull();
+  });
+
+  it("already skipped — a perks call afterward succeeds and clears the skip row", async () => {
+    const member = await seedMember({ consecutive_skips: 1 });
+    memberId = member.id;
+    await seedSubscription(memberId);
+
+    await optInFromMatches(memberId, "skip");
+    const attempt = await optInFromMatches(memberId, "perks");
+    expect(attempt).toEqual({ success: true });
+
+    const supabase = createTestSupabase();
+    const { data: skip } = await supabase
+      .from("monthly_skips")
+      .select("id")
+      .eq("member_id", memberId)
+      .eq("month", monthDate)
+      .maybeSingle();
+    expect(skip).toBeNull();
+  });
+
+  it("already perks-only — a second opt-in call is rejected", async () => {
+    const member = await seedMember();
+    memberId = member.id;
+
+    await optInFromMatches(memberId, "perks");
+    const attempt = await optInFromMatches(memberId, "coffee");
+    expect(attempt).toEqual({ success: false, error: "already_responded" });
   });
 
   it("already opted in — a skip call afterward is rejected", async () => {

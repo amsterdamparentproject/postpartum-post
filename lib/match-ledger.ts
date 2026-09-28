@@ -15,6 +15,7 @@ export type EntitlementEvent =
   | "term_payment"
   | "match_delivered"
   | "no_response"
+  | "perks_only"
   | "manual_grant"
   | "manual_backfill"
   | "payment_failed"

@@ -123,6 +123,7 @@ export default async function AdminStatsPage() {
               total={round.totalActive}
               sub={`${round.coffee} coffee · ${round.playdate} playdate`}
             />
+            <RoundRow label="Just perks" count={round.perksOnly} total={round.totalActive} sub="No match, just Post Perks access" />
             <RoundRow label="Skipped" count={round.skipped} total={round.totalActive} />
             <RoundRow label="No response" count={round.noResponse} total={round.totalActive} />
             <RoundRow

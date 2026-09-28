@@ -55,6 +55,11 @@ export type MatchRoundStats = {
   optedIn: number;
   coffee: number;
   playdate: number;
+  /** "No match, just perks" -- monthly_perks, not monthly_participation.
+   *  Counted as a response (excluded from noResponse) but kept out of
+   *  optedIn/coffee/playdate since those members never join the matcher
+   *  pool -- see db/migrations/029_monthly_perks.sql. */
+  perksOnly: number;
   skipped: number;
   joinedAfterRound: number;
   noResponse: number;
@@ -238,7 +243,7 @@ export async function getMatchRoundStats(): Promise<MatchRoundStats> {
   // for this round at all, so they shouldn't read as a non-responder.
   const deadline = optinDeadlineUTC(monthStr);
 
-  const [{ count: totalActive }, { data: participations }, { count: skipped }, { count: joinedAfterRound }] =
+  const [{ count: totalActive }, { data: participations }, { count: perksOnly }, { count: skipped }, { count: joinedAfterRound }] =
     await Promise.all([
       supabase
         .from("members")
@@ -247,6 +252,10 @@ export async function getMatchRoundStats(): Promise<MatchRoundStats> {
       supabase
         .from("monthly_participation")
         .select("topic_id, topics ( name )")
+        .eq("month", monthDate),
+      supabase
+        .from("monthly_perks")
+        .select("*", { count: "exact", head: true })
         .eq("month", monthDate),
       supabase
         .from("monthly_skips")
@@ -267,9 +276,13 @@ export async function getMatchRoundStats(): Promise<MatchRoundStats> {
   const playdate = (participations ?? []).filter(
     (p) => (p.topics as unknown as { name: string } | null)?.name === "playdate"
   ).length;
+  const perksOnlyN = perksOnly ?? 0;
   const skippedN = skipped ?? 0;
   const joinedAfterRoundN = joinedAfterRound ?? 0;
-  const noResponse = Math.max(0, active - optedIn - skippedN - joinedAfterRoundN);
+  // perksOnlyN is its own response bucket (not a match opt-in, but not a
+  // non-response either) so it comes out of noResponse the same way
+  // skipped and joinedAfterRound already do.
+  const noResponse = Math.max(0, active - optedIn - perksOnlyN - skippedN - joinedAfterRoundN);
 
   return {
     month: monthStr,
@@ -277,6 +290,7 @@ export async function getMatchRoundStats(): Promise<MatchRoundStats> {
     optedIn,
     coffee,
     playdate,
+    perksOnly: perksOnlyN,
     skipped: skippedN,
     joinedAfterRound: joinedAfterRoundN,
     noResponse,
