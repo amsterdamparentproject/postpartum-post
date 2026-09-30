@@ -221,6 +221,21 @@ export default function PerkFields({
         </div>
       </div>
 
+      <div>
+        <label className={labelClass} htmlFor="estimated-savings">Estimated savings (€)</label>
+        <p className="text-xs text-muted mb-1.5">
+          Roughly how many euros this saves a member, in whole euros. It shows as &quot;Save €X&quot; on the card. Leave empty if there&apos;s no clean figure.
+        </p>
+        <input
+          id="estimated-savings"
+          type="text"
+          inputMode="numeric"
+          value={value.estimated_savings}
+          onChange={(e) => set("estimated_savings", e.target.value.replace(/[^\d]/g, ""))}
+          className={`${inputClass} max-w-[10rem]`}
+        />
+      </div>
+
       <div className="space-y-3 my-6">
         <ExclusiveToggle checked={value.exclusive} onChange={(v) => set("exclusive", v)} />
         <IntroOfferToggle

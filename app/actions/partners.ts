@@ -444,7 +444,7 @@ export type PartnerPerk = SavedPerkFields & {
 };
 
 const PERK_FIELDS =
-  "id, status, is_online, title, description, redemption_type, redemption_code, url, expires_at, exclusive, frequency";
+  "id, status, is_online, title, description, redemption_type, redemption_code, url, expires_at, exclusive, frequency, estimated_savings";
 
 export async function listPartnerPerks(accessToken: string): Promise<PartnerPerk[]> {
   const authed = await requirePartner(accessToken);

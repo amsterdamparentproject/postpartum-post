@@ -50,6 +50,7 @@ export type MemberPerk = {
   expires_at: string | null;
   exclusive: boolean;
   frequency: PerkFrequency;
+  estimated_savings: number | null;
   partner: { business_name: string; image_url: string | null };
   location_label: string | null;
   redemption_type: RedemptionType;
@@ -69,7 +70,7 @@ function today(): string {
 }
 
 const LIVE_PERK_FIELDS =
-  "id, title, description, expires_at, exclusive, frequency, featured, created_at, redemption_type, redemption_code, url, partner_name, partner_url, partner_image_url, is_online, locations";
+  "id, title, description, expires_at, exclusive, frequency, estimated_savings, featured, created_at, redemption_type, redemption_code, url, partner_name, partner_url, partner_image_url, is_online, locations";
 
 /** One of the perk's locations, straight from the perks_partners view's jsonb (db/migrations/031_perk_multi_location.sql). */
 type LiveLocationRow = { neighborhood: string | null; area: string | null; latitude: number | null; longitude: number | null };
@@ -81,6 +82,7 @@ type LivePerkRow = {
   expires_at: string | null;
   exclusive: boolean;
   frequency: PerkFrequency;
+  estimated_savings: number | null;
   featured: boolean;
   created_at: string;
   redemption_type: RedemptionType;
@@ -181,6 +183,7 @@ export async function listMemberPerks(accessToken: string): Promise<MemberPerksR
       expires_at: r.expires_at,
       exclusive: r.exclusive,
       frequency: r.frequency,
+      estimated_savings: r.estimated_savings,
       partner: { business_name: r.partner_name, image_url: r.partner_image_url },
       location_label: perkLocationLabel((r.locations ?? []).map((l) => ({ neighborhood: l.neighborhood, area: l.area })), r.is_online),
       redemption_type: r.redemption_type,

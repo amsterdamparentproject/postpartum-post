@@ -648,7 +648,7 @@ export async function listPerksForReview(): Promise<ReviewPerk[]> {
   const { data: perks, error } = await supabase
     .from("perks_partners")
     .select(
-      "id, status, created_at, is_online, title, description, redemption_type, redemption_code, url, expires_at, exclusive, frequency, partner_id, partner_name, partner_url, partner_image_url",
+      "id, status, created_at, is_online, title, description, redemption_type, redemption_code, url, expires_at, exclusive, frequency, estimated_savings, partner_id, partner_name, partner_url, partner_image_url",
     )
     .order("created_at", { ascending: false });
   if (error) {

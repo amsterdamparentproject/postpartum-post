@@ -35,8 +35,27 @@ describe("normalizePerkInput", () => {
         expires_at: null,
         exclusive: false,
         frequency: "monthly",
+        estimated_savings: null,
       },
     });
+  });
+
+  it("parses estimated savings as whole euros, empty as null", () => {
+    const savings = (v: string) => {
+      const r = normalizePerkInput(input({ estimated_savings: v }));
+      return r.ok ? r.row.estimated_savings : r.error;
+    };
+    expect(savings("")).toBeNull();
+    expect(savings("  ")).toBeNull();
+    expect(savings(" 15 ")).toBe(15);
+    expect(savings("0")).toBe(0);
+    expect(savings("9999")).toBe(9999);
+  });
+
+  it("rejects non-integer or out-of-range savings", () => {
+    for (const bad of ["12.50", "-5", "abc", "10000"]) {
+      expect(normalizePerkInput(input({ estimated_savings: bad })).ok).toBe(false);
+    }
   });
 
   it("requires a headline and description", () => {

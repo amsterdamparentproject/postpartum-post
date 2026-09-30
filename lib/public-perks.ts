@@ -36,7 +36,7 @@ export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean
   const { data, error } = await supabase
     .from("perks_partners")
     .select(
-      "id, status, title, description, expires_at, exclusive, frequency, featured, created_at, partner_name, partner_image_url, is_online, locations",
+      "id, status, title, description, expires_at, exclusive, frequency, estimated_savings, featured, created_at, partner_name, partner_image_url, is_online, locations",
     )
     .in("status", liveOnly ? ["published"] : ["published", "coming_soon"])
     .or(`expires_at.is.null,expires_at.gte.${today}`);
@@ -90,6 +90,7 @@ export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean
       expires_at: p.expires_at as string | null,
       exclusive: p.exclusive as boolean,
       frequency: p.frequency as "monthly" | "once",
+      estimated_savings: p.estimated_savings as number | null,
       partner: {
         business_name: p.partner_name as string,
         image_url: p.partner_image_url as string | null,

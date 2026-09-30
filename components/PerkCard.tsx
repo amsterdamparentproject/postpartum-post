@@ -4,6 +4,8 @@ import { formatExpiry } from "@/lib/perk-display";
 
 // The Post Perks wordmark green (PostPerksWordMark).
 const PERK_GREEN = "#8A9E3A";
+// Darker green for the "Save €X" badge, so it reads on any partner photo.
+const SAVINGS_GREEN = "#4F5F1E";
 
 export type PerkCardPerk = {
   title: string;
@@ -12,6 +14,8 @@ export type PerkCardPerk = {
   exclusive: boolean;
   /** 'once' = an intro offer, redeemable a single time per member ever. */
   frequency?: "monthly" | "once";
+  /** Whole euros the perk saves a member. Shown as "Save €X" top-right when no `badge` is given. */
+  estimated_savings?: number | null;
 };
 
 export type PerkCardPartner = {
@@ -28,7 +32,8 @@ export type PerkCardPartner = {
  * Presentational only — no code, no redeem button. The reveal flow ("Use
  * this perk", see __claude__/perks-simplification-plan.md) wraps this later.
  * `badge` is a slot on the photo's top-right corner (e.g. the partner
- * portal's review status), and `onClick` makes the whole card a button.
+ * portal's review status, or "Redeemed"); when it's empty the corner shows
+ * the "Save €X" pill instead, if the perk has estimated_savings, and `onClick` makes the whole card a button.
  * `actionLabel` is shown in an overlay on hover/keyboard focus of a
  * clickable card: "Edit perk" in the partner portal, "Redeem now" on a
  * live perk for members. On touch screens there's no hover, so a tap goes
@@ -71,7 +76,19 @@ export default function PerkCard({
             <Sparkle className="w-20 h-auto" />
           </div>
         )}
-        {badge && <div className="absolute top-3 right-3">{badge}</div>}
+        {badge ? (
+          <div className="absolute top-3 right-3">{badge}</div>
+        ) : (
+          perk.estimated_savings != null &&
+          perk.estimated_savings > 0 && (
+            <span
+              className="absolute top-3 right-3 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm text-white"
+              style={{ backgroundColor: SAVINGS_GREEN }}
+            >
+              Save €{perk.estimated_savings}
+            </span>
+          )
+        )}
       </div>
 
       <div className="p-4 flex flex-col gap-1.5 flex-1">

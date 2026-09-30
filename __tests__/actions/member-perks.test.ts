@@ -52,6 +52,7 @@ describe("member perks", () => {
       expires_at: "",
       exclusive: false,
       frequency: "monthly",
+      estimated_savings: "",
     });
     perkId = created.perkId!;
   });

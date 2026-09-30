@@ -41,6 +41,7 @@ function perkInput(overrides: Partial<PartnerPerkInput> = {}): PartnerPerkInput 
     expires_at: "",
     exclusive: false,
     frequency: "monthly",
+    estimated_savings: "",
     ...overrides,
   };
 }
