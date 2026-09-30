@@ -6,6 +6,20 @@ import { currentMonth, monthToDate } from "@/lib/tokens";
 import { scorePair, maxAchievableScore, qualityTier, getLastMatchedMap, type MatchCandidate } from "@/lib/matcher";
 import { ALEX_TEST_EMAIL, ensureAlexPastMatches } from "@/lib/test-fixtures/alex-past-matches";
 import { generateMatchToken } from "@/lib/match-token";
+import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
+import {
+  sendWelcomeEmail,
+  sendUnsubscribedEmail,
+  sendCancellationConfirmedEmail,
+  sendAutoPauseEmail,
+  sendGiftCardEmail,
+} from "@/lib/emails";
+import { sendRematchConfirmationEmail } from "@/lib/emails/rematch-confirmation";
+import { sendMemberUpdateEmail } from "@/lib/emails/member-update";
+import { sendPendingFollowupEmail } from "@/lib/emails/pending-followup";
+import { sendPartnerWelcomeEmail } from "@/lib/emails/partner-welcome";
+import { sendPerkLiveEmail } from "@/lib/emails/perk-live";
+import { sendPerksAnnouncementEmail } from "@/lib/emails/perks-announcement";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -903,4 +917,192 @@ export async function testSimulateMatchEmails(): Promise<TestStepResult> {
 
 export async function testLockRound(): Promise<TestStepResult> {
   return callEndpoint("/api/lock-matches", { testMode: true });
+}
+
+// ---------------------------------------------------------------------------
+// testSendOptinEmail — send the real monthly opt-in email to the test member
+// ---------------------------------------------------------------------------
+
+/**
+ * Sends the actual opt-in email (real signed links) to the test member only —
+ * POST /api/send-optin-email in testMode, which filters to TEST_EMAIL's
+ * member. Unlike the round controls above, this one is meant to work in
+ * production too: it's how to check the email and its buttons end to end
+ * before the real send. Clicking the buttons records real opt-ins for that
+ * member (and, once the round has committed, "just perks" debits a match),
+ * so undo those in the DB afterward if the account is a real one.
+ */
+async function sendOptinTest(): Promise<TestStepResult> {
+  const testEmail = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
+  const result = await callEndpoint("/api/send-optin-email", { testMode: true });
+  if (!result.success) return result;
+
+  let sent = 0;
+  let failed = 0;
+  try {
+    const data = JSON.parse(result.message);
+    sent = data.sent ?? 0;
+    failed = data.failed ?? 0;
+  } catch {
+    // fall through to the generic error below
+  }
+  if (failed > 0) return { success: false, error: `Send to ${testEmail} failed — see server logs` };
+  if (sent === 0) {
+    return { success: false, error: `No active or canceling member with email ${testEmail} — nothing sent` };
+  }
+  return { success: true, message: `Sent the opt-in email to ${testEmail}` };
+}
+
+// ---------------------------------------------------------------------------
+// testSendEmail — send any transactional email to the test member
+// ---------------------------------------------------------------------------
+
+export type TestEmailKind =
+  | "optin"
+  | "match-reveal"
+  | "meetup-reminder"
+  | "welcome"
+  | "cancellation-confirmed"
+  | "auto-pause"
+  | "unsubscribed"
+  | "rematch-confirmation"
+  | "gift-card"
+  | "member-update"
+  | "pending-followup"
+  | "partner-welcome"
+  | "perk-live"
+  | "perks-announcement";
+
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
+
+/** Parses the JSON body callEndpoint hands back as `message`. */
+function parseCounts(message: string): { sent: number; failed: number; details?: unknown } {
+  try {
+    const data = JSON.parse(message);
+    return { sent: data.sent ?? data.sentCount ?? 0, failed: data.failed ?? 0, details: data.details ?? data.errors };
+  } catch {
+    return { sent: 0, failed: 0 };
+  }
+}
+
+/**
+ * Sends one transactional email to the test member (TEST_EMAIL, default
+ * amsterdamparentproject@gmail.com) with real links — signed opt-in tokens,
+ * magic links, the real match page — built the same way the production
+ * senders build them. The routes that already have a test mode (opt-in,
+ * match reveal, meetup reminder) are called as-is; the rest call their
+ * sender directly with the test member's details. Works in production,
+ * since it only ever emails the test member, but clicking a link acts on
+ * that member's real record.
+ */
+export async function testSendEmail(kind: TestEmailKind): Promise<TestStepResult> {
+  const testEmail = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
+  const supabase = createAdminClient();
+
+  const { data: member } = await supabase
+    .from("members")
+    .select("id, first_name, last_name")
+    .eq("email", testEmail)
+    .maybeSingle();
+  // Partner-only emails don't need a member; everything else does.
+  if (!member && kind !== "partner-welcome" && kind !== "perk-live") {
+    return { success: false, error: `No member with email ${testEmail} — nothing sent` };
+  }
+  const firstName = (member?.first_name as string | undefined) ?? "there";
+  const lastName = (member?.last_name as string | undefined) ?? "";
+  const memberId = member?.id as string | undefined;
+  const ok = (what: string): TestStepResult => ({ success: true, message: `Sent ${what} to ${testEmail}` });
+
+  try {
+    switch (kind) {
+      case "optin":
+        return await sendOptinTest();
+
+      case "match-reveal": {
+        const res = await callEndpoint("/api/send-match-emails", { testMode: true });
+        if (!res.success) return res;
+        const { sent, failed } = parseCounts(res.message);
+        if (failed > 0) return { success: false, error: "Send failed — see server logs" };
+        if (sent === 0) {
+          return { success: false, error: `No committed match this month for ${testEmail} — run Commit matches first` };
+        }
+        return ok("the match reveal email");
+      }
+
+      case "meetup-reminder": {
+        const res = await callEndpoint("/api/send-meetup-reminder", { dryRun: true });
+        if (!res.success) return res;
+        const { sent, failed } = parseCounts(res.message);
+        if (failed > 0) return { success: false, error: "Send failed — see server logs" };
+        if (sent === 0) {
+          return { success: false, error: `Nothing sent — ${testEmail} needs an eligible match this month` };
+        }
+        return ok("the meetup reminder");
+      }
+
+      case "welcome": {
+        const link = await generateMagicLinkWithRetry(supabase, testEmail, `${SITE_URL}/profile`);
+        const nextBilling = new Date(Date.now() + 30 * 86_400_000).toLocaleDateString("en-NL", {
+          day: "numeric", month: "long", year: "numeric",
+        });
+        await sendWelcomeEmail(
+          testEmail, firstName, link.success ? link.url : `${SITE_URL}/profile`, "Monthly (€12/mo)", nextBilling,
+        );
+        return ok("the welcome email");
+      }
+
+      case "cancellation-confirmed":
+        await sendCancellationConfirmedEmail(testEmail, firstName, new Date(Date.now() + 30 * 86_400_000));
+        return ok("the cancellation confirmation");
+
+      case "auto-pause":
+        await sendAutoPauseEmail(testEmail, firstName);
+        return ok("the auto-pause email");
+
+      case "unsubscribed":
+        await sendUnsubscribedEmail(supabase, testEmail, firstName, memberId!);
+        return ok("the unsubscribed email");
+
+      case "rematch-confirmation":
+        await sendRematchConfirmationEmail(testEmail, firstName);
+        return ok("the rematch confirmation");
+
+      case "gift-card":
+        // A placeholder code: the link opens the real /redeem page, but the
+        // code isn't a valid gift card, so redeeming it won't go through.
+        await sendGiftCardEmail(testEmail, "TESTCODE", 3);
+        return ok("the gift card email (placeholder code)");
+
+      case "member-update":
+        await sendMemberUpdateEmail(testEmail, firstName, memberId!);
+        return ok("the member update email");
+
+      case "pending-followup":
+        await sendPendingFollowupEmail(testEmail, firstName, lastName);
+        return ok("the pending follow-up email");
+
+      case "partner-welcome": {
+        const link = await generateMagicLinkWithRetry(supabase, testEmail, `${SITE_URL}/partners/profile`);
+        await sendPartnerWelcomeEmail({
+          firstName,
+          businessName: "Test Business",
+          email: testEmail,
+          portalUrl: link.success ? link.url : `${SITE_URL}/partners/login`,
+        });
+        return ok("the partner welcome email");
+      }
+
+      case "perks-announcement":
+        // Test member only. The send to all members is the
+        // perks-announcement:prod script, never this button.
+        await sendPerksAnnouncementEmail(testEmail, firstName);
+        return ok("the Post Perks announcement");
+
+      case "perk-live":
+        await sendPerkLiveEmail({ firstName, businessName: "Test Business", email: testEmail, perkTitle: "Test perk" });
+        return ok("the perk-live email");
+    }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
