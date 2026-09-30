@@ -6,6 +6,7 @@ import AnimatedSparkleDivider from "@/components/AnimatedSparkleDivider";
 import Link from "next/link";
 import PublicPerksCarousel from "@/components/PublicPerksCarousel";
 import { listPublicPerks } from "@/lib/public-perks";
+import WordMark from "@/components/WordMark";
 
 export const metadata: Metadata = {
   title: "Perks · Postpartum Post",
@@ -41,30 +42,32 @@ export default async function PerksPage() {
   return (
     <PageLayout>
       <main className="flex-1 flex flex-col items-center justify-center gap-10 px-6 py-8 text-center">
-        <div>
-          <AnimatedSparkleDivider />
-          <h1
-            className="text-4xl text-dark mb-3"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            <PostPerksWordMark size="text-4xl" /> are coming soon!
-          </h1>
-          <p className="text-dark text-lg mt-4 max-w-md mx-auto">
-            We&apos;ll be launching <span className="text-coral font-bold">discounts, freebies, and more</span> at your favorite family-friendly local spots in Fall 2026.
-          </p>
-        </div>
-
-        <PerkIdeaForm />
-
-        {perks.length > 0 && (
-          <section className="w-full max-w-sm md:max-w-xl mx-auto">
-            <h2 className="text-2xl text-dark text-center" style={{ fontFamily: "var(--font-serif)" }}>
-              Sneak peek at our first <PostPerksWordMark size="text-2xl" />
-            </h2>
-            <p className="text-muted text-center mt-2 mb-6">Just for Postpartum Post members 💌 More coming soon!</p>
+        {perks.length > 0 ? (
+          <section className="w-full max-w-sm md:max-w-2xl mx-auto">
+            <AnimatedSparkleDivider />
+            <h1 className="text-4xl text-dark mb-3" style={{ fontFamily: "var(--font-serif)" }}>
+              Sneak peek at our first <PostPerksWordMark size="text-4xl" />
+            </h1>
+            <p className="text-muted text-center mt-2 mb-6">Launching October 2026, exclusively for <WordMark size="text-base" /> members. If you are new here, don’t miss the giveaway below!</p>
             <PublicPerksCarousel perks={perks} />
           </section>
+        ) : (
+          // No perks yet: keep the "coming soon" hero so the page isn't just a form.
+          <div>
+            <AnimatedSparkleDivider />
+            <h1
+              className="text-4xl text-dark mb-3"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              <PostPerksWordMark size="text-4xl" /> are coming soon!
+            </h1>
+            <p className="text-dark text-lg mt-4 max-w-md mx-auto">
+              We&apos;ll be launching <span className="text-coral font-bold">discounts, freebies, and more</span> at your favorite family-friendly local spots in Fall 2026.
+            </p>
+          </div>
         )}
+
+        <PerkIdeaForm />
 
         <div className="bg-white/80 border border-green-light rounded-2xl shadow-sm px-6 py-4 max-w-md mx-auto text-sm text-dark hover:bg-green-light/20 transition-colors">
           Want to offer a Post Perk?{" "}
