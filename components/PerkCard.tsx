@@ -76,10 +76,10 @@ export default function PerkCard({
 
       <div className="p-4 flex flex-col gap-1.5 flex-1">
         <p className="text-xs font-medium uppercase tracking-wide text-muted truncate">{partner.business_name}</p>
-        <h3 className="text-lg leading-snug text-dark" style={{ fontFamily: "var(--font-serif)" }}>
+        <h3 className="text-lg leading-snug text-dark line-clamp-2" style={{ fontFamily: "var(--font-serif)" }}>
           {perk.title}
         </h3>
-        <p className="text-sm text-dark/80 leading-relaxed line-clamp-2">{perk.description}</p>
+        <p className="text-sm text-dark/80 leading-relaxed line-clamp-3">{perk.description}</p>
 
         <div className="mt-auto pt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
           {perk.exclusive && (
