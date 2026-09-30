@@ -8,8 +8,39 @@ import PublicPerksCarousel from "@/components/PublicPerksCarousel";
 import { listPublicPerks } from "@/lib/public-perks";
 import WordMark from "@/components/WordMark";
 
+const title = "Post Perks";
+const description =
+  "Discounts and freebies from local, parent-centric Amsterdam businesses, just for Postpartum Post members and their families — from 50% off to intro offers.";
+const banner = {
+  url: "/og-perks.png",
+  width: 1200,
+  height: 630,
+  alt: "post perks: discounts from local parent-centric businesses, just for Postpartum Post members",
+};
+
+// The root layout's title template ("%s · Postpartum Post") applies to `title`
+// only, so it's just "Post Perks" here; openGraph/twitter titles are spelled
+// out in full. openGraph and twitter also replace the root layout's blocks
+// wholesale rather than merging, so siteName/locale/card are repeated.
 export const metadata: Metadata = {
-  title: "Perks · Postpartum Post",
+  title,
+  description,
+  alternates: { canonical: "/perks" },
+  openGraph: {
+    type: "website",
+    locale: "en_NL",
+    siteName: "Postpartum Post",
+    url: "/perks",
+    title: `${title} · Postpartum Post`,
+    description,
+    images: [banner],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${title} · Postpartum Post`,
+    description,
+    images: [banner.url],
+  },
 };
 
 // Same cadence as the homepage; perk and partner-photo actions also call
