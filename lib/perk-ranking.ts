@@ -2,11 +2,10 @@
  * Ordering for the public perk carousels (/perks, /partners "most popular").
  * Pure — the counts come from perk_events (lib/public-perks.ts).
  *
- * Order: live before coming soon, then monthly perks before one-time intro
- * offers (so the everyday perks lead), then members who redeemed, then members
- * who viewed, then featured, then exclusive, then newest. Until the member
- * redeem flow exists every count is 0, so it falls through to the old
- * featured → exclusive → newest order on its own.
+ * Order: live before coming soon, then featured (so a featured intro offer
+ * can lead), then monthly perks before one-time intro offers, then members
+ * who redeemed, then members who viewed, then exclusive, then newest.
+ * Featured is an explicit pick by Alex, so it outranks popularity too.
  */
 
 export type RankablePerk = {
@@ -22,10 +21,10 @@ export type RankablePerk = {
 export function comparePerks(a: RankablePerk, b: RankablePerk): number {
   return (
     Number(b.status === "published") - Number(a.status === "published") ||
+    Number(b.featured) - Number(a.featured) ||
     Number(b.frequency === "monthly") - Number(a.frequency === "monthly") ||
     b.redeemed_count - a.redeemed_count ||
     b.viewed_count - a.viewed_count ||
-    Number(b.featured) - Number(a.featured) ||
     Number(b.exclusive) - Number(a.exclusive) ||
     b.created_at.localeCompare(a.created_at)
   );

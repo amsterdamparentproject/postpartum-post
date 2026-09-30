@@ -18,7 +18,7 @@ function perk(name: string, overrides: Partial<RankablePerk> = {}): RankablePerk
 const order = (perks: ReturnType<typeof perk>[]) => [...perks].sort(comparePerks).map((p) => p.name);
 
 describe("comparePerks", () => {
-  it("ranks live, then redeemed, viewed, featured, exclusive, newest", () => {
+  it("ranks live, then featured, redeemed, viewed, exclusive, newest", () => {
     expect(
       order([
         perk("soon", { status: "coming_soon", redeemed_count: 99 }),
@@ -29,7 +29,7 @@ describe("comparePerks", () => {
         perk("redeemed", { redeemed_count: 1 }),
         perk("oldest"),
       ]),
-    ).toEqual(["redeemed", "viewed", "featured", "exclusive", "newest", "oldest", "soon"]);
+    ).toEqual(["featured", "redeemed", "viewed", "exclusive", "newest", "oldest", "soon"]);
   });
 });
 
@@ -37,12 +37,24 @@ describe("comparePerks: monthly vs intro offers", () => {
   it("puts monthly perks before intro offers, even more popular ones", () => {
     expect(
       order([
-        perk("intro-popular", { frequency: "once", redeemed_count: 9, featured: true }),
+        perk("intro-popular", { frequency: "once", redeemed_count: 9 }),
         perk("monthly-plain"),
         perk("monthly-viewed", { viewed_count: 2 }),
         perk("soon", { status: "coming_soon" }),
       ]),
     ).toEqual(["monthly-viewed", "monthly-plain", "intro-popular", "soon"]);
+  });
+});
+
+describe("comparePerks: featured intro offers", () => {
+  it("lets a featured intro offer lead the monthly perks, but featured monthly still beats featured intro", () => {
+    expect(
+      order([
+        perk("monthly", { viewed_count: 5 }),
+        perk("intro-featured", { frequency: "once", featured: true }),
+        perk("monthly-featured", { featured: true }),
+      ]),
+    ).toEqual(["monthly-featured", "intro-featured", "monthly"]);
   });
 });
 
