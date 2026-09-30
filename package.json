@@ -22,6 +22,8 @@
     "emails:preview": "tsx --env-file=.env.local scripts/send-preview-emails.mts",
     "member-update:test": "tsx scripts/send-member-update.mts test",
     "member-update:prod": "NODE_ENV=production tsx scripts/send-member-update.mts prod",
+    "perks-announcement:test": "tsx scripts/send-perks-announcement.mts test",
+    "perks-announcement:prod": "NODE_ENV=production tsx scripts/send-perks-announcement.mts prod",
     "meetup-reminder:test": "tsx scripts/send-meetup-reminder.mts test",
     "meetup-reminder:prod": "NODE_ENV=production tsx scripts/send-meetup-reminder.mts prod",
     "pending-followup:test": "tsx scripts/send-pending-followup.mts test",
