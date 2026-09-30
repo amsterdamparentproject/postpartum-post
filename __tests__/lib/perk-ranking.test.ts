@@ -7,6 +7,7 @@ function perk(name: string, overrides: Partial<RankablePerk> = {}): RankablePerk
     status: "published",
     featured: false,
     exclusive: false,
+    frequency: "monthly",
     created_at: "2026-09-01T00:00:00Z",
     redeemed_count: 0,
     viewed_count: 0,
@@ -29,6 +30,19 @@ describe("comparePerks", () => {
         perk("oldest"),
       ]),
     ).toEqual(["redeemed", "viewed", "featured", "exclusive", "newest", "oldest", "soon"]);
+  });
+});
+
+describe("comparePerks: monthly vs intro offers", () => {
+  it("puts monthly perks before intro offers, even more popular ones", () => {
+    expect(
+      order([
+        perk("intro-popular", { frequency: "once", redeemed_count: 9, featured: true }),
+        perk("monthly-plain"),
+        perk("monthly-viewed", { viewed_count: 2 }),
+        perk("soon", { status: "coming_soon" }),
+      ]),
+    ).toEqual(["monthly-viewed", "monthly-plain", "intro-popular", "soon"]);
   });
 });
 
