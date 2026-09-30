@@ -28,7 +28,7 @@ function perksAnnouncementHtml(firstName: string): string {
                                       Alex here, creator of Postpartum Post. I have been working a ton behind the scenes on adding even more value to Postpartum Post — and I'm really excited to share this update with y'all ahead of our new match round tomorrow.
                                     </td></tr>
                                     <tr><td ${P}>
-                                      🎁 <strong>Post Perks are officially live!</strong> These are discounts from local parent-centric businesses, just for Postpartum Post members and their families — from 50% off to intro offers.
+                                      🎁 <strong>Post Perks are officially live!</strong> These are discounts from local parent-centric businesses, just for Postpartum Post members — from 50% off to intro offers. Use with your match, or just for yourself & your family.
                                     </td></tr>
 `, true) +
     ctaButton("See the first perks 🎁", perksUrl) +
