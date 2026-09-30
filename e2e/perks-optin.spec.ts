@@ -6,12 +6,14 @@
  * pool. See db/migrations/029_monthly_perks.sql and lib/monthly-opt-in.ts.
  *
  *   1. In-app prompt (/my-perks, not opted in this month) — picks "just
- *      perks" → the perk grid replaces the prompt, monthly_perks is
- *      recorded (not monthly_participation), and the credit isn't spent
- *      until a round actually commits.
+ *      perks" → the perk grid replaces the prompt, the confirmation banner
+ *      shows, monthly_perks is recorded (not monthly_participation), and
+ *      the credit isn't spent until a round actually commits.
  *   2. One-click email link (action=perks) — lands straight on /my-perks
- *      with perks already visible, no prompt.
- *   3. No balance — the button surfaces an error and records nothing.
+ *      with perks already visible, no prompt, the confirmation banner
+ *      (dismissible) on top.
+ *   3. No balance — the button surfaces an error, records nothing, and
+ *      shows no banner.
  *
  * Prerequisites: OPTIN_TOKEN_SECRET, NEXT_PUBLIC_SUPABASE_URL,
  * SUPABASE_SERVICE_ROLE_KEY in .env.local (same as e2e/matching.spec.ts).
@@ -44,6 +46,12 @@ async function waitForMagicLinkRedirect(page: Page, pattern: RegExp): Promise<vo
 // The /my-perks prompt shows three buttons before the opt-in deadline (the
 // 5th) and one afterward — pick whichever "just perks" button exists today
 // so this spec passes regardless of what day it runs.
+// The confirmation banner at the top of /my-perks right after opting into
+// "Just Perks" (same lavender treatment as the profile/billing opt-in banners).
+function justPerksBanner(page: Page) {
+  return page.getByRole("status").filter({ hasText: /officially opted into Just Perks this month/i });
+}
+
 function justPerksButton(page: Page) {
   return isOptinWindowOpenNow()
     ? page.getByRole("button", { name: /Just Perks/i })
@@ -70,6 +78,7 @@ test.describe("no match, just perks", () => {
       // Prompt is replaced by the live grid, including our seeded perk.
       await expect(page.getByText(/haven.t opted into Postpartum Post this month/i)).toHaveCount(0, { timeout: 10_000 });
       await expect(page.getByRole("button", { name: `Redeem now: ${perkTitle}` })).toBeVisible();
+      await expect(justPerksBanner(page)).toBeVisible();
 
       const month = currentMonth();
       expect(await hasMemberPerks(member.id, month)).toBe(true);
@@ -105,6 +114,11 @@ test.describe("no match, just perks", () => {
       // Already opted in via the link — straight to the grid, no prompt.
       await expect(page.getByText(/haven.t opted into Postpartum Post this month/i)).toHaveCount(0);
       await expect(page.getByRole("button", { name: `Redeem now: ${perkTitle}` })).toBeVisible();
+      await expect(justPerksBanner(page)).toBeVisible();
+
+      // Dismissible, like the other opt-in banners.
+      await page.getByRole("button", { name: "Dismiss" }).click();
+      await expect(justPerksBanner(page)).toHaveCount(0);
 
       expect(await hasMemberPerks(member.id, month)).toBe(true);
     } finally {
@@ -125,8 +139,9 @@ test.describe("no match, just perks", () => {
       await justPerksButton(page).click();
 
       await expect(page.getByText(/between terms/i)).toBeVisible({ timeout: 10_000 });
-      // The prompt is still showing — nothing was recorded.
+      // The prompt is still showing — nothing was recorded, so no banner.
       await expect(page.getByText(/haven.t opted into Postpartum Post this month/i)).toBeVisible();
+      await expect(justPerksBanner(page)).toHaveCount(0);
 
       const month = currentMonth();
       expect(await hasMemberPerks(member.id, month)).toBe(false);

@@ -43,6 +43,9 @@ export default function MyPerksPage() {
   const [optedIn, setOptedIn] = useState<boolean | null>(null);
   const [open, setOpen] = useState<MemberPerk | null>(null);
   const [filter, setFilter] = useState<PerkFilter>("nearest");
+  // True right after opting into "Just Perks" -- via the opt-in email's
+  // one-click link (/my-perks?optin=perks) or the prompt below -- to confirm it.
+  const [justOptedInToPerks, setJustOptedInToPerks] = useState(false);
 
   function fetchPerks(token: string) {
     listMemberPerks(token).then((result) => {
@@ -50,7 +53,9 @@ export default function MyPerksPage() {
       setPerks(result.perks);
       // Deep link from the match page's perks strip: /my-perks?perk=<id>
       // opens that perk's dialog straight away (and counts as a view).
-      const perkId = new URLSearchParams(window.location.search).get("perk");
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("optin") === "perks" && result.optedIn) setJustOptedInToPerks(true);
+      const perkId = params.get("perk");
       const linked = perkId ? result.perks.find((p) => p.id === perkId) : undefined;
       if (linked) {
         setOpen(linked);
@@ -86,6 +91,25 @@ export default function MyPerksPage() {
 
   return (
     <div className="space-y-6">
+      {perks !== null && optedIn === true && justOptedInToPerks && (
+        // Same banner treatment as the profile and billing pages' opt-in banners.
+        <div
+          role="status"
+          className="bg-[#caadff]/30 border border-[#caadff] rounded-2xl px-5 py-4 flex items-start justify-between gap-4"
+        >
+          <p className="text-sm text-dark leading-relaxed">
+            You&apos;ve officially opted into <span className="font-semibold">Just Perks</span> this month! Enjoy ✨
+          </p>
+          <button
+            onClick={() => setJustOptedInToPerks(false)}
+            className="shrink-0 text-muted hover:text-dark transition text-lg leading-none"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div>
         <h2 className="text-2xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
           Your <PostPerksWordMark size="text-2xl" />
@@ -106,7 +130,13 @@ export default function MyPerksPage() {
       {perks === null && <p className="text-sm text-muted">Loading…</p>}
 
       {perks !== null && optedIn === false && accessToken && (
-        <NotOptedInPrompt accessToken={accessToken} onOptedIn={() => fetchPerks(accessToken)} />
+        <NotOptedInPrompt
+          accessToken={accessToken}
+          onOptedIn={(action) => {
+            if (action === "perks") setJustOptedInToPerks(true);
+            fetchPerks(accessToken);
+          }}
+        />
       )}
 
       {perks !== null && optedIn === true && perks.length === 0 && (
@@ -163,12 +193,6 @@ export default function MyPerksPage() {
                 >
                   {perk.frequency === "once" ? "Redeemed" : "Redeemed this month"}
                 </span>
-              ) : perk.frequency === "once" ? (
-                <span
-                  className="text-xs font-bold px-2.5 py-1 rounded-full shadow-sm text-white bg-coral"
-                >
-                  Intro offer
-                </span>
               ) : undefined
             }
           />
@@ -198,7 +222,7 @@ export default function MyPerksPage() {
  * see optInFromMatches in matches/actions.ts). Once they pick something,
  * onOptedIn() re-fetches so the grid replaces this prompt.
  */
-function NotOptedInPrompt({ accessToken, onOptedIn }: { accessToken: string; onOptedIn: () => void }) {
+function NotOptedInPrompt({ accessToken, onOptedIn }: { accessToken: string; onOptedIn: (action: OptInAction) => void }) {
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<OptInAction | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -210,7 +234,7 @@ function NotOptedInPrompt({ accessToken, onOptedIn }: { accessToken: string; onO
     startTransition(async () => {
       const result = await optInFromMatches(accessToken, action);
       if (result.success) {
-        onOptedIn();
+        onOptedIn(action);
       } else {
         const messages: Record<string, string> = {
           closed: "The opt-in window for this month has closed.",
