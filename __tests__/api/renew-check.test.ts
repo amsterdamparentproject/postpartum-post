@@ -2,6 +2,8 @@
  * Integration tests for POST /api/renew-check (Track E1).
  *
  * Tests cover:
+ *   - { dryRun: true } body: same checks, zero Stripe writes, per-member
+ *     details; any ambiguous dry-run flag is a 400, never a real run
  *   - Auth enforcement
  *   - Payment-method guard: no default_payment_method -> skipped, no invoice
  *   - Payment-method guard checks the subscription-level default_payment_method
@@ -41,11 +43,12 @@ vi.mock("@/lib/stripe", () => ({
 
 const BASE_URL = "http://localhost";
 
-function makeRequest(bearer?: string) {
+function makeRequest(bearer?: string, opts: { query?: string; body?: string } = {}) {
   const secret = bearer ?? process.env.MATCHER_API_SECRET;
-  return new NextRequest(`${BASE_URL}/api/renew-check`, {
+  return new NextRequest(`${BASE_URL}/api/renew-check${opts.query ?? ""}`, {
     method: "POST",
-    headers: { authorization: `Bearer ${secret}` },
+    headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+    ...(opts.body !== undefined ? { body: opts.body } : {}),
   });
 }
 
@@ -364,5 +367,101 @@ describe("POST /api/renew-check", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+  });
+
+  const DRY = JSON.stringify({ dryRun: true });
+
+  describe("dry run ({ dryRun: true } body)", () => {
+    it("reports what would happen for an eligible member without a single Stripe write", async () => {
+      const member = await seedMember({ status: "active", matches_remaining: 0 });
+      memberId = member.id;
+      const sub = await seedSubscription(memberId, { status: "active" });
+      mockRetrieve.mockImplementation(async (subId: string) =>
+        subId === sub.stripe_subscription_id
+          ? stripeSubResponse({ unitAmount: 2400, currency: "eur" })
+          : stripeSubResponse()
+      );
+
+      const res = await POST(makeRequest(undefined, { body: DRY }));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.dryRun).toBe(true);
+      expect(body.details).toContainEqual(
+        expect.objectContaining({
+          memberId: member.id,
+          status: "active",
+          wouldDo: "billed",
+          amount: 24,
+          currency: "eur",
+        })
+      );
+
+      // Not one write — across every candidate, not just this member.
+      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(mockInvoiceItemCreate).not.toHaveBeenCalled();
+      expect(mockInvoiceCreate).not.toHaveBeenCalled();
+      expect(mockCancel).not.toHaveBeenCalled();
+    });
+
+    it("still applies the payment-method guard", async () => {
+      const member = await seedMember({ status: "active", matches_remaining: 0 });
+      memberId = member.id;
+      const sub = await seedSubscription(memberId, { status: "active" });
+      mockRetrieve.mockImplementation(async (subId: string) =>
+        subId === sub.stripe_subscription_id
+          ? stripeSubResponse({ hasPaymentMethod: false })
+          : stripeSubResponse()
+      );
+
+      const res = await POST(makeRequest(undefined, { body: DRY }));
+      const body = await res.json();
+      expect(body.details).toContainEqual(
+        expect.objectContaining({ memberId: member.id, wouldDo: "skipped_no_payment_method" })
+      );
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it("reports a canceling member as would-cancel without cancelling", async () => {
+      const member = await seedMember({ status: "canceling", matches_remaining: 0 });
+      memberId = member.id;
+      await seedSubscription(memberId, { status: "active" });
+
+      const res = await POST(makeRequest(undefined, { body: DRY }));
+      const body = await res.json();
+      expect(body.details).toContainEqual(
+        expect.objectContaining({ memberId: member.id, status: "canceling", wouldDo: "canceled" })
+      );
+      expect(mockCancel).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["a query-string flag", { query: "?dryRun=true" }],
+      ["a misspelled key", { body: '{"dryrun":true}' }],
+      ["an underscore key", { body: '{"dry_run":true}' }],
+      ["a string value", { body: '{"dryRun":"true"}' }],
+      ["a numeric value", { body: '{"dryRun":1}' }],
+      ["malformed JSON", { body: '{"dryRun":true' }],
+      ["a non-object body", { body: "true" }],
+    ])("rejects %s with 400 instead of running for real", async (_label, opts) => {
+      const res = await POST(makeRequest(undefined, opts));
+      expect(res.status).toBe(400);
+      expect(mockRetrieve).not.toHaveBeenCalled();
+      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(mockInvoiceCreate).not.toHaveBeenCalled();
+      expect(mockCancel).not.toHaveBeenCalled();
+    });
+
+    it("treats { dryRun: false } as a real run", async () => {
+      const res = await POST(makeRequest(undefined, { body: '{"dryRun":false}' }));
+      expect(res.status).toBe(200);
+      expect((await res.json()).dryRun).toBe(false);
+    });
+
+    it("an empty-body run is a real run: dryRun false, no details", async () => {
+      const res = await POST(makeRequest());
+      const body = await res.json();
+      expect(body.dryRun).toBe(false);
+      expect(body.details).toBeUndefined();
+    });
   });
 });

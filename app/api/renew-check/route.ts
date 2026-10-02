@@ -59,6 +59,21 @@
  *
  * Request body: none required.
  *
+ * Dry run: `POST /api/renew-check` with JSON body `{ "dryRun": true }` (same
+ * convention as run-matcher and send-meetup-reminder) runs every check
+ * (candidate query, subscription lookup, Stripe reads, payment-method guard,
+ * the active-match deferral) but makes NO Stripe writes — no pause clear, no
+ * invoice item, no invoice, no cancellation — and writes nothing to the DB.
+ * The response always carries `dryRun: boolean`; a dry run also returns a
+ * per-member `details` list of what would happen.
+ *
+ * Unlike the other routes (which treat anything but `=== true` as a real
+ * run), this one is strict because a real run charges people: an empty body
+ * is a real run, but a body that isn't valid JSON, a non-boolean `dryRun`, a
+ * misspelled dry-run key (`dryrun`, `dry_run`), or a dry-run flag in the
+ * query string is rejected with 400 so a typo can never turn a rehearsal
+ * into a real run.
+ *
  * Response:
  *   {
  *     checked: number,
@@ -113,7 +128,7 @@ import { currentMonth, monthToDate } from "@/lib/tokens";
 const BATCH_CONCURRENCY = 20;
 
 type RenewOutcome =
-  | { kind: "billed" }
+  | { kind: "billed"; amount?: number; currency?: string }
   | { kind: "canceled" }
   | { kind: "skipped_no_payment_method" }
   | { kind: "no_op" }
@@ -124,7 +139,8 @@ async function renewMember(
   member: { id: string },
   supabase: ReturnType<typeof createAdminClient>,
   stripe: ReturnType<typeof getStripe>,
-  cycleKey: string
+  cycleKey: string,
+  dryRun = false
 ): Promise<RenewOutcome> {
   try {
     const { data: sub } = await supabase
@@ -177,6 +193,12 @@ async function renewMember(
         memberId: member.id,
         error: `Subscription ${sub.stripe_subscription_id} has no simple unit_amount price to bill`,
       };
+    }
+
+    // Dry run stops here: every read and guard above has run, but nothing
+    // below this point may execute.
+    if (dryRun) {
+      return { kind: "billed", amount: price.unit_amount, currency: price.currency };
     }
 
     // Clear pause_collection first — building the invoice below does the
@@ -247,7 +269,8 @@ async function renewMember(
 async function finalizeCancellation(
   member: { id: string },
   supabase: ReturnType<typeof createAdminClient>,
-  stripe: ReturnType<typeof getStripe>
+  stripe: ReturnType<typeof getStripe>,
+  dryRun = false
 ): Promise<RenewOutcome> {
   try {
     // matched_on is the first of the month the round belongs to (see
@@ -277,6 +300,8 @@ async function finalizeCancellation(
       // No live subscription to cancel — nothing to do.
       return { kind: "no_op" };
     }
+
+    if (dryRun) return { kind: "canceled" };
 
     // Stripe's cancel endpoint can generate its own "final invoice" for any
     // unbilled usage or pending proration, independent of anything this
@@ -316,6 +341,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Dry run: explicit and strict (see the docblock). Empty body = real run;
+  // anything ambiguous = 400.
+  const badFlag = (msg: string) => NextResponse.json({ error: msg }, { status: 400 });
+  const looksLikeDryRun = (key: string) => /dry.?run/i.test(key);
+
+  for (const key of req.nextUrl.searchParams.keys()) {
+    if (looksLikeDryRun(key)) {
+      return badFlag('Send the dry-run flag in the JSON body: { "dryRun": true }.');
+    }
+  }
+
+  let dryRun = false;
+  const rawBody = await req.text();
+  if (rawBody.trim() !== "") {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawBody);
+    } catch {
+      return badFlag("Request body must be valid JSON.");
+    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return badFlag("Request body must be a JSON object.");
+    }
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!looksLikeDryRun(key)) continue;
+      if (key !== "dryRun" || typeof value !== "boolean") {
+        return badFlag('Invalid dry-run flag. Use exactly { "dryRun": true }.');
+      }
+      dryRun = value;
+    }
+  }
+
   const supabase = createAdminClient();
   const stripe = getStripe();
 
@@ -342,6 +399,7 @@ export async function POST(req: NextRequest) {
   let deferredActiveMatch = 0;
   let skippedNoPaymentMethod = 0;
   const errors: { memberId: string; error: string }[] = [];
+  const details: Record<string, unknown>[] = [];
 
   // See the retry-safety note in the docblock above.
   const cycleKey = new Date().toISOString().slice(0, 7); // "YYYY-MM"
@@ -352,11 +410,24 @@ export async function POST(req: NextRequest) {
     const outcomes = await Promise.all(
       batch.map((member) =>
         member.status === "canceling"
-          ? finalizeCancellation(member, supabase, stripe)
-          : renewMember(member, supabase, stripe, cycleKey)
+          ? finalizeCancellation(member, supabase, stripe, dryRun)
+          : renewMember(member, supabase, stripe, cycleKey, dryRun)
       )
     );
-    for (const outcome of outcomes) {
+    for (const [idx, outcome] of outcomes.entries()) {
+      if (dryRun) {
+        const m = batch[idx];
+        details.push({
+          memberId: m.id,
+          status: m.status,
+          matchesRemaining: m.matches_remaining,
+          wouldDo: outcome.kind,
+          ...(outcome.kind === "billed" && outcome.amount != null
+            ? { amount: outcome.amount / 100, currency: outcome.currency }
+            : {}),
+          ...(outcome.kind === "error" ? { error: outcome.error } : {}),
+        });
+      }
       if (outcome.kind === "billed") billed++;
       else if (outcome.kind === "canceled") canceled++;
       else if (outcome.kind === "deferred_active_match") deferredActiveMatch++;
@@ -367,11 +438,13 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({
+    dryRun,
     checked: candidates?.length ?? 0,
     billed,
     canceled,
     deferredActiveMatch,
     skippedNoPaymentMethod,
     errors,
+    ...(dryRun ? { details } : {}),
   });
 }
