@@ -83,7 +83,7 @@ await send("optin-last-match", () =>
 // Track C4 — base args shared by every match-reveal variant below; only
 // the trailing BillingNotice differs. isRecipientInitiator pinned to
 // false explicitly (rather than relying on the default) so the tuple
-// spread lines up 1:1 with sendMatchRevealEmail's 11 positional params.
+// spread lines up 1:1 with sendMatchRevealEmail's positional params (minus the trailing notice).
 const matchRevealArgs = [
   TO,
   "Alex",
@@ -92,7 +92,6 @@ const matchRevealArgs = [
   "sarah.vanderberg@example.com",
   "coffee",
   "https://postpartumpost.com/matches/preview",
-  "https://postpartumpost.com/matches",
   false,
   false,
 ] as const;
@@ -144,6 +143,10 @@ await send("rematch-confirmation", () =>
   sendRematchConfirmationEmail(TO, "Alex")
 );
 
+await send("rematch-confirmation-credited", () =>
+  sendRematchConfirmationEmail(TO, "Alex", true)
+);
+
 await send("member-update", () =>
   sendMemberUpdateEmail(TO, "Alex", "00000000-0000-0000-0000-000000000000")
 );
@@ -169,7 +172,7 @@ await send("partner-welcome", () =>
 );
 
 if (results.length === 0 && filter) {
-  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, member-update, meetup-reminder, pending-followup, partner-welcome`);
+  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, rematch-confirmation-credited, member-update, meetup-reminder, pending-followup, partner-welcome`);
   process.exit(1);
 }
 

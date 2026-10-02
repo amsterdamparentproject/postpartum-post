@@ -283,7 +283,6 @@ if (round.status !== "locked") {
 if (notify) {
   const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
   const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
-  const matchesUrl = `${SITE_URL}/matches`;
   const matchPageUrl = `${SITE_URL}/matches/${matchId}?token=${generateMatchToken(matchId)}`;
 
   async function magicLink(email: string, redirectTo: string): Promise<string> {
@@ -316,9 +315,7 @@ if (notify) {
   const testMode = dryRun;
 
   try {
-    const [m1MatchesLink, m2MatchesLink, m1MatchPageUrl, m2MatchPageUrl] = await Promise.all([
-      magicLink(m1.email, matchesUrl),
-      magicLink(m2.email, matchesUrl),
+    const [m1MatchPageUrl, m2MatchPageUrl] = await Promise.all([
       magicLink(m1.email, matchPageUrl),
       magicLink(m2.email, matchPageUrl),
     ]);
@@ -334,7 +331,6 @@ if (notify) {
         m2.email,
         topic,
         m1MatchPageUrl,
-        m1MatchesLink,
         isM1Double,
         m1IsInitiator
       );
@@ -350,7 +346,6 @@ if (notify) {
         m1.email,
         topic,
         m2MatchPageUrl,
-        m2MatchesLink,
         isM2Double,
         !m1IsInitiator
       );
