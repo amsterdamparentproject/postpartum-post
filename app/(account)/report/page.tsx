@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import RematchLoader from "@/components/RematchLoader";
 
 export const metadata: Metadata = {
-  title: "Request a Rematch",
+  title: "Report a Problem",
   robots: { index: false },
 };
 

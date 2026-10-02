@@ -1,13 +1,13 @@
 /**
- * Rematch flow — E2E
+ * Report-a-problem flow — E2E
  *
- * Scenario: a member with two active matches requests a rematch on one of them.
+ * Scenario: a member with two active matches reports a problem on one of them.
  *
  *   1. Sign in — /matches shows two active cards ("Matched" badge, or meetup
  *      pills from the 7th) with correct partner names
  *   2. Navigate to match page for the second match — verify both member names
- *   3. Navigate back to /matches, request rematch on the second match via /rematch
- *   4. After submitting: lands on /rematch/confirmed
+ *   3. Navigate back to /matches, report a problem on the second match via /report
+ *   4. After submitting: lands on /report/confirmed
  *   5. /matches shows "Changed" pill on the second match card, quick actions gone
  *   6. First match card is unaffected — still "Matched" with quick actions
  *   7. Match reveal page for the rematched match is now inactive
@@ -54,8 +54,8 @@ test(
       await expect(page.getByText("Alex Rematch")).toBeVisible({ timeout: 10_000 });
       await expect(page.getByText("Chris Changed")).toBeVisible();
 
-      // ── Step 3: Request rematch on the second match via /rematch ──────────
-      await page.goto(`/rematch?member_id=${memberA.id}&match_id=${matchId2}`);
+      // ── Step 3: Report a problem on the second match via /report ──────────
+      await page.goto(`/report?member_id=${memberA.id}&match_id=${matchId2}`);
 
       // Form loads — with two active matches, radio buttons should appear
       await expect(page.getByText("Chris Changed")).toBeVisible({ timeout: 10_000 });
@@ -64,15 +64,15 @@ test(
       await page.selectOption("select", "no_response");
 
       // Chris Changed should be pre-selected (passed via match_id); confirm & submit
-      await page.getByRole("button", { name: /request a new match/i }).click();
+      await page.getByRole("button", { name: /report this match/i }).click();
 
-      // ── Step 4: Lands on /rematch/confirmed ───────────────────────────────
-      await page.waitForURL(/\/rematch\/confirmed/, { timeout: 15_000 });
+      // ── Step 4: Lands on /report/confirmed ───────────────────────────────
+      await page.waitForURL(/\/report\/confirmed/, { timeout: 15_000 });
       // Scoped to the heading — a plain getByText match also hits Next.js's
       // hidden #__next-route-announcer__ live region, which echoes the new
       // page's heading text after a client-side navigation and trips
       // Playwright's strict mode (two matches).
-      await expect(page.getByRole("heading", { name: /we're on it/i })).toBeVisible();
+      await expect(page.getByRole("heading", { name: /thanks for letting us know/i })).toBeVisible();
 
       // ── Step 5: /matches — second card shows "Changed", no quick actions ──
       await page.goto("/matches");

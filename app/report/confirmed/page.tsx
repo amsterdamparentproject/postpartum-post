@@ -2,7 +2,12 @@ import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 
-export default function RematchConfirmed() {
+export default async function RematchConfirmed({
+  searchParams,
+}: {
+  searchParams: Promise<{ credited?: string }>;
+}) {
+  const { credited } = await searchParams;
   return (
     <PageLayout>
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -12,10 +17,12 @@ export default function RematchConfirmed() {
             className="text-3xl text-dark mb-4"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            We&apos;re on it
+            Thanks for letting us know
           </h1>
           <p className="text-muted leading-relaxed mb-10">
-            Your rematch request has been noted. We&apos;ll find you a new match as soon as we can — keep an eye on your inbox.
+            We&apos;ve received your report and ended this month&apos;s match.
+            {credited === "1" && " We\u2019ve added one match back to your balance."}
+            {" "}You can still use your Post Perks this month, and you&apos;ll be matched again next round.
           </p>
           <Link
             href="/"

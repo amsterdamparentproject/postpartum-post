@@ -13,7 +13,7 @@ export default function robots(): MetadataRoute.Robots {
           "/billing",
           "/matches",
           "/success",
-          "/rematch",
+          "/report",
           "/unsubscribe",
         ],
       },
