@@ -49,9 +49,9 @@ export default function DayModal({ day, events, members, onClose }: Props) {
             <p className="font-semibold text-dark">{label}</p>
             {freeMembers.length > 0 && (
               <div className="flex gap-2 mt-1">
-                {freeMembers.map((m) => (
+                {freeMembers.map((m, mi) => (
                   <span
-                    key={m.name}
+                    key={`${m.name}-${mi}`}
                     className="flex items-center gap-1 text-xs text-muted"
                   >
                     <span

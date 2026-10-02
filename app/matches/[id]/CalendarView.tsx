@@ -115,9 +115,9 @@ export default function CalendarView({ events, members, matchedOn }: Props) {
 
                 {freeMembers.length > 0 && (
                   <div className="flex gap-0.5 flex-wrap">
-                    {freeMembers.map((m) => (
+                    {freeMembers.map((m, mi) => (
                       <span
-                        key={m.initial}
+                        key={`${m.initial}-${mi}`}
                         className="inline-flex items-center justify-center w-4 h-4 rounded-full text-white text-[9px] font-bold"
                         style={{ background: m.color }}
                         title={`${m.initial} is free`}

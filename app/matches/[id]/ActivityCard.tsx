@@ -48,9 +48,9 @@ export default function ActivityCard({ activity, members }: Props) {
       belowImage={
         freeMembers.length > 0 && (
           <div className="flex gap-0.5">
-            {freeMembers.map((m) => (
+            {freeMembers.map((m, mi) => (
               <span
-                key={m.initial}
+                key={`${m.initial}-${mi}`}
                 className="inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-bold"
                 style={{ background: m.color }}
                 title={`${m.initial} is free`}
