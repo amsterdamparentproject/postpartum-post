@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase";
 import { sendRematchConfirmationEmail } from "@/lib/emails/rematch-confirmation";
 import { requireMember } from "@/lib/require-member";
+import { recordEntitlement } from "@/lib/match-ledger";
+import { REPORT_CREDIT_REASONS } from "@/lib/report-credit";
 import { currentMonth, monthToDate } from "@/lib/skip-token";
 
 export type ActiveMatch = {
@@ -49,6 +51,13 @@ export async function getRematchMatches(accessToken: string): Promise<ActiveMatc
   });
 }
 
+/**
+ * "Report a problem" with a match. Historically named requestRematch: it no
+ * longer promises a new match this month. It ends the match, permanently
+ * excludes the pair, flags safety reasons for review, and credits +1 match for
+ * the reasons in REPORT_CREDIT_REASONS. The page lives at /report; the old
+ * /rematch URL is intentionally gone.
+ */
 export async function requestRematch(accessToken: string, reason: string | null, matchId?: string) {
   // Identity comes from the verified session, never a client-supplied member id
   // (security audit Finding 1): otherwise anyone holding a member id could file
@@ -60,12 +69,12 @@ export async function requestRematch(accessToken: string, reason: string | null,
   const supabase = createAdminClient();
 
   // Use the provided matchId, or fall back to the most recent current-month match
-  let match: { id: string; member_id_1: string; member_id_2: string } | null = null;
+  let match: { id: string; member_id_1: string; member_id_2: string; rematch_requested?: boolean | null } | null = null;
 
   if (matchId) {
     const { data, error } = await supabase
       .from("matches")
-      .select("id, member_id_1, member_id_2")
+      .select("id, member_id_1, member_id_2, rematch_requested")
       .eq("id", matchId)
       .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`)
       .single();
@@ -77,7 +86,7 @@ export async function requestRematch(accessToken: string, reason: string | null,
     startOfMonth.setHours(0, 0, 0, 0);
     const { data, error } = await supabase
       .from("matches")
-      .select("id, member_id_1, member_id_2")
+      .select("id, member_id_1, member_id_2, rematch_requested")
       .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`)
       .gte("matched_on", startOfMonth.toISOString().split("T")[0])
       .order("created_at", { ascending: false })
@@ -85,6 +94,12 @@ export async function requestRematch(accessToken: string, reason: string | null,
       .single();
     if (error || !data) throw new Error("No match found for this month");
     match = data;
+  }
+
+  // Already reported (double-click, or the other member got there first): the
+  // exclusion and any credit were handled the first time, so do nothing twice.
+  if (match.rematch_requested) {
+    redirect("/report/confirmed");
   }
 
   await supabase
@@ -127,11 +142,28 @@ export async function requestRematch(accessToken: string, reason: string | null,
       });
   }
 
+  // Credit the match they already spent. Non-fatal: a ledger hiccup must not
+  // undo or block the report itself, but it is logged loudly.
+  let credited = false;
+  if (reason && REPORT_CREDIT_REASONS.has(reason)) {
+    try {
+      credited = await recordEntitlement(supabase, {
+        memberId,
+        event: "manual_grant",
+        delta: 1,
+        matchId: match.id,
+        note: `report_credit:${reason}`,
+      });
+    } catch (err) {
+      console.error(`[report] credit failed for member ${memberId}, match ${match.id}:`, err);
+    }
+  }
+
   if (requestingMember) {
-    await sendRematchConfirmationEmail(requestingMember.email, requestingMember.first_name).catch(
-      (err) => console.error("[rematch] confirmation email failed:", err)
+    await sendRematchConfirmationEmail(requestingMember.email, requestingMember.first_name, credited).catch(
+      (err) => console.error("[report] confirmation email failed:", err)
     );
   }
 
-  redirect("/rematch/confirmed");
+  redirect(credited ? "/report/confirmed?credited=1" : "/report/confirmed");
 }

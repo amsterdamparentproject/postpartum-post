@@ -729,6 +729,91 @@ describe("requestRematch: inserts match_exclusion on rematch", () => {
   });
 });
 
+describe("requestRematch: report credit", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  async function run(reason: string, matchOverrides: Record<string, unknown> = {}) {
+    const rpcSpy = vi.fn().mockResolvedValue({ data: true, error: null });
+    const MATCH = { id: "match-1", member_id_1: "m1", member_id_2: "m2", ...matchOverrides };
+    vi.doMock("@/lib/supabase", () => ({
+      createAdminClient: () => ({
+        rpc: rpcSpy,
+        from: (table: string) => {
+          if (table === "matches") {
+            return {
+              select: () => ({
+                eq: () => ({
+                  or: () => ({ single: () => Promise.resolve({ data: MATCH, error: null }) }),
+                }),
+              }),
+              update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+            };
+          }
+          if (table === "members") {
+            return {
+              select: () => ({
+                eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) }),
+              }),
+            };
+          }
+          return {
+            select: () => ({
+              or: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        },
+      }),
+    }));
+    const { redirect } = await import("next/navigation");
+    vi.mocked(redirect).mockClear();
+    // Real redirect() throws to halt the action; the shared mock doesn't, so an
+    // early-return guard would fall through and the test would pass for the wrong reason.
+    vi.mocked(redirect).mockImplementation(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
+    const { requestRematch } = await import("@/app/actions/rematch");
+    await requestRematch("m1", reason, "match-1").catch(() => {});
+    return { rpcSpy, redirect: vi.mocked(redirect) };
+  }
+
+  it.each(["no_response", "safety_concern", "harassment"])(
+    "credits +1 to the reporter for %s",
+    async (reason) => {
+      const { rpcSpy, redirect } = await run(reason);
+      expect(rpcSpy).toHaveBeenCalledOnce();
+      expect(rpcSpy).toHaveBeenCalledWith(
+        "record_entitlement",
+        expect.objectContaining({
+          p_member_id: "m1",
+          p_event: "manual_grant",
+          p_delta: 1,
+          p_match_id: "match-1",
+          p_note: `report_credit:${reason}`,
+        })
+      );
+      expect(redirect).toHaveBeenCalledWith("/report/confirmed?credited=1");
+    }
+  );
+
+  it.each(["already_met", "not_a_good_fit", "other"])(
+    "does not credit for %s",
+    async (reason) => {
+      const { rpcSpy, redirect } = await run(reason);
+      expect(rpcSpy).not.toHaveBeenCalled();
+      expect(redirect).toHaveBeenCalledWith("/report/confirmed");
+    }
+  );
+
+  it("does nothing a second time for an already-reported match", async () => {
+    const { rpcSpy, redirect } = await run("no_response", { rematch_requested: true });
+    expect(rpcSpy).not.toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith("/report/confirmed");
+  });
+});
+
 describe("requestRematch: requires a session", () => {
   it("rejects a call without a valid access token and touches nothing", async () => {
     vi.resetModules();
