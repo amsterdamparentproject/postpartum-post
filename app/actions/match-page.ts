@@ -40,9 +40,7 @@ export type MatchPageResult =
       viewerIsM1: boolean;
       /** True if the signed-in viewer is the one designated to reach out first. */
       viewerIsInitiator: boolean;
-      /** The signed-in viewer's own member ID — lets the page link straight
-       *  into /rematch?member_id=...&match_id=... without an extra session
-       *  lookup — every /rematch entry point passes member_id directly. */
+      /** The signed-in viewer's own member ID. */
       viewerMemberId: string;
       /** Shared topic (coffee/playdate) if both members agree, else null. */
       topic: string | null;

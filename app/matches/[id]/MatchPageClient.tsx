@@ -193,7 +193,7 @@ function MatchPageReady({
   monthlyWhimsy?: React.ReactNode;
   perks: PublicPerk[];
 }) {
-  const { m1, m2, monthLabel, matchedOn, viewerIsM1, viewerIsInitiator, viewerMemberId, topic, hasActivities, recommendedPlaces, recommendedActivities, allActivities, center, memberCoords, playgrounds } = data;
+  const { m1, m2, monthLabel, matchedOn, viewerIsM1, viewerIsInitiator, topic, hasActivities, recommendedPlaces, recommendedActivities, allActivities, center, memberCoords, playgrounds } = data;
 
   const them = viewerIsM1 ? m2 : m1;
 
@@ -227,7 +227,7 @@ function MatchPageReady({
   const mailtoSubject = encodeURIComponent(`Let's meet for a ${topic || "hang"}! (Postpartum Post)`);
   const mailtoBody = encodeURIComponent(`Hi ${them.first_name},`);
   const mailtoHref = `mailto:${them.email}?subject=${mailtoSubject}&body=${mailtoBody}`;
-  const rematchHref = `/rematch?member_id=${viewerMemberId}&match_id=${matchId}`;
+  const rematchHref = `/rematch?match_id=${matchId}`;
 
   return (
     <PageLayout>

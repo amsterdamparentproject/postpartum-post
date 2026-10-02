@@ -728,3 +728,14 @@ describe("requestRematch: inserts match_exclusion on rematch", () => {
     );
   });
 });
+
+describe("requestRematch: requires a session", () => {
+  it("rejects a call without a valid access token and touches nothing", async () => {
+    vi.resetModules();
+    const from = vi.fn();
+    vi.doMock("@/lib/supabase", () => ({ createAdminClient: () => ({ from }) }));
+    const { requestRematch } = await import("@/app/actions/rematch");
+    await expect(requestRematch("", "no_response", "match-1")).rejects.toThrow("Not authenticated");
+    expect(from).not.toHaveBeenCalled();
+  });
+});

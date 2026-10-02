@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { requestRematch } from "@/app/actions/rematch";
-import type { ActiveMatch } from "@/app/rematch/page";
+import type { ActiveMatch } from "@/app/actions/rematch";
 
 const REASONS: { value: string; label: string }[] = [
   { value: "no_response",    label: "They didn't respond" },
@@ -14,23 +14,27 @@ const REASONS: { value: string; label: string }[] = [
 ];
 
 export default function RematchForm({
-  memberId,
+  accessToken,
   activeMatches,
+  preselectMatchId,
 }: {
-  memberId: string;
+  accessToken: string;
+  preselectMatchId?: string;
   activeMatches: ActiveMatch[];
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
-  const [selectedMatchId, setSelectedMatchId] = useState(activeMatches[0]?.matchId ?? "");
+  const [selectedMatchId, setSelectedMatchId] = useState(
+    activeMatches.find((m) => m.matchId === preselectMatchId)?.matchId ?? activeMatches[0]?.matchId ?? ""
+  );
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
       try {
-        await requestRematch(memberId, reason || null, selectedMatchId || undefined);
+        await requestRematch(accessToken, reason || null, selectedMatchId || undefined);
       } catch (err) {
         if (err instanceof Error && err.message !== "NEXT_REDIRECT") {
           setError("Something went wrong. Please try again.");
