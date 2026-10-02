@@ -27,7 +27,6 @@ export type MemberProfile = {
   language: string[] | null;
   parent_type: "mom" | "dad" | "anyone";
   stripe_customer_id: string | null;
-  consecutive_skips: number;
   availability: Availability | null;
   match_priority: "age" | "proximity" | null;
   children: Child[] | null;
@@ -86,7 +85,7 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("members")
-    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, consecutive_skips, availability, match_priority, children, open_to_second_match, matches_remaining")
+    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, availability, match_priority, children, open_to_second_match, matches_remaining")
     .eq("id", authed.memberId)
     .single();
   if (error && error.code !== "PGRST116") {
