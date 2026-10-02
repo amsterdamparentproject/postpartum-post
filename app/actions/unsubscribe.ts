@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { cancelSubscription } from "@/lib/subscription-utils";
+import { pauseSubscriptionCollection } from "@/lib/subscription-utils";
 import { createAdminClient } from "@/lib/supabase";
 import { sendCancellationConfirmedEmail } from "@/lib/emails";
 
@@ -19,11 +19,16 @@ export async function unsubscribe(memberId: string) {
     throw new Error("No active subscription found");
   }
 
-  const { periodEnd } = await cancelSubscription(subscription.stripe_subscription_id);
+  // Stripe only collects money; the matches_remaining counter alone decides
+  // access (billing-simplification-plan.md). So cancelling does NOT schedule a
+  // Stripe-side cancellation (cancel_at_period_end): Stripe would delete the
+  // subscription on its own date, and the deletion webhook would end the
+  // member's access while matches they paid for were still unspent. Instead
+  // we make sure Stripe can never bill them again (pause, idempotent) and
+  // mark them "canceling"; renew-check cancels the subscription once their
+  // counter hits zero, which fires the webhook that sets them "inactive".
+  await pauseSubscriptionCollection(subscription.stripe_subscription_id);
 
-  // Mark the member as canceling — they still have access until the billing period ends.
-  // The Stripe customer.subscription.deleted webhook will set them to "inactive" when
-  // the period actually expires.
   await supabase
     .from("members")
     .update({ status: "canceling" })
@@ -34,17 +39,19 @@ export async function unsubscribe(memberId: string) {
   // later. Non-fatal: a failed send shouldn't block the cancellation itself.
   const { data: member } = await supabase
     .from("members")
-    .select("email, first_name")
+    .select("email, first_name, matches_remaining")
     .eq("id", memberId)
     .single();
 
+  const matchesRemaining = Math.max(member?.matches_remaining ?? 0, 0);
+
   if (member?.email) {
     try {
-      await sendCancellationConfirmedEmail(member.email, member.first_name ?? "there", periodEnd);
+      await sendCancellationConfirmedEmail(member.email, member.first_name ?? "there", matchesRemaining);
     } catch (e) {
       console.error("[unsubscribe] sendCancellationConfirmedEmail failed (non-fatal):", e);
     }
   }
 
-  redirect(`/unsubscribe/confirmed?until=${encodeURIComponent(periodEnd.toISOString())}`);
+  redirect(`/unsubscribe/confirmed?matches=${matchesRemaining}`);
 }

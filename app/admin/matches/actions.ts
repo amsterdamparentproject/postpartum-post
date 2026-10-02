@@ -1052,7 +1052,7 @@ export async function testSendEmail(kind: TestEmailKind): Promise<TestStepResult
       }
 
       case "cancellation-confirmed":
-        await sendCancellationConfirmedEmail(testEmail, firstName, new Date(Date.now() + 30 * 86_400_000));
+        await sendCancellationConfirmedEmail(testEmail, firstName, 2);
         return ok("the cancellation confirmation");
 
       case "auto-pause":

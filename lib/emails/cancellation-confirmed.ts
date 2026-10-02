@@ -1,12 +1,14 @@
 import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
 
-/** "August 29, 2026" */
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+function accessLine(matchesRemaining: number): string {
+  if (matchesRemaining > 0) {
+    const noun = matchesRemaining === 1 ? "match" : "matches";
+    return `You will not be charged again, and you still have <strong>${matchesRemaining} ${noun}</strong> left, which you're welcome to keep opting in to until they're used.`;
+  }
+  return "You will not be charged again, and your access will end shortly.";
 }
 
-function cancellationConfirmedHtml(firstName: string, accessUntil: Date): string {
-  const formatted = formatDate(accessUntil);
+function cancellationConfirmedHtml(firstName: string, matchesRemaining: number): string {
   const content =
     emailHeader() +
     bodySection(`
@@ -14,10 +16,10 @@ function cancellationConfirmedHtml(firstName: string, accessUntil: Date): string
                                       Hi ${firstName},
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      This confirms your Postpartum Post subscription has been canceled. You will not be charged again — your access stays active until <strong>${formatted}</strong>, and you're welcome to keep opting in to matches until then.
+                                      This confirms your Postpartum Post subscription has been canceled. ${accessLine(matchesRemaining)}
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Changed your mind? You can resubscribe any time, before or after that date.
+                                      Changed your mind? You can resubscribe any time.
                                     </td></tr>`) +
     ctaButton("Manage subscription", `${SITE_URL}/billing`);
   return baseEmail(content);
@@ -37,14 +39,14 @@ function cancellationConfirmedHtml(firstName: string, accessUntil: Date): string
 export async function sendCancellationConfirmedEmail(
   email: string,
   firstName: string,
-  accessUntil: Date
+  matchesRemaining: number
 ) {
   const resend = getResend();
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
     subject: `${subjectPrefix()}Your subscription has been canceled`,
-    html: cancellationConfirmedHtml(firstName, accessUntil),
+    html: cancellationConfirmedHtml(firstName, matchesRemaining),
   });
   if (error) {
     console.error("[resend] sendCancellationConfirmedEmail error:", error);

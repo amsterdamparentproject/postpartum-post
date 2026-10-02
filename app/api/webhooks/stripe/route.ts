@@ -325,11 +325,24 @@ export async function POST(req: NextRequest) {
     try {
       const { data: member } = await supabase
         .from("members")
-        .select("id, email, first_name")
+        .select("id, email, first_name, status, matches_remaining")
         .eq("stripe_customer_id", subscription.customer as string)
         .single();
 
-      if (member) {
+      if (member?.status === "inactive") {
+        // Already inactive (e.g. set by hand, or finalized earlier): nothing to
+        // change, and no second farewell email.
+        console.log("[webhook] subscription.deleted for already-inactive member, skipping", { memberId: member.id });
+      } else if (member?.status === "canceling" && member.matches_remaining > 0) {
+        // Stripe never decides access (billing-simplification-plan.md): a
+        // canceling member keeps the matches they paid for. The subscription row
+        // above is marked canceled, but the member stays "canceling" with their
+        // counter intact; no "access ended" email, since access hasn't ended.
+        console.log("[webhook] subscription.deleted for canceling member with matches left, leaving status alone", {
+          memberId: member.id,
+          matchesRemaining: member.matches_remaining,
+        });
+      } else if (member) {
         await supabase
           .from("members")
           .update({ status: "inactive" })

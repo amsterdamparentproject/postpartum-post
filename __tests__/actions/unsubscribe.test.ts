@@ -26,11 +26,10 @@ vi.mock("@/lib/emails", () => ({
   sendCancellationConfirmedEmail: mockSendCancellationConfirmedEmail,
 }));
 
-// Fixed period-end timestamp Stripe's mocked update() returns — cancelSubscription
-// reads this off the (expanded) subscription to compute the "access until" date.
-const FAKE_PERIOD_END = Math.floor(new Date("2026-09-10T00:00:00Z").getTime() / 1000);
+// unsubscribe() only pauses collection in Stripe (never schedules a cancel),
+// so the mocked update() just needs to resolve.
 function stripeCancelResponse() {
-  return { items: { data: [{ current_period_end: FAKE_PERIOD_END }] } };
+  return {};
 }
 
 // --- Integration test ---
@@ -98,8 +97,9 @@ describe("unsubscribe — integration", () => {
 
 // --- E2E-style test ---
 // Seeds a complete member + subscription scenario and verifies the full cancel
-// flow end-to-end: Stripe is called with cancel_at_period_end, and the member
-// transitions to 'canceling' while the subscription row stays active.
+// flow end-to-end: Stripe is only asked to pause collection (never to cancel),
+// and the member transitions to 'canceling' while the subscription row stays
+// active.
 
 describe("unsubscribe — E2E", () => {
   let memberId: string;
@@ -114,7 +114,7 @@ describe("unsubscribe — E2E", () => {
     if (memberId) await cleanupMember(memberId);
   });
 
-  it("calls Stripe update with cancel_at_period_end and sets member to 'canceling'", async () => {
+  it("pauses collection in Stripe (no cancel_at_period_end) and sets member to 'canceling'", async () => {
     const member = await seedMember({ status: "active" });
     memberId = member.id;
     const sub = await seedSubscription(memberId, {
@@ -124,16 +124,18 @@ describe("unsubscribe — E2E", () => {
 
     await unsubscribe(memberId);
 
-    // Stripe received cancel_at_period_end — not an immediate cancel
+    // Stripe is asked to pause collection only. No cancel_at_period_end:
+    // Stripe must never end a member's access on its own date, or matches
+    // they paid for would be lost. renew-check cancels at zero instead.
     expect(mockUpdate).toHaveBeenCalledOnce();
     expect(mockUpdate).toHaveBeenCalledWith(
       sub.stripe_subscription_id,
-      { cancel_at_period_end: true, expand: ["items"] }
+      { pause_collection: { behavior: "void" } }
     );
 
     const supabase = createTestSupabase();
 
-    // Subscription stays active until Stripe fires the deleted event
+    // Subscription stays active until renew-check cancels it at zero
     const { data: updatedSub } = await supabase
       .from("subscriptions")
       .select("status")
@@ -141,7 +143,7 @@ describe("unsubscribe — E2E", () => {
       .single();
     expect(updatedSub?.status).toBe("active");
 
-    // Member is canceling, not inactive — they keep access until period ends
+    // Member is canceling, not inactive — they keep their remaining matches
     const { data: updatedMember } = await supabase
       .from("members")
       .select("status")
@@ -150,8 +152,13 @@ describe("unsubscribe — E2E", () => {
     expect(updatedMember?.status).toBe("canceling");
   });
 
-  it("sends the immediate cancellation confirmation email with the correct access-until date", async () => {
-    const member = await seedMember({ status: "active", email: "cancel-test@example.com", first_name: "Robin" });
+  it("sends the immediate cancellation confirmation email with the matches they have left", async () => {
+    const member = await seedMember({
+      status: "active",
+      email: "cancel-test@example.com",
+      first_name: "Robin",
+      matches_remaining: 2,
+    });
     memberId = member.id;
     await seedSubscription(memberId, {
       stripe_subscription_id: `sub_email_${memberId.slice(0, 8)}`,
@@ -164,7 +171,7 @@ describe("unsubscribe — E2E", () => {
     expect(mockSendCancellationConfirmedEmail).toHaveBeenCalledWith(
       "cancel-test@example.com",
       "Robin",
-      new Date(FAKE_PERIOD_END * 1000)
+      2
     );
   });
 });

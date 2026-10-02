@@ -200,10 +200,10 @@ export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatu
       };
     }
     // A self-cancellation normally only reaches Stripe's "canceled" status
-    // once the billing period actually ends (cancelSubscription() sets
-    // cancel_at_period_end, not an immediate cancel — see
-    // app/actions/unsubscribe.ts), by which point a bundle member has used
-    // every match in the term. But the Stripe customer billing portal
+    // once the billing period actually ends. (unsubscribe() no longer
+    // schedules a Stripe-side cancel at all: it pauses the subscription and
+    // marks the member "canceling", and renew-check cancels it at zero. See
+    // app/actions/unsubscribe.ts.) But the Stripe customer billing portal
     // (Manage billing →) can be configured in the Stripe Dashboard to
     // cancel immediately, outside our control here — if it is, a member
     // could hit "canceled" mid-term with matches still owed. Gate on the

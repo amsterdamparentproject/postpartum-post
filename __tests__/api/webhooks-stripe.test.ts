@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { seedMember, cleanupMember, createTestSupabase } from "@tests/helpers";
 import { POST } from "@/app/api/webhooks/stripe/route";
-import { sendWelcomeEmail, sendGiftCardEmail } from "@/lib/emails";
+import { sendWelcomeEmail, sendGiftCardEmail, sendUnsubscribedEmail } from "@/lib/emails";
 
 // --- Mocks ---
 
@@ -469,11 +469,10 @@ describe("Stripe webhook", () => {
     expect(sub?.status).toBe("canceled");
   });
 
-  it("sets member status to 'inactive' when their billing period expires (customer.subscription.deleted)", async () => {
-    // Simulate a member who canceled but was still in the 'canceling' state
-    // while their paid period ran out. The webhook is the only thing that
-    // transitions them to 'inactive'.
-    const member = await seedMember({ status: "canceling" });
+  it("sets member status to 'inactive' when a canceling member has no matches left (customer.subscription.deleted)", async () => {
+    // A canceling member whose counter is spent: renew-check cancels their
+    // subscription, and this webhook is what transitions them to 'inactive'.
+    const member = await seedMember({ status: "canceling", matches_remaining: 0 });
     memberId = member.id;
 
     const supabase = createTestSupabase();
@@ -504,6 +503,78 @@ describe("Stripe webhook", () => {
       .eq("id", memberId)
       .single();
     expect(updatedMember?.status).toBe("inactive");
+  });
+
+  it("leaves a canceling member with matches left alone — no status change, no farewell email", async () => {
+    // Stripe never decides access: a scheduled/legacy Stripe cancellation firing
+    // while the member still holds matches they paid for must not end it.
+    const member = await seedMember({ status: "canceling", matches_remaining: 2 });
+    memberId = member.id;
+
+    const supabase = createTestSupabase();
+    const stripeSubId = `sub_test_${memberId.slice(0, 8)}`;
+    await supabase.from("subscriptions").insert({
+      member_id: memberId,
+      stripe_subscription_id: stripeSubId,
+      stripe_price_id: "price_test_monthly",
+      status: "active",
+    });
+
+    mockConstructEvent.mockReturnValue({
+      type: "customer.subscription.deleted",
+      data: { object: { id: stripeSubId, customer: member.stripe_customer_id } },
+    });
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    const { data: updatedMember } = await supabase
+      .from("members")
+      .select("status, matches_remaining")
+      .eq("id", memberId)
+      .single();
+    expect(updatedMember?.status).toBe("canceling");
+    expect(updatedMember?.matches_remaining).toBe(2);
+    expect(sendUnsubscribedEmail).not.toHaveBeenCalled();
+
+    // The subscription row itself still reflects what Stripe did.
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("status")
+      .eq("stripe_subscription_id", stripeSubId)
+      .single();
+    expect(sub?.status).toBe("canceled");
+  });
+
+  it("does not send a second farewell email for an already-inactive member", async () => {
+    const member = await seedMember({ status: "inactive", matches_remaining: 1 });
+    memberId = member.id;
+
+    const supabase = createTestSupabase();
+    const stripeSubId = `sub_test_${memberId.slice(0, 8)}`;
+    await supabase.from("subscriptions").insert({
+      member_id: memberId,
+      stripe_subscription_id: stripeSubId,
+      stripe_price_id: "price_test_monthly",
+      status: "active",
+    });
+
+    mockConstructEvent.mockReturnValue({
+      type: "customer.subscription.deleted",
+      data: { object: { id: stripeSubId, customer: member.stripe_customer_id } },
+    });
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    const { data: updatedMember } = await supabase
+      .from("members")
+      .select("status, matches_remaining")
+      .eq("id", memberId)
+      .single();
+    expect(updatedMember?.status).toBe("inactive");
+    expect(updatedMember?.matches_remaining).toBe(1);
+    expect(sendUnsubscribedEmail).not.toHaveBeenCalled();
   });
 
   // ── invoice.payment_succeeded — Track B3: refill ──────────────────────
