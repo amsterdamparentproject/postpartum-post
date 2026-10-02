@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { requestRematch } from "@/app/actions/rematch";
 import type { ActiveMatch } from "@/app/actions/rematch";
+import { REPORT_CREDIT_REASONS } from "@/lib/report-credit";
 
 const REASONS: { value: string; label: string }[] = [
   { value: "no_response",    label: "They didn't respond" },
@@ -45,15 +46,15 @@ export default function RematchForm({
 
   return (
     <div className="max-w-md w-full bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-      <div className="text-4xl mb-5 text-center">🔄</div>
+      <div className="text-4xl mb-5 text-center">🚩</div>
       <h1
         className="text-2xl text-dark mb-3 text-center"
         style={{ fontFamily: "var(--font-serif)" }}
       >
-        Request a new match
+        Report a problem
       </h1>
       <p className="text-muted text-sm leading-relaxed mb-6 text-center">
-        No problem — we&apos;ll find you a different match for this month. Let us know if there&apos;s anything that would help us pair you better.
+        Sorry this match isn&apos;t working out. Reporting ends this month&apos;s match for both of you, and you won&apos;t be matched with each other again.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -116,18 +117,23 @@ export default function RematchForm({
         <button
           type="submit"
           disabled={isPending || !reason || !selectedMatchId}
-          data-umami-event="Rematch: Request New Match"
+          data-umami-event="Report: Submit"
           className="w-full py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {isPending ? "Submitting…" : "Request a new match"}
+          {isPending ? "Submitting…" : "Report this match"}
         </button>
 
         <Link
           href="/"
           className="block text-center text-sm text-muted hover:text-dark transition"
         >
-          Never mind, keep my current match
+          Never mind, keep this match
         </Link>
+
+        <p className="text-xs text-muted leading-relaxed text-center">
+          <span className="font-medium">What happens next:</span> You can still use your Post Perks this month, and you&apos;ll be matched again next round.
+          {REPORT_CREDIT_REASONS.has(reason) && " We\u2019ll add a match back to your balance."}
+        </p>
       </form>
     </div>
   );

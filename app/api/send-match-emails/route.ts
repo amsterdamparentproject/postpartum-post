@@ -174,7 +174,6 @@ export async function POST(req: NextRequest) {
 
     const token = generateMatchToken(match.id);
     const matchPageUrl = `${SITE_URL}/matches/${match.id}?token=${token}`;
-    const matchesUrl = `${SITE_URL}/matches`;
 
     // Generate a magic link for each recipient so clicking a link in the
     // email signs them straight in without a separate sign-in prompt —
@@ -192,10 +191,8 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const [m1MatchesLink, m2MatchesLink, m1MatchPageUrl, m2MatchPageUrl, m1NoticeContext, m2NoticeContext] =
+      const [m1MatchPageUrl, m2MatchPageUrl, m1NoticeContext, m2NoticeContext] =
         await Promise.all([
-          magicLink(m1.email, m1.id, matchesUrl),
-          magicLink(m2.email, m2.id, matchesUrl),
           magicLink(m1.email, m1.id, matchPageUrl),
           magicLink(m2.email, m2.id, matchPageUrl),
           // Track C4: admin-context fetch (no member session token exists
@@ -226,7 +223,6 @@ export async function POST(req: NextRequest) {
           m2.email,
           topic,
           m1MatchPageUrl,
-          m1MatchesLink,
           isM1Double,
           m1IsInitiator,
           m1Notice,
@@ -243,7 +239,6 @@ export async function POST(req: NextRequest) {
           m1.email,
           topic,
           m2MatchPageUrl,
-          m2MatchesLink,
           isM2Double,
           !m1IsInitiator,
           m2Notice,

@@ -197,7 +197,7 @@ describe("POST /api/send-match-emails — billing notice (Track C4)", () => {
   // the pre-existing 10 params so index 5 (topic, asserted on above) never
   // moves. See lib/emails/match-reveal.ts.
   function noticeFor(email: string): unknown {
-    return mockSend.mock.calls.find((call) => call[0] === email)?.[10];
+    return mockSend.mock.calls.find((call) => call[0] === email)?.[9];
   }
 
   it("gives a comped (FYP) member no notice at all, ignoring their counter", async () => {

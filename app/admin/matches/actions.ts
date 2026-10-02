@@ -1060,7 +1060,7 @@ export async function testSendEmail(kind: TestEmailKind): Promise<TestStepResult
 
       case "rematch-confirmation":
         await sendRematchConfirmationEmail(testEmail, firstName);
-        return ok("the rematch confirmation");
+        return ok("the report confirmation");
 
       case "gift-card":
         // A placeholder code: the link opens the real /redeem page, but the

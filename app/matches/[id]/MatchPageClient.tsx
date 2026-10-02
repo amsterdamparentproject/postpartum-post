@@ -227,7 +227,7 @@ function MatchPageReady({
   const mailtoSubject = encodeURIComponent(`Let's meet for a ${topic || "hang"}! (Postpartum Post)`);
   const mailtoBody = encodeURIComponent(`Hi ${them.first_name},`);
   const mailtoHref = `mailto:${them.email}?subject=${mailtoSubject}&body=${mailtoBody}`;
-  const rematchHref = `/rematch?match_id=${matchId}`;
+  const reportHref = `/report?match_id=${matchId}`;
 
   return (
     <PageLayout>
@@ -397,8 +397,8 @@ function MatchPageReady({
             </p>
             <p className="mb-3">
               Language, mom/dad preferences, and availability rank most highly. When creating every match, we can only account for the profile information that we have. If something is really not working out, you can always{" "}
-              <a href={rematchHref} className="text-coral hover:underline">
-                request a rematch
+              <a href={reportHref} className="text-coral hover:underline">
+                report a problem
               </a>.
             </p>
           </div>
@@ -413,13 +413,13 @@ function MatchPageReady({
             </Link>
           </div>
 
-          {/* Rematch */}
+          {/* Report a problem */}
           <div className="text-center pt-4 border-t border-border">
             <p className="text-muted text-sm mb-3">
-              Something not working this month? You can request a rematch before the 14th — your match is not notified, and your contact info remains hidden from this match going forward.
+              Something not working this month? You can report a problem at any time. This ends the match, your match is not notified, and your contact info remains hidden from them. You can still use Post Perks this month, and you&apos;ll be matched again next round.
             </p>
-            <a href={rematchHref} className="text-sm text-coral hover:underline">
-              Request a rematch
+            <a href={reportHref} className="text-sm text-coral hover:underline">
+              Report a problem
             </a>
           </div>
 

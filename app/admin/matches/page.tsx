@@ -139,7 +139,7 @@ const EMAIL_TESTS: { kind: TestEmailKind; label: string; note: string }[] = [
   { kind: "welcome", label: "Welcome", note: "Signs you in to /profile" },
   { kind: "cancellation-confirmed", label: "Cancellation confirmed", note: "Shows 2 matches left" },
   { kind: "unsubscribed", label: "Unsubscribed", note: "Feedback link signs you in" },
-  { kind: "rematch-confirmation", label: "Rematch confirmation", note: "Rematch request received" },
+  { kind: "rematch-confirmation", label: "Report confirmation", note: "Problem report received" },
   { kind: "gift-card", label: "Gift card", note: "Placeholder code TESTCODE, so redeeming won\u2019t work" },
   { kind: "member-update", label: "Member update", note: "Consent-confirm link acts on your member" },
   { kind: "pending-followup", label: "Pending follow-up", note: "Sign-up link prefilled with your details" },

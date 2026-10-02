@@ -31,10 +31,10 @@ const FAQS: FAQItem[] = [
       "Each month, we read through your profile — your neighborhood, your child's age, your availability — and pick one other parent you share common ground with. We warmly introduce you by email, and list some activities nearby that you can enjoy together. What happens next is totally up to you!",
   },
   {
-    id: "rematch",
-    question: "Can I request a rematch?",
+    id: "report-a-problem",
+    question: "What if my match isn't working out?",
     answer:
-      "Yes — if a match isn't working out, you can request a rematch from your matches page before the 14th of the month. We'll pair you with someone new as soon as we can. After the 14th, rematches close for that month and you'll get a fresh match the following month.",
+      "If a match isn't working out, you can report a problem from your matches page at any time. Reporting ends that match for both of you, and you won't be matched with each other again. You'll get a new match in the next round. In the meantime you can still use your Post Perks. If your match didn't respond or you had a safety concern, we'll add a match back to your balance.",
   },
   {
     question: "Can I skip a month?",
@@ -71,7 +71,7 @@ export default function FAQ({
   heading?: ReactNode;
   subheading?: string;
 }) {
-  // Deep-link support (e.g. /about#rematch): open the matching FAQ on
+  // Deep-link support (e.g. /about#report-a-problem): open the matching FAQ on
   // mount. Must start at null on both server and client — a lazy useState
   // initializer reading window.location.hash here would open it during the
   // client's first render, before hydration, causing a mismatch against the

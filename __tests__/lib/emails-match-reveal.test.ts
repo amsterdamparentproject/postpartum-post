@@ -30,7 +30,6 @@ async function sendWithNotice(billingNotice: BillingNotice): Promise<string> {
     "sam@example.test",
     "coffee",
     "https://postpartumpost.com/matches/m1",
-    "https://postpartumpost.com/matches",
     false,
     true,
     billingNotice,
@@ -117,7 +116,6 @@ describe("match-reveal email — billing notice (Track C4)", () => {
       "sam@example.test",
       "coffee",
       "https://postpartumpost.com/matches/m1",
-      "https://postpartumpost.com/matches",
     );
     const html = mockSend.mock.calls[0][0].html as string;
     expect(html).not.toContain("Renews");
