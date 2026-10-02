@@ -70,11 +70,12 @@ export default function TermsOfService() {
             </section>
 
             <section>
-              <h2 className="text-xl font-semibold mb-3">Skipping and pausing</h2>
+              <h2 className="text-xl font-semibold mb-3">Skipping</h2>
               <p>
                 You can skip any month by selecting the skip option in your monthly matching email.
                 If you skip, you won&apos;t receive a match introduction that month, and your subscription
-                continues as normal. There is no charge for skipping.
+                continues as normal. Skipping does not use up one of your matches, there is no charge for
+                skipping, and you can skip as many months as you like.
               </p>
             </section>
 

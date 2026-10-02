@@ -43,7 +43,7 @@ export default function About() {
             </p>
             <p>
               Postpartum Post was created for people who want to build deep connections — but <b>at the busy pace of early parenthood</b>.
-              We created a subscription to signal a committment to the community, even if life gets in the way. Subscriptions are flexible by design: skip any month, pause when life gets full, cancel anytime.
+              We created a subscription to signal a committment to the community, even if life gets in the way. Subscriptions are flexible by design: skip any month when life gets full, cancel anytime.
               In one click, you pick the topic, we find the match, and deliver the introduction in a delightful little letter to your inbox.
             </p>
           </div>
