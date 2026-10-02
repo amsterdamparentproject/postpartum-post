@@ -1,30 +1,8 @@
-import type { Metadata } from "next";
-import PageLayout from "@/components/PageLayout";
-import UnsubscribeForm from "@/components/UnsubscribeForm";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Unsubscribe",
-  robots: { index: false },
-};
-
-export default async function Unsubscribe({
-  searchParams,
-}: {
-  searchParams: Promise<{ member_id?: string }>;
-}) {
-  const { member_id } = await searchParams;
-
-  return (
-    <PageLayout>
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-16">
-        {member_id ? (
-          <UnsubscribeForm memberId={member_id} />
-        ) : (
-          <p className="text-muted text-center">
-            This link doesn&apos;t look right. Please use the unsubscribe link from your email.
-          </p>
-        )}
-      </main>
-    </PageLayout>
-  );
+// The old public unsubscribe link took a bare member id with no login, so
+// anyone holding an id could cancel that member. Cancelling now needs a
+// signed-in session, so any old link lands on the billing page instead.
+export default function Unsubscribe() {
+  redirect("/billing");
 }
