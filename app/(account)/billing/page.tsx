@@ -9,7 +9,7 @@ import {
   getCustomerPortalUrl,
   type SubscriptionDetails,
 } from "@/app/actions/profile";
-import { unsubscribe, cancelPausedMembership, resumeMatching } from "@/app/actions/unsubscribe";
+import { unsubscribe } from "@/app/actions/unsubscribe";
 import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES, type MemberStatusMessage } from "@/lib/member-status";
 import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
 
@@ -77,8 +77,6 @@ function BillingContent() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [isPortalPending, startPortalTransition] = useTransition();
   const [isCancelPending, startCancelTransition] = useTransition();
-  const [isResumePending, startResumeTransition] = useTransition();
-  const [resumeBlocked, setResumeBlocked] = useState(false);
 
   useEffect(() => {
     if (!member || !accessToken) return;
@@ -113,7 +111,6 @@ function BillingContent() {
   // cancel_at_period_end: Stripe only collects money (billing plan), and a
   // member who cancels is left paused in Stripe until their matches run out.
   const isCanceling = member?.status === "canceling";
-  const isPaused = member?.status === "paused";
   const canceledStatusMessage: MemberStatusMessage | null =
     isCanceling && member
       ? {
@@ -239,20 +236,6 @@ function BillingContent() {
               </div>
             )}
 
-            {member.consecutive_skips > 0 && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">Months skipped in a row</span>
-                  <span className={`font-medium ${member.consecutive_skips >= 2 ? "text-amber-600" : "text-dark"}`}>
-                    {member.consecutive_skips} / 3
-                  </span>
-                </div>
-                <p className="text-xs text-muted leading-relaxed">
-                  After 3 consecutive skips, your subscription will be automatically paused so you&apos;re not charged while things are busy.
-                </p>
-              </div>
-            )}
-
             <hr className="border-border" />
 
             <p className="text-xs text-muted leading-relaxed">
@@ -267,72 +250,7 @@ function BillingContent() {
               {isPortalPending ? "Redirecting…" : "Manage billing →"}
             </button>
 
-            {isPaused && member && (
-              <div className="space-y-2 text-center">
-                <p className="text-xs text-muted leading-relaxed">
-                  Your matching is paused after a few skipped months. You have {Math.max(member.matches_remaining, 0)} {member.matches_remaining === 1 ? "match" : "matches"} left.
-                </p>
-                <button
-                  onClick={() =>
-                    startResumeTransition(async () => {
-                      if (!accessToken) return;
-                      const result = await resumeMatching(accessToken);
-                      if (result.status === "ok") window.location.reload();
-                      else setResumeBlocked(true);
-                    })
-                  }
-                  disabled={isResumePending}
-                  className="w-full py-2 px-4 text-sm bg-dark text-white rounded-lg hover:bg-dark/80 transition disabled:opacity-60"
-                >
-                  {isResumePending ? "Resuming…" : "Resume matching"}
-                </button>
-                {resumeBlocked && (
-                  <p className="text-xs text-muted">
-                    We need to sort this one out by hand — please email <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a>.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {isPaused && member && (
-              <div className="text-center">
-                {!confirmCancel ? (
-                  <button
-                    onClick={() => setConfirmCancel(true)}
-                    className="text-xs text-muted hover:text-dark transition"
-                  >
-                    Cancel membership
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted">
-                      Cancel your membership now? This ends your access immediately
-                      {member.matches_remaining > 0 ? ` and you'll give up your ${member.matches_remaining} remaining ${member.matches_remaining === 1 ? "match" : "matches"}` : ""}. You won&apos;t be charged again.
-                    </p>
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => {
-                          if (!accessToken) return;
-                          startCancelTransition(() => cancelPausedMembership(accessToken));
-                        }}
-                        disabled={isCancelPending}
-                        className="text-xs px-3 py-1.5 bg-dark text-white rounded-lg hover:bg-dark/80 transition disabled:opacity-60"
-                      >
-                        {isCancelPending ? "Cancelling…" : "Yes, cancel now"}
-                      </button>
-                      <button
-                        onClick={() => setConfirmCancel(false)}
-                        className="text-xs px-3 py-1.5 border border-border rounded-lg text-muted hover:text-dark transition"
-                      >
-                        Never mind
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!subscription.cancel_at_period_end && !isCanceling && !isPaused && (
+            {!subscription.cancel_at_period_end && !isCanceling && (
               <div className="text-center">
                 {!confirmCancel ? (
                   <button

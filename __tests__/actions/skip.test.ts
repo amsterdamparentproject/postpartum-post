@@ -7,11 +7,8 @@ import { recordSkip } from "@/app/actions/skip";
 //
 // Track F: recordSkip itself no longer touches Stripe at all — a skip is
 // pure DB bookkeeping (monthly_skips row + consecutive_skips counter).
-// The only Stripe call left in this file is autoPauseMember's indefinite
-// pause_collection once a member crosses the auto-pause threshold, so
-// mockUpdate is all that's needed (no mockRetrieve — nothing here reads a
-// subscription's price or plan type anymore; the auto-pause threshold is
-// plan-blind).
+// There is no auto-pause any more, so no Stripe call happens at all;
+// mockUpdate only exists to assert that.
 
 const { mockUpdate } = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
@@ -23,10 +20,6 @@ vi.mock("@/lib/stripe", () => ({
       update: mockUpdate,
     },
   }),
-}));
-
-vi.mock("@/lib/emails", () => ({
-  sendAutoPauseEmail: vi.fn(),
 }));
 
 const MONTH = "2025-06";
@@ -70,7 +63,7 @@ describe("recordSkip", () => {
     expect(updated?.consecutive_skips).toBe(1);
   });
 
-  it("does not touch Stripe for an ordinary skip below the auto-pause threshold", async () => {
+  it("does not touch Stripe for a skip", async () => {
     const member = await seedMember({ consecutive_skips: 0 });
     memberId = member.id;
     await seedSubscription(memberId);
@@ -101,8 +94,8 @@ describe("recordSkip", () => {
     expect(updated?.consecutive_skips).toBe(2);
   });
 
-  it("auto-pauses after 3 consecutive skips", async () => {
-    const member = await seedMember({ consecutive_skips: 2 });
+  it("does not pause or change status after 3 consecutive skips", async () => {
+    const member = await seedMember({ status: "active", consecutive_skips: 2 });
     memberId = member.id;
     await seedSubscription(memberId);
 
@@ -112,37 +105,12 @@ describe("recordSkip", () => {
     const supabase = createTestSupabase();
     const { data: updated } = await supabase
       .from("members")
-      .select("status")
+      .select("status, consecutive_skips")
       .eq("id", memberId)
       .single();
-    expect(updated?.status).toBe("paused");
-
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ pause_collection: { behavior: "void" } })
-    );
-  });
-
-  // Track F: auto-pause used to be gated to monthly plans only ("pausing
-  // would forfeit their renewal" for a 3-month/bundle member, back when a
-  // subscription's own billing date was the thing tracking what they were
-  // owed). Now that matches_remaining is the counter and pausing never
-  // forfeits anything, every plan auto-pauses the same way.
-  it("auto-pauses a 3-month/bundle member after 3 consecutive skips too", async () => {
-    const member = await seedMember({ consecutive_skips: 2 });
-    memberId = member.id;
-    await seedSubscription(memberId, { stripe_price_id: "price_6mo" });
-
-    const token = generateSkipToken(memberId, MONTH);
-    await recordSkip(memberId, MONTH, token);
-
-    const supabase = createTestSupabase();
-    const { data: updated } = await supabase
-      .from("members")
-      .select("status")
-      .eq("id", memberId)
-      .single();
-    expect(updated?.status).toBe("paused");
+    // Streak is still counted (for analytics), but nothing pauses the member.
+    expect(updated).toEqual({ status: "active", consecutive_skips: 3 });
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 
   it("returns invalid_token and makes no DB writes for a bad token", async () => {

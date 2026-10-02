@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { seedMember, seedSubscription, cleanupMember, createTestSupabase } from "@tests/helpers";
-import { unsubscribe, cancelPausedMembership, resumeMatching } from "@/app/actions/unsubscribe";
+import { unsubscribe } from "@/app/actions/unsubscribe";
 
 // --- Mocks ---
 
-const { mockUpdate, mockCancel, mockSendCancellationConfirmedEmail } = vi.hoisted(() => ({
+const { mockUpdate, mockSendCancellationConfirmedEmail } = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
-  mockCancel: vi.fn(),
   mockSendCancellationConfirmedEmail: vi.fn(),
 }));
 
@@ -14,7 +13,6 @@ vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({
     subscriptions: {
       update: mockUpdate,
-      cancel: mockCancel,
     },
   }),
 }));
@@ -185,96 +183,8 @@ describe("unsubscribe — E2E", () => {
   });
 });
 
-// --- Paused members ---
-
-describe("paused members", () => {
-  let memberId: string;
-
-  beforeEach(() => {
-    mockUpdate.mockReset();
-    mockCancel.mockReset();
-    mockCancel.mockResolvedValue({});
-    mockSendCancellationConfirmedEmail.mockReset();
-  });
-
-  afterEach(async () => {
-    if (memberId) await cleanupMember(memberId);
-  });
-
-  async function statusOf(id: string) {
-    const { data } = await createTestSupabase().from("members").select("status").eq("id", id).single();
-    return data?.status;
-  }
-
-  it("unsubscribe() refuses a paused member (they must not re-enter rounds as 'canceling')", async () => {
-    const member = await seedMember({ status: "paused" });
-    memberId = member.id;
-    await seedSubscription(memberId);
-
-    await expect(unsubscribe(memberId)).rejects.toThrow(/paused/);
-    expect(mockUpdate).not.toHaveBeenCalled();
-    expect(await statusOf(memberId)).toBe("paused");
-  });
-
-  it("cancelPausedMembership ends access now: cancels in Stripe, sets inactive, sends confirmation", async () => {
-    const member = await seedMember({ status: "paused", matches_remaining: 2 });
-    memberId = member.id;
-    const sub = await seedSubscription(memberId, { status: "active" });
-
-    await cancelPausedMembership(memberId);
-
-    expect(mockCancel).toHaveBeenCalledWith(sub.stripe_subscription_id, { invoice_now: false, prorate: false });
-    expect(await statusOf(memberId)).toBe("inactive");
-    expect(mockSendCancellationConfirmedEmail).toHaveBeenCalledWith(member.email, expect.any(String), 0);
-  });
-
-  it("cancelPausedMembership restores 'paused' if Stripe fails", async () => {
-    const member = await seedMember({ status: "paused" });
-    memberId = member.id;
-    await seedSubscription(memberId, { status: "active" });
-    mockCancel.mockRejectedValue(new Error("stripe down"));
-
-    await expect(cancelPausedMembership(memberId)).rejects.toThrow("stripe down");
-    expect(await statusOf(memberId)).toBe("paused");
-  });
-
-  it("cancelPausedMembership rejects a member who isn't paused", async () => {
-    const member = await seedMember({ status: "active" });
-    memberId = member.id;
-    await expect(cancelPausedMembership(memberId)).rejects.toThrow("not paused");
-    expect(mockCancel).not.toHaveBeenCalled();
-  });
-
-  it("resumeMatching reactivates a paused member with matches left and resets skips", async () => {
-    const member = await seedMember({ status: "paused", matches_remaining: 2, consecutive_skips: 3 });
-    memberId = member.id;
-
-    expect(await resumeMatching(memberId)).toEqual({ status: "ok" });
-    const { data } = await createTestSupabase()
-      .from("members").select("status, consecutive_skips").eq("id", memberId).single();
-    expect(data).toEqual({ status: "active", consecutive_skips: 0 });
-    expect(mockUpdate).not.toHaveBeenCalled(); // Stripe stays paused
-  });
-
-  it("resumeMatching leaves a paused member with no matches left alone (support handles it)", async () => {
-    const member = await seedMember({ status: "paused", matches_remaining: 0 });
-    memberId = member.id;
-    expect(await resumeMatching(memberId)).toEqual({ status: "no_matches_left" });
-    expect(await statusOf(memberId)).toBe("paused");
-  });
-
-  it("resumeMatching ignores members who aren't paused", async () => {
-    const member = await seedMember({ status: "canceling", matches_remaining: 2 });
-    memberId = member.id;
-    expect(await resumeMatching(memberId)).toEqual({ status: "not_paused" });
-    expect(await statusOf(memberId)).toBe("canceling");
-  });
-});
-
 describe("auth", () => {
   it("rejects calls without a valid session", async () => {
     await expect(unsubscribe("")).rejects.toThrow("Not authenticated");
-    await expect(cancelPausedMembership("")).rejects.toThrow("Not authenticated");
-    expect(await resumeMatching("")).toEqual({ status: "unauthenticated" });
   });
 });

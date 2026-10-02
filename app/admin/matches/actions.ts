@@ -11,7 +11,6 @@ import {
   sendWelcomeEmail,
   sendUnsubscribedEmail,
   sendCancellationConfirmedEmail,
-  sendAutoPauseEmail,
   sendGiftCardEmail,
 } from "@/lib/emails";
 import { sendRematchConfirmationEmail } from "@/lib/emails/rematch-confirmation";
@@ -963,7 +962,6 @@ export type TestEmailKind =
   | "meetup-reminder"
   | "welcome"
   | "cancellation-confirmed"
-  | "auto-pause"
   | "unsubscribed"
   | "rematch-confirmation"
   | "gift-card"
@@ -1055,9 +1053,6 @@ export async function testSendEmail(kind: TestEmailKind): Promise<TestStepResult
         await sendCancellationConfirmedEmail(testEmail, firstName, 2);
         return ok("the cancellation confirmation");
 
-      case "auto-pause":
-        await sendAutoPauseEmail(testEmail, firstName);
-        return ok("the auto-pause email");
 
       case "unsubscribed":
         await sendUnsubscribedEmail(supabase, testEmail, firstName, memberId!);

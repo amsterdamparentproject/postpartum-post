@@ -138,7 +138,6 @@ const EMAIL_TESTS: { kind: TestEmailKind; label: string; note: string }[] = [
   { kind: "meetup-reminder", label: "Meetup reminder", note: "\u201cDid you meet?\u201d links; needs a match this month" },
   { kind: "welcome", label: "Welcome", note: "Signs you in to /profile" },
   { kind: "cancellation-confirmed", label: "Cancellation confirmed", note: "Shows 2 matches left" },
-  { kind: "auto-pause", label: "Auto-pause", note: "Skipped three months in a row" },
   { kind: "unsubscribed", label: "Unsubscribed", note: "Feedback link signs you in" },
   { kind: "rematch-confirmation", label: "Rematch confirmation", note: "Rematch request received" },
   { kind: "gift-card", label: "Gift card", note: "Placeholder code TESTCODE, so redeeming won\u2019t work" },
