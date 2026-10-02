@@ -72,6 +72,11 @@ export interface BillingNoticeInput {
   matchesRemaining: number;
   /** match_entitlements.note on the member's most recent term_payment row. */
   lastTermPaymentNote: string | null;
+  /**
+   * members.status. A "canceling" member is never billed again (renew-check
+   * cancels them at zero instead), so they get no billing notice at all.
+   */
+  memberStatus?: string | null;
   /** Injectable for tests — defaults to now. */
   today?: Date;
 }
@@ -98,6 +103,12 @@ export function deriveBillingNotice(input: BillingNoticeInput): BillingNotice {
   const today = input.today ?? new Date();
 
   if (priceLookupKey && FYP_LOOKUP_KEYS.has(priceLookupKey)) {
+    return { kind: "none" };
+  }
+
+  // Canceling members are never charged again, so neither the counter's
+  // renewal date nor the loud "you're about to be charged" notice applies.
+  if (input.memberStatus === "canceling") {
     return { kind: "none" };
   }
 
@@ -147,6 +158,8 @@ export interface BillingNoticeContext {
   priceLookupKey: string | null;
   intervalCount: number | null;
   lastTermPaymentNote: string | null;
+  /** members.status — see BillingNoticeInput.memberStatus. */
+  memberStatus?: string | null;
 }
 
 /**
@@ -197,10 +210,17 @@ export async function fetchBillingNoticeContext(
     .limit(1)
     .maybeSingle();
 
+  const { data: memberRow } = await supabase
+    .from("members")
+    .select("status")
+    .eq("id", memberId)
+    .maybeSingle();
+
   return {
     priceLookupKey,
     intervalCount,
     lastTermPaymentNote: lastTermPayment?.note ?? null,
+    memberStatus: memberRow?.status ?? null,
   };
 }
 
@@ -225,6 +245,7 @@ export function resolveBillingNotice(
     intervalCount: context.intervalCount,
     matchesRemaining,
     lastTermPaymentNote: context.lastTermPaymentNote,
+    memberStatus: context.memberStatus,
     today,
   });
 }

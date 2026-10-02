@@ -104,6 +104,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
+import { currentMonth, monthToDate } from "@/lib/tokens";
 
 // Processed in batches of this size rather than unbounded — plenty of
 // headroom over the current/expected member count to collapse total wall
@@ -116,6 +117,7 @@ type RenewOutcome =
   | { kind: "canceled" }
   | { kind: "skipped_no_payment_method" }
   | { kind: "no_op" }
+  | { kind: "deferred_active_match" }
   | { kind: "error"; memberId: string; error: string };
 
 async function renewMember(
@@ -233,6 +235,14 @@ async function renewMember(
  * can otherwise generate its own "final invoice" for unbilled items or
  * pending prorations as a side effect of cancellation itself, which is
  * exactly the unwanted charge this whole function exists to prevent.
+ *
+ * Deferred while the member has a match this month: a canceling member only
+ * reaches zero by being matched (commit-matches decrements at the 6th) or by
+ * missing a round, and the opt-in email never goes to a canceling member at
+ * zero, so they can't have a match next month. Finalizing on the 10th right
+ * after the match is revealed on the 7th would send "sorry to see you go"
+ * while they still have a live match to meet. So we wait: the next 10th, with
+ * no match that month, finalizes them.
  */
 async function finalizeCancellation(
   member: { id: string },
@@ -240,6 +250,20 @@ async function finalizeCancellation(
   stripe: ReturnType<typeof getStripe>
 ): Promise<RenewOutcome> {
   try {
+    // matched_on is the first of the month the round belongs to (see
+    // commit-matches). A failed lookup must never fall through to cancelling,
+    // so errors are thrown into the catch below and recorded.
+    const { data: thisMonthsMatches, error: matchError } = await supabase
+      .from("matches")
+      .select("id")
+      .eq("matched_on", monthToDate(currentMonth()))
+      .or(`member_id_1.eq.${member.id},member_id_2.eq.${member.id}`)
+      .limit(1);
+    if (matchError) throw new Error(`match lookup failed: ${matchError.message}`);
+    if (thisMonthsMatches && thisMonthsMatches.length > 0) {
+      return { kind: "deferred_active_match" };
+    }
+
     const { data: sub } = await supabase
       .from("subscriptions")
       .select("stripe_subscription_id")
@@ -315,6 +339,7 @@ export async function POST(req: NextRequest) {
 
   let billed = 0;
   let canceled = 0;
+  let deferredActiveMatch = 0;
   let skippedNoPaymentMethod = 0;
   const errors: { memberId: string; error: string }[] = [];
 
@@ -334,6 +359,7 @@ export async function POST(req: NextRequest) {
     for (const outcome of outcomes) {
       if (outcome.kind === "billed") billed++;
       else if (outcome.kind === "canceled") canceled++;
+      else if (outcome.kind === "deferred_active_match") deferredActiveMatch++;
       else if (outcome.kind === "skipped_no_payment_method") skippedNoPaymentMethod++;
       else if (outcome.kind === "error") errors.push({ memberId: outcome.memberId, error: outcome.error });
       // "no_op" — no live subscription, nothing to count.
@@ -344,6 +370,7 @@ export async function POST(req: NextRequest) {
     checked: candidates?.length ?? 0,
     billed,
     canceled,
+    deferredActiveMatch,
     skippedNoPaymentMethod,
     errors,
   });

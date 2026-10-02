@@ -102,7 +102,9 @@ export async function POST(req: NextRequest) {
       try {
         const context = await fetchBillingNoticeContext(supabase, member.id);
         const isBundle = (context?.intervalCount ?? 1) > 1;
-        lastMatchNotice = isBundle && member.matches_remaining === 1;
+        // A canceling member's bundle isn't going to renew, so "your bundle is
+        // set to renew next month" would be wrong for them.
+        lastMatchNotice = isBundle && member.matches_remaining === 1 && context?.memberStatus !== "canceling";
       } catch (e) {
         console.error(`[send-optin-email] billing-notice lookup failed for member ${member.id} (non-fatal):`, e);
       }
