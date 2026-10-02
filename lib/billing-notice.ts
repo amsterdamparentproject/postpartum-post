@@ -103,15 +103,30 @@ export function deriveBillingNotice(input: BillingNoticeInput): BillingNotice {
 
   const isBundle = (intervalCount ?? 1) > 1;
 
+  const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] ?? null : null;
+
   // Copy pass, 2026-08-27: the monthly renewal reminder is retired — a
   // monthly member has nothing new to learn from an every-email "you'll
   // be charged" line, and dropping it also drops a line of legally
   // unnecessary noise from every single monthly member's reveal email.
+  //
+  // One exception: the first real charge after a gift. A 1-month gift
+  // redeems on the monthly plan, so it is a non-bundle — but that member
+  // has not agreed to a recurring charge the way a paying monthly member
+  // has, so they get the same loud notice as a 3-month gift recipient
+  // (once the counter reaches zero, i.e. the gift's last match is used).
   if (!isBundle) {
+    if (lastTermPaymentNote === GIFT_ENTITLEMENT_NOTE && matchesRemaining <= 0) {
+      return {
+        kind: "loud",
+        renewDate: formatRenewDate(nextRenewCheckDate(today)),
+        amount,
+        isFirstAfterGift: true,
+        cancelUrl: renewalNoticeCancelUrl(),
+      };
+    }
     return { kind: "none" };
   }
-
-  const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] ?? null : null;
 
   if (matchesRemaining > 0) {
     const renewDate =

@@ -153,6 +153,45 @@ describe("deriveBillingNotice — monthly plan", () => {
     });
     expect(result).toEqual({ kind: "none" });
   });
+
+  // A 1-month gift redeems on the monthly plan (a non-bundle), but its
+  // first real charge still gets the loud notice — the member never
+  // agreed to a recurring charge the way a paying monthly member has.
+  describe("first charge after a gift", () => {
+    it("goes loud with isFirstAfterGift once the gift's counter hits zero", () => {
+      const result = deriveBillingNotice({
+        ...base,
+        matchesRemaining: 0,
+        lastTermPaymentNote: GIFT_ENTITLEMENT_NOTE,
+        today: new Date("2026-11-07T00:00:00Z"),
+      });
+      expect(result).toEqual({
+        kind: "loud",
+        renewDate: "10 November 2026",
+        amount: "€12",
+        isFirstAfterGift: true,
+        cancelUrl: expect.stringContaining("/billing"),
+      });
+    });
+
+    it("stays quiet while the gifted match is still unused", () => {
+      const result = deriveBillingNotice({
+        ...base,
+        matchesRemaining: 1,
+        lastTermPaymentNote: GIFT_ENTITLEMENT_NOTE,
+      });
+      expect(result).toEqual({ kind: "none" });
+    });
+
+    it("stays quiet once a real (non-gift) payment has followed the gift", () => {
+      const result = deriveBillingNotice({
+        ...base,
+        matchesRemaining: 0,
+        lastTermPaymentNote: null,
+      });
+      expect(result).toEqual({ kind: "none" });
+    });
+  });
 });
 
 // ── fetchBillingNoticeContext — admin-context DB + Stripe fetch ──────────
