@@ -3,8 +3,60 @@
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase";
 import { sendRematchConfirmationEmail } from "@/lib/emails/rematch-confirmation";
+import { requireMember } from "@/lib/require-member";
+import { currentMonth, monthToDate } from "@/lib/skip-token";
 
-export async function requestRematch(memberId: string, reason: string | null, matchId?: string) {
+export type ActiveMatch = {
+  matchId: string;
+  partnerFirstName: string;
+  partnerLastName: string;
+  partnerEmail: string;
+};
+
+/** This month's rematch-eligible matches for the signed-in member. */
+export async function getRematchMatches(accessToken: string): Promise<ActiveMatch[]> {
+  const authed = await requireMember(accessToken);
+  if (!authed) return [];
+  const memberId = authed.memberId;
+
+  const supabase = createAdminClient();
+  const monthDate = monthToDate(currentMonth());
+
+  const { data } = await supabase
+    .from("matches")
+    .select(`
+      id,
+      member_id_1,
+      member_id_2,
+      rematch_requested,
+      member1:member_id_1 ( first_name, last_name, email ),
+      member2:member_id_2 ( first_name, last_name, email )
+    `)
+    .or(`member_id_1.eq.${memberId},member_id_2.eq.${memberId}`)
+    .gte("matched_on", monthDate)
+    .eq("rematch_requested", false);
+
+  return (data ?? []).map((match) => {
+    const isM1 = match.member_id_1 === memberId;
+    const partnerRaw = isM1 ? match.member2 : match.member1;
+    const partner = Array.isArray(partnerRaw) ? partnerRaw[0] : partnerRaw;
+    return {
+      matchId: match.id,
+      partnerFirstName: (partner as { first_name: string })?.first_name ?? "",
+      partnerLastName: (partner as { last_name: string })?.last_name ?? "",
+      partnerEmail: (partner as { email: string })?.email ?? "",
+    };
+  });
+}
+
+export async function requestRematch(accessToken: string, reason: string | null, matchId?: string) {
+  // Identity comes from the verified session, never a client-supplied member id
+  // (security audit Finding 1): otherwise anyone holding a member id could file
+  // a rematch, and an exclusion, on that member's behalf.
+  const authed = await requireMember(accessToken);
+  if (!authed) throw new Error("Not authenticated");
+  const memberId = authed.memberId;
+
   const supabase = createAdminClient();
 
   // Use the provided matchId, or fall back to the most recent current-month match

@@ -42,9 +42,9 @@ const FAQS: FAQItem[] = [
       "Yes! Our start-of-the-month match email has a skip link. One click and we'll skip your match for that month, plus adjust your billing automatically. No extra charge, form, or fuss. We get it — we're busy parents, too.",
   },
   {
-    question: "Can I pause or cancel?",
+    question: "Can I take a break or cancel?",
     answer:
-      "Yes, anytime. On a monthly plan, after three consecutive skips we'll automatically pause your subscription so you're not being charged while things are busy. On a 3-month plan, you can skip as many months as you need — you've already committed, so we'll never auto-pause you. You can cancel anytime from your account, and cancellations take effect at the end of your current billing period.",
+      "Yes, anytime. You can skip as many months as you like — skipping never uses up a match, and you won't be charged again until your matches run out. You can cancel anytime from your account; you won't be charged again, and you keep any matches you have left until they're used.",
   },
   {
     question: "What information is shared with my match?",

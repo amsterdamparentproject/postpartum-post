@@ -20,6 +20,36 @@ describe("deriveBillingNotice — comped (FYP)", () => {
   });
 });
 
+describe("deriveBillingNotice — canceling members", () => {
+  // A canceling member is never billed again (renew-check cancels them at
+  // zero), so no renewal date and no "you'll be charged" notice may reach them.
+  const base = { memberStatus: "canceling", lastTermPaymentNote: null };
+
+  it("shows nothing for a bundle member at zero (no loud charge notice)", () => {
+    expect(
+      deriveBillingNotice({ ...base, priceLookupKey: "commitment_3mo", intervalCount: 3, matchesRemaining: 0 })
+    ).toEqual({ kind: "none" });
+  });
+
+  it("shows nothing for a bundle member on their last match (no renewal date)", () => {
+    expect(
+      deriveBillingNotice({ ...base, priceLookupKey: "commitment_3mo", intervalCount: 3, matchesRemaining: 1 })
+    ).toEqual({ kind: "none" });
+  });
+
+  it("shows nothing for a canceling member at zero whose last payment was a gift", () => {
+    expect(
+      deriveBillingNotice({
+        memberStatus: "canceling",
+        priceLookupKey: "standard_monthly",
+        intervalCount: 1,
+        matchesRemaining: 0,
+        lastTermPaymentNote: GIFT_ENTITLEMENT_NOTE,
+      })
+    ).toEqual({ kind: "none" });
+  });
+});
+
 describe("deriveBillingNotice — bundle plans", () => {
   const base = {
     priceLookupKey: "commitment_3mo",
@@ -153,6 +183,45 @@ describe("deriveBillingNotice — monthly plan", () => {
     });
     expect(result).toEqual({ kind: "none" });
   });
+
+  // A 1-month gift redeems on the monthly plan (a non-bundle), but its
+  // first real charge still gets the loud notice — the member never
+  // agreed to a recurring charge the way a paying monthly member has.
+  describe("first charge after a gift", () => {
+    it("goes loud with isFirstAfterGift once the gift's counter hits zero", () => {
+      const result = deriveBillingNotice({
+        ...base,
+        matchesRemaining: 0,
+        lastTermPaymentNote: GIFT_ENTITLEMENT_NOTE,
+        today: new Date("2026-11-07T00:00:00Z"),
+      });
+      expect(result).toEqual({
+        kind: "loud",
+        renewDate: "10 November 2026",
+        amount: "€12",
+        isFirstAfterGift: true,
+        cancelUrl: expect.stringContaining("/billing"),
+      });
+    });
+
+    it("stays quiet while the gifted match is still unused", () => {
+      const result = deriveBillingNotice({
+        ...base,
+        matchesRemaining: 1,
+        lastTermPaymentNote: GIFT_ENTITLEMENT_NOTE,
+      });
+      expect(result).toEqual({ kind: "none" });
+    });
+
+    it("stays quiet once a real (non-gift) payment has followed the gift", () => {
+      const result = deriveBillingNotice({
+        ...base,
+        matchesRemaining: 0,
+        lastTermPaymentNote: null,
+      });
+      expect(result).toEqual({ kind: "none" });
+    });
+  });
 });
 
 // ── fetchBillingNoticeContext — admin-context DB + Stripe fetch ──────────
@@ -211,7 +280,20 @@ describe("fetchBillingNoticeContext", () => {
       priceLookupKey: "commitment_3mo",
       intervalCount: 3,
       lastTermPaymentNote: null,
+      memberStatus: "active",
     });
+  });
+
+  it("includes the member's status, so canceling members can be told apart", async () => {
+    const member = await seedMember({ status: "canceling" });
+    memberId = member.id;
+    await seedSubscription(member.id, { status: "active" });
+    mockRetrieve.mockResolvedValue({
+      items: { data: [{ price: { lookup_key: "commitment_3mo", recurring: { interval_count: 3 } } }] },
+    });
+
+    const result = await fetchBillingNoticeContext(createTestSupabase(), memberId);
+    expect(result?.memberStatus).toBe("canceling");
   });
 
   it("reads the most recent term_payment note, ignoring older rows and other event types", async () => {
@@ -247,6 +329,7 @@ describe("fetchBillingNoticeContext", () => {
       priceLookupKey: null,
       intervalCount: null,
       lastTermPaymentNote: null,
+      memberStatus: "active",
     });
   });
 });

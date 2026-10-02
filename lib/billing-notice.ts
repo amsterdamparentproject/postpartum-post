@@ -72,6 +72,11 @@ export interface BillingNoticeInput {
   matchesRemaining: number;
   /** match_entitlements.note on the member's most recent term_payment row. */
   lastTermPaymentNote: string | null;
+  /**
+   * members.status. A "canceling" member is never billed again (renew-check
+   * cancels them at zero instead), so they get no billing notice at all.
+   */
+  memberStatus?: string | null;
   /** Injectable for tests — defaults to now. */
   today?: Date;
 }
@@ -101,17 +106,38 @@ export function deriveBillingNotice(input: BillingNoticeInput): BillingNotice {
     return { kind: "none" };
   }
 
+  // Canceling members are never charged again, so neither the counter's
+  // renewal date nor the loud "you're about to be charged" notice applies.
+  if (input.memberStatus === "canceling") {
+    return { kind: "none" };
+  }
+
   const isBundle = (intervalCount ?? 1) > 1;
+
+  const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] ?? null : null;
 
   // Copy pass, 2026-08-27: the monthly renewal reminder is retired — a
   // monthly member has nothing new to learn from an every-email "you'll
   // be charged" line, and dropping it also drops a line of legally
   // unnecessary noise from every single monthly member's reveal email.
+  //
+  // One exception: the first real charge after a gift. A 1-month gift
+  // redeems on the monthly plan, so it is a non-bundle — but that member
+  // has not agreed to a recurring charge the way a paying monthly member
+  // has, so they get the same loud notice as a 3-month gift recipient
+  // (once the counter reaches zero, i.e. the gift's last match is used).
   if (!isBundle) {
+    if (lastTermPaymentNote === GIFT_ENTITLEMENT_NOTE && matchesRemaining <= 0) {
+      return {
+        kind: "loud",
+        renewDate: formatRenewDate(nextRenewCheckDate(today)),
+        amount,
+        isFirstAfterGift: true,
+        cancelUrl: renewalNoticeCancelUrl(),
+      };
+    }
     return { kind: "none" };
   }
-
-  const amount = priceLookupKey ? TERM_AMOUNTS[priceLookupKey] ?? null : null;
 
   if (matchesRemaining > 0) {
     const renewDate =
@@ -132,6 +158,8 @@ export interface BillingNoticeContext {
   priceLookupKey: string | null;
   intervalCount: number | null;
   lastTermPaymentNote: string | null;
+  /** members.status — see BillingNoticeInput.memberStatus. */
+  memberStatus?: string | null;
 }
 
 /**
@@ -182,10 +210,17 @@ export async function fetchBillingNoticeContext(
     .limit(1)
     .maybeSingle();
 
+  const { data: memberRow } = await supabase
+    .from("members")
+    .select("status")
+    .eq("id", memberId)
+    .maybeSingle();
+
   return {
     priceLookupKey,
     intervalCount,
     lastTermPaymentNote: lastTermPayment?.note ?? null,
+    memberStatus: memberRow?.status ?? null,
   };
 }
 
@@ -210,6 +245,7 @@ export function resolveBillingNotice(
     intervalCount: context.intervalCount,
     matchesRemaining,
     lastTermPaymentNote: context.lastTermPaymentNote,
+    memberStatus: context.memberStatus,
     today,
   });
 }

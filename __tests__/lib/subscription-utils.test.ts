@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cancelSubscription } from "@/lib/subscription-utils";
+import { pauseSubscriptionCollection } from "@/lib/subscription-utils";
 
 const { mockUpdate } = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
@@ -13,28 +13,19 @@ vi.mock("@/lib/stripe", () => ({
   }),
 }));
 
-function stripeSubResponse(currentPeriodEndISO: string) {
-  return {
-    items: {
-      data: [{ current_period_end: Math.floor(new Date(currentPeriodEndISO).getTime() / 1000) }],
-    },
-  };
-}
-
-describe("cancelSubscription", () => {
+describe("pauseSubscriptionCollection", () => {
   beforeEach(() => {
     mockUpdate.mockReset();
   });
 
-  it("sets cancel_at_period_end and returns the period-end date", async () => {
-    mockUpdate.mockResolvedValue(stripeSubResponse("2026-09-10T00:00:00Z"));
+  it("pauses collection (void) and never schedules a cancellation", async () => {
+    mockUpdate.mockResolvedValue({});
 
-    const result = await cancelSubscription("sub_test");
+    await pauseSubscriptionCollection("sub_test");
 
+    expect(mockUpdate).toHaveBeenCalledOnce();
     expect(mockUpdate).toHaveBeenCalledWith("sub_test", {
-      cancel_at_period_end: true,
-      expand: ["items"],
+      pause_collection: { behavior: "void" },
     });
-    expect(result.periodEnd.toISOString()).toBe("2026-09-10T00:00:00.000Z");
   });
 });

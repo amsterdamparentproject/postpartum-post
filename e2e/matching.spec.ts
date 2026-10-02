@@ -210,9 +210,10 @@ test(
       await waitForMagicLinkRedirect(page, /\/billing/);
 
       // ── Step 3: Billing page reflects the skip ────────────────────────────
-      // After the first skip, consecutive_skips = 1, which appears on the
-      // billing page under "Months skipped in a row".
-      await expect(page.getByText(/months skipped in a row/i)).toBeVisible({ timeout: 15_000 });
+      // The skip streak is no longer shown to members (there is no auto-pause
+      // rule any more); the page just shows the skip banner and status below.
+      await expect(page.getByText(/you.re skipping your match this month/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText(/months skipped in a row/i)).not.toBeVisible();
 
       // The billing page's Status badge is our own vocabulary (Track C1,
       // billing plan §3.3) derived from the matches-remaining counter, not
@@ -303,7 +304,7 @@ test(
       // Subscription loads from Stripe — allow time for the API call
       await expect(page.getByText(/trial|active/i)).toBeVisible({ timeout: 15_000 });
 
-      // consecutive_skips = 0 → "Months skipped in a row" section must not appear
+      // The skip streak is never shown to members
       await expect(page.getByText(/months skipped in a row/i)).not.toBeVisible();
 
     } finally {
@@ -463,11 +464,10 @@ async function assertPersonalizedMatchPage(
   // designated to go first — never the viewer's own address.
   await expect(page.locator(`a[href^="mailto:${other.email}"]`)).toBeVisible();
   await expect(page.locator(`a[href^="mailto:${viewer.email}"]`)).toHaveCount(0);
-  // The rematch link is stamped with the viewer's own member ID directly —
-  // every /rematch entry point passes member_id, so the page needs no session
-  // lookup of its own.
+  // The rematch link no longer carries member_id — /rematch resolves the
+  // member from the signed-in session, so only match_id is passed.
   await expect(
-    page.locator(`a[href^="/rematch?member_id=${viewer.id}&match_id=${matchId}"]`).first()
+    page.locator(`a[href^="/rematch?match_id=${matchId}"]`).first()
   ).toBeVisible();
 }
 

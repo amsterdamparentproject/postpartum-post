@@ -1,19 +1,13 @@
 import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 
-function formatDate(iso: string): string | null {
-  const date = new Date(iso);
-  if (isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-}
-
 export default async function UnsubscribeConfirmed({
   searchParams,
 }: {
-  searchParams: Promise<{ until?: string }>;
+  searchParams: Promise<{ matches?: string }>;
 }) {
-  const { until } = await searchParams;
-  const untilText = until ? formatDate(until) : null;
+  const { matches } = await searchParams;
+  const matchesLeft = Math.max(parseInt(matches ?? "0", 10) || 0, 0);
 
   return (
     <PageLayout>
@@ -28,9 +22,10 @@ export default async function UnsubscribeConfirmed({
           </h1>
           <p className="text-muted leading-relaxed mb-8">
             Your subscription has been canceled. You won&apos;t be charged again
-            {untilText ? (
+            {matchesLeft > 0 ? (
               <>
-                , and your access remains active until <strong>{untilText}</strong>
+                , and you still have <strong>{matchesLeft} {matchesLeft === 1 ? "match" : "matches"}</strong> left
+                to use
               </>
             ) : (
               ", and you won't receive any more matches"

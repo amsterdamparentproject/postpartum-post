@@ -7,6 +7,7 @@ function perk(name: string, overrides: Partial<RankablePerk> = {}): RankablePerk
     status: "published",
     featured: false,
     exclusive: false,
+    frequency: "monthly",
     created_at: "2026-09-01T00:00:00Z",
     redeemed_count: 0,
     viewed_count: 0,
@@ -17,18 +18,56 @@ function perk(name: string, overrides: Partial<RankablePerk> = {}): RankablePerk
 const order = (perks: ReturnType<typeof perk>[]) => [...perks].sort(comparePerks).map((p) => p.name);
 
 describe("comparePerks", () => {
-  it("ranks live, then redeemed, viewed, featured, exclusive, newest", () => {
+  it("ranks featured, live, redeemed, monthly, exclusive, viewed, newest", () => {
     expect(
       order([
-        perk("soon", { status: "coming_soon", redeemed_count: 99 }),
-        perk("newest", { created_at: "2026-09-20T00:00:00Z" }),
-        perk("exclusive", { exclusive: true }),
-        perk("featured", { featured: true }),
-        perk("viewed", { viewed_count: 3 }),
-        perk("redeemed", { redeemed_count: 1 }),
         perk("oldest"),
+        perk("newest", { created_at: "2026-09-20T00:00:00Z" }),
+        perk("viewed", { viewed_count: 3 }),
+        perk("exclusive", { exclusive: true }),
+        perk("intro", { frequency: "once" }),
+        perk("redeemed", { redeemed_count: 1 }),
+        perk("soon", { status: "coming_soon", redeemed_count: 99 }),
+        perk("featured", { featured: true }),
       ]),
-    ).toEqual(["redeemed", "viewed", "featured", "exclusive", "newest", "oldest", "soon"]);
+    ).toEqual(["featured", "redeemed", "exclusive", "viewed", "newest", "oldest", "intro", "soon"]);
+  });
+
+  it("a live, well-redeemed perk beats an exclusive intro offer", () => {
+    expect(
+      order([
+        perk("exclusive-intro", { frequency: "once", exclusive: true }),
+        perk("redeemed-monthly", { redeemed_count: 2 }),
+      ]),
+    ).toEqual(["redeemed-monthly", "exclusive-intro"]);
+  });
+
+  it("a well-redeemed intro offer beats a barely-viewed monthly perk", () => {
+    expect(
+      order([
+        perk("monthly-viewed", { viewed_count: 1 }),
+        perk("intro-redeemed", { frequency: "once", redeemed_count: 3 }),
+      ]),
+    ).toEqual(["intro-redeemed", "monthly-viewed"]);
+  });
+
+  it("with equal redemptions, monthly comes before an intro offer, even an exclusive or viewed one", () => {
+    expect(
+      order([
+        perk("intro", { frequency: "once", exclusive: true, viewed_count: 9 }),
+        perk("monthly"),
+      ]),
+    ).toEqual(["monthly", "intro"]);
+  });
+
+  it("a featured intro offer leads everything, featured monthly first among featured", () => {
+    expect(
+      order([
+        perk("monthly", { redeemed_count: 5 }),
+        perk("intro-featured", { frequency: "once", featured: true }),
+        perk("monthly-featured", { featured: true }),
+      ]),
+    ).toEqual(["monthly-featured", "intro-featured", "monthly"]);
   });
 });
 

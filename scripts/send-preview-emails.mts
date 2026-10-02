@@ -18,7 +18,6 @@
 import { sendWelcomeEmail } from "../lib/emails/welcome.ts";
 import { sendUnsubscribedEmail } from "../lib/emails/unsubscribed.ts";
 import { createAdminClient } from "../lib/supabase.ts";
-import { sendAutoPauseEmail } from "../lib/emails/auto-pause.ts";
 import { sendOptinEmail } from "../lib/emails/optin.ts";
 import { sendMatchRevealEmail } from "../lib/emails/match-reveal.ts";
 import type { BillingNotice } from "../lib/billing-notice.ts";
@@ -55,10 +54,6 @@ await send("welcome", () =>
 
 await send("unsubscribed", () =>
   sendUnsubscribedEmail(createAdminClient(), TO, "Alex")
-);
-
-await send("auto-pause", () =>
-  sendAutoPauseEmail(TO, "Alex")
 );
 
 await send("optin", () =>
@@ -174,7 +169,7 @@ await send("partner-welcome", () =>
 );
 
 if (results.length === 0 && filter) {
-  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, auto-pause, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, member-update, meetup-reminder, pending-followup, partner-welcome`);
+  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, member-update, meetup-reminder, pending-followup, partner-welcome`);
   process.exit(1);
 }
 

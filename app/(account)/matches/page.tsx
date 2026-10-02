@@ -92,7 +92,6 @@ export default function MatchesPage() {
       <div className="flex-[3] min-w-0 space-y-0">
         <h2 className="text-base font-semibold text-dark pl-4 mb-4">Admin</h2>
         <MatchAdmin
-          memberId={member.id}
           accessToken={accessToken ?? ""}
           exclusions={exclusions}
           onExclusionsChange={setExclusions}
@@ -109,14 +108,12 @@ export default function MatchesPage() {
 // ---------------------------------------------------------------------------
 
 function MatchAdmin({
-  memberId,
   accessToken,
   exclusions,
   onExclusionsChange,
   activeMatch,
   hasAnyMatch,
 }: {
-  memberId: string;
   accessToken: string;
   exclusions: Exclusion[];
   onExclusionsChange: (e: Exclusion[]) => void;
@@ -178,7 +175,7 @@ function MatchAdmin({
             <p className="text-xs text-muted">Something not working with your match? You can request to be matched with someone else this month.</p>
             {beforeCutoff ? (
               <Link
-                href={`/rematch?member_id=${memberId}`}
+                href="/rematch"
                 className="inline-block w-full text-center rounded-lg border border-border text-sm py-2 text-dark hover:border-coral hover:text-coral transition-colors"
               >
                 Request a rematch
@@ -407,7 +404,7 @@ function MatchedCard({
               {/* Rematch */}
               {new Date().getDate() <= 14 ? (
                 <Link
-                  href={`/rematch?member_id=${memberId}&match_id=${matchId}`}
+                  href={`/rematch?match_id=${matchId}`}
                   title="Request a rematch"
                   className="p-2 rounded-lg border border-border text-muted hover:text-dark hover:border-dark transition-colors"
                 >
@@ -478,7 +475,7 @@ function MatchedCard({
           ) : new Date().getDate() <= 14 ? (
             <p className="text-xs text-muted">
               Your match for this month has changed.{" "}
-              <Link href={`/rematch?member_id=${memberId}&match_id=${matchId}`} className="underline hover:text-dark transition-colors">
+              <Link href={`/rematch?match_id=${matchId}`} className="underline hover:text-dark transition-colors">
                 Request a rematch
               </Link>
               , or wait until next month to be matched with someone new.

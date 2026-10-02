@@ -10,7 +10,7 @@ import {
   type SubscriptionDetails,
 } from "@/app/actions/profile";
 import { unsubscribe } from "@/app/actions/unsubscribe";
-import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES } from "@/lib/member-status";
+import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES, type MemberStatusMessage } from "@/lib/member-status";
 import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
 
 // Accepts either a Stripe unix timestamp (a real instant — formatted in the
@@ -107,8 +107,25 @@ function BillingContent() {
       ? "Monthly (€0/mo)"
       : null;
 
+  // Cancellation is tracked in our own members.status, not Stripe's
+  // cancel_at_period_end: Stripe only collects money (billing plan), and a
+  // member who cancels is left paused in Stripe until their matches run out.
+  const isCanceling = member?.status === "canceling";
+  const canceledStatusMessage: MemberStatusMessage | null =
+    isCanceling && member
+      ? {
+          label:
+            member.matches_remaining > 0
+              ? `Canceled — ${member.matches_remaining} ${member.matches_remaining === 1 ? "match" : "matches"} left`
+              : "Canceled",
+          tone: "muted",
+          tooltip: "You won't be charged again. You keep your remaining matches until they're used.",
+        }
+      : null;
+
   const statusMessage =
-    subscription && member
+    canceledStatusMessage ??
+    (subscription && member
       ? deriveMemberStatusMessage({
           stripeStatus: subscription.status,
           cancellationReason: subscription.cancellation_reason,
@@ -118,13 +135,16 @@ function BillingContent() {
           latestInvoiceOpenAndAttempted: subscription.latest_invoice_open_and_attempted,
           currentPeriodEnd: subscription.current_period_end,
         })
-      : null;
+      : null);
 
   // Track E1's renew-check date (the 10th) when deriveMemberStatusMessage
   // has one — it's the real next-charge date once Track E2's
   // pause_collection sits between renewals. Falls back to Stripe's raw
   // current_period_end everywhere else.
-  const nextBillingDate: number | Date | undefined = statusMessage?.renewsAt ?? subscription?.current_period_end ?? undefined;
+  // A canceled member is never billed again, so there is no next billing date.
+  const nextBillingDate: number | Date | undefined = isCanceling
+    ? undefined
+    : statusMessage?.renewsAt ?? subscription?.current_period_end ?? undefined;
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
   if (!member) return <MagicLinkRequest />;
@@ -216,20 +236,6 @@ function BillingContent() {
               </div>
             )}
 
-            {member.consecutive_skips > 0 && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted">Months skipped in a row</span>
-                  <span className={`font-medium ${member.consecutive_skips >= 2 ? "text-amber-600" : "text-dark"}`}>
-                    {member.consecutive_skips} / 3
-                  </span>
-                </div>
-                <p className="text-xs text-muted leading-relaxed">
-                  After 3 consecutive skips, your subscription will be automatically paused so you&apos;re not charged while things are busy.
-                </p>
-              </div>
-            )}
-
             <hr className="border-border" />
 
             <p className="text-xs text-muted leading-relaxed">
@@ -244,7 +250,7 @@ function BillingContent() {
               {isPortalPending ? "Redirecting…" : "Manage billing →"}
             </button>
 
-            {!subscription.cancel_at_period_end && (
+            {!subscription.cancel_at_period_end && !isCanceling && (
               <div className="text-center">
                 {!confirmCancel ? (
                   <button
@@ -255,12 +261,12 @@ function BillingContent() {
                   </button>
                 ) : (
                   <div className="space-y-2">
-                    <p className="text-xs text-muted">Cancel at the end of your billing period?</p>
+                    <p className="text-xs text-muted">Cancel your subscription? You&apos;ll keep any matches you have left.</p>
                     <div className="flex gap-2 justify-center">
                       <button
                         onClick={() => {
-                          if (!member) return;
-                          startCancelTransition(() => unsubscribe(member.id));
+                          if (!member || !accessToken) return;
+                          startCancelTransition(() => unsubscribe(accessToken));
                         }}
                         disabled={isCancelPending}
                         className="text-xs px-3 py-1.5 bg-dark text-white rounded-lg hover:bg-dark/80 transition disabled:opacity-60"

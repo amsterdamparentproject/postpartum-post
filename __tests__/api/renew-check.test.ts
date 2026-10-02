@@ -18,7 +18,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import { seedMember, seedSubscription, cleanupMember } from "@tests/helpers";
+import { seedMember, seedSubscription, cleanupMember, createTestSupabase } from "@tests/helpers";
 import { POST } from "@/app/api/renew-check/route";
 
 // --- Mocks ---
@@ -281,6 +281,60 @@ describe("POST /api/renew-check", () => {
     expect(mockInvoiceCreate).not.toHaveBeenCalledWith(
       expect.objectContaining({ subscription: sub.stripe_subscription_id })
     );
+  });
+
+  it("defers finalizing a canceling member at zero who has a match this month", async () => {
+    // Used their last match in this month's round: the 10th must not send
+    // "sorry to see you go" while they still have a live match to meet.
+    const member = await seedMember({ status: "canceling", matches_remaining: 0 });
+    memberId = member.id;
+    const partner = await seedMember({ status: "active", matches_remaining: 2 });
+    const sub = await seedSubscription(memberId, { status: "active" });
+    const monthDate = `${new Date().toISOString().slice(0, 7)}-01`;
+    try {
+      const { error } = await createTestSupabase()
+        .from("matches")
+        .insert({ member_id_1: member.id, member_id_2: partner.id, matched_on: monthDate });
+      expect(error).toBeNull();
+
+      const res = await POST(makeRequest());
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.deferredActiveMatch).toBeGreaterThanOrEqual(1);
+      expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+
+      // Not cancelled, not billed.
+      expect(mockCancel).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+      expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+    } finally {
+      await cleanupMember(partner.id);
+    }
+  });
+
+  it("still finalizes a canceling member at zero whose only match was in an earlier month", async () => {
+    const member = await seedMember({ status: "canceling", matches_remaining: 0 });
+    memberId = member.id;
+    const partner = await seedMember({ status: "active", matches_remaining: 2 });
+    const sub = await seedSubscription(memberId, { status: "active" });
+    const lastMonth = new Date();
+    lastMonth.setUTCDate(1);
+    lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+    const lastMonthDate = `${lastMonth.toISOString().slice(0, 7)}-01`;
+    try {
+      const { error } = await createTestSupabase()
+        .from("matches")
+        .insert({ member_id_1: member.id, member_id_2: partner.id, matched_on: lastMonthDate });
+      expect(error).toBeNull();
+
+      const res = await POST(makeRequest());
+      expect(res.status).toBe(200);
+      expect(mockCancel).toHaveBeenCalledWith(sub.stripe_subscription_id, {
+        invoice_now: false,
+        prorate: false,
+      });
+    } finally {
+      await cleanupMember(partner.id);
+    }
   });
 
   it("isolates a per-member Stripe failure — records the error without failing the batch", async () => {

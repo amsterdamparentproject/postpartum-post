@@ -38,8 +38,8 @@ test("cancel subscription: billing page → confirm cancel → profile → subsc
     // ── Step 3: Click "Cancel subscription" ───────────────────────────────
     await page.getByRole("button", { name: /cancel subscription/i }).click();
 
-    // Inline confirmation appears — actual text is "Cancel at the end of your billing period?"
-    await expect(page.getByText(/cancel at the end of your billing period/i)).toBeVisible();
+    // Inline confirmation appears
+    await expect(page.getByText(/cancel your subscription\? you.ll keep any matches you have left/i)).toBeVisible();
 
     // ── Step 4: Confirm the cancellation ──────────────────────────────────
     await page.getByRole("button", { name: "Yes, cancel" }).click();
@@ -48,13 +48,14 @@ test("cancel subscription: billing page → confirm cancel → profile → subsc
     await page.waitForURL(/\/unsubscribe\/confirmed/, { timeout: 15_000 });
     await expect(page.getByRole("heading", { name: /you've been unsubscribed/i })).toBeVisible();
 
-    // ── Step 6: Return to /billing — shows "Cancels on" with end date ────────
+    // ── Step 6: Return to /billing — shows "Canceled" status ──────────────
     await page.goto("/billing");
 
-    // After cancellation the subscription stays active until the billing period
-    // ends (cancel_at_period_end: true), so the billing page shows "Cancels on"
-    // rather than removing the subscription details entirely.
-    await expect(page.getByText(/cancels on/i)).toBeVisible({ timeout: 10_000 });
+    // Cancellation only pauses Stripe collection (not cancel_at_period_end) so
+    // the member keeps access to any remaining matches; the billing page
+    // reflects this via the member's own "canceling" status badge, not a
+    // Stripe-driven "Cancels on" date.
+    await expect(page.getByText(/^canceled/i)).toBeVisible({ timeout: 10_000 });
     // Cancel button should no longer be shown
     await expect(page.getByRole("button", { name: /cancel subscription/i })).not.toBeVisible();
 
