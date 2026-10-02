@@ -44,7 +44,10 @@ function counterNoticeFooterHtml(notice: BillingNotice): string | undefined {
                   </td></tr>`;
 }
 
-function billingNoticeHtml(notice: BillingNotice): string {
+// A single <tr>, rendered inside the Community Guidelines section (below) rather
+// than as its own bodySection: two stacked sections each carry 26px of inner
+// padding, which left an oversized gap above the notice.
+function billingNoticeRow(notice: BillingNotice): string {
   if (notice.kind === "none" || notice.kind === "counter") {
     return "";
   }
@@ -61,10 +64,10 @@ function billingNoticeHtml(notice: BillingNotice): string {
     ? `This was your last free match from your gifted subscription!`
     : `You've used all the matches in your bundle.`;
   const billingPageLink = `<a href="${notice.cancelUrl}" style="color:#000000;text-decoration:underline;">Billing page</a>`;
-  return bodySection(`
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+  return `
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:8px 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <b>A note on your subscription:</b> ${intro} To keep matching, you'll be charged${amountSuffix} on ${notice.renewDate}. If you'd like to make changes ahead of next month's match round, go to your ${billingPageLink}.
-                                    </td></tr>`);
+                                    </td></tr>`;
 }
 
 function matchRevealHtml(
@@ -104,18 +107,11 @@ function matchRevealHtml(
                                     <tr><td dir="ltr" style="font-size:14px;color:#666666;text-align:left;padding:0 0 8px;line-height:1.4;mso-line-height-alt:19.6px">
                                       Please make sure to review our <a href="https://postpartumpost.com/community-guidelines" style="color:#000000;text-decoration:underline;">Community Guidelines</a> before interacting with your match — to keep things safe and joyful for all.
                                     </td></tr>
-                                    ${isDoubleMatch ? `<tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 8px;line-height:1.4;mso-line-height-alt:22.4px">
+                                    ${isDoubleMatch ? `<tr><td dir="ltr" style="font-size:16px;text-align:left;padding:8px 0 8px;line-height:1.4;mso-line-height-alt:22.4px">
                                       A quick note: Due to your profile preferences and our odd-numbered parent pool this month, we matched you twice! We hope you enjoy your extra connection ❤️ If you don't want 2 matches next month, make sure to change the setting in your profile.
-                                    </td></tr>` : ""}`,
-      // tightBottom drops this section's own bottom padding so it doesn't
-      // stack with the loud notice's bodySection right below it — without
-      // it the two independently-padded sections left a visibly oversized
-      // gap between the Community Guidelines paragraph and "A note on your
-      // subscription:" (flagged from a live screenshot, 2026-08-27). Only
-      // for "loud": "counter" doesn't render inline at all (it's in the
-      // footer), so there's no adjacent section to collide with there.
-      billingNotice.kind === "loud") +
-    billingNoticeHtml(billingNotice);
+                                    </td></tr>` : ""}
+                                    ${billingNoticeRow(billingNotice)}`);
+
   return baseEmail(content, "", { afterNonprofitBox: counterNoticeFooterHtml(billingNotice) });
 }
 
