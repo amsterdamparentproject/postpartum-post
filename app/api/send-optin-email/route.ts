@@ -47,13 +47,20 @@ export async function POST(req: NextRequest) {
   }
 
   // -------------------------------------------------------------------------
-  // Fetch active members (includes "canceling" — paid through end of period)
+  // Fetch recipients: every active member, plus "canceling" members who still
+  // have a match left to use. A canceling member at matches_remaining <= 0 has
+  // used up their term and is just waiting for renew-check (the 10th) to
+  // finalize the cancellation — they can't opt in (the click is gated on the
+  // counter), so the invitation would only confuse them.
+  //
+  // Active members at 0 deliberately still get the email (Track E3: the gate
+  // is at the click, not the send).
   // -------------------------------------------------------------------------
   const supabase = createAdminClient();
   const { data: members, error } = await supabase
     .from("members")
     .select("id, first_name, email, matches_remaining")
-    .in("status", ["active", "canceling"]);
+    .or("status.eq.active,and(status.eq.canceling,matches_remaining.gt.0)");
 
   if (error) {
     console.error("[send-optin-email] Failed to fetch members:", error);
