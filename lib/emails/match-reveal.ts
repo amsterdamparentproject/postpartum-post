@@ -74,7 +74,6 @@ function matchRevealHtml(
   matchEmail: string,
   topic: string | null,
   matchPageUrl: string,
-  matchesLink: string,
   isDoubleMatch: boolean,
   isRecipientInitiator: boolean,
   billingNotice: BillingNotice,
@@ -103,7 +102,7 @@ function matchRevealHtml(
     ctaButton(`Email ${matchFirstName} now`, `mailto:${matchEmail}?subject=${mailtoSubject}&body=${mailtoBody}`) +
     bodySection(`                 
                                     <tr><td dir="ltr" style="font-size:14px;color:#666666;text-align:left;padding:0 0 8px;line-height:1.4;mso-line-height-alt:19.6px">
-                                      Please make sure to review our <a href="https://postpartumpost.com/community-guidelines" style="color:#000000;text-decoration:underline;">Community Guidelines</a> before interacting with your match — to keep things safe and joyful for all. If this match isn&apos;t working out, you can request a rematch from your <a href="${matchesLink}" style="color:#000000;text-decoration:underline;">matches page</a> before the 14th of the month.
+                                      Please make sure to review our <a href="https://postpartumpost.com/community-guidelines" style="color:#000000;text-decoration:underline;">Community Guidelines</a> before interacting with your match — to keep things safe and joyful for all.
                                     </td></tr>
                                     ${isDoubleMatch ? `<tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 8px;line-height:1.4;mso-line-height-alt:22.4px">
                                       A quick note: Due to your profile preferences and our odd-numbered parent pool this month, we matched you twice! We hope you enjoy your extra connection ❤️ If you don't want 2 matches next month, make sure to change the setting in your profile.
@@ -128,7 +127,6 @@ export async function sendMatchRevealEmail(
   matchEmail: string,
   topic: string | null,
   matchPageUrl: string,
-  matchesLink: string,
   isDoubleMatch = false,
   isRecipientInitiator = false,
   // Track C4 — appended rather than inserted earlier in the list so
@@ -152,7 +150,6 @@ export async function sendMatchRevealEmail(
       matchEmail,
       topic,
       matchPageUrl,
-      matchesLink,
       isDoubleMatch,
       isRecipientInitiator,
       billingNotice,
