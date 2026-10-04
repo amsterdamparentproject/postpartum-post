@@ -111,23 +111,27 @@ export default function TermsOfService() {
               </p>
               <ul className="list-disc list-inside space-y-2 mb-3">
                 <li>
-                  <strong>Once a month per perk.</strong> Each perk is designed to be used no more than once a
+                  <strong className="mr-1">Once a month per perk.</strong>
+                  Each perk is designed to be used no more than once a
                   month. When you redeem a perk in your Perks tab, it&apos;s marked as used until the 1st of the
                   next month.
                 </li>
                 <li>
-                  <strong>Perks are for you.</strong> Please don&apos;t share perk codes publicly or pass them on to
+                  <strong className="mr-1">Perks are for you.</strong>
+                  Please don&apos;t share perk codes publicly or pass them on to
                   people who aren&apos;t members. They&apos;re a thank-you from our partners to this community.
                 </li>
                 <li>
-                  <strong>Partners run their own perks.</strong> Each perk is offered and honored by the business
+                  <strong className="mr-1">Partners run their own perks.</strong>
+                  Each perk is offered and honored by the business
                   itself, not by Postpartum Post. Details like availability, opening hours, what&apos;s included and
                   whether a perk is still running are up to the partner. Perks can change or end at any time. If
                   something doesn&apos;t go as expected, let us know and we&apos;ll follow up with the partner, but we
                   can&apos;t guarantee that a perk will be honored.
                 </li>
                 <li>
-                  <strong>Using perks fairly.</strong> If we see a perk being misused, for example redeemed more
+                  <strong className="mr-1">Using perks fairly.</strong>
+                  If we see a perk being misused, for example redeemed more
                   than intended or shared outside the community, we may take action, which can include removing
                   your account.
                 </li>

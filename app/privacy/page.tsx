@@ -126,7 +126,8 @@ export default function PrivacyPolicy() {
                 You can request deletion at any time (see below).
               </p>
               <p className="mt-3">
-                <strong>Safety records.</strong> If a member is removed from Postpartum Post for a conduct
+                <strong className="mr-1">Safety records.</strong>
+                If a member is removed from Postpartum Post for a conduct
                 violation, we retain a limited safety record — including their name, email address, and
                 Stripe customer ID — beyond ordinary account deletion. This record exists so that a removed
                 member cannot quietly rejoin, and to defend against any future legal claim. The legal basis
