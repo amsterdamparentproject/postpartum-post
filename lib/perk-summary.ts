@@ -11,6 +11,8 @@
 export interface PerkSummaryInput {
   status: string;
   estimated_savings?: number | null;
+  /** 'monthly' perks renew every round; anything else (e.g. 'once') doesn't. */
+  frequency?: string | null;
 }
 
 export interface PerkSummary {
@@ -18,12 +20,21 @@ export interface PerkSummary {
   count: number;
   /** Whole euros: the sum of the live perks' estimated savings. */
   totalSavings: number;
+  /**
+   * Whole euros: the sum of the live MONTHLY perks' estimated savings, i.e.
+   * what renews every round (the plan cards' "worth €X+, every round").
+   * totalSavings minus the once-only perks.
+   */
+  monthlySavings: number;
 }
 
 export function summarizeLivePerks(perks: PerkSummaryInput[]): PerkSummary {
   const live = perks.filter((p) => p.status === "published");
+  const sum = (list: PerkSummaryInput[]) =>
+    list.reduce((total, p) => total + (p.estimated_savings ?? 0), 0);
   return {
     count: live.length,
-    totalSavings: live.reduce((sum, p) => sum + (p.estimated_savings ?? 0), 0),
+    totalSavings: sum(live),
+    monthlySavings: sum(live.filter((p) => p.frequency === "monthly")),
   };
 }

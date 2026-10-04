@@ -141,6 +141,7 @@ export default function MagicLinkRequest({
           <SignupForm
             first20SpotsRemaining={signupMeta?.first20SpotsRemaining}
             pilotOnly={signupMeta?.pilotOnly ?? true}
+            monthlyPerksValue={signupMeta?.monthlyPerksValue}
           />
         </div>
       )}

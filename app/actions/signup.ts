@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 import { getBaseUrl } from "@/lib/base-url";
+import { getLivePerksSummary } from "@/lib/public-perks";
 
 const FIRST20_TOTAL = 20;
 const PILOT_ONLY_UNTIL = new Date("2026-07-01");
@@ -11,6 +12,8 @@ const PILOT_ONLY_UNTIL = new Date("2026-07-01");
 export type SignupMeta = {
   first20SpotsRemaining: number | null;
   pilotOnly: boolean;
+  /** Whole euros of live monthly perks, for the plan cards. null = unknown. */
+  monthlyPerksValue: number | null;
 };
 
 export async function getSignupMeta(): Promise<SignupMeta> {
@@ -29,7 +32,12 @@ export async function getSignupMeta(): Promise<SignupMeta> {
       // non-fatal — SignupForm handles null gracefully
     }
   }
-  return { first20SpotsRemaining, pilotOnly: new Date() < PILOT_ONLY_UNTIL };
+  const perksSummary = await getLivePerksSummary();
+  return {
+    first20SpotsRemaining,
+    pilotOnly: new Date() < PILOT_ONLY_UNTIL,
+    monthlyPerksValue: perksSummary?.monthlySavings || null,
+  };
 }
 
 export type SignupFormData = {

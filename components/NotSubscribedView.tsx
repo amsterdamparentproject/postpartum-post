@@ -43,6 +43,7 @@ export default function NotSubscribedView({ email }: { email: string }) {
         <SignupForm
           first20SpotsRemaining={meta?.first20SpotsRemaining}
           pilotOnly={meta?.pilotOnly ?? true}
+          monthlyPerksValue={meta?.monthlyPerksValue}
         />
       </div>
 

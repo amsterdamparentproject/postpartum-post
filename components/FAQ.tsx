@@ -34,17 +34,22 @@ const FAQS: FAQItem[] = [
     id: "report-a-problem",
     question: "What if my match isn't working out?",
     answer:
-      "If a match isn't working out, you can report a problem from your matches page at any time. Reporting ends that match for both of you, and you won't be matched with each other again. You'll get a new match in the next round. In the meantime you can still use your Post Perks. If your match didn't respond or you had a safety concern, we'll add a match back to your balance.",
+      "If a match isn't working out, you can report a problem from your matches page at any time. Reporting ends that match for both of you, and you won't be matched with each other again. You'll get a new match in the next round. In the meantime you can still use your Post Perks. If your match didn't respond or you had a safety concern, we'll add a round back to your balance.",
+  },
+  {
+    question: "What's a round? Can I join mid-month?",
+    answer:
+      "Every month is a round: you get a match, Post Perks, or both. Matches are made right after the opt-in window closes on the 5th, but you can join and use Post Perks any time, even mid-month. Using Post Perks, getting a match, or not responding to the opt-in email uses up one of your rounds for that month. Skipping before the 5th doesn't, and neither does joining after the round and waiting for the next one.",
   },
   {
     question: "Can I skip a month?",
     answer:
-      "Yes! Our start-of-the-month match email has a skip link. One click and we'll skip your match for that month, plus adjust your billing automatically. No extra charge, form, or fuss. We get it — we're busy parents, too.",
+      "Yes! Our start-of-the-month match email has a skip link. One click and we'll skip that month's round, plus adjust your billing automatically. No extra charge, form, or fuss. We get it — we're busy parents, too.",
   },
   {
     question: "Can I take a break or cancel?",
     answer:
-      "Yes, anytime. You can skip as many months as you like — skipping never uses up a match, and you won't be charged again until your matches run out. You can cancel anytime from your account; you won't be charged again, and you keep any matches you have left until they're used.",
+      "Yes, anytime. You can skip as many months as you like — skipping never uses up a round, and you won't be charged again until your rounds run out. You can cancel anytime from your account; you won't be charged again, and you keep any rounds you have left until they're used.",
   },
   {
     question: "What information is shared with my match?",

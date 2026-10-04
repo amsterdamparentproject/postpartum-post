@@ -209,7 +209,7 @@ export default async function Home() {
             <ul className="space-y-2 w-full text-left">
               <li className="flex items-start gap-3 text-sm text-dark">
                 <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
-                <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.count} {memberStats.count === 1 ? "member" : "members"}</span> getting a match next month</span>
+                <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.count} {memberStats.count === 1 ? "member" : "members"}</span> in next month&apos;s round</span>
               </li>
               {perksSummary && (
                 <li className="flex items-start gap-3 text-sm text-dark">
@@ -251,7 +251,11 @@ export default async function Home() {
 
         {/* Signup form */}
         <div id="subscribe" className="w-full max-w-md bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-          <SubscribeSection first20SpotsRemaining={first20SpotsRemaining} pilotOnly={pilotOnly} />
+          <SubscribeSection
+            first20SpotsRemaining={first20SpotsRemaining}
+            pilotOnly={pilotOnly}
+            monthlyPerksValue={perksSummary?.monthlySavings || null}
+          />
         </div>
 
         {/* Gift card CTA */}

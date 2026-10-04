@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { PLANS, resolvePlans, defaultPlan } from "@/lib/plans";
 
-describe("resolvePlans — pilot mode (PILOT_ONLY = true)", () => {
+describe("resolvePlans — pilot mode (PILOT_ONLY = true, before July 1)", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-06-15"));
   const plans = resolvePlans(PLANS, true);
+  vi.useRealTimers();
 
   it("shows FIRST20 plan", () => {
     const first20 = plans.find((p) => p.value === "first20_3mo");
@@ -93,5 +96,22 @@ describe("defaultPlan", () => {
 
   it("defaults to commitment_3mo in general mode", () => {
     expect(defaultPlan(false)).toBe("commitment_3mo");
+  });
+});
+
+describe("resolvePlans — after the FIRST20 end date", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("ignores the pilot flag: FIRST20 hidden, other plans released", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-04"));
+
+    const plans = resolvePlans(PLANS, true);
+
+    expect(plans.find((p) => p.value === "first20_3mo")?.hidden).toBe(true);
+    const commitment = plans.find((p) => p.value === "commitment_3mo");
+    expect(commitment?.hidden).toBe(false);
+    expect(commitment?.comingSoon).toBe(false);
+    expect(plans.find((p) => p.value === "standard_monthly")?.comingSoon).toBe(false);
   });
 });

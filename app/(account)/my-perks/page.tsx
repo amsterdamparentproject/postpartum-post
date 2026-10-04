@@ -239,7 +239,7 @@ function NotOptedInPrompt({ accessToken, onOptedIn }: { accessToken: string; onO
         const messages: Record<string, string> = {
           closed: "The opt-in window for this month has closed.",
           already_responded: "You've already responded for this month.",
-          no_balance: "You're between terms right now — check your billing page for when you'll be matched again.",
+          no_balance: "You're out of rounds right now — check your billing page to see when you'll be back in.",
           server_error: "Something went wrong. Please try again.",
         };
         setError(messages[result.error] ?? "Something went wrong.");
@@ -251,7 +251,9 @@ function NotOptedInPrompt({ accessToken, onOptedIn }: { accessToken: string; onO
   return (
     <div className="rounded-2xl border border-dashed border-border p-6 space-y-4">
       <p className="text-sm text-dark">
-        You haven&apos;t opted into Postpartum Post this month. If you&apos;d like to access Post Perks, select:
+        {windowOpen
+          ? <>You haven&apos;t opted into this month&apos;s round yet. To access Post Perks, select:</>
+          : <>It&apos;s not too late to join this month&apos;s round! Use a round for Post Perks now, or wait for next month&apos;s match.</>}
       </p>
       {windowOpen ? (
         <div className="grid gap-2 sm:grid-cols-3">
@@ -290,6 +292,11 @@ function NotOptedInPrompt({ accessToken, onOptedIn }: { accessToken: string; onO
           {isPending ? "One sec…" : "🎁 Get this month's Post Perks"}
         </button>
       )}
+      <p className="text-xs text-muted">
+        {windowOpen
+          ? "Any choice above uses one of your rounds. Skipping this month doesn't."
+          : "Getting this month's Post Perks uses one of your rounds. Prefer to wait? Next month's invitation lands in your inbox around the 1st."}
+      </p>
       {error && <p className="text-xs text-coral">{error}</p>}
     </div>
   );

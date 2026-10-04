@@ -541,7 +541,7 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         const messages: Record<string, string> = {
           closed: "The opt-in window for this month has closed.",
           already_responded: "You've already responded for this month.",
-          no_balance: "You're between terms right now — check your billing page for when you'll be matched again.",
+          no_balance: "You're out of rounds right now — check your billing page to see when you'll be back in.",
           server_error: "Something went wrong. Please try again.",
         };
         setError(messages[result.error] ?? "Something went wrong.");
@@ -560,7 +560,7 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
       </div>
       <p className="text-sm text-muted">
         Let us know how you&apos;d like to meet this month — we&apos;ll take care of the rest.
-        You have until the {OPTIN_DEADLINE_DAY}th to respond.
+        You have until the {OPTIN_DEADLINE_DAY}th to respond. Any choice below uses one of your rounds; skipping doesn&apos;t.
       </p>
       <div className="grid gap-2 sm:grid-cols-3">
         <button
@@ -617,7 +617,7 @@ function ClosedCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: ()
         const messages: Record<string, string> = {
           closed: "The opt-in window for this month has closed.",
           already_responded: "You've already responded for this month.",
-          no_balance: "You're between terms right now — check your billing page for when you'll be matched again.",
+          no_balance: "You're out of rounds right now — check your billing page to see when you'll be back in.",
           server_error: "Something went wrong. Please try again.",
         };
         setError(messages[result.error] ?? "Something went wrong.");
@@ -630,7 +630,7 @@ function ClosedCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: ()
       <div className="flex items-center gap-3">
         <span className="text-2xl">🗓️</span>
         <p className="text-sm text-muted">
-          This month&apos;s match opt-in window has closed.{" "}
+          This month&apos;s match window has closed.{" "}
           {!done && (
             <button
               onClick={handleGetPerks}
@@ -641,7 +641,7 @@ function ClosedCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: ()
               {isPending ? "Getting your perks…" : "Get your Perks"}
             </button>
           )}
-          {done && <span className="text-dark font-medium">Perks unlocked!</span>} this month or check your email around the 1st of next month to join the match pool again.
+          {done && <span className="text-dark font-medium">Perks unlocked!</span>} for this month (it uses one of your rounds), or wait: next month&apos;s invitation lands in your inbox around the 1st.
         </p>
       </div>
       {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
@@ -655,7 +655,7 @@ function EmptyCard() {
       <div className="flex items-center gap-3">
         <span className="text-2xl">✉️</span>
         <p className="text-sm text-muted">
-          Your first match will appear here soon! Check your email around the 1st of the month to get matched.
+          Your first match will appear here soon! Check your email around the 1st of the month to get matched. Want to start now? You can <Link href="/my-perks" className="text-coral hover:text-coral-dark underline transition-colors">use Post Perks right away</Link>. That counts as this month&apos;s round.
         </p>
       </div>
     </div>

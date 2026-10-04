@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { signup, type SignupFormData } from "@/app/actions/signup";
-import { PLANS, resolvePlans, defaultPlan } from "@/lib/plans";
+import { PLANS, resolvePlans, defaultPlan, effectivePilotOnly, planIncludes } from "@/lib/plans";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,12 +18,15 @@ function RequiredMark() {
 export default function SignupForm({
   first20SpotsRemaining,
   pilotOnly = false,
+  monthlyPerksValue,
   onSubmitHover,
   lockedPlan,
   giftCode,
 }: {
   first20SpotsRemaining?: number | null;
   pilotOnly?: boolean;
+  /** Whole euros of live monthly perks, for the "Post Perks worth €X+" line. */
+  monthlyPerksValue?: number | null;
   onSubmitHover?: (hovering: boolean) => void;
   lockedPlan?: SignupFormData["plan"];
   giftCode?: string;
@@ -34,7 +37,7 @@ export default function SignupForm({
 
   const [isPending, startTransition] = useTransition();
   const [selectedPlan, setSelectedPlan] = useState<SignupFormData["plan"]>(
-    lockedPlan ?? defaultPlan(pilotOnly)
+    lockedPlan ?? defaultPlan(effectivePilotOnly(pilotOnly))
   );
   const [emailError, setEmailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -166,7 +169,7 @@ export default function SignupForm({
                 <span className="line-through text-muted font-normal mr-1">{plan.price}</span>€0
               </span>
               <span className="block text-sm font-medium text-dark mt-0.5 mb-1">{plan.name}</span>
-              <span className="block text-xs text-muted">{plan.billing}</span>
+              <span className="block text-xs text-muted">{giftCode && plan.afterGift ? plan.afterGift : plan.billing}</span>
             </div>
           );
         })() : <div className="space-y-3">
@@ -191,7 +194,7 @@ export default function SignupForm({
                 }`}
               >
                 {/* Icon left, badges right */}
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <span className="text-xl">{plan.icon}</span>
                   <div className="flex items-center gap-2">
                     {plan.value === "first20_3mo" && first20SpotsRemaining != null && (
@@ -212,12 +215,17 @@ export default function SignupForm({
                     )}
                   </div>
                 </div>
-                <span className="block text-lg font-semibold text-dark leading-tight">{plan.price}</span>
-                <span className="block text-sm font-medium text-dark mt-0.5 mb-1">{plan.name}</span>
-                <span className="block text-xs text-muted mb-2">{plan.billing}</span>
+                <span className="block text-lg font-semibold text-dark leading-snug">{plan.name}</span>
+                <span className="block text-sm text-muted leading-relaxed mt-1 space-y-0.5">
+                  {[...planIncludes(monthlyPerksValue), ...(plan.priceLine ? [plan.priceLine] : [])].map((item) => (
+                    <span key={item} className="block">{item}</span>
+                  ))}
+                </span>
+                <span className="block text-xs text-muted mt-2">{plan.billing}</span>
                 {plan.description && (
                   <span className="block text-sm text-muted leading-relaxed">{plan.description}</span>
                 )}
+
               </button>
             );
           })}
@@ -243,7 +251,7 @@ export default function SignupForm({
                       : "border-border bg-white hover:border-coral/50"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1">
                     <span className="text-xl">{plan.icon}</span>
                     {plan.comingSoon ? (
                       <span className="text-xs font-medium text-muted bg-gray-100 px-2 py-0.5 rounded-full">
@@ -255,16 +263,25 @@ export default function SignupForm({
                       </span>
                     )}
                   </div>
-                  <span className="block text-lg font-semibold text-dark">{plan.price}</span>
-                  <span className="block text-sm font-medium text-dark mt-0.5 mb-1">{plan.name}</span>
-                  <span className="block text-xs text-muted">{plan.billing}</span>
+                  <span className="block text-lg font-semibold text-dark leading-snug">{plan.name}</span>
+                  <span className="block text-sm text-muted leading-relaxed mt-1 space-y-0.5">
+                    {[...planIncludes(monthlyPerksValue), ...(plan.priceLine ? [plan.priceLine] : [])].map((item) => (
+                      <span key={item} className="block">{item}</span>
+                    ))}
+                  </span>
                   {plan.description && (
                     <span className="block text-sm text-muted leading-relaxed mt-2">{plan.description}</span>
                   )}
+
                 </button>
               );
             })}
           </div>
+          {plans.some((p) => !p.featured && !p.hidden && !p.comingSoon) && (
+            <p className="text-xs text-muted leading-relaxed">
+              Renews when you run out of rounds. Skip a round at no cost — we&apos;re busy parents, too! — or cancel anytime.
+            </p>
+          )}
         </div>}
       </div>
 

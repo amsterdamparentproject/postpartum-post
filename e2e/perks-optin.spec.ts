@@ -52,6 +52,11 @@ function justPerksBanner(page: Page) {
   return page.getByRole("status").filter({ hasText: /officially opted into Just Perks this month/i });
 }
 
+// The not-opted-in prompt on /my-perks: different copy before and after the 5th.
+function notOptedInPrompt(page: Page) {
+  return page.getByText(/opted into this month.s round yet|not too late to join this month.s round/i);
+}
+
 function justPerksButton(page: Page) {
   return isOptinWindowOpenNow()
     ? page.getByRole("button", { name: /Just Perks/i })
@@ -71,12 +76,12 @@ test.describe("no match, just perks", () => {
       await page.goto("/my-perks");
 
       // Not opted in yet — the prompt, not the grid.
-      await expect(page.getByText(/haven.t opted into Postpartum Post this month/i)).toBeVisible();
+      await expect(notOptedInPrompt(page)).toBeVisible();
 
       await justPerksButton(page).click();
 
       // Prompt is replaced by the live grid, including our seeded perk.
-      await expect(page.getByText(/haven.t opted into Postpartum Post this month/i)).toHaveCount(0, { timeout: 10_000 });
+      await expect(notOptedInPrompt(page)).toHaveCount(0, { timeout: 10_000 });
       await expect(page.getByRole("button", { name: `Redeem now: ${perkTitle}` })).toBeVisible();
       await expect(justPerksBanner(page)).toBeVisible();
 
@@ -112,7 +117,7 @@ test.describe("no match, just perks", () => {
       await waitForMagicLinkRedirect(page, /\/my-perks.*optin=perks/);
 
       // Already opted in via the link — straight to the grid, no prompt.
-      await expect(page.getByText(/haven.t opted into Postpartum Post this month/i)).toHaveCount(0);
+      await expect(notOptedInPrompt(page)).toHaveCount(0);
       await expect(page.getByRole("button", { name: `Redeem now: ${perkTitle}` })).toBeVisible();
       await expect(justPerksBanner(page)).toBeVisible();
 
@@ -135,12 +140,12 @@ test.describe("no match, just perks", () => {
       await signInAs(page, member.email);
       await page.goto("/my-perks");
 
-      await expect(page.getByText(/haven.t opted into Postpartum Post this month/i)).toBeVisible();
+      await expect(notOptedInPrompt(page)).toBeVisible();
       await justPerksButton(page).click();
 
-      await expect(page.getByText(/between terms/i)).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(/out of rounds/i)).toBeVisible({ timeout: 10_000 });
       // The prompt is still showing — nothing was recorded, so no banner.
-      await expect(page.getByText(/haven.t opted into Postpartum Post this month/i)).toBeVisible();
+      await expect(notOptedInPrompt(page)).toBeVisible();
       await expect(justPerksBanner(page)).toHaveCount(0);
 
       const month = currentMonth();

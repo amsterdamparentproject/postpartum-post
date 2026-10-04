@@ -42,7 +42,7 @@ test("full sign-up flow: form → Stripe checkout → success → profile", asyn
   await page.getByLabel("Email").fill(TEST_EMAIL);
 
   // The FIRST20 plan is featured and selected by default in pilot mode
-  // If pilot mode is off, click the 3-month commitment plan.
+  // If pilot mode is off, click the 3-round bundle plan.
   // Track which one so the ledger assertion below (step 5b) knows what
   // matches_remaining should have been credited to — founding_member and
   // commitment_3mo carry different interval_count values.
@@ -52,7 +52,7 @@ test("full sign-up flow: form → Stripe checkout → success → profile", asyn
     await first20Button.click();
     expectedLookupKey = "founding_member";
   } else {
-    await page.getByRole("button", { name: /3.month commitment/i }).click();
+    await page.getByRole("button", { name: /3.round bundle/i }).click();
     expectedLookupKey = "commitment_3mo";
   }
 

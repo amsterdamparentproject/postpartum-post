@@ -42,7 +42,7 @@ export async function getLivePerksSummary(): Promise<PerkSummary | null> {
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Amsterdam" }); // YYYY-MM-DD
     const { data, error } = await createAdminClient()
       .from("perks_partners")
-      .select("status, estimated_savings")
+      .select("status, estimated_savings, frequency")
       .eq("status", "published")
       .or(`expires_at.is.null,expires_at.gte.${today}`);
     if (error) {
