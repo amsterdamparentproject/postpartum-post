@@ -43,8 +43,8 @@ export default function GiveawayTerms() {
             <section>
               <h2 className="text-xl font-semibold mb-3">What you can win</h2>
               <p>
-                Three winners each receive one free month of Postpartum Post: one monthly match, including access to
-                Post Perks. The prize has no cash value and can&apos;t be exchanged for money.
+                Three winners each receive one free round of Postpartum Post: a hand-picked match, including access to
+                Post Perks, for one monthly round. The prize has no cash value and can&apos;t be exchanged for money.
               </p>
             </section>
 
@@ -62,7 +62,10 @@ export default function GiveawayTerms() {
                 <li>
                   It&apos;s free to enter. You don&apos;t need to buy anything or subscribe to Postpartum Post.
                 </li>
-                <li>One entry per person, please.</li>
+                <li>
+                  Each favorite spot you share counts as one entry, and there&apos;s no limit: share as many as you like
+                  for more chances to win. (Each person can win once.)
+                </li>
                 <li>You must be 18 or older to enter.</li>
               </ul>
             </section>
@@ -70,7 +73,7 @@ export default function GiveawayTerms() {
             <section>
               <h2 className="text-xl font-semibold mb-3">How winners are picked</h2>
               <p>
-                Winners are chosen at random from all valid entries received before the drawing. We&apos;ll announce
+                Winners are chosen at random from all valid entries received before the drawing, so every entry has the same chance, and the more spots you share, the more chances you have. Each person can win only once: if your entry is drawn again, we&apos;ll draw another. We&apos;ll announce
                 the winners on <strong>Wednesday, October 21, 2026</strong>, and we&apos;ll email each winner at the
                 address they entered with. We don&apos;t select winners by any other criteria.
               </p>

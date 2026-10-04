@@ -183,9 +183,10 @@ export default function PerkIdeaForm() {
             🎁 Enter the giveaway
           </p>
           <p className="text-sm text-muted leading-relaxed">
-            We&apos;re giving <b>3 parents a free match</b>{" "}with Postpartum Post (including Post
-            Perks!) as a thank-you for sharing your favorite spots with us. Who knows —
-            maybe you&apos;ll soon be able to use a Post Perk at the place you submitted today 😎
+            As a thank-you for sharing, we&apos;re giving <b>3 parents a free round</b> — including Post
+            Perks! Share as many spots as you like: every one is another entry, so{" "}
+            <b>more submissions means more chances</b>. Who knows, maybe you&apos;ll soon be able to
+            use a Post Perk at the place(s) you submitted today 😎
           </p>
           <label className="flex items-start gap-2 mt-4 text-sm text-dark cursor-pointer">
             <input
