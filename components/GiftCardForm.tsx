@@ -1,25 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { planIncludes } from "@/lib/plans";
 
 const GIFT_OPTIONS = [
   {
     id: "3mo" as const,
     icon: "⭐",
-    price: "€24",
-    name: "3 matches",
-    billing: "One-time payment",
+    name: "3-round gift (€8 per round)",
+    priceLine: "💶 €24 one-time payment",
     badge: "Best value",
-    description: "3 free matches on the 3 month subscription",
-    featured: true,
   },
   {
     id: "1mo" as const,
     icon: "🎁",
-    price: "€12",
-    name: "1 match",
-    billing: "One-time payment",
-    description: "1 free match on the 1 month subscription",
+    name: "1-round gift (€12 per round)",
+    priceLine: "💶 €12 one-time payment",
   },
 ];
 
@@ -27,8 +23,10 @@ type GiftOption = "1mo" | "3mo";
 
 export default function GiftCardForm({
   links,
+  monthlyPerksValue,
 }: {
   links: { oneMonth: string; threeMonth: string };
+  monthlyPerksValue?: number | null;
 }) {
   const [selected, setSelected] = useState<GiftOption>("3mo");
 
@@ -44,7 +42,7 @@ export default function GiftCardForm({
               Choose your gift card
             </h1>
         <p className="text-muted text-md leading-relaxed mt-2 mb-6">
-          We offer gift cards for all of our subscriptions.
+          Give one round, or three.
         </p>
         {GIFT_OPTIONS.map((option) => {
           const isSelected = selected === option.id;
@@ -69,19 +67,20 @@ export default function GiftCardForm({
                   </span>
                 )}
               </div>
-              <span className="block text-lg font-semibold text-dark leading-tight">
+              <span className="block text-lg font-semibold text-dark leading-snug">
                 {option.name}
               </span>
-              <span className="block text-sm font-medium text-dark mt-0.5 mb-1">
-                {option.price}
-              </span>
-              {/* <span className="block text-xs text-muted mb-2">{option.price}</span> */}
-              <span className="block text-sm text-muted leading-relaxed">
-                {option.description}
+              <span className="block text-sm text-muted leading-relaxed mt-1 space-y-0.5">
+                {[...planIncludes(monthlyPerksValue), option.priceLine].map((item) => (
+                  <span key={item} className="block">{item}</span>
+                ))}
               </span>
             </button>
           );
         })}
+        <p className="text-xs text-muted leading-relaxed pt-1">
+          Their membership continues after the gift unless they cancel. They can skip a round at no cost, or cancel anytime.
+        </p>
       </div>
 
       <a

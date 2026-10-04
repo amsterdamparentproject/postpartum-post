@@ -1,9 +1,9 @@
 import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
 
 function giftCardHtml(code: string, giftMonths: number): string {
-  const monthLabel = giftMonths === 1 ? "1-month" : `${giftMonths}-month`;
-  const monthsText = giftMonths === 1 ? "1 month" : `${giftMonths} months`;
-  const monthlyPrice = giftMonths === 1 ? "€12" : "€8";
+  const roundsText = giftMonths === 1 ? "1 round" : `${giftMonths} rounds`;
+  // After the gifted rounds run out the member is billed the plan price again.
+  const afterGift = giftMonths === 1 ? "€12 for 1 round" : "€24 for 3 rounds";
 
   const content =
     emailHeader() +
@@ -12,7 +12,7 @@ function giftCardHtml(code: string, giftMonths: number): string {
                                       Hi there!
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      You've been gifted a <span style="font-weight:700">${monthLabel} Postpartum Post subscription</span> — that's ${monthsText} of new parent introductions for free.
+                                      You've been gifted <span style="font-weight:700">${roundsText} of Postpartum Post</span>: a hand-picked match and Post Perks from local family-friendly businesses each round, on us.
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 8px;line-height:1.4;mso-line-height-alt:22.4px">
                                       Your gift card code is:
@@ -21,7 +21,7 @@ function giftCardHtml(code: string, giftMonths: number): string {
                                       ${code}
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Click the button below to create your account — your code will be applied automatically at checkout. Enjoy ${monthsText} free, then ${monthlyPrice}/month after that.
+                                      Click the button below to create your account — your code will be applied automatically at checkout. Enjoy ${roundsText} free. After that, your membership renews at ${afterGift} unless you cancel, anytime.
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;line-height:1.4;mso-line-height-alt:22.4px">
                                       This code can only be used once, so keep it safe!

@@ -53,7 +53,7 @@ export default async function RedeemPage({
     }
   }
 
-  const monthsText = giftMonths === 1 ? "1 month" : `${giftMonths} months`;
+  const roundsText = giftMonths === 1 ? "1 round" : `${giftMonths} rounds`;
 
   return (
     <PageLayout showNav>
@@ -65,7 +65,7 @@ export default async function RedeemPage({
               className="text-4xl text-dark mb-4 leading-tight"
               style={{ fontFamily: "var(--font-serif)" }}
             >
-              {errorMessage ? "Hang on, we're tracking your package..." : `You've been gifted ${monthsText} of`}
+              {errorMessage ? "Hang on, we're tracking your package..." : `You've been gifted ${roundsText} of`}
             </h1>
             {!errorMessage && (
               <TextLogo width={315} height={41} className="mx-auto mb-6" />
@@ -82,7 +82,7 @@ export default async function RedeemPage({
               </>
             ) : (
               <p className="text-dark text-md leading-relaxed">
-                Every month, Postpartum Post matches new and expecting parents nearby — surrounding them in support when and where they need it most. Create your account below to claim your free {monthsText}.
+                Every month, a hand-picked match with a local parent, plus Post Perks from family-friendly businesses. Create your account below to claim your free {roundsText}.
               </p>
             )}
           </div>

@@ -4,14 +4,18 @@ import GiftCardForm from "@/components/GiftCardForm";
 import GiftBow from "@/components/GiftBow";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 import TextLogo from "@/components/TextLogo";
+import { getLivePerksSummary } from "@/lib/public-perks";
+
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Gift Cards",
   description:
-    "Give the gift of local parent friends when and where they need them most. Choose a 1- or 3-month Postpartum Post gift card.",
+    "Give the gift of local parent friends when and where they need them most. Choose a 1- or 3-round Postpartum Post gift card.",
 };
 
-export default function GiftPage() {
+export default async function GiftPage() {
+  const perksSummary = await getLivePerksSummary();
   const links = {
     oneMonth: process.env.NEXT_PUBLIC_STRIPE_GIFT_CARD_1MO_LINK ?? "",
     threeMonth: process.env.NEXT_PUBLIC_STRIPE_GIFT_CARD_3MO_LINK ?? "",
@@ -31,13 +35,13 @@ export default function GiftPage() {
             </h1>
 
             <p className="text-dark text-md leading-relaxed mt-4 mb-16">
-              Give the new or expecting parent in your life <b>connection, not clutter</b>. Every month, Postpartum Post matches parents nearby — surrounding them in support when and where they need it most.
+              Give the new or expecting parent in your life <b>connection, not clutter</b>. Every month, a hand-picked match with a local parent, plus Post Perks from family-friendly businesses.
             </p>
           </div>
           <div className="relative">
             <GiftBow className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-[38%] w-40 h-auto z-10" />
             <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8 pt-12">
-              <GiftCardForm links={links} />
+              <GiftCardForm links={links} monthlyPerksValue={perksSummary?.monthlySavings || null} />
             </div>
           </div>
         </div>
