@@ -80,3 +80,33 @@ export function optinDeadlineUTC(month: string): string {
   const offsetMinutes = amsterdamOffsetMinutes(guess);
   return new Date(guess.getTime() - offsetMinutes * 60_000).toISOString();
 }
+
+/** Amsterdam's UTC offset (in ms) at the given instant: +1h in winter, +2h in summer. */
+function amsterdamOffsetMs(at: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: AMSTERDAM_TZ,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  return asUtc - Math.floor(at.getTime() / 1000) * 1000;
+}
+
+/**
+ * The instant the given month starts in Amsterdam (00:00 local on the 1st),
+ * from a first-of-month date string (YYYY-MM-01). The opt-in email goes out
+ * that day, so a member whose first payment is at or after this instant
+ * wasn't in that month's opt-in batch.
+ */
+export function amsterdamMonthStart(monthDate: string): Date {
+  const [year, month] = monthDate.split("-").map(Number);
+  const guess = new Date(Date.UTC(year, month - 1, 1));
+  return new Date(guess.getTime() - amsterdamOffsetMs(guess));
+}
+

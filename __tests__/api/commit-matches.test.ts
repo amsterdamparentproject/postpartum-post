@@ -391,6 +391,56 @@ describe("POST /api/commit-matches", () => {
       expect(rows[0].delta).toBe(-1);
     });
 
+    describe("members who joined this month (no_response)", () => {
+      async function seedTermPayment(memberId: string, createdAt: string) {
+        const supabase = createTestSupabase();
+        const { error } = await supabase
+          .from("match_entitlements")
+          .insert({ member_id: memberId, event: "term_payment", delta: 0, created_at: createdAt });
+        if (error) throw new Error(`seedTermPayment failed: ${error.message}`);
+      }
+
+      async function commitWithSilent(silentId: string, others: [string, string]) {
+        await seedParticipation(others[0]);
+        await seedParticipation(others[1]);
+        await setMatchesRemaining(silentId, 2);
+        const roundId = await seedMatchRound("draft");
+        await seedMatchDraft(roundId, others[0], others[1]);
+        const res = await POST(makeRequest({ month: TEST_MONTH }));
+        expect(res.status).toBe(200);
+      }
+
+      it("does not charge a silent member whose first payment came after the 1st", async () => {
+        const silent = await seedMember({ status: "active" });
+        const b = await seedMember();
+        const c = await seedMember();
+        memberIds.push(silent.id, b.id, c.id);
+        // Paid on the 3rd of the test month: after the opt-in email went out.
+        await seedTermPayment(silent.id, `${TEST_MONTH_DATE.slice(0, 8)}03T12:00:00Z`);
+
+        await commitWithSilent(silent.id, [b.id, c.id]);
+
+        expect(await matchesRemainingFor(silent.id)).toBe(2); // untouched
+        const rows = (await matchEntitlementsFor(silent.id)).filter((r) => r.event === "no_response");
+        expect(rows).toHaveLength(0);
+      });
+
+      it("still charges a silent member whose first payment was before the 1st", async () => {
+        const silent = await seedMember({ status: "active" });
+        const b = await seedMember();
+        const c = await seedMember();
+        memberIds.push(silent.id, b.id, c.id);
+        // Paid well before this test month began.
+        await seedTermPayment(silent.id, "2020-01-15T12:00:00Z");
+
+        await commitWithSilent(silent.id, [b.id, c.id]);
+
+        expect(await matchesRemainingFor(silent.id)).toBe(1);
+        const rows = (await matchEntitlementsFor(silent.id)).filter((r) => r.event === "no_response");
+        expect(rows).toHaveLength(1);
+      });
+    });
+
     it("decrements a perks-only member by 1 (perks_only), and excludes them from no_response", async () => {
       const perksOnly = await seedMember();
       const b = await seedMember();

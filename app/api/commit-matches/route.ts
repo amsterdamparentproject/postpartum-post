@@ -30,6 +30,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { recordEntitlement } from "@/lib/match-ledger";
+import { amsterdamMonthStart } from "@/lib/optin-window";
 
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
@@ -241,9 +242,47 @@ export async function POST(req: NextRequest) {
       const skippedIds = new Set((skips ?? []).map((s) => s.member_id));
       const perksOnlyIds = new Set((perksOnly ?? []).map((p) => p.member_id));
 
-      const noResponseIds = (billableMembers ?? [])
-        .map((m) => m.id)
-        .filter((id) => !participatedIds.has(id) && !skippedIds.has(id) && !perksOnlyIds.has(id));
+      // A member whose first payment landed on or after the 1st of this month
+      // wasn't in the opt-in email batch (it goes out on the 1st), so their
+      // silence isn't a no-response: they can still opt in from the site
+      // (match until the 5th, Perks any time), and either of those debits a
+      // round. Established members (first payment before the 1st) and anyone
+      // with no payment record at all are still swept as before.
+      const { data: firstPayments, error: firstPaymentsError } = await supabase
+        .from("match_entitlements")
+        .select("member_id, created_at")
+        .in("event", ["term_payment", "manual_backfill"]);
+      if (firstPaymentsError) {
+        console.error(
+          "[commit-matches] failed to load first payments; skipping the no_response sweep:",
+          firstPaymentsError
+        );
+      }
+      const monthStart = amsterdamMonthStart(monthDate).getTime();
+      const firstPaidAt = new Map<string, number>();
+      for (const row of firstPayments ?? []) {
+        const at = new Date(row.created_at).getTime();
+        const known = firstPaidAt.get(row.member_id);
+        if (known === undefined || at < known) firstPaidAt.set(row.member_id, at);
+      }
+      const joinedThisMonth = (id: string) => {
+        const first = firstPaidAt.get(id);
+        return first !== undefined && first >= monthStart;
+      };
+
+      // On a failed lookup, charge nobody for silence rather than risk
+      // charging members who just joined; perks_only below still runs.
+      const noResponseIds = firstPaymentsError
+        ? []
+        : (billableMembers ?? [])
+            .map((m) => m.id)
+            .filter(
+              (id) =>
+                !participatedIds.has(id) &&
+                !skippedIds.has(id) &&
+                !perksOnlyIds.has(id) &&
+                !joinedThisMonth(id)
+            );
 
       for (const memberId of noResponseIds) {
         try {
