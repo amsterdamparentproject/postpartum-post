@@ -5,6 +5,7 @@ import { submitPerkIdea } from "@/app/actions/partners";
 import AnimatedThankYou from "@/components/AnimatedThankYou";
 import { LocationStamp } from "@/components/StampIcons";
 import Link from "next/link";
+import JoinLink from "@/components/JoinLink";
 
 const inputClass =
   "w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition";
@@ -52,17 +53,19 @@ const inputClass =
 export default function PerkIdeaForm() {
   const [url, setUrl] = useState("");
   const [wantsGiveaway, setWantsGiveaway] = useState(false);
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [giveawayError, setGiveawayError] = useState<string | null>(null);
+  const [notifyError, setNotifyError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // An email in the "Get notified when it becomes a Perk" box is the opt-in.
+  const notifyWhenLive = email.trim() !== "";
 
   function resetForm() {
     setUrl("");
     setWantsGiveaway(false);
-    setName("");
+    setNotifyError(null);
     setEmail("");
     setError(null);
     setGiveawayError(null);
@@ -73,12 +76,13 @@ export default function PerkIdeaForm() {
     e.preventDefault();
     setError(null);
     setGiveawayError(null);
+    setNotifyError(null);
     startTransition(async () => {
       const result = await submitPerkIdea({
         url,
         wantsGiveaway,
-        name: wantsGiveaway ? name : undefined,
-        email: wantsGiveaway ? email : undefined,
+        notifyWhenLive,
+        email: notifyWhenLive ? email : undefined,
       });
       if (!result.success) {
         setError(result.error ?? "Couldn't submit — try again");
@@ -86,6 +90,9 @@ export default function PerkIdeaForm() {
       }
       if (result.giveawayError) {
         setGiveawayError(result.giveawayError);
+      }
+      if (result.notifyError) {
+        setNotifyError(result.notifyError);
       }
       setSubmitted(true);
     });
@@ -124,7 +131,22 @@ export default function PerkIdeaForm() {
             to stay up to date.
           </p>
         )}
+        {notifyWhenLive && !notifyError && (
+          <p className="text-sm text-muted mt-2">
+            We&apos;ll email you if this place becomes a Post Perk 🎉
+          </p>
+        )}
         {giveawayError && <p className="text-sm text-coral mt-2">{giveawayError}</p>}
+        {notifyError && <p className="text-sm text-coral mt-2">{notifyError}</p>}
+        <p className="text-sm text-muted mt-4">
+          Members can use perks right away, from €8 a round.{" "}
+          <JoinLink
+            umamiEvent="Perks: Join (thank-you)"
+            className="text-coral hover:underline underline-offset-2"
+          >
+            See plans →
+          </JoinLink>
+        </p>
         <button
           type="button"
           onClick={resetForm}
@@ -174,35 +196,43 @@ export default function PerkIdeaForm() {
             />
             <span>Yes, enter me in the giveaway!</span>
           </label>
+          {wantsGiveaway && !notifyWhenLive && (
+            <p className="text-xs pl-6 text-coral leading-relaxed">Add your email below to enter</p>
+          )}
           <p className="text-xs pl-6 text-muted leading-relaxed">
             Free to enter, winners announced October 21.{" "}
             <Link href="/terms/giveaway" className="underline underline-offset-2 hover:text-coral transition-colors">
               Giveaway terms
             </Link>
           </p>
-          {wantsGiveaway && (
-            <div className="mt-4 space-y-3">
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name (optional)"
-                aria-label="Your name"
-                className={inputClass}
-              />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="Your email"
-                aria-label="Your email"
-                className={inputClass}
-              />
-              <p className="text-xs pl-1 italic text-muted leading-relaxed">
-                Rest assured, we won&apos;t use your details for anything other than this giveaway.
-              </p>
-            </div>
+        </div>
+
+        <div>
+          <label htmlFor="perk-idea-email" className="block mb-1">
+            <span className="block">
+              Your email{wantsGiveaway ? "" : " (optional)"}
+            </span>
+            <span className="block text-sm text-muted">
+              {wantsGiveaway
+                ? "Enter the giveaway & get notified when it becomes a Perk ✨"
+                : "Get notified when it becomes a Perk ✨"}
+            </span>
+          </label>
+          <input
+            id="perk-idea-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required={wantsGiveaway}
+            placeholder="post@amsterdamparentproject.nl"
+            className={inputClass}
+          />
+          {notifyWhenLive && (
+            <p className="text-xs pl-1 mt-1 italic text-muted leading-relaxed">
+              {wantsGiveaway
+                ? "Rest assured, we'll only use your email to tell you if you've won and if this place becomes a Perk."
+                : "Rest assured, we'll only use your email to tell you if this place becomes a Perk."}
+            </p>
           )}
         </div>
 

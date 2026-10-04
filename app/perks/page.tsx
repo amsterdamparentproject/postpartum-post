@@ -8,6 +8,8 @@ import PublicPerksCarousel from "@/components/PublicPerksCarousel";
 import { listPublicPerks } from "@/lib/public-perks";
 import { summarizeLivePerks } from "@/lib/perk-summary";
 import WordMark from "@/components/WordMark";
+import Sparkle from "@/components/Sparkle";
+import JoinLink from "@/components/JoinLink";
 
 const title = "Post Perks";
 const description =
@@ -107,6 +109,18 @@ export default async function PerksPage() {
               We&apos;ll be launching <span className="text-coral font-bold">discounts, freebies, and more</span> at your favorite family-friendly local spots in Fall 2026.
             </p>
           </div>
+        )}
+
+        {liveCount > 0 && totalSavings > 0 && (
+          <JoinLink
+            umamiEvent="Perks: Join (button)"
+            className="perk-shine group relative overflow-hidden flex items-center justify-center gap-2 w-full max-w-md py-3.5 px-6 rounded-full text-lg font-bold text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 hover:brightness-110 transition"
+            style={{ backgroundColor: "#8A9E3A" }}
+          >
+            <Sparkle className="w-6 h-6 group-hover-wiggle" />
+            Unlock €{totalSavings} worth of perks
+            <span aria-hidden="true">→</span>
+          </JoinLink>
         )}
 
         <PerkIdeaForm />

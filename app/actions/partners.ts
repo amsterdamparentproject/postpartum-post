@@ -310,6 +310,10 @@ export type PerkIdeaInput = {
   // wantsGiveaway gates whether email/name are required and whether a
   // perk_giveaway_entries row gets created. See db/migrations/025_perk_giveaway_entries.sql.
   wantsGiveaway?: boolean;
+  // The separate "Tell me when this becomes a Perk" checkbox: email this
+  // person once if the suggested spot goes live. Independent of the giveaway
+  // (see db/migrations/032_perk_idea_followups.sql).
+  notifyWhenLive?: boolean;
   name?: string;
   email?: string;
 };
@@ -340,7 +344,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export async function submitPerkIdea(
   input: PerkIdeaInput,
-): Promise<{ success: boolean; error?: string; giveawayError?: string }> {
+): Promise<{ success: boolean; error?: string; giveawayError?: string; notifyError?: string }> {
   const url = input.url.trim();
   if (!url) {
     return { success: false, error: "Add a link first" };
@@ -349,8 +353,12 @@ export async function submitPerkIdea(
   const wantsGiveaway = input.wantsGiveaway === true;
   const name = input.name?.trim() || null;
   const email = input.email?.trim().toLowerCase() || "";
-  if (wantsGiveaway && !EMAIL_RE.test(email)) {
-    return { success: false, error: "Add a valid email to enter the drawing" };
+  const notifyWhenLive = input.notifyWhenLive === true;
+  if ((wantsGiveaway || notifyWhenLive) && !EMAIL_RE.test(email)) {
+    return {
+      success: false,
+      error: wantsGiveaway ? "Add a valid email to enter the drawing" : "Add a valid email so we can tell you",
+    };
   }
 
   const supabase = createAdminClient();
@@ -385,29 +393,42 @@ export async function submitPerkIdea(
     leadId = data.id as string;
   }
 
-  if (!wantsGiveaway) {
-    return { success: true };
+  const result: { success: boolean; giveawayError?: string; notifyError?: string } = { success: true };
+
+  if (wantsGiveaway) {
+    const { error: entryError } = await supabase.from("perk_giveaway_entries").insert({
+      name,
+      email,
+      url,
+      partner_lead_id: leadId,
+    });
+    if (entryError) {
+      console.error("[submitPerkIdea] giveaway entry insert error:", entryError.message);
+      // The suggestion itself was saved above — don't tell the member the
+      // whole submission failed, but do surface that their entry specifically
+      // didn't go through, since a real prize-eligibility commitment to a
+      // real person should never fail silently.
+      result.giveawayError =
+        "Your suggestion was sent, but we couldn't save your giveaway entry — try again or email us.";
+    }
   }
 
-  const { error: entryError } = await supabase.from("perk_giveaway_entries").insert({
-    name,
-    email,
-    url,
-    partner_lead_id: leadId,
-  });
-  if (entryError) {
-    console.error("[submitPerkIdea] giveaway entry insert error:", entryError.message);
-    // The suggestion itself was saved above — don't tell the member the
-    // whole submission failed, but do surface that their entry specifically
-    // didn't go through, since a real prize-eligibility commitment to a
-    // real person should never fail silently.
-    return {
-      success: true,
-      giveawayError: "Your suggestion was sent, but we couldn't save your giveaway entry — try again or email us.",
-    };
+  if (notifyWhenLive) {
+    // Same non-fatal handling: the suggestion (and the giveaway entry, if
+    // any) are already saved, so a failure here only affects this request.
+    const { error: followupError } = await supabase.from("perk_idea_followups").insert({
+      name,
+      email,
+      url,
+      partner_lead_id: leadId,
+    });
+    if (followupError) {
+      console.error("[submitPerkIdea] follow-up insert error:", followupError.message);
+      result.notifyError = "Your suggestion was sent, but we couldn't save your request to be notified.";
+    }
   }
 
-  return { success: true };
+  return result;
 }
 
 // ---------------------------------------------------------------------------

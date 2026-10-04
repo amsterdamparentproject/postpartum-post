@@ -174,6 +174,16 @@ describe("submitPerkIdea", () => {
     expect(result.error).toBeTruthy();
   });
 
+  it("rejects 'tell me when this becomes a Perk' without a valid email, before touching the db", async () => {
+    const result = await submitPerkIdea({
+      url: "https://example.com",
+      notifyWhenLive: true,
+      email: "not-an-email",
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toBeTruthy();
+  });
+
   it("creates an 'idea'-status lead, guessing the business name from the hostname", async () => {
     const url = `https://www.test-perk-idea-${crypto.randomUUID().slice(0, 8)}.com`;
     try {

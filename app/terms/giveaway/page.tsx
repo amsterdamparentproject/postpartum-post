@@ -80,7 +80,7 @@ export default function GiveawayTerms() {
               <h2 className="text-xl font-semibold mb-3">Your details</h2>
               <p>
                 We use your email address (and your name, if you gave it) only to run this giveaway. We won&apos;t use
-                it for anything else, and we don&apos;t sign you up for anything by entering. You can read more in
+                it for anything else, and we don&apos;t sign you up for anything by entering. The one exception is the email box on the same form, labeled &ldquo;Get notified when it becomes a Perk&rdquo;: the email you give there is also used to tell you if the place you suggested becomes a Post Perk, and for nothing else. You can read more in
                 our{" "}
                 <Link href="/privacy" className="underline underline-offset-2 hover:text-coral transition-colors">
                   Privacy Policy
