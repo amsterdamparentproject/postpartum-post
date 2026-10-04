@@ -67,9 +67,9 @@ function throttledAuthCall<T>(fn: () => Promise<T>): Promise<T> {
  *    out so the limit is rarely reached at all); the real, multi-second
  *    backoff below is the fallback for whatever that doesn't catch.
  */
-export async function generateMagicLink(email: string): Promise<string> {
+export async function generateMagicLink(email: string, path = "/profile"): Promise<string> {
   const supabase = adminClient();
-  const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/profile`;
+  const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}${path}`;
 
   const maxAttempts = 4;
   let lastError: string | undefined;
@@ -101,14 +101,14 @@ export async function generateMagicLink(email: string): Promise<string> {
 
 /**
  * Sign a Playwright page in as the given email by navigating to a generated
- * magic link. Waits until the browser has landed on /profile.
+ * magic link. Waits until the browser has landed on `path` (default /profile).
  */
-export async function signInAs(page: Page, email: string): Promise<void> {
-  const link = await generateMagicLink(email);
+export async function signInAs(page: Page, email: string, path = "/profile"): Promise<void> {
+  const link = await generateMagicLink(email, path);
   await page.goto(link);
   // Use regex — the URL briefly contains a hash fragment (#access_token=...) which
   // Playwright's glob patterns don't match reliably.
-  await page.waitForURL(/\/profile/, { timeout: 15_000 });
+  await page.waitForURL(new RegExp(path.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&")), { timeout: 15_000 });
   // Wait for the Supabase client to process the hash fragment and store the
   // session in localStorage before returning. Without this, a subsequent
   // page.goto() can fire before the session is persisted, leaving the browser

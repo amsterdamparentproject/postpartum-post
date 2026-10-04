@@ -48,8 +48,13 @@ async function send(name: string, fn: () => Promise<void>) {
   }
 }
 
+// Two variants: joined while the opt-in window is open, and after it closed.
 await send("welcome", () =>
-  sendWelcomeEmail(TO, "Alex", "https://postpartumpost.com/profile", "3-month commitment (€8/mo)", "5 July 2026")
+  sendWelcomeEmail(TO, "Alex", "https://postpartumpost.com/matches", "3-round bundle (€24 for 3 rounds)", true)
+);
+
+await send("welcome-late", () =>
+  sendWelcomeEmail(TO, "Alex", "https://postpartumpost.com/profile", "3-round bundle (€24 for 3 rounds)", false)
 );
 
 await send("unsubscribed", () =>
@@ -172,7 +177,7 @@ await send("partner-welcome", () =>
 );
 
 if (results.length === 0 && filter) {
-  console.error(`Unknown email name: "${filter}". Valid names: welcome, unsubscribed, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, rematch-confirmation-credited, member-update, meetup-reminder, pending-followup, partner-welcome`);
+  console.error(`Unknown email name: "${filter}". Valid names: welcome, welcome-late, unsubscribed, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, rematch-confirmation-credited, member-update, meetup-reminder, pending-followup, partner-welcome`);
   process.exit(1);
 }
 

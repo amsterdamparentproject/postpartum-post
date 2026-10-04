@@ -1040,11 +1040,8 @@ export async function testSendEmail(kind: TestEmailKind): Promise<TestStepResult
 
       case "welcome": {
         const link = await generateMagicLinkWithRetry(supabase, testEmail, `${SITE_URL}/profile`);
-        const nextBilling = new Date(Date.now() + 30 * 86_400_000).toLocaleDateString("en-NL", {
-          day: "numeric", month: "long", year: "numeric",
-        });
         await sendWelcomeEmail(
-          testEmail, firstName, link.success ? link.url : `${SITE_URL}/profile`, "Monthly (€12/mo)", nextBilling,
+          testEmail, firstName, link.success ? link.url : `${SITE_URL}/profile`, "Round by round (€12 per round)",
         );
         return ok("the welcome email");
       }

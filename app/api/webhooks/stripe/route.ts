@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
 import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
+import { isOptinWindowOpen } from "@/lib/optin-window";
 import { recordEntitlement, FYP_LOOKUP_KEYS, GIFT_ENTITLEMENT_NOTE } from "@/lib/match-ledger";
 
 export async function POST(req: NextRequest) {
@@ -110,10 +111,14 @@ export async function POST(req: NextRequest) {
     // fixed at the 10th) ever collects again. See
     // __claude__/billing-simplification-plan.md, Track E.
 
-    // Generate a magic link so the welcome email signs the user straight into their profile
+    // Generate a magic link so the welcome email signs the user straight in:
+    // to /matches while the opt-in window is open (the button is "Opt into
+    // this round"), otherwise to /my-perks ("Opt into Perks this month"). One link only: a second
+    // generateLink for the same email would replace the first's token.
     const firstName = session.customer_details?.name?.split(" ")[0] ?? "there";
-    const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}/profile`;
-    let profileLink = redirectTo;
+    const windowOpen = isOptinWindowOpen();
+    const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}/${windowOpen ? "matches" : "my-perks"}`;
+    let profileLink = redirectTo; // signed link to the primary action (see above)
     const linkResult = await generateMagicLinkWithRetry(supabase, email, redirectTo);
     if (linkResult.success) {
       profileLink = linkResult.url;
@@ -126,14 +131,9 @@ export async function POST(req: NextRequest) {
     console.log("[webhook] plan detection", { lookupKey });
     const planLabel =
       lookupKey === "founding_member" ? "Founding Member (€5/mo)" :
-      lookupKey === "commitment_3mo" ? "3-month commitment (€8/mo)" :
-      lookupKey === "standard_monthly" ? "Monthly (€12/mo)" :
+      lookupKey === "commitment_3mo" ? "3-round bundle (€24 for 3 rounds)" :
+      lookupKey === "standard_monthly" ? "Round by round (€12 per round)" :
       "Postpartum Post";
-    const invoice = stripeSubscription.latest_invoice as Stripe.Invoice | null;
-    const periodEndTs = invoice?.period_end ?? stripeSubscription.billing_cycle_anchor;
-    const nextBillingDate = new Date(periodEndTs * 1000).toLocaleDateString("en-NL", {
-      day: "numeric", month: "long", year: "numeric",
-    });
 
     // Mark gift card as redeemed if a promotion code was applied.
     // discounts[0] is a full Discount object (expanded above); .promotion_code is the string ID.
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
 
     // Send welcome email via Resend
     try {
-      await sendWelcomeEmail(email, firstName, profileLink, planLabel, nextBillingDate);
+      await sendWelcomeEmail(email, firstName, profileLink, planLabel, windowOpen);
       console.log("[webhook] welcome email sent", { memberId });
     } catch (e) {
       // Non-fatal — log and continue. Member is subscribed; email failure shouldn't block.

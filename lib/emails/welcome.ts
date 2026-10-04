@@ -1,6 +1,12 @@
-import { FROM, ASSETS_URL, getResend, bodySection, ctaButton, baseEmail, subjectPrefix } from "./base";
+import { FROM, SITE_URL, ASSETS_URL, getResend, bodySection, ctaButton, baseEmail, subjectPrefix } from "./base";
+import { isOptinWindowOpen } from "@/lib/optin-window";
 
-function welcomeHtml(firstName: string, profileLink: string, planLabel: string, nextBillingDate: string): string {
+/**
+ * signInLink is a signed link to the primary action: /matches before the 5th
+ * (opt into this round), /my-perks after (opt into Perks). The after-the-5th
+ * profile link is a plain inline link; the member just saw their profile at checkout.
+ */
+export function welcomeHtml(firstName: string, signInLink: string, planLabel: string, windowOpen: boolean): string {
   const headerImage = `
                   <!-- Header image -->
                   <tr><td style="padding:0 24px 16px">
@@ -19,50 +25,74 @@ function welcomeHtml(firstName: string, profileLink: string, planLabel: string, 
                     </tr></tbody></table>
                   </td></tr>`;
 
-  const welcomeCopy = bodySection(`
+  const welcomeRows = (`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <span style="font-weight:700">Welcome, ${firstName}!</span>
                                       <span> We're really excited to have you in the community.</span>
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      <span>You're subscribed to the </span><span style="font-weight:700">${planLabel}</span><span> plan. Your first billing date is </span><span style="font-weight:700">${nextBillingDate}</span><span>. You can manage or cancel your subscription any time from your billing page.</span>
+                                      <span>You're on the </span><span style="font-weight:700">${planLabel}</span><span> plan. We'll charge you again only when your rounds run out, and we'll flag it in your monthly email first. You can manage or cancel your membership any time from your billing page.</span>
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      <span>Each month, we'll introduce you to another new or expecting parent nearby. Think of it as a</span>
+                                      <span>Every month is a round: a hand-picked match with another new or expecting parent nearby, plus </span><span style="font-weight:700">Post Perks</span><span> from local family-friendly businesses. Think of it as a</span>
                                       <span style="font-weight:700"> friendship starter pack</span><span>: you'll both have each others' names, contact, and a list of fun activities to do by yourselves or together with your families.</span>
-                                    </td></tr>
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;line-height:1.4;mso-line-height-alt:22.4px">
-                                      In order to find the best matches for you, we've put together a profile. If you haven't already, fill out as much — or as little — as you want; we'll find you a match with whatever information we have.
                                     </td></tr>`);
 
-  const schedule = bodySection(`
+  // After the 5th the profile is the secondary action (an inline plain link, since
+  // the member just saw their profile at checkout); the Perks button is the signed one.
+  const profileRows = (`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Here's what to expect from us each month:
+                                      If you prefer a match with your Post Perks, just wait until next month to use your first round! In order to find the best matches for you, we've put together a <a href="${SITE_URL}/profile" style="color:#666666;text-decoration:underline">profile</a>. If you haven't already, fill out as much — or as little — as you want; we'll find you a match next month with whatever information we have.
+                                    </td></tr>`);
+
+
+  // What to do this month depends on when they joined: before the 5th they can
+  // still opt into this round's match; after it, matching has closed but Perks
+  // (and the next round) are open. Nothing is used until they choose.
+  const thisMonthRows = (`
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 0px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      ${windowOpen
+                                        ? `<span style="font-weight:700">This month:</span> Opt into the current round by the 5th. Choose a match with perks or just perks. Choosing either uses one of your rounds; skipping is free.`
+                                        : `<span style="font-weight:700">This month:</span> Matching for the current round has closed, but you can use Post Perks right away — which uses one of your rounds.`}
+                                    </td></tr>`);
+
+  const scheduleRows = (`
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      Here's what to expect from us each round:
                                     </td></tr>
                                     <tr><td dir="ltr" style="color:#c56850;font-size:16px;font-weight:700;text-align:left;padding:0 0 16px;line-height:1.43;mso-line-height-alt:22.9px">
                                       <span style="text-decoration:underline">1st to 5th of the month:</span>
                                     </td></tr>
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.43;mso-line-height-alt:22.9px">
-                                      <span style="font-weight:700">Opt into matching</span>
-                                      <span> by choosing a topic. You can always skip a month at no charge and get your subscription extended automatically.</span>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      <span style="font-weight:700">Opt into your round</span>
+                                      <span> by choosing a match, Post Perks, or both. You can always skip a round at no charge and keep your round.</span>
                                     </td></tr>
                                     <tr><td dir="ltr" style="color:#c56850;font-size:16px;font-weight:700;text-decoration:underline;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       7th of the month:
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <span style="font-weight:700">Receive your match!</span>
-                                      <span>Your introduction, accompanied by a whimsical piece of art from our community.</span>
+                                      <span> Your introduction, accompanied by a whimsical piece of art from our community. Post Perks are yours to use all month long.</span>
                                     </td></tr>
                                     <tr><td dir="ltr" style="color:#c56850;font-size:16px;font-weight:700;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <span style="text-decoration:underline">23rd of the month:</span>
                                     </td></tr>
-                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 0px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <span style="font-weight:700">A little nudge</span>
                                       <span> to remind you to meet up, if you haven't done so already.</span>
                                     </td></tr>`);
 
+  const body = windowOpen
+    ? bodySection(welcomeRows + thisMonthRows) +
+      ctaButton("Opt into this round", signInLink) +
+      bodySection(scheduleRows)
+    : bodySection(welcomeRows + thisMonthRows) +
+      ctaButton("Opt into Perks this month", signInLink, "#d4e09b") +
+      // Profile note and schedule share one block so the gap between them is a normal paragraph gap.
+      bodySection(profileRows + scheduleRows);
+
   return baseEmail(
-    headerImage + welcomeCopy + ctaButton("Go to your profile", profileLink) + schedule,
+    headerImage + body,
     `<link rel="preload" as="image" href="${ASSETS_URL}/email-images/welcome.png">`
   );
 }
@@ -70,16 +100,17 @@ function welcomeHtml(firstName: string, profileLink: string, planLabel: string, 
 export async function sendWelcomeEmail(
   email: string,
   firstName: string,
-  profileLink: string,
+  signInLink: string,
   planLabel: string,
-  nextBillingDate: string,
+  // Defaults to today's state; the preview script passes both to show each.
+  windowOpen: boolean = isOptinWindowOpen(),
 ) {
   const resend = getResend();
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
     subject: `${subjectPrefix()}Welcome to Postpartum Post 💌`,
-    html: welcomeHtml(firstName, profileLink, planLabel, nextBillingDate),
+    html: welcomeHtml(firstName, signInLink, planLabel, windowOpen),
   });
   if (error) {
     console.error("[resend] sendWelcomeEmail error:", error);

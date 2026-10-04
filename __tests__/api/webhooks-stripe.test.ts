@@ -28,6 +28,20 @@ vi.mock("@/lib/stripe", () => ({
   }),
 }));
 
+const { mockWindowOpen, mockMagicLink } = vi.hoisted(() => ({
+  mockWindowOpen: vi.fn().mockReturnValue(true),
+  mockMagicLink: vi.fn(),
+}));
+
+vi.mock("@/lib/optin-window", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/optin-window")>()),
+  isOptinWindowOpen: mockWindowOpen,
+}));
+
+vi.mock("@/lib/supabase/generate-magic-link", () => ({
+  generateMagicLinkWithRetry: mockMagicLink,
+}));
+
 vi.mock("@/lib/emails", () => ({
   sendWelcomeEmail: vi.fn().mockResolvedValue(undefined),
   sendUnsubscribedEmail: vi.fn().mockResolvedValue(undefined),
@@ -48,6 +62,11 @@ describe("Stripe webhook", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWindowOpen.mockReturnValue(true);
+    mockMagicLink.mockImplementation(async (_s: unknown, _e: string, redirectTo: string) => ({
+      success: true,
+      url: `https://signed.example.test/?redirect_to=${encodeURIComponent(redirectTo)}`,
+    }));
     mockUpdate.mockResolvedValue({});
     mockRetrievePrice.mockResolvedValue({ product: "prod_test" });
     mockRetrieveCoupon.mockReset();
@@ -154,11 +173,11 @@ describe("Stripe webhook", () => {
       expect.any(String),
       expect.any(String),
       "Founding Member (€5/mo)",
-      expect.any(String)
+      expect.any(Boolean)
     );
   });
 
-  it("sends welcome email with '3-month commitment (€8/mo)' label for regular 3-month subscribers", async () => {
+  it("sends welcome email with the '3-round bundle' label for regular 3-month subscribers", async () => {
     const member = await seedMember({ status: "pending" });
     memberId = member.id;
 
@@ -171,12 +190,12 @@ describe("Stripe webhook", () => {
       member.email,
       expect.any(String),
       expect.any(String),
-      "3-month commitment (€8/mo)",
-      expect.any(String)
+      "3-round bundle (€24 for 3 rounds)",
+      expect.any(Boolean)
     );
   });
 
-  it("sends welcome email with 'Monthly (€12/mo)' label for monthly subscribers", async () => {
+  it("sends welcome email with the 'Round by round' label for monthly subscribers", async () => {
     const member = await seedMember({ status: "pending" });
     memberId = member.id;
 
@@ -189,8 +208,50 @@ describe("Stripe webhook", () => {
       member.email,
       expect.any(String),
       expect.any(String),
-      "Monthly (€12/mo)",
-      expect.any(String)
+      "Round by round (€12 per round)",
+      expect.any(Boolean)
+    );
+  });
+
+  // ── Welcome email link depends on the opt-in window ────────────────────
+
+  it("before the 5th: signs the member in to /matches and tells the email the window is open", async () => {
+    mockWindowOpen.mockReturnValue(true);
+    const member = await seedMember({ status: "pending" });
+    memberId = member.id;
+    makeCheckoutEvent(memberId, member.email, "commitment_3mo");
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    expect(mockMagicLink).toHaveBeenCalledTimes(1);
+    expect(mockMagicLink.mock.calls[0][2]).toMatch(/\/matches$/);
+    expect(sendWelcomeEmail).toHaveBeenCalledWith(
+      member.email,
+      expect.any(String),
+      expect.stringContaining(encodeURIComponent("/matches")),
+      "3-round bundle (€24 for 3 rounds)",
+      true
+    );
+  });
+
+  it("after the 5th: signs the member in to /my-perks and tells the email the window is closed", async () => {
+    mockWindowOpen.mockReturnValue(false);
+    const member = await seedMember({ status: "pending" });
+    memberId = member.id;
+    makeCheckoutEvent(memberId, member.email, "commitment_3mo");
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    expect(mockMagicLink).toHaveBeenCalledTimes(1);
+    expect(mockMagicLink.mock.calls[0][2]).toMatch(/\/my-perks$/);
+    expect(sendWelcomeEmail).toHaveBeenCalledWith(
+      member.email,
+      expect.any(String),
+      expect.stringContaining(encodeURIComponent("/my-perks")),
+      "3-round bundle (€24 for 3 rounds)",
+      false
     );
   });
 
