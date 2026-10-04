@@ -38,7 +38,7 @@ test("abandoned checkout: member can re-subscribe after navigating away from Str
   if (await first20Button.isVisible()) {
     await first20Button.click();
   } else {
-    await page.getByRole("button", { name: /3.month commitment/i }).click();
+    await page.getByRole("button", { name: /3.round bundle/i }).click();
   }
 
   // ── Step 2: Check consent boxes, submit, and capture the session ID ──────
@@ -72,7 +72,7 @@ test("abandoned checkout: member can re-subscribe after navigating away from Str
   if (await first20ButtonAgain.isVisible()) {
     await first20ButtonAgain.click();
   } else {
-    await page.getByRole("button", { name: /3.month commitment/i }).click();
+    await page.getByRole("button", { name: /3.round bundle/i }).click();
   }
 
   await page.getByLabel(/I am a parent/).check();

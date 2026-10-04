@@ -52,7 +52,7 @@ export function welcomeHtml(firstName: string, signInLink: string, planLabel: st
   const thisMonthRows = (`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 0px;line-height:1.4;mso-line-height-alt:22.4px">
                                       ${windowOpen
-                                        ? `<span style="font-weight:700">This month:</span> Opt into the current round by the 5th. Choose a match with perks or just perks. Choosing either uses one of your rounds; skipping is free.`
+                                        ? `<span style="font-weight:700">This month:</span> Opt into this round by the 5th. Choose a match with perks or just perks. Choosing either uses one of your rounds; skipping is free.`
                                         : `<span style="font-weight:700">This month:</span> Matching for the current round has closed, but you can use Post Perks right away — which uses one of your rounds.`}
                                     </td></tr>`);
 
