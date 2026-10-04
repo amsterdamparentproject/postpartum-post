@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase";
 import WordMark from "@/components/WordMark";
 import GiftBow from "@/components/GiftBow";
 import TextLogo from "@/components/TextLogo";
+import { getLivePerksSummary } from "@/lib/public-perks";
 
 const FIRST20_TOTAL = 20;
 
@@ -99,9 +100,10 @@ async function getFirst20SpotsRemaining(): Promise<number | null> {
 const PILOT_ONLY = true;
 
 export default async function Home() {
-  const [first20SpotsRemaining, memberStats] = await Promise.all([
+  const [first20SpotsRemaining, memberStats, perksSummary] = await Promise.all([
     getFirst20SpotsRemaining(),
     getActiveMemberStats(),
+    getLivePerksSummary(),
   ]);
 
   const pilotOnly = first20SpotsRemaining === 0 ? false : PILOT_ONLY;
@@ -204,26 +206,36 @@ export default async function Home() {
             >
               <WordMark size="text-2xl" /> stats
             </h2>
-            <ul className="space-y-2 inline-block text-left md:block md:text-center">
-              <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
-                <EnvelopeLogo width={22} height={16} className="shrink-0" />
+            <ul className="space-y-2 w-full text-left">
+              <li className="flex items-start gap-3 text-sm text-dark">
+                <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
                 <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.count} {memberStats.count === 1 ? "member" : "members"}</span> getting a match next month</span>
               </li>
+              {perksSummary && (
+                <li className="flex items-start gap-3 text-sm text-dark">
+                  <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
+                  <span>
+                    <Link href="/perks" className="hover:opacity-80 transition-opacity">
+                      Perks worth <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(203, 223, 189, 0.90)" }}>€{perksSummary.totalSavings}</span> from local family-friendly businesses, just for members
+                    </Link>
+                  </span>
+                </li>
+              )}
               {memberStats.lastJoinedAt && now - memberStats.lastJoinedAt.getTime() < 10 * 24 * 60 * 60 * 1000 && (
-                <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
-                  <EnvelopeLogo width={22} height={16} className="shrink-0" />
+                <li className="flex items-start gap-3 text-sm text-dark">
+                  <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
                   <span>Last member joined <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(175, 153, 255, 0.45)" }}>{formatRelativeTime(memberStats.lastJoinedAt)}</span></span>
                 </li>
               )}
               {memberStats.recentCount > 0 && (
-                <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
-                  <EnvelopeLogo width={22} height={16} className="shrink-0" />
+                <li className="flex items-start gap-3 text-sm text-dark">
+                  <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
                   <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 163, 115, 0.55)" }}>{memberStats.recentCount} joined</span> in the last month</span>
                 </li>
               )}
               {memberStats.happinessStat && (
-                <li className="flex items-start md:items-center md:justify-center gap-3 text-sm text-dark">
-                  <EnvelopeLogo width={22} height={16} className="shrink-0" />
+                <li className="flex items-start gap-3 text-sm text-dark">
+                  <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
                   <span>{memberStats.happinessStat.label} rating is <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{memberStats.happinessStat.value.toFixed(1)} out of 5 stars</span></span>
                 </li>
               )}

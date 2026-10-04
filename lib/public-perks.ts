@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase";
 import type { PerkCardPartner, PerkCardPerk } from "@/components/PerkCard";
 import { perkLocationLabel, type PerkLocationLite } from "@/lib/perk-display";
 import { comparePerks, countEventsByPerk, POPULARITY_WINDOW_DAYS } from "@/lib/perk-ranking";
+import { summarizeLivePerks, type PerkSummary } from "@/lib/perk-summary";
 
 /** One of a perk's locations, as shown/plotted for members -- never the partner's internal label or street address. */
 export type PublicPerkLocation = PerkLocationLite & {
@@ -29,6 +30,31 @@ export type PublicPerk = PerkCardPerk & {
 };
 
 type ViewLocation = { neighborhood: string | null; area: string | null; latitude: number | null; longitude: number | null };
+
+/**
+ * Deal count and total estimated value of the live (non-expired) perks, for
+ * the homepage stats row. A lean query (no popularity events, no locations);
+ * returns null on a failed query or when nothing is live, so the caller can
+ * simply hide the line.
+ */
+export async function getLivePerksSummary(): Promise<PerkSummary | null> {
+  try {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Amsterdam" }); // YYYY-MM-DD
+    const { data, error } = await createAdminClient()
+      .from("perks_partners")
+      .select("status, estimated_savings")
+      .eq("status", "published")
+      .or(`expires_at.is.null,expires_at.gte.${today}`);
+    if (error) {
+      console.error("[getLivePerksSummary] query error:", error.message);
+      return null;
+    }
+    const summary = summarizeLivePerks((data ?? []) as Parameters<typeof summarizeLivePerks>[0]);
+    return summary.count > 0 && summary.totalSavings > 0 ? summary : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean } = {}): Promise<PublicPerk[]> {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Amsterdam" }); // YYYY-MM-DD

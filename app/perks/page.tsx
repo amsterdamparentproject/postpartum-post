@@ -6,6 +6,7 @@ import AnimatedSparkleDivider from "@/components/AnimatedSparkleDivider";
 import Link from "next/link";
 import PublicPerksCarousel from "@/components/PublicPerksCarousel";
 import { listPublicPerks } from "@/lib/public-perks";
+import { summarizeLivePerks } from "@/lib/perk-summary";
 import WordMark from "@/components/WordMark";
 
 const title = "Post Perks";
@@ -69,6 +70,7 @@ export const revalidate = 300;
  */
 export default async function PerksPage() {
   const perks = await listPublicPerks();
+  const { count: liveCount, totalSavings } = summarizeLivePerks(perks);
 
   return (
     <PageLayout>
@@ -77,9 +79,18 @@ export default async function PerksPage() {
           <section className="w-full max-w-sm md:max-w-2xl mx-auto">
             <AnimatedSparkleDivider />
             <h1 className="text-4xl text-dark mb-3" style={{ fontFamily: "var(--font-serif)" }}>
-              Sneak peek at our first <PostPerksWordMark size="text-4xl" />
+              Our first <PostPerksWordMark size="text-4xl" /> are here
             </h1>
-            <p className="text-muted text-center mt-2 mb-6">Launching October 2026, exclusively for <WordMark size="text-base" /> members. If you are new here, don’t miss the giveaway below!</p>
+            <p className="text-muted text-center mt-2 mb-6">
+              {liveCount > 0 && totalSavings > 0 ? (
+                <>
+                  <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{liveCount} {liveCount === 1 ? "perk" : "perks"}</span> from local family-friendly businesses <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(203, 223, 189, 0.90)" }}>worth €{totalSavings}</span> (and counting!), exclusively for <WordMark size="text-base" /> members.
+                </>
+              ) : (
+                <>Launching October 2026, exclusively for <WordMark size="text-base" /> members.</>
+              )}{" "}
+              If you are new here, don’t miss the giveaway below 🎁
+            </p>
             <PublicPerksCarousel perks={perks} />
           </section>
         ) : (
