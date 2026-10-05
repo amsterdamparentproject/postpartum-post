@@ -646,7 +646,7 @@ describe("Stripe webhook", () => {
   describe("invoice.payment_succeeded", () => {
     async function seedMemberWithSubscription(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      overrides: { lookupKey?: string; intervalCount?: number; discounts?: any[] } = {}
+      overrides: { lookupKey?: string; intervalCount?: number; discounts?: any[]; customer?: unknown; default_payment_method?: string | null } = {}
     ) {
       const member = await seedMember({ matches_remaining: 0 });
       const supabase = createTestSupabase();
@@ -669,6 +669,8 @@ describe("Stripe webhook", () => {
           ],
         },
         discounts: overrides.discounts,
+        default_payment_method: overrides.default_payment_method === undefined ? "pm_test" : overrides.default_payment_method,
+        customer: overrides.customer ?? { id: "cus_test", invoice_settings: { default_payment_method: null }, default_source: null },
       });
       return { member, stripeSubId };
     }
@@ -739,6 +741,44 @@ describe("Stripe webhook", () => {
       const res = await POST(makeRequest("{}"));
       expect(res.status).toBe(200);
 
+      expect(mockUpdate).toHaveBeenCalledWith(stripeSubId, {
+        pause_collection: { behavior: "void" },
+      });
+    });
+
+    it("does not pause a subscription that has no payment method anywhere (comped member)", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({
+        intervalCount: 1,
+        default_payment_method: null,
+      });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_nopm_${member.id.slice(0, 8)}`, stripeSubId);
+
+      const res = await POST(makeRequest("{}"));
+      expect(res.status).toBe(200);
+
+      // Credit still lands...
+      const supabase = createTestSupabase();
+      const { data: updated } = await supabase
+        .from("members")
+        .select("matches_remaining")
+        .eq("id", member.id)
+        .single();
+      expect(updated?.matches_remaining).toBe(1);
+      // ...but no pause.
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it("still pauses when only the customer's invoice_settings default payment method is set", async () => {
+      const { member, stripeSubId } = await seedMemberWithSubscription({
+        intervalCount: 1,
+        default_payment_method: null,
+        customer: { id: "cus_test", invoice_settings: { default_payment_method: "pm_cust" }, default_source: null },
+      });
+      memberId = member.id;
+      makeInvoiceEvent(`in_test_custpm_${member.id.slice(0, 8)}`, stripeSubId);
+
+      await POST(makeRequest("{}"));
       expect(mockUpdate).toHaveBeenCalledWith(stripeSubId, {
         pause_collection: { behavior: "void" },
       });

@@ -242,7 +242,7 @@ export async function POST(req: NextRequest) {
       // for the one-time backfill of invoices caught by that bug.
 
       const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId, {
-        expand: ["discounts.source.coupon"],
+        expand: ["discounts.source.coupon", "customer"],
       });
       const price = stripeSubscription.items.data[0]?.price;
       const lookupKey = price?.lookup_key ?? "";
@@ -296,7 +296,25 @@ export async function POST(req: NextRequest) {
       // Stripe call). This now also fires on a member's very first payment
       // at signup, which is deliberate now that E1 exists to unpause it —
       // see the handler comment above.
-      if (applied) {
+      //
+      // Skip the pause when the subscription has no payment method anywhere
+      // (comped / 100%-coupon members). renew-check never bills them, so the
+      // pause buys nothing — and it fails open: a paused comped sub looks
+      // like an anomaly in audits and has to be unpaused by hand. Same
+      // fallback order as renew-check: subscription default_payment_method,
+      // customer invoice_settings default, customer legacy default_source.
+      // If the customer wasn't expanded we can't tell, so keep pausing.
+      const customer = stripeSubscription.customer;
+      const customerResolved = typeof customer !== "string" && !customer.deleted;
+      const hasPaymentMethod =
+        !!stripeSubscription.default_payment_method ||
+        (customerResolved &&
+          (!!customer.invoice_settings?.default_payment_method || !!customer.default_source));
+      const shouldPause = !customerResolved || hasPaymentMethod;
+      if (applied && !shouldPause) {
+        console.log("[webhook] skipped pause: no payment method on file", { subscriptionId });
+      }
+      if (applied && shouldPause) {
         try {
           await stripe.subscriptions.update(subscriptionId, {
             pause_collection: { behavior: "void" },
