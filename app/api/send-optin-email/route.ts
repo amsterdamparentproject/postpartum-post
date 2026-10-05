@@ -16,6 +16,8 @@ import { generateOptinToken } from "@/lib/optin-token";
 import { currentMonth } from "@/lib/tokens";
 import { sendOptinEmail } from "@/lib/emails";
 import { fetchBillingNoticeContext } from "@/lib/billing-notice";
+import { hasPerksAccess, isComped } from "@/lib/billing-mode";
+import { COHORT_NAMES } from "@/lib/cohort";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
@@ -59,7 +61,7 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient();
   const { data: members, error } = await supabase
     .from("members")
-    .select("id, first_name, email, matches_remaining")
+    .select("id, first_name, email, matches_remaining, cohort, billing_mode")
     .or("status.eq.active,and(status.eq.canceling,matches_remaining.gt.0)");
 
   if (error) {
@@ -81,7 +83,14 @@ export async function POST(req: NextRequest) {
   let failed = 0;
   const errors: { email: string; error: string }[] = [];
 
-  const targets = testMode ? members.filter(m => m.email === TEST_EMAIL) : members;
+  // A comped member whose free credit is spent has nothing to opt into (the
+  // click is gated on the counter) and no subscription to manage, so the
+  // monthly invitation would only confuse them. They hear from us again with
+  // the continue offer.
+  const invitable = members.filter(
+    (m) => !(isComped(m.billing_mode) && (m.matches_remaining ?? 0) <= 0)
+  );
+  const targets = testMode ? invitable.filter(m => m.email === TEST_EMAIL) : invitable;
 
   for (const member of targets) {
     const buildUrl = (action: "coffee" | "playdate" | "perks" | "skip") => {
@@ -116,7 +125,11 @@ export async function POST(req: NextRequest) {
         buildUrl("playdate"),
         buildUrl("perks"),
         buildUrl("skip"),
-        lastMatchNotice
+        lastMatchNotice,
+        {
+          perksEnabled: hasPerksAccess(member.billing_mode),
+          cohortName: isComped(member.billing_mode) && member.cohort ? (COHORT_NAMES[member.cohort] ?? null) : null,
+        }
       );
       sent++;
     } catch (err) {

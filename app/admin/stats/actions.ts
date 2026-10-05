@@ -80,6 +80,65 @@ const PLAN_LABELS: Record<string, string> = {
 // getBaseStats
 // ---------------------------------------------------------------------------
 
+export type CohortHeadcount = {
+  cohort: string;
+  /** Everyone who ever signed up with this cohort's code (never decremented). */
+  total: number;
+  /** Still on a free (comped) membership. */
+  comped: number;
+  /** Continued as paying members (subscription or invoiced). */
+  continued: number;
+  /** Signups per calendar month (Europe/Amsterdam), oldest first, for invoicing. */
+  byMonth: { month: string; count: number }[];
+};
+
+/**
+ * Headcount per partner cohort, e.g. for invoicing Dutch Speaking Academy a
+ * per-participant rate. Counts members by signup month, regardless of what
+ * they do afterwards, so a later cancellation never changes a past invoice.
+ */
+export async function getCohortHeadcount(): Promise<CohortHeadcount[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("members")
+    .select("cohort, billing_mode, created_at")
+    .not("cohort", "is", null);
+  if (error) {
+    console.error("[getCohortHeadcount] query failed:", error.message);
+    return [];
+  }
+
+  const monthFormat = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Amsterdam",
+    year: "numeric",
+    month: "2-digit",
+  });
+  const byCohort = new Map<string, { total: number; comped: number; continued: number; months: Map<string, number> }>();
+  for (const row of data ?? []) {
+    const cohort = row.cohort as string;
+    const entry = byCohort.get(cohort) ?? { total: 0, comped: 0, continued: 0, months: new Map() };
+    entry.total++;
+    if (row.billing_mode === "comped_no_perks" || row.billing_mode === "comped_with_perks") entry.comped++;
+    else entry.continued++;
+    // "2026-10" from en-CA's "2026-10"
+    const month = monthFormat.format(new Date(row.created_at as string));
+    entry.months.set(month, (entry.months.get(month) ?? 0) + 1);
+    byCohort.set(cohort, entry);
+  }
+
+  return [...byCohort.entries()]
+    .map(([cohort, e]) => ({
+      cohort,
+      total: e.total,
+      comped: e.comped,
+      continued: e.continued,
+      byMonth: [...e.months.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, count]) => ({ month, count })),
+    }))
+    .sort((a, b) => a.cohort.localeCompare(b.cohort));
+}
+
 export async function getBaseStats(): Promise<BaseStats> {
   const supabase = createAdminClient();
   const stripe = getStripe();

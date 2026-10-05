@@ -62,3 +62,45 @@ describe("opt-in email — soft last-match notice (Track E)", () => {
     expect(html).toContain("Skip this month");
   });
 });
+
+describe("opt-in email — comped cohort members (no Perks)", () => {
+  beforeEach(() => {
+    mockSend.mockClear();
+  });
+
+  async function sendWithOptions(options?: { perksEnabled?: boolean; cohortName?: string | null }): Promise<string> {
+    await sendOptinEmail(
+      "recipient@example.test",
+      "Robin",
+      "https://postpartumpost.com/api/optin?action=coffee",
+      "https://postpartumpost.com/api/optin?action=playdate",
+      "https://postpartumpost.com/api/optin?action=perks",
+      "https://postpartumpost.com/api/optin?action=skip",
+      false,
+      options
+    );
+    return mockSend.mock.calls[0][0].html as string;
+  }
+
+  it("shows the Perks buttons and copy by default", async () => {
+    const html = await sendWithOptions();
+    expect(html).toContain("Coffee + perks");
+    expect(html).toContain("No meetup, just perks");
+    expect(html).toContain("along with all of the Post Perks");
+  });
+
+  it("drops every Perks mention and the perks-only link when perksEnabled is false", async () => {
+    const html = await sendWithOptions({ perksEnabled: false });
+    expect(html).not.toMatch(/perks/i);
+    expect(html).toContain("☕ Coffee");
+    expect(html).toContain("🛝 Playdate");
+    expect(html).toContain("action=coffee");
+    expect(html).toContain("action=skip");
+  });
+
+  it("tells a cohort member the match is within the cohort and expires if skipped", async () => {
+    const html = await sendWithOptions({ perksEnabled: false, cohortName: "Dutch for Parents" });
+    expect(html).toContain("your free match from Dutch for Parents");
+    expect(html).toContain("another student from the course");
+  });
+});

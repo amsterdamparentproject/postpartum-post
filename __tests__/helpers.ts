@@ -36,6 +36,9 @@ export interface TestMember {
   // that don't care about balance aren't silently gated out of coffee/
   // playdate opt-in — override to 0 to specifically test the gate.
   matches_remaining: number;
+  // Cohort signups (migration 033). Optional so existing seeds are unchanged.
+  cohort?: string | null;
+  billing_mode?: "comped_no_perks" | "comped_with_perks" | "subscription" | "invoiced";
 }
 
 /**
