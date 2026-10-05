@@ -423,6 +423,28 @@ describe("POST /api/renew-check", () => {
     expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
   });
 
+  it("never bills or touches a comped cohort member at zero — no subscription row, no Stripe calls for them", async () => {
+    // A Dutch for Parents signup: comped, no Stripe subscription, balance used up.
+    const member = await seedMember({
+      status: "active",
+      matches_remaining: 0,
+      cohort: "dsa",
+      billing_mode: "comped_no_perks",
+    });
+    memberId = member.id;
+
+    const res = await POST(makeRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+
+    // Other candidates in the shared test DB may be billed; this member never is.
+    const billedCustomers = [...mockInvoiceItemCreate.mock.calls, ...mockInvoiceCreate.mock.calls].map(
+      ([args]) => (args as { customer?: string }).customer
+    );
+    expect(billedCustomers).not.toContain(member.stripe_customer_id);
+  });
+
   const DRY = JSON.stringify({ dryRun: true });
 
   describe("dry run ({ dryRun: true } body)", () => {

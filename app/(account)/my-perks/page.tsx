@@ -46,10 +46,13 @@ export default function MyPerksPage() {
   // True right after opting into "Just Perks" -- via the opt-in email's
   // one-click link (/my-perks?optin=perks) or the prompt below -- to confirm it.
   const [justOptedInToPerks, setJustOptedInToPerks] = useState(false);
+  // True for comped_no_perks members (e.g. the free cohort match).
+  const [perksDisabled, setPerksDisabled] = useState(false);
 
   function fetchPerks(token: string) {
     listMemberPerks(token).then((result) => {
       setOptedIn(result.optedIn);
+      setPerksDisabled(!!result.perksDisabled);
       setPerks(result.perks);
       // Deep link from the match page's perks strip: /my-perks?perk=<id>
       // opens that perk's dialog straight away (and counts as a view).
@@ -87,6 +90,20 @@ export default function MyPerksPage() {
   function handleRedeemed(perkId: string, reveal: PerkReveal) {
     setPerks((list) => list?.map((p) => (p.id === perkId ? { ...p, reveal } : p)) ?? null);
     setOpen((p) => (p && p.id === perkId ? { ...p, reveal } : p));
+  }
+
+  if (perks !== null && perksDisabled) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border p-6 text-center space-y-2">
+        <span className="text-3xl" aria-hidden="true">🎁</span>
+        <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
+          Post Perks are for members who continue
+        </p>
+        <p className="text-sm text-muted">
+          Your free match doesn&apos;t include Perks. Continue after it and the local deals unlock.
+        </p>
+      </div>
+    );
   }
 
   return (

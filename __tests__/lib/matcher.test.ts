@@ -1,5 +1,5 @@
 /**
- * Matcher test suite — 10 scenarios
+ * Matcher test suite — 12 scenarios
  *
  * Tests are organized around the exported pure functions (parentTypeCompatible,
  * scorePair) and the async orchestrator (runMatcher).  No network calls are
@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parentTypeCompatible,
+  poolCompatible,
   scorePair,
   runMatcher,
   type MatchCandidate,
@@ -735,5 +736,117 @@ describe("Scenario 12: Per-month topic_id from monthly_participation is used for
     expect([pairA.a.id, pairA.b.id]).toContain("b");
     const pairC = matched.find((p) => p.a.id === "c" || p.b.id === "c")!;
     expect([pairC.a.id, pairC.b.id]).toContain("d");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 12 — Cohort-only pool restriction
+// ---------------------------------------------------------------------------
+
+describe("Scenario 12: cohort_only restricts pairing to the same cohort", () => {
+  it("poolCompatible allows any pair when nobody opted for cohort_only", () => {
+    const a = member({ id: "a", cohort: "dsa" });
+    const b = member({ id: "b" });
+    expect(poolCompatible(a, b)).toBe(true);
+  });
+
+  it("poolCompatible requires a shared non-null cohort when either member is cohort_only", () => {
+    const dsaOnly = member({ id: "a", cohort: "dsa", cohort_only: true });
+    const dsa = member({ id: "b", cohort: "dsa" });
+    const other = member({ id: "c", cohort: "fyp" });
+    const none = member({ id: "d" });
+    const otherOnly = member({ id: "e", cohort: "fyp", cohort_only: true });
+
+    expect(poolCompatible(dsaOnly, dsa)).toBe(true); // same cohort, other side unrestricted
+    expect(poolCompatible(dsaOnly, other)).toBe(false);
+    expect(poolCompatible(dsaOnly, none)).toBe(false);
+    expect(poolCompatible(none, dsaOnly)).toBe(false); // symmetric
+    expect(poolCompatible(dsaOnly, otherOnly)).toBe(false);
+  });
+
+  it("poolCompatible rejects a cohort_only member with no cohort", () => {
+    const stray = member({ id: "a", cohort_only: true });
+    const alsoNone = member({ id: "b" });
+    expect(poolCompatible(stray, alsoNone)).toBe(false);
+  });
+
+  it("never pairs a cohort_only member with an outsider, even when the outsider scores higher", async () => {
+    // x shares a language with d1 (1000) but d1 is cohort_only; d2 shares none.
+    const d1 = member({ id: "d1", language: ["english"], cohort: "dsa", cohort_only: true });
+    const d2 = member({ id: "d2", language: ["dutch"], cohort: "dsa", cohort_only: true });
+    const x = member({ id: "x", language: ["english"] });
+
+    const { matched, unmatched } = await runMatcher([d1, d2, x], mockSupabase(), NO_COORDS);
+
+    expect(matched).toHaveLength(1);
+    expect([matched[0].a.id, matched[0].b.id].sort()).toEqual(["d1", "d2"]);
+    expect(unmatched.map((m) => m.id)).toEqual(["x"]);
+  });
+
+  it("leaves a lone cohort_only member unmatched instead of pairing them with the general pool", async () => {
+    const d1 = member({ id: "d1", cohort: "dsa", cohort_only: true });
+    const x = member({ id: "x", language: ["english"] });
+    const y = member({ id: "y", language: ["english"] });
+
+    const { matched, unmatched } = await runMatcher([d1, x, y], mockSupabase(), NO_COORDS);
+
+    expect(matched).toHaveLength(1);
+    expect([matched[0].a.id, matched[0].b.id].sort()).toEqual(["x", "y"]);
+    expect(unmatched.map((m) => m.id)).toEqual(["d1"]);
+  });
+
+  it("does not use the odd-pool second match to pair a cohort_only leftover with an outsider", async () => {
+    // d1 is the leftover. x is willing to take a second match, but x is not in d1's cohort.
+    const d1 = member({ id: "d1", language: ["english"], cohort: "dsa", cohort_only: true });
+    const x = member({ id: "x", language: ["english"], open_to_second_match: true });
+    const y = member({ id: "y", language: ["english"], open_to_second_match: true });
+
+    const { matched, unmatched, doubleMatchedId } = await runMatcher(
+      [d1, x, y],
+      mockSupabase(),
+      NO_COORDS
+    );
+
+    expect(matched).toHaveLength(1);
+    expect(unmatched.map((m) => m.id)).toEqual(["d1"]);
+    expect(doubleMatchedId).toBeUndefined();
+  });
+
+  it("does use the odd-pool second match when the willing member is in the same cohort", async () => {
+    // Whichever of the three ends up as the leftover, the other two are willing.
+    const dsa = { language: ["english"], cohort: "dsa", cohort_only: true, open_to_second_match: true };
+    const d1 = member({ id: "d1", ...dsa });
+    const d2 = member({ id: "d2", ...dsa });
+    const d3 = member({ id: "d3", ...dsa });
+
+    const { matched, unmatched, doubleMatchedId } = await runMatcher(
+      [d1, d2, d3],
+      mockSupabase(),
+      NO_COORDS
+    );
+
+    expect(unmatched).toHaveLength(0);
+    expect(matched).toHaveLength(2);
+    expect(doubleMatchedId).toBeDefined();
+  });
+
+  it("pairs a cohort_only member with a same-cohort member who did not opt for cohort_only", async () => {
+    const d1 = member({ id: "d1", cohort: "dsa", cohort_only: true });
+    const d2 = member({ id: "d2", cohort: "dsa", cohort_only: false });
+
+    const { matched, unmatched } = await runMatcher([d1, d2], mockSupabase(), NO_COORDS);
+
+    expect(matched).toHaveLength(1);
+    expect(unmatched).toHaveLength(0);
+  });
+
+  it("does not pair two cohort_only members from different cohorts", async () => {
+    const a = member({ id: "a", cohort: "dsa", cohort_only: true });
+    const b = member({ id: "b", cohort: "fyp", cohort_only: true });
+
+    const { matched, unmatched } = await runMatcher([a, b], mockSupabase(), NO_COORDS);
+
+    expect(matched).toHaveLength(0);
+    expect(unmatched).toHaveLength(2);
   });
 });
