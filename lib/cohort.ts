@@ -6,6 +6,11 @@ type AdminClient = ReturnType<typeof createAdminClient>;
 /** Cohort slugs set at signup (members.cohort). Attribution only, never cleared. */
 export const COHORT_DSA = "dsa";
 
+/** Display name for each cohort, used in member-facing emails. */
+export const COHORT_NAMES: Record<string, string> = {
+  [COHORT_DSA]: "Dutch for Parents",
+};
+
 /** Label for the opt-in checkbox, per cohort. */
 export const COHORT_ONLY_LABELS: Record<string, string> = {
   [COHORT_DSA]: "Match me only with another DSA student",

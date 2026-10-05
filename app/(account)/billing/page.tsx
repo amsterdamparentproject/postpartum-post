@@ -12,6 +12,8 @@ import {
 import { unsubscribe } from "@/app/actions/unsubscribe";
 import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES, type MemberStatusMessage } from "@/lib/member-status";
 import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
+import { isComped, hasPerksAccess } from "@/lib/billing-mode";
+import { COHORT_NAMES } from "@/lib/cohort";
 
 // Accepts either a Stripe unix timestamp (a real instant — formatted in the
 // viewer's local zone, as this always has) or a Date (deriveMemberStatusMessage's
@@ -186,7 +188,73 @@ function BillingContent() {
         {subscriptionLoading ? (
           <p className="text-sm text-muted">Fetching your plan…</p>
         ) : !subscription ? (
-          member?.status === "canceling" ? (
+          isComped(member.billing_mode) && member.status === "active" ? (
+            // Comped members (e.g. the free Dutch for Parents match) have no
+            // Stripe subscription, so there's no plan, billing date or portal.
+            <>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">Status</span>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    member.matches_remaining > 0 ? STATUS_TONE_CLASSNAMES.active : STATUS_TONE_CLASSNAMES.muted
+                  }`}
+                >
+                  {member.matches_remaining > 0 ? "Free match ready" : "Free match used"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">Plan</span>
+                <span className="text-dark font-medium">
+                  {member.cohort && COHORT_NAMES[member.cohort]
+                    ? `Free match, ${COHORT_NAMES[member.cohort]}`
+                    : "Free match"}
+                </span>
+              </div>
+              <hr className="border-border" />
+              <p className="text-xs text-muted leading-relaxed">
+                {member.matches_remaining > 0
+                  ? "Nothing is charged, and no card is on file. Opt in between the 1st and the 5th of the month to claim your match."
+                  : "Your free match has been used. Nothing is charged, and nothing renews. We'll email you a special offer if you'd like to keep going."}
+                {!hasPerksAccess(member.billing_mode) && " Post Perks unlock when you continue."}
+              </p>
+              <div className="text-center">
+                {!confirmCancel ? (
+                  <button
+                    onClick={() => setConfirmCancel(true)}
+                    className="text-xs text-muted hover:text-dark transition"
+                  >
+                    Leave Postpartum Post
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted">
+                      Leave Postpartum Post?{" "}
+                      {member.matches_remaining > 0 && "Your unused free match will be forfeited. "}
+                      Nothing is being charged either way.
+                    </p>
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => {
+                          if (!member || !accessToken) return;
+                          startCancelTransition(() => unsubscribe(accessToken));
+                        }}
+                        disabled={isCancelPending}
+                        className="text-xs px-3 py-1.5 bg-dark text-white rounded-lg hover:bg-dark/80 transition disabled:opacity-60"
+                      >
+                        {isCancelPending ? "Leaving…" : "Yes, leave"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmCancel(false)}
+                        className="text-xs px-3 py-1.5 border border-border rounded-lg text-muted hover:text-dark transition"
+                      >
+                        Never mind
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : member?.status === "canceling" ? (
             <p className="text-sm text-muted">
               Your membership is active — you&apos;ll keep receiving matches and won&apos;t be charged again.
             </p>

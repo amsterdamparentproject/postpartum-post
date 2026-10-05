@@ -134,6 +134,19 @@ export default function DutchCohortSignupForm() {
         </span>
       </div>
 
+      <p className="text-xs text-muted leading-relaxed">
+        Free matches have their own terms:{" "}
+        <a
+          href="/terms#partner-cohorts"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-coral transition-colors"
+        >
+          read them here
+        </a>
+        .
+      </p>
+
       <div className="space-y-3 pt-1">
         <label className="flex items-start gap-3 cursor-pointer">
           <input
