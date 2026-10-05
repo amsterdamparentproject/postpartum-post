@@ -5,6 +5,7 @@ import { getStripe } from "@/lib/stripe";
 import { geocodeZipcode } from "@/lib/matcher";
 import { requireMember } from "@/lib/require-member";
 import { currentMonth, monthToDate } from "@/lib/tokens";
+import type { BillingMode } from "@/lib/billing-mode";
 
 export type Availability = {
   days: string[];
@@ -33,6 +34,9 @@ export type MemberProfile = {
   open_to_second_match: boolean;
   // Track C1: the counter Track B introduced, now actually read.
   matches_remaining: number;
+  // Cohort attribution (e.g. "dsa") and how the member is billed.
+  cohort: string | null;
+  billing_mode: BillingMode;
 };
 
 export type Topic = {
@@ -85,7 +89,7 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("members")
-    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, availability, match_priority, children, open_to_second_match, matches_remaining")
+    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, availability, match_priority, children, open_to_second_match, matches_remaining, cohort, billing_mode")
     .eq("id", authed.memberId)
     .single();
   if (error && error.code !== "PGRST116") {

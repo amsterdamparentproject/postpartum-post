@@ -4,8 +4,9 @@ import Link from "next/link";
 import PageLayout from "@/components/PageLayout";
 import TextLogo from "@/components/TextLogo";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
-import AnimatedSparkleDivider from "@/components/AnimatedSparkleDivider";
 import DutchCohortSignupForm from "@/components/DutchCohortSignupForm";
+import HowMatchingWorks from "@/components/HowMatchingWorks";
+import { DSA_STEPS } from "@/components/DutchCohortSteps";
 import FAQ, { type FAQItem } from "@/components/FAQ";
 
 const title = "Dutch Speaking Academy × Postpartum Post";
@@ -23,24 +24,6 @@ export const metadata: Metadata = {
 // DSA's own colors, sampled from its logo, used as accents next to Post's coral.
 const DSA_TERRACOTTA = "#B1502B";
 const DSA_GOLD = "#E4C58F";
-
-const STEPS = [
-  {
-    icon: "🎓",
-    title: "Join Dutch for Parents",
-    body: "Your live round with Mariska starts October 20.",
-  },
-  {
-    icon: "🔑",
-    title: "Sign up here with your code",
-    body: "It's free and needs no card. Your code comes from Mariska.",
-  },
-  {
-    icon: "💌",
-    title: "Opt in, get matched, meet up",
-    body: "Opt in November 1–5 and your match is revealed on November 7. You decide when and how to meet.",
-  },
-];
 
 const FAQS: FAQItem[] = [
   {
@@ -75,8 +58,17 @@ const FAQS: FAQItem[] = [
   },
   {
     question: "What is Postpartum Post?",
-    answer:
-      "A monthly friendship starter pack for parents: one curated match with someone local, delivered like a little letter. It's a project of Amsterdam Parent Project, and you can learn how matching works on our About page.",
+    answer: (
+      <>
+        A monthly friendship starter pack for parents: one curated match with someone local,
+        delivered like a little letter. It&apos;s a project of Amsterdam Parent Project, and you
+        can learn how matching works on our{" "}
+        <Link href="/about" className="underline underline-offset-2 hover:text-coral transition-colors">
+          About page
+        </Link>
+        .
+      </>
+    ),
   },
 ];
 
@@ -109,82 +101,44 @@ export default function DutchSpeakingAcademyPage() {
           </div>
 
           <h1
-            className="text-4xl md:text-5xl leading-tight"
+            className="text-4xl md:text-5xl mt-10 leading-tight"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            <span style={{ color: DSA_TERRACOTTA }}>Speak Dutch anyway.</span>{" "}
-            <span className="block text-dark">With a fellow parent.</span>
+            <span className="block text-balance" style={{ color: DSA_TERRACOTTA }}>
+              Start actually speaking Dutch,
+            </span>
+            <span className="block text-balance text-dark">with a fellow parent.</span>
           </h1>
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
             Dutch for Parents students get <strong>one free match</strong>{" "}
-            through Postpartum Post in
-            November: another parent from your round to practice the conversations you actually
-            have, from the school gate to the playdate. Meet in person if you live nearby, or hop on a
-            video call if you don&apos;t.
+            through Postpartum Post with a fellow parent who&apos;s just as committed to learning
+            Dutch as you are. You&apos;ll be matched 1:1 and meet up your way and on your schedule, in person or online,
+            so you can finally get to speaking Dutch — and make a parent friend along the way.
           </p>
           <a
             href="#signup"
             data-umami-event="DSA: Hero CTA"
-            className="inline-block mt-8 py-3 px-8 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition"
+            className="perk-shine group relative overflow-hidden flex items-center justify-center gap-2 w-full max-w-md mx-auto mt-8 py-3.5 px-6 rounded-full text-lg font-bold text-dark shadow-md hover:shadow-lg hover:-translate-y-0.5 hover:brightness-110 transition"
+            style={{ backgroundColor: DSA_GOLD }}
           >
+            <EnvelopeLogo width={34} height={25} className="shrink-0 group-hover-wiggle" />
             Claim your free match
+            <span aria-hidden="true">→</span>
           </a>
         </section>
 
-        <div className="w-full max-w-md my-10">
-          <AnimatedSparkleDivider />
-        </div>
-
         {/* How it works */}
-        <section className="w-full max-w-sm md:max-w-2xl">
-          <h2
-            className="text-2xl md:text-3xl text-dark text-center mb-6"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            How it <span style={{ color: DSA_TERRACOTTA }}>works</span>
-          </h2>
-          <ol className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {STEPS.map((step, i) => (
-              <li
-                key={step.title}
-                className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-5 text-center"
-              >
-                <span className="text-3xl" aria-hidden="true">
-                  {step.icon}
-                </span>
-                <p
-                  className="mt-3 text-xs font-bold uppercase tracking-wide"
-                  style={{ color: DSA_TERRACOTTA }}
-                >
-                  Step {i + 1}
-                </p>
-                <h3
-                  className="mt-1 text-lg text-dark leading-snug"
-                  style={{ fontFamily: "var(--font-serif)" }}
-                >
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-sm text-muted leading-relaxed">{step.body}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* Why a match */}
-        <section className="w-full max-w-xl mt-12 text-center">
-          <h2
-            className="text-2xl md:text-3xl text-dark mb-4"
-            style={{ fontFamily: "var(--font-serif)" }}
-          >
-            Practice is better <span className="text-coral">with company</span>
-          </h2>
-          <p className="text-dark leading-relaxed">
-            Dutch for Parents gets you the words and the confidence. A match gives you somewhere
-            low-stakes to use them: one parent, one conversation, no audience. Your match arrives like
-            a little letter, with a name, a few things you have in common, and an open invitation to
-            meet.
-          </p>
-        </section>
+        <div className="w-full mt-12 md:mt-16">
+          <HowMatchingWorks
+            steps={DSA_STEPS}
+            heading={
+              <>
+                How it <span className="text-coral">works</span>
+              </>
+            }
+            intro={null}
+          />
+        </div>
 
         {/* Signup */}
         <section id="signup" className="w-full max-w-md mt-12 scroll-mt-8">
@@ -200,7 +154,7 @@ export default function DutchSpeakingAcademyPage() {
             </p>
           </div>
           <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-            <DutchCohortSignupForm opensLabel="Signup opens October 20" />
+            <DutchCohortSignupForm />
           </div>
         </section>
 
@@ -210,10 +164,10 @@ export default function DutchSpeakingAcademyPage() {
             faqs={FAQS}
             heading={
               <>
-                Questions, <span className="text-coral">answered</span>
+                Frequently asked <span className="text-coral">questions</span>
               </>
             }
-            subheading="A few things Dutch for Parents students often ask."
+            subheading="More questions? Reach out to Mariska at Dutch Speaking Academy."
           />
         </div>
 

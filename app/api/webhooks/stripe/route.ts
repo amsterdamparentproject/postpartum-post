@@ -4,8 +4,7 @@ import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
 import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
-import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
-import { isOptinWindowOpen } from "@/lib/optin-window";
+import { createWelcomeSignIn } from "@/lib/member-welcome";
 import { recordEntitlement, FYP_LOOKUP_KEYS, GIFT_ENTITLEMENT_NOTE } from "@/lib/match-ledger";
 
 export async function POST(req: NextRequest) {
@@ -111,20 +110,9 @@ export async function POST(req: NextRequest) {
     // fixed at the 10th) ever collects again. See
     // __claude__/billing-simplification-plan.md, Track E.
 
-    // Generate a magic link so the welcome email signs the user straight in:
-    // to /matches while the opt-in window is open (the button is "Opt into
-    // this round"), otherwise to /my-perks ("Opt into Perks this month"). One link only: a second
-    // generateLink for the same email would replace the first's token.
+    // Signed link to the primary action (see lib/member-welcome.ts).
     const firstName = session.customer_details?.name?.split(" ")[0] ?? "there";
-    const windowOpen = isOptinWindowOpen();
-    const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}/${windowOpen ? "matches" : "my-perks"}`;
-    let profileLink = redirectTo; // signed link to the primary action (see above)
-    const linkResult = await generateMagicLinkWithRetry(supabase, email, redirectTo);
-    if (linkResult.success) {
-      profileLink = linkResult.url;
-    } else {
-      console.error("[webhook] generateLink failed, falling back to plain profile URL:", linkResult.error);
-    }
+    const { signInLink: profileLink, windowOpen } = await createWelcomeSignIn(supabase, email);
 
     // Derive human-readable plan label and next billing date for the welcome email.
     const lookupKey = stripeSubscription.items.data[0].price.lookup_key ?? "";

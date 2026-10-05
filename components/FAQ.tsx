@@ -12,7 +12,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-export type FAQItem = { question: string; answer: string; id?: string };
+export type FAQItem = { question: string; answer: ReactNode; id?: string };
 
 const FAQS: FAQItem[] = [
   {

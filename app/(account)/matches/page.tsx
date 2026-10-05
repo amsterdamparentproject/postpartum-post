@@ -5,6 +5,8 @@ import Link from "next/link";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import { OPTIN_DEADLINE_DAY, isOptinWindowOpen } from "@/lib/optin-window";
 import { useAccount } from "@/app/(account)/AccountContext";
+import { COHORT_ONLY_LABELS } from "@/lib/cohort";
+import { isComped, hasPerksAccess } from "@/lib/billing-mode";
 import {
   getMatchStatus,
   getExclusions,
@@ -60,6 +62,8 @@ export default function MatchesPage() {
             isOptinWindowOpen() ? (
               <OptInCard
                 accessToken={accessToken ?? ""}
+                cohortLocked={isComped(member.billing_mode) ? member.cohort : null}
+                perksEnabled={hasPerksAccess(member.billing_mode)}
                 onOptIn={() => getMatchStatus(accessToken ?? "").then(setStatus)}
               />
             ) : pastMatches.length === 0 ? (
@@ -67,6 +71,7 @@ export default function MatchesPage() {
             ) : (
               <ClosedCard
                 accessToken={accessToken ?? ""}
+                perksEnabled={hasPerksAccess(member.billing_mode)}
                 onOptIn={() => getMatchStatus(accessToken ?? "").then(setStatus)}
               />
             )
@@ -525,7 +530,19 @@ function SkippedCard({ month }: { month: string }) {
   );
 }
 
-function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () => void }) {
+function OptInCard({
+  accessToken,
+  onOptIn,
+  cohortLocked,
+  perksEnabled,
+}: {
+  accessToken: string;
+  onOptIn: () => void;
+  /** Cohort slug when matching is locked to the member's cohort (comped), else null. */
+  cohortLocked: string | null;
+  /** False for comped_no_perks members: the perks-only choice is hidden. */
+  perksEnabled: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<OptInAction | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -562,7 +579,7 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         Let us know how you&apos;d like to meet this month — we&apos;ll take care of the rest.
         You have until the {OPTIN_DEADLINE_DAY}th to respond. Any choice below uses one of your rounds; skipping doesn&apos;t.
       </p>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className={`grid gap-2 ${perksEnabled ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <button
           onClick={() => handleChoice("coffee")}
           disabled={isPending}
@@ -579,6 +596,7 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         >
           {isPending && pendingAction === "playdate" ? "Joining…" : "🛝 Meet for a playdate"}
         </button>
+        {perksEnabled && (
         <button
           onClick={() => handleChoice("perks")}
           disabled={isPending}
@@ -587,7 +605,17 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         >
           {isPending && pendingAction === "perks" ? "Joining…" : "🎁 No meetup, just perks"}
         </button>
+        )}
       </div>
+      {cohortLocked && (
+        <label className="flex items-start gap-3 text-sm text-dark opacity-70 cursor-not-allowed">
+          <input type="checkbox" checked disabled readOnly className="mt-0.5 shrink-0 accent-coral" />
+          <span>
+            {COHORT_ONLY_LABELS[cohortLocked] ?? "Match me only with someone from my cohort"}
+            <span className="block text-xs text-muted">Your free match is with your cohort.</span>
+          </span>
+        </label>
+      )}
       <button
         onClick={() => handleChoice("skip")}
         disabled={isPending}
@@ -601,7 +629,15 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
   );
 }
 
-function ClosedCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () => void }) {
+function ClosedCard({
+  accessToken,
+  onOptIn,
+  perksEnabled,
+}: {
+  accessToken: string;
+  onOptIn: () => void;
+  perksEnabled: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -623,6 +659,19 @@ function ClosedCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: ()
         setError(messages[result.error] ?? "Something went wrong.");
       }
     });
+  }
+
+  if (!perksEnabled) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border p-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🗓️</span>
+          <p className="text-sm text-muted">
+            This month&apos;s match window has closed. Next month&apos;s invitation lands in your inbox around the 1st.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

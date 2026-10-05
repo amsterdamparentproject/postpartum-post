@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { signupCohort } from "@/app/actions/signup-cohort";
 import RequiredMark from "@/components/RequiredMark";
 
 const inputClass =
@@ -10,27 +11,50 @@ const labelClass = "block text-sm font-medium text-dark mb-1";
 
 /**
  * Signup form for Dutch for Parents students (the /dutch-speaking-academy
- * splash page). UI-only for now: it is not wired to the signup action, the
- * database or Stripe yet, so submitting is disabled until `open` is true.
- * The real flow is a free, no-card signup that tags the new member with the
- * cohort flag (see __claude__/dsa-cohort-perks.md and the plan in
- * __claude__/ for the comped-member approach).
+ * splash page). Calls signupCohort: a free, no-card signup that creates a
+ * comped member tagged with the cohort.
  */
-export default function DutchCohortSignupForm({
-  open = false,
-  opensLabel,
-}: {
-  /** Flip to true once the real signup action is wired up. */
-  open?: boolean;
-  /** Shown on the disabled button, e.g. "Signup opens October 20". */
-  opensLabel: string;
-}) {
+export default function DutchCohortSignupForm() {
   const [eligibilityConfirmed, setEligibilityConfirmed] = useState(false);
   const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    // Intentionally a no-op until the cohort signup action exists.
+    const form = new FormData(e.currentTarget);
+    setError(null);
+    startTransition(async () => {
+      const result = await signupCohort({
+        firstName: String(form.get("firstName") ?? ""),
+        lastName: String(form.get("lastName") ?? ""),
+        email: String(form.get("email") ?? ""),
+        code: String(form.get("code") ?? ""),
+        eligibilityConfirmed,
+        guidelinesAccepted,
+      });
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        setDone(true);
+      }
+    });
+  }
+
+  if (done) {
+    return (
+      <div className="text-center space-y-3 py-4">
+        <span className="text-4xl" aria-hidden="true">💌</span>
+        <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
+          You&apos;re in!
+        </p>
+        <p className="text-sm text-muted leading-relaxed">
+          Check your email for a welcome note and a link to your profile. Opt in November 1–5 to
+          claim your free match.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -99,14 +123,14 @@ export default function DutchCohortSignupForm({
         <div className="flex items-center justify-between mb-1">
           <span className="text-xl" aria-hidden="true">💌</span>
           <span className="text-xs font-medium text-coral bg-coral/10 px-2 py-0.5 rounded-full">
-            Included with your course
+            Included in your course
           </span>
         </div>
         <span className="block text-lg font-semibold text-dark leading-tight">
-          One free match, <span className="text-coral">€0</span>
+          Free cohort match (€0)
         </span>
         <span className="block text-sm text-muted mt-1">
-          No card needed. Opt in November 1–5 and your match is revealed November 7.
+          1 free match with a fellow student during your Dutch for Parents course
         </span>
       </div>
 
@@ -147,18 +171,14 @@ export default function DutchCohortSignupForm({
 
       <button
         type="submit"
-        disabled={!open}
+        disabled={isPending}
         data-umami-event="DSA: Cohort signup"
         className="w-full py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
       >
-        {open ? "Claim my free match" : opensLabel}
+        {isPending ? "Signing you up…" : "Claim my free match"}
       </button>
 
-      {!open && (
-        <p className="text-xs text-muted text-center leading-relaxed">
-          Your Dutch for Parents round hasn&apos;t started yet. This form goes live when it does.
-        </p>
-      )}
+      {error && <p className="text-sm text-red-600 text-center">{error}</p>}
     </form>
   );
 }
