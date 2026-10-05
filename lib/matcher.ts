@@ -8,6 +8,8 @@
  *   - A field is only scored when BOTH members have a preference set.
  *   - null / unset means "no preference" → no bonus, no penalty.
  *   - parent_type is a preference: mismatches score 0 but are never excluded.
+ *   - cohort_only is a hard restriction: a member who chose it is only ever
+ *     paired with a member of the same (non-null) cohort.
  *   - No re-match within 6 months.
  *
  * Matching strategy: greedy O(n²) — sort all valid scored pairs by score
@@ -39,6 +41,13 @@ export interface MatchCandidate {
   children: { birth_month: number; birth_year: number; expected: boolean }[] | null;
   /** When true, this member can be paired twice in a month (odd-pool tiebreaker or rematch). */
   open_to_second_match?: boolean;
+  /** Cohort the member joined through (e.g. "dsa"); null/undefined for regular members. */
+  cohort?: string | null;
+  /**
+   * This round's opt-in answer (monthly_participation.cohort_only): pair me
+   * only with a member of my own cohort. Undefined/false = no restriction.
+   */
+  cohort_only?: boolean;
 }
 
 export interface ScoreBreakdown {
@@ -217,6 +226,16 @@ export function parentTypeCompatible(
  * Scores 1000 when both members share the same non-anyone parent_type.
  * null / 'anyone' = no preference → no bonus, no penalty.
  */
+/**
+ * Pool restriction. A pair is allowed unless either member opted for
+ * cohort_only and the two don't share the same non-null cohort. A non-restricted
+ * member of the same cohort may still be paired with a restricted one.
+ */
+export function poolCompatible(a: MatchCandidate, b: MatchCandidate): boolean {
+  if (!a.cohort_only && !b.cohort_only) return true;
+  return a.cohort != null && a.cohort === b.cohort;
+}
+
 function scoreParentType(a: MatchCandidate, b: MatchCandidate): number {
   if (!a.parent_type && !b.parent_type) return 0;
   if (!a.parent_type || !b.parent_type) return W.PARENT_TYPE / 2;
@@ -557,7 +576,9 @@ function greedyPair(
   // Filter out incompatible or excluded pairs
   const valid = scoredPairs.filter(
     (p) =>
-      parentTypeCompatible(p.a, p.b) && !excludedPairs.has(pairKey(p.a, p.b))
+      parentTypeCompatible(p.a, p.b) &&
+      poolCompatible(p.a, p.b) &&
+      !excludedPairs.has(pairKey(p.a, p.b))
   );
 
   // Sort descending by score
@@ -645,6 +666,7 @@ export async function runMatcher(
         .map((m) => ({ member: m, pair: scorePair(m, leftover, coordMap) }))
         .filter(({ member }) => member.id !== leftover.id)
         .filter(({ pair }) => parentTypeCompatible(pair.a, pair.b))
+        .filter(({ pair }) => poolCompatible(pair.a, pair.b))
         .sort((x, y) => y.pair.score - x.pair.score)[0];
 
       if (best) {

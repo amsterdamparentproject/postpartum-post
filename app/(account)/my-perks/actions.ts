@@ -7,6 +7,7 @@ import { comparePerks } from "@/lib/perk-ranking";
 import { revalidatePerksPage } from "@/lib/revalidate-perks";
 import { nearestKm } from "@/lib/geo-distance";
 import { hasOptedInForMonth } from "@/lib/monthly-opt-in";
+import { hasPerksAccess } from "@/lib/billing-mode";
 import type { PerkFrequency, RedemptionType } from "@/lib/perk-input";
 
 /**
@@ -109,13 +110,27 @@ export type MemberPerksResult = {
    *  empty in that case; the page shows the opt-in prompt instead of the grid. */
   optedIn: boolean;
   perks: MemberPerk[];
+  /** True for comped_no_perks members: Perks aren't part of their plan, so the
+   *  page shows a "continue to unlock" note instead of the grid or opt-in prompt. */
+  perksDisabled?: boolean;
 };
+
+async function memberHasPerksAccess(
+  supabase: ReturnType<typeof createAdminClient>,
+  memberId: string
+): Promise<boolean> {
+  const { data } = await supabase.from("members").select("billing_mode").eq("id", memberId).maybeSingle();
+  return hasPerksAccess(data?.billing_mode);
+}
 
 export async function listMemberPerks(accessToken: string): Promise<MemberPerksResult> {
   const authed = await requireMember(accessToken);
   if (!authed) return { optedIn: false, perks: [] };
 
   const supabase = createAdminClient();
+  if (!(await memberHasPerksAccess(supabase, authed.memberId))) {
+    return { optedIn: false, perks: [], perksDisabled: true };
+  }
   const optedIn = await hasOptedInForMonth(supabase, authed.memberId, currentMonth());
   if (!optedIn) return { optedIn: false, perks: [] };
   const { data, error } = await supabase
@@ -205,9 +220,12 @@ export async function redeemPerk(
 
   const { data: member } = await supabase
     .from("members")
-    .select("status")
+    .select("status, billing_mode")
     .eq("id", authed.memberId)
     .maybeSingle();
+  if (member && !hasPerksAccess(member.billing_mode)) {
+    return { success: false, error: "Perks aren't part of your free match. Continue after it to unlock them." };
+  }
   if (!member || !CAN_REDEEM_STATUSES.includes(member.status as string)) {
     return { success: false, error: "Perks are for members with an active subscription" };
   }

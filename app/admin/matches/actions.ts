@@ -40,6 +40,9 @@ export type DraftMember = {
   parent_type: "mom" | "dad" | "anyone" | null;
   match_priority: "age" | "proximity" | null;
   open_to_second_match: boolean;
+  // Cohort (e.g. "dsa") and this round's cohort-only opt-in, for the admin badge.
+  cohort?: string | null;
+  cohort_only?: boolean;
 };
 
 /** Whether/when this pair was last matched, for the admin "recent match" confirmation row. */
@@ -180,11 +183,12 @@ export async function getRoundData(month?: string): Promise<RoundData | null> {
     .from("monthly_participation")
     .select(`
       member_id,
+      cohort_only,
       topics ( name ),
       members (
         id, first_name, last_name, email,
         language, availability, lat, lng, zipcode, children,
-        parent_type, match_priority, open_to_second_match
+        parent_type, match_priority, open_to_second_match, cohort
       )
     `)
     .eq("month", monthDate);
@@ -197,6 +201,7 @@ export async function getRoundData(month?: string): Promise<RoundData | null> {
       language: string[] | null; availability: unknown;
       lat: number | null; lng: number | null; zipcode: string | null;
       children: unknown; parent_type: string | null; match_priority: string | null; open_to_second_match: boolean;
+      cohort: string | null;
     } | null;
     if (!m) continue;
     const topicName = (p.topics as unknown as { name: string } | null)?.name ?? null;
@@ -215,6 +220,8 @@ export async function getRoundData(month?: string): Promise<RoundData | null> {
       parent_type: m.parent_type as "mom" | "dad" | "anyone" | null,
       match_priority: m.match_priority as "age" | "proximity" | null,
       open_to_second_match: m.open_to_second_match ?? false,
+      cohort: m.cohort ?? null,
+      cohort_only: p.cohort_only ?? false,
     });
   }
 
@@ -511,11 +518,12 @@ export async function computeCandidateScores(
     .from("monthly_participation")
     .select(`
       member_id,
+      cohort_only,
       topics ( name ),
       members (
         id, first_name, last_name, email,
         language, availability, lat, lng, zipcode, children,
-        parent_type, match_priority, open_to_second_match
+        parent_type, match_priority, open_to_second_match, cohort
       )
     `)
     .eq("month", round.month);
@@ -528,6 +536,7 @@ export async function computeCandidateScores(
         lat: number | null; lng: number | null; zipcode: string | null;
         children: unknown; parent_type: string | null; match_priority: string | null;
         open_to_second_match: boolean;
+        cohort: string | null;
       } | null;
       if (!m) return null;
       return {
@@ -540,6 +549,8 @@ export async function computeCandidateScores(
         parent_type: m.parent_type as "mom" | "dad" | "anyone" | null,
         match_priority: m.match_priority as "age" | "proximity" | null,
         open_to_second_match: m.open_to_second_match ?? false,
+        cohort: m.cohort ?? null,
+        cohort_only: p.cohort_only ?? false,
       } as DraftMember;
     })
     .filter((m): m is DraftMember => m !== null);

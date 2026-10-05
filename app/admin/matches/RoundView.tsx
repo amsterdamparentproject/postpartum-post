@@ -8,6 +8,20 @@ import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 // Helpers
 // ---------------------------------------------------------------------------
 
+function CohortBadge({ member }: { member: DraftMember }) {
+  if (!member.cohort) return null;
+  return (
+    <span
+      className={`shrink-0 text-[10px] font-bold uppercase rounded px-1.5 py-0.5 ${
+        member.cohort_only ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-500"
+      }`}
+      title={member.cohort_only ? `Cohort only: matches only within ${member.cohort}` : `Cohort: ${member.cohort}`}
+    >
+      {member.cohort}{member.cohort_only ? " only" : ""}
+    </span>
+  );
+}
+
 function fullName(m: DraftMember) {
   return `${m.first_name} ${m.last_name}`;
 }
@@ -318,6 +332,7 @@ function MemberDetailCard({
           <p className="font-semibold text-dark text-sm truncate">
             {member.first_name} <span className="font-normal text-muted">({member.id.slice(0, 5)})</span>
           </p>
+          <CohortBadge member={member} />
           {member.open_to_second_match && (
             <svg className="w-3.5 h-3.5 text-[#caadff] shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-label="Open to second match">
               <title>Open to second match</title>
@@ -508,6 +523,7 @@ function NeedsMatchCard({
                   {fullName(member)} <span className="font-normal text-muted">({member.id.slice(0, 5)})</span>
                 </p>
                 <p className="text-xs text-muted truncate">{member.email}</p>
+                {member.cohort && <div className="mt-1"><CohortBadge member={member} /></div>}
               </div>
               <MemberProfileFields member={member} />
             </div>
@@ -850,6 +866,12 @@ export default function RoundView({ initialRound }: { initialRound: RoundData })
           <p className="text-red-600 text-xs">
             No willing <code className="bg-red-100 px-1 rounded">open_to_second_match</code> candidate was available. Reassign before EOD the 6th.
           </p>
+          {round.unmatched.some((m) => m.cohort_only) && (
+            <p className="text-red-600 text-xs">
+              Cohort-only members ({round.unmatched.filter((m) => m.cohort_only).map((m) => m.first_name).join(", ")}) are
+              only matched within their cohort, so they stay here until a cohort partner is free or you reassign manually.
+            </p>
+          )}
         </div>
       )}
 

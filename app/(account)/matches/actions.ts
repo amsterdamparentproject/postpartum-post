@@ -6,6 +6,8 @@ import { currentMonth, monthToDate } from "@/lib/tokens";
 import { generateMatchToken } from "@/lib/match-token";
 import { isOptinWindowOpen } from "@/lib/optin-window";
 import { debitLatePerksIfRoundCommitted } from "@/lib/match-ledger";
+import { resolveCohortOnly } from "@/lib/cohort";
+import { hasPerksAccess } from "@/lib/billing-mode";
 
 // ---------------------------------------------------------------------------
 // Match exclusions
@@ -393,7 +395,7 @@ export type OptInAction = "coffee" | "playdate" | "perks" | "skip";
 
 export type OptInResult =
   | { success: true }
-  | { success: false; error: "closed" | "already_responded" | "no_balance" | "server_error" };
+  | { success: false; error: "closed" | "already_responded" | "no_balance" | "perks_unavailable" | "server_error" };
 
 /**
  * Records a member's response for the month: coffee/playdate (joins the
@@ -416,7 +418,8 @@ export type OptInResult =
  */
 export async function optInFromMatches(
   accessToken: string,
-  action: OptInAction
+  action: OptInAction,
+  requestedCohortOnly = false
 ): Promise<OptInResult> {
   // Matching itself closes after the 5th, but perks-only doesn't need a
   // matcher round to mean anything -- it stays available all month (the
@@ -434,11 +437,16 @@ export async function optInFromMatches(
 
   const { data: memberRow } = await supabase
     .from("members")
-    .select("consecutive_skips, matches_remaining")
+    .select("consecutive_skips, matches_remaining, billing_mode")
     .eq("id", memberId)
     .single();
 
   if (!memberRow) return { success: false, error: "server_error" };
+
+  // Comped members without Perks can't take the perks-only choice.
+  if (action === "perks" && !hasPerksAccess(memberRow.billing_mode)) {
+    return { success: false, error: "perks_unavailable" };
+  }
 
   const [{ data: existingSkip }, { data: existingParticipation }, { data: existingPerks }] = await Promise.all([
     supabase.from("monthly_skips").select("id").eq("member_id", memberId).eq("month", monthDate).maybeSingle(),
@@ -510,9 +518,19 @@ export async function optInFromMatches(
 
   if (topicError || !topic) return { success: false, error: "server_error" };
 
+  // Comped cohort members are always matched inside their cohort; other
+  // cohort members get what they asked for (the editable checkbox ships later).
+  let cohortOnly: boolean;
+  try {
+    cohortOnly = await resolveCohortOnly(supabase, memberId, requestedCohortOnly);
+  } catch (e) {
+    console.error("[optInFromMatches] cohort lookup failed:", e);
+    return { success: false, error: "server_error" };
+  }
+
   const { error: participationError } = await supabase
     .from("monthly_participation")
-    .insert({ member_id: memberId, month: monthDate, topic_id: topic.id });
+    .insert({ member_id: memberId, month: monthDate, topic_id: topic.id, cohort_only: cohortOnly });
 
   if (participationError) {
     // Unique constraint violation — member already responded this month

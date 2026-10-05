@@ -91,10 +91,12 @@ export async function POST(req: NextRequest) {
     .select(`
       member_id,
       topic_id,
+      cohort_only,
       members (
         id, first_name, last_name, email, zipcode, lat, lng,
         language, parent_type, availability, match_priority, children,
-        open_to_second_match
+        open_to_second_match,
+        cohort
       )
     `)
     .eq("month", monthDate);
@@ -106,10 +108,10 @@ export async function POST(req: NextRequest) {
 
   // Set topic_id from monthly_participation (members table no longer has topic_id)
   const activeMembers = (participations ?? [])
-    .map((p) => {
+    .map((p): MatchCandidate | null => {
       const member = p.members as unknown as MatchCandidate;
       if (!member) return null;
-      return { ...member, topic_id: p.topic_id };
+      return { ...member, topic_id: p.topic_id, cohort_only: p.cohort_only ?? false };
     })
     .filter((m): m is MatchCandidate => m !== null);
 
