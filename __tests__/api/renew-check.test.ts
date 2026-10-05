@@ -11,6 +11,8 @@
  *     subscriptions carry the card there (bug found 2026-09-11 against live
  *     Stripe data: real paying members were being skipped as if comped)
  *   - Happy path: pause cleared, flat-amount invoiceItem + invoice created
+ *   - In-flight guard: latest invoice still open -> skipped and reported, no
+ *     second invoice stacked on an unsettled payment
  *   - Per-member error isolation: one Stripe failure doesn't stop the batch
  *   - Members with balance > 0 are never candidates at all
  *   - A "canceling" member at zero gets their cancellation finalized
@@ -62,6 +64,8 @@ function stripeSubResponse(overrides: {
   customerDefaultPaymentMethod?: string | null;
   unitAmount?: number | null;
   currency?: string;
+  // The expanded latest_invoice; undefined means none (a fresh/settled sub).
+  latestInvoice?: { id: string; status: string } | null;
 } = {}) {
   const { hasPaymentMethod = true, unitAmount = 1200, currency = "eur" } = overrides;
   const fallbackPm = hasPaymentMethod ? "pm_test_123" : null;
@@ -75,6 +79,7 @@ function stripeSubResponse(overrides: {
       : fallbackPm;
   return {
     default_payment_method: subscriptionDefaultPaymentMethod,
+    latest_invoice: overrides.latestInvoice ?? null,
     items: {
       data: [
         {
@@ -149,6 +154,55 @@ describe("POST /api/renew-check", () => {
     );
     expect(mockInvoiceCreate).not.toHaveBeenCalledWith(
       expect.objectContaining({ subscription: sub.stripe_subscription_id })
+    );
+  });
+
+  it("skips a member whose latest invoice is still open (payment in flight) — no pause, no second invoice", async () => {
+    // Regression test for the 2026-10-05 case: a SEPA debit from Stripe's own
+    // cycle was still processing when renew-check found the member at zero,
+    // so a second charge would have stacked on the first before its credit
+    // landed. Reported, not billed; the next run picks them up if still at 0.
+    const member = await seedMember({ status: "active", matches_remaining: 0 });
+    memberId = member.id;
+    const sub = await seedSubscription(memberId, { status: "active" });
+    mockRetrieve.mockImplementation(async (subId: string) =>
+      subId === sub.stripe_subscription_id
+        ? stripeSubResponse({ latestInvoice: { id: "in_open_123", status: "open" } })
+        : stripeSubResponse()
+    );
+
+    const res = await POST(makeRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.skippedOpenInvoice).toBeGreaterThanOrEqual(1);
+    expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+
+    expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+    expect(mockInvoiceItemCreate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: sub.stripe_subscription_id }),
+      expect.anything()
+    );
+    expect(mockInvoiceCreate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: sub.stripe_subscription_id }),
+      expect.anything()
+    );
+  });
+
+  it("still bills a member whose latest invoice is paid", async () => {
+    const member = await seedMember({ status: "active", matches_remaining: 0 });
+    memberId = member.id;
+    const sub = await seedSubscription(memberId, { status: "active" });
+    mockRetrieve.mockImplementation(async (subId: string) =>
+      subId === sub.stripe_subscription_id
+        ? stripeSubResponse({ latestInvoice: { id: "in_paid_123", status: "paid" } })
+        : stripeSubResponse()
+    );
+
+    const res = await POST(makeRequest());
+    expect(res.status).toBe(200);
+    expect(mockInvoiceCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: sub.stripe_subscription_id }),
+      expect.anything()
     );
   });
 

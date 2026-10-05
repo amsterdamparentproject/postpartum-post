@@ -80,6 +80,7 @@
  *     billed: number,
  *     canceled: number,
  *     skippedNoPaymentMethod: number,
+ *     skippedOpenInvoice: number,
  *     errors: Array<{ memberId: string, error: string }>
  *   }
  *
@@ -131,6 +132,7 @@ type RenewOutcome =
   | { kind: "billed"; amount?: number; currency?: string }
   | { kind: "canceled" }
   | { kind: "skipped_no_payment_method" }
+  | { kind: "skipped_open_invoice"; invoiceId: string }
   | { kind: "no_op" }
   | { kind: "deferred_active_match" }
   | { kind: "error"; memberId: string; error: string };
@@ -158,7 +160,7 @@ async function renewMember(
     }
 
     const stripeSub = await stripe.subscriptions.retrieve(sub.stripe_subscription_id, {
-      expand: ["items.data.price", "customer"],
+      expand: ["items.data.price", "customer", "latest_invoice"],
     });
 
     const customer = stripeSub.customer;
@@ -184,6 +186,17 @@ async function renewMember(
     // payment method; it would strand them at zero silently.
     if (!defaultPaymentMethod) {
       return { kind: "skipped_no_payment_method" };
+    }
+
+    // In-flight guard: a subscription whose latest invoice is still OPEN has
+    // a payment that hasn't settled (a SEPA debit can take up to 14 business
+    // days) or has failed and needs a human. Billing again now would stack a
+    // second charge on top of the first before its +N credit has landed —
+    // matches_remaining only moves on invoice.payment_succeeded. Skip and
+    // report it; the next run bills them if they are still at zero.
+    const latestInvoice = stripeSub.latest_invoice;
+    if (latestInvoice && typeof latestInvoice !== "string" && latestInvoice.status === "open") {
+      return { kind: "skipped_open_invoice", invoiceId: latestInvoice.id ?? "" };
     }
 
     const price = stripeSub.items.data[0]?.price;
@@ -398,6 +411,7 @@ export async function POST(req: NextRequest) {
   let canceled = 0;
   let deferredActiveMatch = 0;
   let skippedNoPaymentMethod = 0;
+  let skippedOpenInvoice = 0;
   const errors: { memberId: string; error: string }[] = [];
   const details: Record<string, unknown>[] = [];
 
@@ -425,6 +439,7 @@ export async function POST(req: NextRequest) {
           ...(outcome.kind === "billed" && outcome.amount != null
             ? { amount: outcome.amount / 100, currency: outcome.currency }
             : {}),
+          ...(outcome.kind === "skipped_open_invoice" ? { invoiceId: outcome.invoiceId } : {}),
           ...(outcome.kind === "error" ? { error: outcome.error } : {}),
         });
       }
@@ -432,6 +447,7 @@ export async function POST(req: NextRequest) {
       else if (outcome.kind === "canceled") canceled++;
       else if (outcome.kind === "deferred_active_match") deferredActiveMatch++;
       else if (outcome.kind === "skipped_no_payment_method") skippedNoPaymentMethod++;
+      else if (outcome.kind === "skipped_open_invoice") skippedOpenInvoice++;
       else if (outcome.kind === "error") errors.push({ memberId: outcome.memberId, error: outcome.error });
       // "no_op" — no live subscription, nothing to count.
     }
@@ -444,6 +460,7 @@ export async function POST(req: NextRequest) {
     canceled,
     deferredActiveMatch,
     skippedNoPaymentMethod,
+    skippedOpenInvoice,
     errors,
     ...(dryRun ? { details } : {}),
   });
