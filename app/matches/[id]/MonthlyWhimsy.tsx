@@ -8,7 +8,7 @@ import { monthlyFeature } from "@/lib/monthly-feature";
 export default function MonthlyWhimsy() {
   if (!monthlyFeature) return null;
 
-  const { imageSrc, imageAlt, title, author, authorAge, createdMonth, description } = monthlyFeature;
+  const { imageSrc, imageAlt, title, author, authorAge, createdMonth, materials, description } = monthlyFeature;
   const monthLabel = new Date(createdMonth + "-01").toLocaleString("en-US", {
     month: "long",
     year: "numeric",
@@ -60,6 +60,7 @@ export default function MonthlyWhimsy() {
             By {author}
             {authorAge != null && `, age ${authorAge} years`} ({monthLabel})
           </p>
+          {materials && <p className="text-muted text-sm italic">{materials}</p>}
         </div>
         {description && (
           <p className="text-dark text-sm leading-relaxed">{description}</p>

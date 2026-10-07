@@ -32,6 +32,8 @@ export interface WhimsyEntry {
   featuredMonth: string;
     /** "YYYY-MM" — displayed after the author as "Month Year" */
   createdMonth: string;
+  /** Optional — materials used, shown under the byline, e.g. "Chalk on pavement" */
+  materials?: string;
   /** Optional caption from the artist — plain text or JSX */
   description?: ReactNode;
 }
@@ -88,6 +90,24 @@ export const whimsyHistory: WhimsyEntry[] = [
     featuredMonth: "2026-09",
     description:
       "These two sisters made this summertime... sea? land? scape during Papote's Art Fair a few weeks ago. They had a lovely time making all sorts of things themselves, then came together for this whimsical piece.",
+  },
+  {
+    imageSrc: "/whimsy/2026-10.jpg",
+    imageAlt: "Colorful light from magnetic tiles projected onto a gray wall above a cushion, with a toy airplane and a stuffed dragon on a wooden shelf below",
+    title: "Colorful Reflections",
+    author: "E. Siega",
+    authorAge: "almost 3",
+    createdMonth: "2026-09",
+    featuredMonth: "2026-10",
+    materials: "Sunlight and Connectix magnetic tiles",
+    description: (
+      <>
+        Everyone and their mother loves magnetic tiles. Sometimes — nay, most of the time — we
+        build towers, and other times they invite us to create structures in unexpected
+        dimensions. For this morning session, we got to play with light and color streaming
+        through the window.
+      </>
+    ),
   },
 ];
 
