@@ -271,13 +271,16 @@ async function renewMember(
  * pending prorations as a side effect of cancellation itself, which is
  * exactly the unwanted charge this whole function exists to prevent.
  *
- * Deferred while the member has a match this month: a canceling member only
- * reaches zero by being matched (commit-matches decrements at the 6th) or by
- * missing a round, and the opt-in email never goes to a canceling member at
- * zero, so they can't have a match next month. Finalizing on the 10th right
- * after the match is revealed on the 7th would send "sorry to see you go"
- * while they still have a live match to meet. So we wait: the next 10th, with
- * no match that month, finalizes them.
+ * Deferred while the member has a match OR a perks-only month this month: a
+ * canceling member only reaches zero by being matched (commit-matches
+ * decrements at the 6th), by taking a perks-only month (same decrement, a
+ * 'perks_only' entitlement instead of a matches row), or by missing a round,
+ * and the opt-in email never goes to a canceling member at zero, so they
+ * can't have a match next month. Finalizing on the 10th right after the
+ * reveal on the 7th would send "sorry to see you go" while they still have a
+ * live match to meet — or, for perks-only, while this is still an active
+ * month for them. So we wait: the next 10th, with neither that month,
+ * finalizes them.
  */
 async function finalizeCancellation(
   member: { id: string },
@@ -297,6 +300,23 @@ async function finalizeCancellation(
       .limit(1);
     if (matchError) throw new Error(`match lookup failed: ${matchError.message}`);
     if (thisMonthsMatches && thisMonthsMatches.length > 0) {
+      return { kind: "deferred_active_match" };
+    }
+
+    // A perks-only month leaves no matches row — its only trace is the
+    // 'perks_only' entitlement commit-matches writes for the round's month.
+    // It is an active month for the member, so it defers exactly like a
+    // match does. Same fail-safe: a failed lookup throws into the catch
+    // below and is recorded, never falling through to cancelling.
+    const { data: thisMonthsPerksOnly, error: perksOnlyError } = await supabase
+      .from("match_entitlements")
+      .select("id")
+      .eq("member_id", member.id)
+      .eq("event", "perks_only")
+      .eq("month", monthToDate(currentMonth()))
+      .limit(1);
+    if (perksOnlyError) throw new Error(`perks-only lookup failed: ${perksOnlyError.message}`);
+    if (thisMonthsPerksOnly && thisMonthsPerksOnly.length > 0) {
       return { kind: "deferred_active_match" };
     }
 

@@ -368,6 +368,29 @@ describe("POST /api/renew-check", () => {
     }
   });
 
+  it("defers finalizing a canceling member at zero who has a perks-only month this month", async () => {
+    // A perks-only month is an active month: no matches row, just a
+    // 'perks_only' entitlement. The 10th must not cancel them mid-month.
+    const member = await seedMember({ status: "canceling", matches_remaining: 0 });
+    memberId = member.id;
+    const sub = await seedSubscription(memberId, { status: "active" });
+    const monthDate = `${new Date().toISOString().slice(0, 7)}-01`;
+    const { error } = await createTestSupabase()
+      .from("match_entitlements")
+      .insert({ member_id: member.id, event: "perks_only", delta: -1, month: monthDate });
+    expect(error).toBeNull();
+
+    const res = await POST(makeRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.deferredActiveMatch).toBeGreaterThanOrEqual(1);
+    expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+
+    // Not cancelled, not billed.
+    expect(mockCancel).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+    expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+  });
+
   it("still finalizes a canceling member at zero whose only match was in an earlier month", async () => {
     const member = await seedMember({ status: "canceling", matches_remaining: 0 });
     memberId = member.id;
