@@ -112,6 +112,8 @@ export default async function Home() {
   return (
     <PageLayout showNav>
       <main className="flex-1 flex flex-col items-center px-6 px-6 md:py-16">
+  // Show "last member joined" only when it is fresh (within 5 days); otherwise the "joined in the last month" count stands in for it.
+  const lastJoinedRecently = !!memberStats?.lastJoinedAt && now - memberStats.lastJoinedAt.getTime() < 5 * 24 * 60 * 60 * 1000;
 
         {/* Hero */}
         <div className="max-w-xl w-full text-center mb-10">
@@ -221,13 +223,13 @@ export default async function Home() {
                   </span>
                 </li>
               )}
-              {memberStats.lastJoinedAt && now - memberStats.lastJoinedAt.getTime() < 10 * 24 * 60 * 60 * 1000 && (
+              {memberStats.lastJoinedAt && lastJoinedRecently && (
                 <li className="flex items-start gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
                   <span>Last member joined <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(175, 153, 255, 0.45)" }}>{formatRelativeTime(memberStats.lastJoinedAt)}</span></span>
                 </li>
               )}
-              {memberStats.recentCount > 0 && (
+              {!lastJoinedRecently && memberStats.recentCount > 0 && (
                 <li className="flex items-start gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
                   <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 163, 115, 0.55)" }}>{memberStats.recentCount} joined</span> in the last month</span>
