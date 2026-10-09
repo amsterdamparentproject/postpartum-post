@@ -23,7 +23,7 @@ import MonthlyWhimsy from "@/app/matches/[id]/MonthlyWhimsy";
 import { listPublicPerks } from "@/lib/public-perks";
 
 export const metadata: Metadata = {
-  title: "Your Match · Postpartum Post",
+  title: "Your Match",
   robots: { index: false },
 };
 

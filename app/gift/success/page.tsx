@@ -4,7 +4,7 @@ import EnvelopeLogo from "@/components/EnvelopeLogo";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Gift Card Sent — Postpartum Post",
+  title: "Gift Card Sent",
   robots: { index: false },
 };
 

@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase";
 import type { SignupFormData } from "@/app/actions/signup";
 
 export const metadata: Metadata = {
-  title: "Claim Your Gift — Postpartum Post",
+  title: "Claim Your Gift",
   robots: { index: false },
 };
 
