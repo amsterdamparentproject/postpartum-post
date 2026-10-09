@@ -20,12 +20,14 @@ export default function ActivitiesMapClient({
   memberCoords,
   playgrounds,
   perks,
+  preview,
 }: {
   activities: Activity[];
   center: { lat: number; lng: number } | null;
   memberCoords: { lat: number; lng: number }[];
   playgrounds?: Playground[];
   perks?: MapPerk[];
+  preview?: boolean;
 }) {
   return (
     <ActivitiesMap
@@ -34,6 +36,7 @@ export default function ActivitiesMapClient({
       memberCoords={memberCoords}
       playgrounds={playgrounds}
       perks={perks}
+      preview={preview}
     />
   );
 }

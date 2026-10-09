@@ -25,7 +25,14 @@ function mapsUrl(locations: PublicPerk["locations"]): string | null {
   return geocoded ? `https://www.google.com/maps?q=${geocoded.lat},${geocoded.lng}` : null;
 }
 
-export default function PublicPerksCarousel({ perks }: { perks: PublicPerk[] }) {
+export default function PublicPerksCarousel({
+  perks,
+  showAllToggle = true,
+}: {
+  perks: PublicPerk[];
+  /** The "Show all N perks" list toggle; the homepage turns it off (the carousel is enough there). */
+  showAllToggle?: boolean;
+}) {
   const [showAll, setShowAll] = useState(false);
 
   const renderCard = (perk: PublicPerk) => (
@@ -92,7 +99,7 @@ export default function PublicPerksCarousel({ perks }: { perks: PublicPerk[] }) 
         <Carousel items={perks} getKey={(perk) => perk.id} renderItem={renderCard} />
       )}
 
-      {perks.length > 1 && (
+      {showAllToggle && perks.length > 1 && (
         <div className="text-center mt-4">
           <button
             type="button"

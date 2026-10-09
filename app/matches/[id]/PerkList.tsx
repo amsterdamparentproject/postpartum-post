@@ -34,7 +34,7 @@ function nearestMapsUrl(locations: MatchPerk["locations"]): string | null {
   return geocoded ? `https://www.google.com/maps?q=${geocoded.lat},${geocoded.lng}` : null;
 }
 
-export function PerkList({ perks }: { perks: MatchPerk[] }) {
+export function PerkList({ perks, preview = false, limit = PERK_LIST_LIMIT }: { perks: MatchPerk[]; preview?: boolean; limit?: number }) {
   const router = useRouter();
   if (perks.length === 0) {
     return (
@@ -45,7 +45,7 @@ export function PerkList({ perks }: { perks: MatchPerk[] }) {
   }
   return (
     <div className="space-y-3">
-      {perks.slice(0, PERK_LIST_LIMIT).map((perk) => {
+      {perks.slice(0, limit).map((perk) => {
         const distance = formatDistance(perk.distanceKm);
         const meta = [
           perk.partner.business_name,
@@ -80,11 +80,12 @@ export function PerkList({ perks }: { perks: MatchPerk[] }) {
                 </span>
               )
             }
-            action={{ label: "Redeem now", onClick: () => router.push(`/my-perks?perk=${perk.id}`), umamiEvent: "Perks: Open from match page" }}
+            action={preview ? null : { label: "Redeem now", onClick: () => router.push(`/my-perks?perk=${perk.id}`), umamiEvent: "Perks: Open from match page" }}
             mapsUrl={nearestMapsUrl(perk.locations)}
           />
         );
       })}
+      {!preview && (
       <div className="text-center pt-1">
         <Link
           href="/my-perks"
@@ -94,6 +95,7 @@ export function PerkList({ perks }: { perks: MatchPerk[] }) {
           See all perks
         </Link>
       </div>
+      )}
     </div>
   );
 }
