@@ -129,6 +129,7 @@ export default async function PerksPage() {
           Want to offer a Post Perk?{" "}
           <Link
             href="/partners"
+            data-umami-event="Perks: Partner CTA"
             className="text-coral font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity"
           >
             Head on over to our Partners page
