@@ -44,6 +44,11 @@ echo "Full output saved to $LOG_FILE"
 # one fixed in run-matcher.test.ts on 2026-08-28. Reseed them unconditionally
 # after every run, pass or fail, so the DB always comes back to a known
 # state. Restores members + subscriptions only — see scripts/seed-test-members.mts.
+# SKIP_RESEED=1 (set by scripts/test-all.sh) leaves the reseed to the caller,
+# so a multi-suite run only restores the shared data once, at the very end.
+if [ -n "${SKIP_RESEED:-}" ]; then
+  echo "SKIP_RESEED set — leaving reference data for the caller to restore."
+else
 echo "Restoring reference member data..."
 tsx scripts/seed-test-members.mts
 if [ $? -ne 0 ]; then
@@ -58,6 +63,8 @@ echo "Restoring reference partner data..."
 tsx scripts/seed-test-partners.mts
 if [ $? -ne 0 ]; then
   echo "Warning: seed-test-partners.mts failed — reference partner data may be stale." >&2
+fi
+
 fi
 
 exit "$STATUS"

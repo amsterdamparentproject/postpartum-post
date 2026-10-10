@@ -104,8 +104,28 @@ export async function generateMagicLink(email: string, path = "/profile"): Promi
  * magic link. Waits until the browser has landed on `path` (default /profile).
  */
 export async function signInAs(page: Page, email: string, path = "/profile"): Promise<void> {
-  const link = await generateMagicLink(email, path);
-  await page.goto(link);
+  // generateMagicLink retries its own 429s, but the browser then visits
+  // Supabase's verify endpoint, which can also answer 429 ("over_request_rate
+  // _limit") and leaves the page on that JSON — until now the test then sat
+  // there until its 60s timeout. Magic links are single-use, so a retry needs
+  // a fresh link, not a reload. Waits only happen when the limit is hit.
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const link = await generateMagicLink(email, path);
+    const response = await page.goto(link);
+    const rateLimited =
+      response?.status() === 429 ||
+      (await page
+        .locator("body")
+        .innerText({ timeout: 1_000 })
+        .then((text) => text.includes("over_request_rate_limit"))
+        .catch(() => false));
+    if (!rateLimited) break;
+    if (attempt === maxAttempts) {
+      throw new Error(`signInAs: Supabase verify endpoint still rate-limited after ${maxAttempts} attempts`);
+    }
+    await new Promise((r) => setTimeout(r, 5_000 * attempt)); // 5s, 10s, 15s
+  }
   // Use regex — the URL briefly contains a hash fragment (#access_token=...) which
   // Playwright's glob patterns don't match reliably.
   await page.waitForURL(new RegExp(path.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&")), { timeout: 15_000 });
