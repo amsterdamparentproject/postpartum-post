@@ -7,6 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
+import { STRIPE_API_VERSION } from "../../lib/stripe";
 
 // ---------------------------------------------------------------------------
 // Clients
@@ -22,7 +23,7 @@ function supabase() {
 function stripe() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("Missing STRIPE_SECRET_KEY in .env.local");
-  return new Stripe(key);
+  return new Stripe(key, { apiVersion: STRIPE_API_VERSION });
 }
 
 /**
