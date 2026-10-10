@@ -36,6 +36,13 @@ export default async function globalTeardown() {
     console.log(`[teardown] Purged ${current + legacy} stale e2e member(s) (${current} current, ${legacy} legacy).`);
   }
 
+  // SKIP_RESEED=1 (set by scripts/test-all.sh) leaves the reseed to the caller,
+  // so a multi-suite run only restores the shared data once, at the very end.
+  if (process.env.SKIP_RESEED) {
+    console.log("[teardown] SKIP_RESEED set — leaving reference data for the caller to restore.");
+    return;
+  }
+
   console.log("[teardown] Restoring reference member data...");
   try {
     // Resolve tsx's own binary directly rather than relying on PATH — this

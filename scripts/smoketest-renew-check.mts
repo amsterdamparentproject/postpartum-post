@@ -63,6 +63,7 @@ import { config } from "dotenv";
 import { resolve } from "path";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
+import { STRIPE_API_VERSION } from "../lib/stripe";
 
 config({ path: resolve(process.cwd(), ".env.local") });
 
@@ -96,7 +97,7 @@ if (prodEnv.NEXT_PUBLIC_SUPABASE_URL === supabaseUrl) {
 }
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, { db: { schema: "postpartumpost" } });
-const stripe = new Stripe(stripeSecretKey);
+const stripe = new Stripe(stripeSecretKey, { apiVersion: STRIPE_API_VERSION });
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
