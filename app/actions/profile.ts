@@ -60,6 +60,10 @@ export type SubscriptionDetails = {
   // settled (invoice.status === "open" && invoice.attempted === true) —
   // drives lib/member-status.ts's "Payment processing" branch.
   latest_invoice_open_and_attempted: boolean;
+  // True when that open invoice's payment was declined (PaymentIntent is
+  // requires_payment_method) rather than a SEPA debit still settling —
+  // drives lib/member-status.ts's "Payment needed — Update your card".
+  latest_invoice_payment_failed: boolean;
   // Track E2: Stripe's cancellation_details.reason, only meaningful when
   // status is "canceled" — lets member-status distinguish a self-initiated
   // cancellation from a mandate-failure cancellation (Track D case 6b).
@@ -125,6 +129,7 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
   let price_lookup_key: string | null = null;
   let interval_count: number | null = null;
   let latest_invoice_open_and_attempted = false;
+  let latest_invoice_payment_failed = false;
   let cancellation_reason: string | null = null;
   // Track C1: prefer the live Stripe status over the local DB mirror — it's
   // what actually determines the member-facing vocabulary below, and the
@@ -162,6 +167,31 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
     if (latestInvoice && typeof latestInvoice !== "string") {
       latest_invoice_open_and_attempted =
         latestInvoice.status === "open" && latestInvoice.attempted === true;
+
+      // An open, attempted invoice is either a SEPA debit still settling
+      // (PaymentIntent "processing") or a declined payment (PaymentIntent
+      // back at "requires_payment_method"). Only the second needs the member
+      // to act. Rare path (open invoices only), so one extra read is fine;
+      // any failure here falls back to the "processing" wording.
+      if (latest_invoice_open_and_attempted && latestInvoice.id) {
+        try {
+          const payments = await stripe.invoicePayments.list({
+            invoice: latestInvoice.id,
+            expand: ["data.payment.payment_intent"],
+          });
+          latest_invoice_payment_failed = payments.data.some((p) => {
+            const pi = p.payment?.payment_intent;
+            return (
+              !!pi &&
+              typeof pi !== "string" &&
+              pi.status === "requires_payment_method" &&
+              !!pi.last_payment_error
+            );
+          });
+        } catch (e) {
+          console.error("Failed to check latest invoice payment state:", e);
+        }
+      }
     }
 
     // Bugfix (billing-simplification-plan.md, Appendix A): this app never gives a
@@ -196,6 +226,7 @@ export async function getSubscriptionDetails(accessToken: string): Promise<Subsc
     is_skipping_this_month,
     interval_count,
     latest_invoice_open_and_attempted,
+    latest_invoice_payment_failed,
     cancellation_reason,
   };
 }

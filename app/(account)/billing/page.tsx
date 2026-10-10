@@ -133,6 +133,7 @@ function BillingContent() {
           intervalCount: subscription.interval_count,
           matchesRemaining: member.matches_remaining,
           latestInvoiceOpenAndAttempted: subscription.latest_invoice_open_and_attempted,
+          latestInvoicePaymentFailed: subscription.latest_invoice_payment_failed,
           currentPeriodEnd: subscription.current_period_end,
         })
       : null);
@@ -151,7 +152,11 @@ function BillingContent() {
 
   return (
     <div className="space-y-6">
-      {showSkipBanner && (
+      {/* The no_balance banner's wording depends on the subscription fetch
+          (a declined renewal reads differently from a normal gap between
+          terms), so hold it back until that has resolved rather than
+          flashing the wrong copy first. */}
+      {showSkipBanner && (optinParam !== "no_balance" || subscriptionLoaded) && (
         <div
           className={
             optinParam === "skip_failed"
@@ -164,6 +169,8 @@ function BillingContent() {
               ? <>Something went wrong recording your skip for this month, so we couldn&apos;t confirm it — you may still be matched or charged as usual. Please try the link from your email again, or contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a> and we&apos;ll sort it out.</>
               : optinParam === "already_skip"
               ? <>You&apos;ve already chosen to skip this month. If you&apos;d like to rejoin the match pool, please contact us at <a href="mailto:post@amsterdamparentproject.nl" className="underline">post@amsterdamparentproject.nl</a>.</>
+              : optinParam === "no_balance" && subscription?.latest_invoice_payment_failed
+              ? "We couldn't process your renewal payment, so we couldn't enter you in this month's round yet. Update your card below and you can join straight away."
               : optinParam === "no_balance"
               ? "You're between terms right now, so this month's match is on pause — check your status below for when you'll be matched again."
               : "You're skipping your match this month — all good! Your match is saved for next time, and nothing about your billing changes. See you next month 💌"

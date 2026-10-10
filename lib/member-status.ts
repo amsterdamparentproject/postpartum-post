@@ -97,6 +97,14 @@ export type MemberStatusInput = {
    *  Track E2 — surfaced so a mid-settlement SEPA charge reads as an honest
    *  "still processing" rather than a stale renewal date. */
   latestInvoiceOpenAndAttempted?: boolean;
+  /** True when that open invoice's payment was actually declined (its
+   *  PaymentIntent is back to requires_payment_method with an error), as
+   *  opposed to a SEPA debit that is merely still settling. Takes priority
+   *  over the "Payment processing" state: a declined card will not clear by
+   *  itself, so the member needs the "Update your card" prompt. Raw Stripe
+   *  subscription status can't carry this — renew-check bills via a manual
+   *  invoice, which leaves the subscription itself active/trialing. */
+  latestInvoicePaymentFailed?: boolean;
   /** Stripe's real current_period_end (unix seconds). Narrow purpose only:
    *  the last-match-of-a-bundle tooltip's date. Unlike the zero-counter
    *  state, a subscription sitting at matchesRemaining === 1 hasn't been
@@ -179,7 +187,7 @@ function monthName(date: Date): string {
 }
 
 export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatusMessage {
-  const { stripeStatus, cancellationReason, priceLookupKey, intervalCount, matchesRemaining, latestInvoiceOpenAndAttempted } = input;
+  const { stripeStatus, cancellationReason, priceLookupKey, intervalCount, matchesRemaining, latestInvoiceOpenAndAttempted, latestInvoicePaymentFailed } = input;
   const today = input.today ?? new Date();
 
   if (stripeStatus === "canceled") {
@@ -227,7 +235,7 @@ export function deriveMemberStatusMessage(input: MemberStatusInput): MemberStatu
     };
   }
 
-  if (PAYMENT_FAILED_STRIPE_STATUSES.has(stripeStatus)) {
+  if (PAYMENT_FAILED_STRIPE_STATUSES.has(stripeStatus) || latestInvoicePaymentFailed) {
     return { label: "Payment needed — Update your card", tone: "warning" };
   }
 

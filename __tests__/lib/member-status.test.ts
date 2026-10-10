@@ -134,6 +134,31 @@ describe("deriveMemberStatusMessage — bundle plans (Track C1)", () => {
     });
   });
 
+  it("shows 'Update your card' when the open renewal invoice was declined, even though Stripe still calls the subscription active", () => {
+    // renew-check bills via a manual invoice, so a declined card leaves the
+    // subscription itself active/trialing — the invoice-level flag has to
+    // carry the failure.
+    const result = deriveMemberStatusMessage({
+      ...base,
+      matchesRemaining: 0,
+      today: new Date("2026-08-12T00:00:00Z"),
+      latestInvoiceOpenAndAttempted: true,
+      latestInvoicePaymentFailed: true,
+    });
+    expect(result).toEqual({ label: "Payment needed — Update your card", tone: "warning" });
+  });
+
+  it("still shows 'payment processing' for an open invoice that has not failed (SEPA settling)", () => {
+    const result = deriveMemberStatusMessage({
+      ...base,
+      matchesRemaining: 0,
+      today: new Date("2026-08-12T00:00:00Z"),
+      latestInvoiceOpenAndAttempted: true,
+      latestInvoicePaymentFailed: false,
+    });
+    expect(result.label).toBe("Renewal — Payment processing");
+  });
+
   it("uses the right per-term amount for founding_member", () => {
     const result = deriveMemberStatusMessage({
       stripeStatus: "active",
