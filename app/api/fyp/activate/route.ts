@@ -354,6 +354,9 @@ export async function POST(req: NextRequest) {
           customer: existing.stripe_customer_id,
           items: [{ price: price.id }],
           discounts: [{ coupon: couponId }],
+          // APP is on KOR (small-business VAT exemption) since 2026-07-01:
+          // invoices must not show VAT, and Stripe may default tax on.
+          automatic_tax: { enabled: false },
         });
         const { error: subError } = await supabase
           .from("subscriptions")
@@ -426,6 +429,8 @@ export async function POST(req: NextRequest) {
     customer: customer.id,
     items: [{ price: price.id }],
     discounts: [{ coupon: couponId }],
+    // KOR since 2026-07-01: no VAT on invoices (see first create above).
+    automatic_tax: { enabled: false },
   });
 
   const { data: member, error: memberError } = await supabase
