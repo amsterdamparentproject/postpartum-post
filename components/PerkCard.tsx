@@ -70,7 +70,7 @@ export default function PerkCard({
       <div className={`relative aspect-[16/9] ${partner.image_url ? "bg-border/40" : "bg-cream"}`}>
         {partner.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element -- partner photos can be on any host (older pasted URLs)
-          <img src={partner.image_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          <img src={partner.image_url} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <Sparkle className="w-20 h-auto" />

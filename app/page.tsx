@@ -9,7 +9,10 @@ import { createAdminClient } from "@/lib/supabase";
 import WordMark from "@/components/WordMark";
 import GiftBow from "@/components/GiftBow";
 import TextLogo from "@/components/TextLogo";
-import { getLivePerksSummary } from "@/lib/public-perks";
+import { getLivePerksSummary, listPublicPerks } from "@/lib/public-perks";
+import MatchPreview from "@/components/MatchPreview";
+import PublicPerksCarousel from "@/components/PublicPerksCarousel";
+import PostPerksWordMark from "@/components/PostPerksWordMark";
 
 const FIRST20_TOTAL = 20;
 
@@ -100,14 +103,17 @@ async function getFirst20SpotsRemaining(): Promise<number | null> {
 const PILOT_ONLY = true;
 
 export default async function Home() {
-  const [first20SpotsRemaining, memberStats, perksSummary] = await Promise.all([
+  const [first20SpotsRemaining, memberStats, perksSummary, livePerks] = await Promise.all([
     getFirst20SpotsRemaining(),
     getActiveMemberStats(),
     getLivePerksSummary(),
+    listPublicPerks({ liveOnly: true }),
   ]);
 
   const pilotOnly = first20SpotsRemaining === 0 ? false : PILOT_ONLY;
   const now = new Date().getTime();
+  // Show "last member joined" only when it is fresh (within 5 days); otherwise the "joined in the last month" count stands in for it.
+  const lastJoinedRecently = !!memberStats?.lastJoinedAt && now - memberStats.lastJoinedAt.getTime() < 5 * 24 * 60 * 60 * 1000;
 
   return (
     <PageLayout showNav>
@@ -147,6 +153,45 @@ export default async function Home() {
 
         {/* Animated envelope */}
         <AnimatedMail />
+
+        {/* Example match page */}
+        <div className="w-full max-w-md md:max-w-xl mt-12">
+          <h2
+            className="text-2xl text-dark text-center mb-2"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Here&apos;s what we <span className="text-coral">deliver</span>
+          </h2>
+          <p className="mb-6 text-center text-base text-dark leading-relaxed max-w-lg mx-auto">
+            More than contact details: a page crafted for you and your match, with a calendar, map, and list of activities, places, and perks to enjoy together. It shortens the distance from &ldquo;Nice to meet you&rdquo; to &ldquo;Heading out the door, see you soon.&rdquo;
+          </p>
+          <MatchPreview perks={livePerks} />
+        </div>
+
+        {/* Post Perks swiper */}
+        {livePerks.length > 0 && (
+          <div className="w-full max-w-sm md:max-w-2xl mt-14">
+            <h2
+              className="text-2xl text-dark text-center mb-2"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              Plus <PostPerksWordMark size="text-2xl" />, just for members
+            </h2>
+            <p className="mb-6 text-center text-base text-dark leading-relaxed max-w-lg mx-auto">
+              Discounts and freebies at local family-friendly businesses, for you to enjoy with your match — or just yourself!
+            </p>
+            <PublicPerksCarousel perks={livePerks} showAllToggle={false} />
+            <div className="text-center mt-6">
+              <Link
+                href="/perks"
+                data-umami-event="Home: See all perks"
+                className="text-sm font-semibold text-coral hover:underline underline-offset-2"
+              >
+                See all perks →
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Alex intro */}
         <div id="alex-intro" className="w-full max-w-md mt-12 mb-6 text-center">
@@ -221,13 +266,13 @@ export default async function Home() {
                   </span>
                 </li>
               )}
-              {memberStats.lastJoinedAt && now - memberStats.lastJoinedAt.getTime() < 10 * 24 * 60 * 60 * 1000 && (
+              {memberStats.lastJoinedAt && lastJoinedRecently && (
                 <li className="flex items-start gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
                   <span>Last member joined <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(175, 153, 255, 0.45)" }}>{formatRelativeTime(memberStats.lastJoinedAt)}</span></span>
                 </li>
               )}
-              {memberStats.recentCount > 0 && (
+              {!lastJoinedRecently && memberStats.recentCount > 0 && (
                 <li className="flex items-start gap-3 text-sm text-dark">
                   <EnvelopeLogo width={22} height={16} className="shrink-0 mt-0.5" />
                   <span><span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 163, 115, 0.55)" }}>{memberStats.recentCount} joined</span> in the last month</span>

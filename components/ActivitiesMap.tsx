@@ -14,6 +14,8 @@ interface Props {
   memberCoords: { lat: number; lng: number }[];
   playgrounds?: Playground[];
   perks?: MapPerk[];
+  /** Homepage sample match: perk popups drop their "Redeem now" link. */
+  preview?: boolean;
 }
 
 /** A live Post Perk with a geocoded location (see lib/public-perks.ts). */
@@ -136,13 +138,13 @@ function popupHtml(items: PopupItem[]): string {
 
 const POPUP_OPTIONS = { maxWidth: 250, minWidth: 250, className: "map-popup" };
 
-function perkItem(perk: MapPerk): PopupItem {
+function perkItem(perk: MapPerk, preview = false): PopupItem {
   return {
     kind: "perk",
     title: perk.title,
     line: perk.description,
     imageUrl: perk.imageUrl,
-    action: { label: "Redeem now", href: `/my-perks?perk=${encodeURIComponent(perk.id)}`, external: false },
+    action: preview ? null : { label: "Redeem now", href: `/my-perks?perk=${encodeURIComponent(perk.id)}`, external: false },
   };
 }
 
@@ -208,7 +210,7 @@ function makeGroupedMarkerHtml(bg: string, count: number): string {
   ">${count > 1 ? count : ""}</div>`;
 }
 
-export default function ActivitiesMap({ activities, center, memberCoords, playgrounds = [], perks = [] }: Props) {
+export default function ActivitiesMap({ activities, center, memberCoords, playgrounds = [], perks = [], preview = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
 
@@ -324,7 +326,7 @@ export default function ActivitiesMap({ activities, center, memberCoords, playgr
           popupAnchor: [0, -PERK_MARKER_SIZE / 2],
         });
         L.marker([group[0].lat, group[0].lng], { icon, zIndexOffset: 1000 })
-          .bindPopup(popupHtml(group.map(perkItem)), POPUP_OPTIONS)
+          .bindPopup(popupHtml(group.map((g) => perkItem(g, preview))), POPUP_OPTIONS)
           .addTo(map);
       }
     })();

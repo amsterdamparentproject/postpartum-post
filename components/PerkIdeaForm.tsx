@@ -7,6 +7,15 @@ import { LocationStamp } from "@/components/StampIcons";
 import Link from "next/link";
 import JoinLink from "@/components/JoinLink";
 
+/** Fire a custom Umami event (no-op if the script isn't loaded, e.g. no website ID or an ad blocker). */
+function track(event: string, data?: Record<string, string | number | boolean>) {
+  try {
+    (window as unknown as { umami?: { track: (e: string, d?: object) => void } }).umami?.track(event, data);
+  } catch {
+    // analytics must never break the form
+  }
+}
+
 const inputClass =
   "w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition";
 
@@ -94,6 +103,8 @@ export default function PerkIdeaForm() {
       if (result.notifyError) {
         setNotifyError(result.notifyError);
       }
+      track("Perks: Idea submitted", { giveaway: wantsGiveaway && !result.giveawayError, notify: notifyWhenLive && !result.notifyError });
+      if (wantsGiveaway && !result.giveawayError) track("Perks: Giveaway entry");
       setSubmitted(true);
     });
   }
@@ -192,7 +203,10 @@ export default function PerkIdeaForm() {
             <input
               type="checkbox"
               checked={wantsGiveaway}
-              onChange={(e) => setWantsGiveaway(e.target.checked)}
+              onChange={(e) => {
+                setWantsGiveaway(e.target.checked);
+                if (e.target.checked) track("Perks: Giveaway checkbox");
+              }}
               className="mt-0.5 h-4 w-4 rounded border-border text-coral focus:ring-coral/40"
             />
             <span>Yes, enter me in the giveaway!</span>
@@ -202,7 +216,7 @@ export default function PerkIdeaForm() {
           )}
           <p className="text-xs pl-6 text-muted leading-relaxed">
             Free to enter, winners announced October 21.{" "}
-            <Link href="/terms/giveaway" className="underline underline-offset-2 hover:text-coral transition-colors">
+            <Link href="/terms/giveaway" data-umami-event="Perks: Giveaway terms" className="underline underline-offset-2 hover:text-coral transition-colors">
               Giveaway terms
             </Link>
           </p>

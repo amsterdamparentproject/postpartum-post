@@ -35,6 +35,8 @@ interface Props {
   playgrounds: Playground[];
   /** Live perks, nearest first: map markers and the List view's Perks tab (the first tab). */
   perks: MatchPerk[];
+  /** Homepage sample match: no links into the member area. */
+  preview?: boolean;
 }
 
 export default function ActivitiesSection({
@@ -47,6 +49,7 @@ export default function ActivitiesSection({
   matchedOn,
   playgrounds: allPlaygrounds,
   perks,
+  preview = false,
 }: Props) {
   // Perks lead the List view when there are any.
   const [activeTab, setActiveTab] = useState<Tab>(perks.length > 0 ? "perks" : "activities");
@@ -174,7 +177,7 @@ export default function ActivitiesSection({
             </button>
           ))}
         </div>
-        <PerkList perks={sortedPerks} />
+        <PerkList perks={sortedPerks} preview={preview} />
       </section>
     );
   }
@@ -206,6 +209,7 @@ export default function ActivitiesSection({
         memberCoords={memberCoords}
         playgrounds={playgrounds}
         perks={mapPerks}
+        preview={preview}
       />
 
       {/* Map legend — same order as the List view tabs */}
@@ -253,9 +257,11 @@ export default function ActivitiesSection({
       <p className="text-muted text-sm">
         This list has been made for just you two — it&apos;s meant to inspire you! It contains a mix of places to go and events and activities around the city that match your profiles — including Post Perks for you to enjoy together. We&apos;ve also included free playgrounds close by to meet up at, originally sourced (then Post-ified 😉) from <a href="https://www.buitenspeelkaart.nl/amsterdam/" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">here</a>. 
       </p>
+      {!preview && (
       <p className="text-muted text-xs pb-2">
         Have a favorite spot that you think other Postpartum Post members would love? <a href="/perks" target="_blank" rel="noopener noreferrer" className="text-coral hover:underline">Submit a Post Perk idea</a> — who knows, maybe next month you'll get a discount or a freebie there!
       </p>
+      )}
 
       {/* Tabs */}
       <div className="flex flex-wrap">
@@ -325,7 +331,7 @@ export default function ActivitiesSection({
 
       {/* Tab content */}
       {activeTab === "perks" ? (
-        <PerkList perks={sortedPerks} />
+        <PerkList perks={sortedPerks} preview={preview} />
       ) : activeTab === "places" ? (
         <TabContent
           rec={recommendedPlaces}
