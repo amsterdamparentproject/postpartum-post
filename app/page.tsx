@@ -178,13 +178,7 @@ export default async function Home() {
               Plus <PostPerksWordMark size="text-2xl" />, just for members
             </h2>
             <p className="mb-6 text-center text-base text-dark leading-relaxed max-w-lg mx-auto">
-              {perksSummary ? (
-                <>
-                  <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(212, 224, 155, 0.70)" }}>{perksSummary.count} {perksSummary.count === 1 ? "perk" : "perks"}</span> from local family-friendly businesses <span className="font-bold text-coral bg-white/80 rounded-full px-2 py-0.5" style={{ border: "1.5px solid rgba(203, 223, 189, 0.90)" }}>worth €{perksSummary.totalSavings}</span> (and counting!)
-                </>
-              ) : (
-                <>Discounts and freebies from local family-friendly businesses</>
-              )}
+              Discounts and freebies at local family-friendly businesses, for you to enjoy with your match — or just yourself!
             </p>
             <PublicPerksCarousel perks={livePerks} showAllToggle={false} />
             <div className="text-center mt-6">
