@@ -62,6 +62,46 @@ describe("classify", () => {
   });
 });
 
+describe("classify: comped and in-flight", () => {
+  const member = { id: "m1", matches_remaining: 2 };
+  const NOW = 1_800_000_000_000;
+  const invoice = (o: Record<string, unknown> = {}) => ({
+    id: "in_1",
+    status: "open",
+    created: NOW / 1000 - 2 * 86400,
+    attempt_count: 1,
+    next_payment_attempt: null,
+    ...o,
+  });
+
+  it("skips comped members even when a card is on file", () => {
+    expect(classify(stripeSub(), { ...member, billing_mode: "comped_with_perks" }, NOW).kind).toBe("skipped_comped");
+    expect(classify(stripeSub(), { ...member, billing_mode: "comped_no_perks" }, NOW).kind).toBe("skipped_comped");
+  });
+  it("still flags a subscription-mode member", () => {
+    expect(classify(stripeSub(), { ...member, billing_mode: "subscription" }, NOW).kind).toBe("flagged");
+  });
+  it("reports an open invoice with no retry as in flight, not flagged", () => {
+    const r = classify(stripeSub({ latest_invoice: invoice() }), member, NOW);
+    expect(r.kind).toBe("in_flight");
+  });
+  it("reports an open invoice with a retry scheduled as a failed payment", () => {
+    const r = classify(
+      stripeSub({ latest_invoice: invoice({ attempt_count: 2, next_payment_attempt: NOW / 1000 + 86400 }) }),
+      member,
+      NOW
+    );
+    expect(r.kind).toBe("payment_failed");
+  });
+  it("flags an in-flight invoice that has gone stale", () => {
+    const r = classify(stripeSub({ latest_invoice: invoice({ created: NOW / 1000 - 30 * 86400 }) }), member, NOW);
+    expect(r.kind).toBe("flagged");
+  });
+  it("flags when the latest invoice is paid (pause missing)", () => {
+    expect(classify(stripeSub({ latest_invoice: invoice({ status: "paid" }) }), member, NOW).kind).toBe("flagged");
+  });
+});
+
 describe("POST /api/subscription-audit", () => {
   let memberId = "";
   beforeEach(() => {
