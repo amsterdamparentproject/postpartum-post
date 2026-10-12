@@ -607,6 +607,41 @@ describe("Stripe webhook", () => {
     expect(sub?.status).toBe("canceled");
   });
 
+  it("leaves a comped member alone when their old Stripe subscription is deleted (customer.subscription.deleted)", async () => {
+    // Comped members (billing_mode comped_*) are never activated or deactivated
+    // by Stripe. Cancelling a leftover subscription only marks the row canceled.
+    const member = await seedMember({ status: "active", matches_remaining: 0, billing_mode: "comped_with_perks" });
+    memberId = member.id;
+
+    const supabase = createTestSupabase();
+    const stripeSubId = `sub_test_${memberId.slice(0, 8)}`;
+    await supabase.from("subscriptions").insert({
+      member_id: memberId,
+      stripe_subscription_id: stripeSubId,
+      stripe_price_id: "price_test_monthly",
+      status: "active",
+    });
+
+    mockConstructEvent.mockReturnValue({
+      type: "customer.subscription.deleted",
+      data: { object: { id: stripeSubId, customer: member.stripe_customer_id } },
+    });
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    const { data: updatedMember } = await supabase.from("members").select("status").eq("id", memberId).single();
+    expect(updatedMember?.status).toBe("active");
+    expect(sendUnsubscribedEmail).not.toHaveBeenCalled();
+
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("status")
+      .eq("stripe_subscription_id", stripeSubId)
+      .single();
+    expect(sub?.status).toBe("canceled");
+  });
+
   it("does not send a second farewell email for an already-inactive member", async () => {
     const member = await seedMember({ status: "inactive", matches_remaining: 1 });
     memberId = member.id;

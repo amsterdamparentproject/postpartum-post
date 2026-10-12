@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
 import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
 import { createWelcomeSignIn } from "@/lib/member-welcome";
+import { isComped } from "@/lib/billing-mode";
 import { recordEntitlement, FYP_LOOKUP_KEYS, GIFT_ENTITLEMENT_NOTE } from "@/lib/match-ledger";
 
 export async function POST(req: NextRequest) {
@@ -331,11 +332,21 @@ export async function POST(req: NextRequest) {
     try {
       const { data: member } = await supabase
         .from("members")
-        .select("id, email, first_name, status, matches_remaining")
+        .select("id, email, first_name, status, matches_remaining, billing_mode")
         .eq("stripe_customer_id", subscription.customer as string)
         .single();
 
-      if (member?.status === "inactive") {
+      if (member && isComped(member.billing_mode)) {
+        // A comped member's access comes from the DB (their match balance and
+        // comp window), never from a Stripe subscription. Cancelling a leftover
+        // subscription (e.g. an old FYP comp being moved off Stripe) must not
+        // deactivate them or send a farewell email. The subscription row above
+        // is already marked canceled, which is all that should change.
+        console.log("[webhook] subscription.deleted for comped member, leaving status alone", {
+          memberId: member.id,
+          billingMode: member.billing_mode,
+        });
+      } else if (member?.status === "inactive") {
         // Already inactive (e.g. set by hand, or finalized earlier): nothing to
         // change, and no second farewell email.
         console.log("[webhook] subscription.deleted for already-inactive member, skipping", { memberId: member.id });
