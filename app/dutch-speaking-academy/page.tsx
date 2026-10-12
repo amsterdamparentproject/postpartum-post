@@ -11,7 +11,7 @@ import FAQ, { type FAQItem } from "@/components/FAQ";
 
 const title = "Dutch Speaking Academy × Postpartum Post";
 const description =
-  "Dutch for Parents students get one free match through Postpartum Post: a fellow parent from your round to practice real Dutch with, in person or on video.";
+  "Dutch Speaking Academy students get one free match through Postpartum Post: a fellow parent from your round to practice real Dutch with, in person or on video.";
 
 // Prototype for Dutch Speaking Academy to review: kept out of search results
 // (and out of the sitemap) until the partnership terms are final.
@@ -29,12 +29,12 @@ const FAQS: FAQItem[] = [
   {
     question: "Do I need a card?",
     answer:
-      "No. Your free match doesn't need any payment details. Afterward you can choose to continue with a special offer for Dutch for Parents students. Nothing renews on its own, because there's nothing on file to charge.",
+      "No. Your free match doesn't need any payment details. Afterward you can choose to continue with a special offer for Dutch Speaking Academy students. Nothing renews on its own, because there's nothing on file to charge.",
   },
   {
     question: "Do I have to live in Amsterdam?",
     answer:
-      "No. You're matched with another parent from your Dutch for Parents round, wherever you live. If you live near each other, you can meet in person. If not, a video call is a great way to practice Dutch too.",
+      "No. You're matched with another parent from your Dutch Speaking Academy round, wherever you live. If you live near each other, you can meet in person. If not, a video call is a great way to practice Dutch too.",
   },
   {
     question: "Who will I be matched with?",
@@ -44,12 +44,12 @@ const FAQS: FAQItem[] = [
   {
     question: "What if my Dutch isn't great yet?",
     answer:
-      "Perfect, you're in good company! Everyone in Dutch for Parents is practicing, and mistakes are the whole point. You'll be paired with someone doing exactly the same.",
+      "Perfect, you're in good company! Everyone at Dutch Speaking Academy is practicing, and mistakes are the whole point. You'll be paired with someone doing exactly the same.",
   },
   {
     question: "What happens after my free match?",
     answer:
-      "Your free match is one round, and then it's over unless you'd like more. We'll send Dutch for Parents students a special offer to keep going, completely optional.",
+      "Your free match is one round, and then it's over unless you'd like more. We'll send Dutch Speaking Academy students a special offer to keep going, completely optional.",
   },
   {
     question: "What information is shared with my match?",
@@ -110,7 +110,7 @@ export default function DutchSpeakingAcademyPage() {
             <span className="block text-balance text-dark">with a fellow parent.</span>
           </h1>
           <p className="mt-6 text-base text-dark leading-relaxed max-w-lg mx-auto">
-            Dutch for Parents students get <strong>one free match</strong>{" "}
+            Dutch Speaking Academy students get <strong>one free match</strong>{" "}
             through Postpartum Post with a fellow parent who&apos;s just as committed to learning
             Dutch as you are. You&apos;ll be matched 1:1 and meet up your way and on your schedule, in person or online,
             so you can finally get to speaking Dutch — and make a parent friend along the way.
@@ -150,7 +150,7 @@ export default function DutchSpeakingAcademyPage() {
               Claim your <span className="text-coral">free match</span>
             </h2>
             <p className="text-muted text-sm">
-              For Dutch for Parents students. You&apos;ll need the code from Mariska.
+              For Dutch Speaking Academy students. You&apos;ll need the code from Mariska.
             </p>
           </div>
           <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
@@ -172,7 +172,7 @@ export default function DutchSpeakingAcademyPage() {
         </div>
 
         <p className="mt-10 text-xs text-muted text-center max-w-sm leading-relaxed">
-          Dutch for Parents is run by{" "}
+          This signup is run by{" "}
           <a
             href="https://dutchspeakingacademy.nl/"
             target="_blank"

@@ -72,7 +72,7 @@ export default function TermsOfService() {
             <section id="partner-cohorts" className="scroll-mt-24">
               <h2 className="text-xl font-semibold mb-3">Free matches through partner programs</h2>
               <p className="mb-3">
-                Some partner programs, like the Dutch for Parents course from Dutch Speaking Academy,
+                Some partner programs, like the Dutch Speaking Academy courses,
                 include a free match. Signing up with a partner code creates a free membership. These
                 terms apply to it, along with the points below.
               </p>

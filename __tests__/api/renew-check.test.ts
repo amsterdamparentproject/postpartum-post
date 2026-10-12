@@ -447,7 +447,7 @@ describe("POST /api/renew-check", () => {
   });
 
   it("never bills or touches a comped cohort member at zero — no subscription row, no Stripe calls for them", async () => {
-    // A Dutch for Parents signup: comped, no Stripe subscription, balance used up.
+    // A Dutch Speaking Academy signup: comped, no Stripe subscription, balance used up.
     const member = await seedMember({
       status: "active",
       matches_remaining: 0,

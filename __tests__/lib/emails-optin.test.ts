@@ -99,8 +99,8 @@ describe("opt-in email — comped cohort members (no Perks)", () => {
   });
 
   it("tells a cohort member the match is within the cohort and expires if skipped", async () => {
-    const html = await sendWithOptions({ perksEnabled: false, cohortName: "Dutch for Parents" });
-    expect(html).toContain("your free match from Dutch for Parents");
+    const html = await sendWithOptions({ perksEnabled: false, cohortName: "Dutch Speaking Academy" });
+    expect(html).toContain("your free match from Dutch Speaking Academy");
     expect(html).toContain("another student from the course");
   });
 });

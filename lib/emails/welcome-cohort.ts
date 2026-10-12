@@ -3,7 +3,7 @@ import { FROM, SITE_URL, ASSETS_URL, getResend, bodySection, ctaButton, baseEmai
 const ROW = `font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px`;
 
 /**
- * Welcome email for comped cohort members (Dutch for Parents). They never
+ * Welcome email for comped cohort members (Dutch Speaking Academy). They never
  * saw a billing screen, so the closing note says the match is a gift from
  * their course, nothing is charged, and nothing renews. The 1st to 5th
  * opt-in window is explained above the button.

@@ -2,7 +2,7 @@
  * How a member is billed (members.billing_mode, migration 033).
  *
  * - comped_no_perks    free match(es), no Stripe objects, no Post Perks
- *                      (e.g. the Dutch for Parents cohort's free month)
+ *                      (e.g. the Dutch Speaking Academy cohort's free month)
  * - comped_with_perks  free match(es), no Stripe objects, Post Perks included
  *                      (e.g. gifted memberships, FYP-style comps)
  * - subscription       a Stripe subscription, charged by renew-check

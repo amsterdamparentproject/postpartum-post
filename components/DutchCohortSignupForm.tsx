@@ -10,7 +10,7 @@ const inputClass =
 const labelClass = "block text-sm font-medium text-dark mb-1";
 
 /**
- * Signup form for Dutch for Parents students (the /dutch-speaking-academy
+ * Signup form for Dutch Speaking Academy students (the /dutch-speaking-academy
  * splash page). Calls signupCohort: a free, no-card signup that creates a
  * comped member tagged with the cohort.
  */

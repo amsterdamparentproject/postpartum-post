@@ -5,7 +5,7 @@ import type { HowStep } from "@/components/HowMatchingWorks";
 export const DSA_STEPS: HowStep[] = [
   {
     number: "01",
-    title: "Join Dutch for Parents",
+    title: "Join Dutch Speaking Academy",
     description: (
       <>
         <a
@@ -32,7 +32,7 @@ export const DSA_STEPS: HowStep[] = [
     number: "02",
     title: "Sign up here with your code",
     description:
-      "Your course comes with one free match with another student. Use your Dutch for Parents code to claim it.",
+      "Your course comes with one free match with another student. Use your Dutch Speaking Academy code to claim it.",
     icon: (
       <StampSVG fill="rgba(175, 153, 255, 0.10)" stroke="#AF99FF" background="white">
         <circle cx="16" cy="24" r="9" fill="#AF99FF" opacity="0.15" stroke="#AF99FF" strokeWidth="1.5" />
@@ -54,7 +54,7 @@ export const DSA_STEPS: HowStep[] = [
     number: "04",
     title: "Continue with a special discount",
     description:
-      "After your free match, we'll email you a special offer for Dutch for Parents students to keep you practicing Dutch even after the course ends. Completely optional.",
+      "After your free match, we'll email you a special offer for Dutch Speaking Academy students to keep you practicing Dutch even after the course ends. Completely optional.",
     icon: <GiftStamp background="white" />,
   },
 ];
