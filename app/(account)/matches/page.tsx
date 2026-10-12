@@ -5,7 +5,7 @@ import Link from "next/link";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
 import { OPTIN_DEADLINE_DAY, isOptinWindowOpen } from "@/lib/optin-window";
 import { useAccount } from "@/app/(account)/AccountContext";
-import { COHORT_ONLY_LABELS } from "@/lib/cohort";
+import { cohortOnlyLabel } from "@/lib/cohort";
 import { isComped, hasPerksAccess } from "@/lib/billing-mode";
 import {
   getMatchStatus,
@@ -62,7 +62,7 @@ export default function MatchesPage() {
             isOptinWindowOpen() ? (
               <OptInCard
                 accessToken={accessToken ?? ""}
-                cohortLocked={isComped(member.billing_mode) ? member.cohort : null}
+                cohortLocked={isComped(member.billing_mode) && member.cohort ? (member.cohort_name ?? "") : null}
                 perksEnabled={hasPerksAccess(member.billing_mode)}
                 onOptIn={() => getMatchStatus(accessToken ?? "").then(setStatus)}
               />
@@ -538,7 +538,7 @@ function OptInCard({
 }: {
   accessToken: string;
   onOptIn: () => void;
-  /** Cohort slug when matching is locked to the member's cohort (comped), else null. */
+  /** Cohort display name ("" if unknown) when matching is locked to the member's cohort (comped), else null. */
   cohortLocked: string | null;
   /** False for comped_no_perks members: the perks-only choice is hidden. */
   perksEnabled: boolean;
@@ -611,7 +611,7 @@ function OptInCard({
         <label className="flex items-start gap-3 text-sm text-dark opacity-70 cursor-not-allowed">
           <input type="checkbox" checked disabled readOnly className="mt-0.5 shrink-0 accent-coral" />
           <span>
-            {COHORT_ONLY_LABELS[cohortLocked] ?? "Match me only with someone from my cohort"}
+            {cohortOnlyLabel(cohortLocked || null)}
             <span className="block text-xs text-muted">Your free match is with your cohort.</span>
           </span>
         </label>

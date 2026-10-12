@@ -17,7 +17,7 @@ import { currentMonth } from "@/lib/tokens";
 import { sendOptinEmail } from "@/lib/emails";
 import { fetchBillingNoticeContext } from "@/lib/billing-notice";
 import { hasPerksAccess, isComped } from "@/lib/billing-mode";
-import { COHORT_NAMES } from "@/lib/cohort";
+import { getCohortNames } from "@/lib/cohort";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
     (m) => !(isComped(m.billing_mode) && (m.matches_remaining ?? 0) <= 0)
   );
   const targets = testMode ? invitable.filter(m => m.email === TEST_EMAIL) : invitable;
+  const cohortNames = await getCohortNames(supabase);
 
   for (const member of targets) {
     const buildUrl = (action: "coffee" | "playdate" | "perks" | "skip") => {
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
         lastMatchNotice,
         {
           perksEnabled: hasPerksAccess(member.billing_mode),
-          cohortName: isComped(member.billing_mode) && member.cohort ? (COHORT_NAMES[member.cohort] ?? null) : null,
+          cohortName: isComped(member.billing_mode) && member.cohort ? (cohortNames.get(member.cohort) ?? null) : null,
         }
       );
       sent++;

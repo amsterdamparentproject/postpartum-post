@@ -4,9 +4,10 @@ import { createAdminClient } from "@/lib/supabase";
 import { recordEntitlement } from "@/lib/match-ledger";
 import { createWelcomeSignIn } from "@/lib/member-welcome";
 import { sendCohortWelcomeEmail } from "@/lib/emails";
-import { COHORT_DSA } from "@/lib/cohort";
 
 export type CohortSignupFormData = {
+  /** Which cohort to join, e.g. "dsa" (cohorts.slug). */
+  cohort: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -17,35 +18,62 @@ export type CohortSignupFormData = {
 
 export type CohortSignupResult = { ok: true } | { error: string };
 
-const COHORT_NAME = "Dutch for Parents";
-
 /**
- * Free, no-card signup for Dutch for Parents students.
+ * Free, no-card signup for a partner cohort (first: Dutch Speaking Academy, "dsa").
  *
- * Creates an active member tagged cohort=dsa / billing_mode=comped_no_perks and grants
- * one match through the ledger (a manual_grant, +1). Nothing touches Stripe:
- * no customer, no subscription. renew-check already skips members without a
- * subscription row, and the matcher keeps comped members inside their cohort
- * (monthly_participation.cohort_only, forced true at opt-in).
+ * Reads the cohort's settings from the cohorts table: the shared signup code
+ * (case-insensitive, never sent to the browser), the signup cap, and how many
+ * matches to grant. Creates an active member tagged cohort=<slug> /
+ * billing_mode=comped_no_perks and grants the matches through the ledger (a
+ * manual_grant). Nothing touches Stripe: no customer, no subscription.
+ * renew-check already skips members without a subscription row, and the matcher
+ * keeps comped members inside their cohort when the cohort restricts them
+ * (monthly_participation.cohort_only, forced at opt-in).
  *
- * The code is one shared secret in DSA_SIGNUP_CODE (case-insensitive).
+ * The cap is checked with a count before the insert, so two simultaneous
+ * signups for the last place can overshoot by one. Fine at this scale.
  */
 export async function signupCohort(data: CohortSignupFormData): Promise<CohortSignupResult> {
   if (!data.eligibilityConfirmed || !data.guidelinesAccepted) {
     return { error: "Please confirm your eligibility and agree to the Community Guidelines." };
   }
 
-  const expectedCode = process.env.DSA_SIGNUP_CODE?.trim();
-  if (!expectedCode) {
-    console.error("[signup-cohort] DSA_SIGNUP_CODE is not set");
+  const supabase = createAdminClient();
+  const slug = data.cohort.trim().toLowerCase();
+
+  const { data: cohort, error: cohortError } = await supabase
+    .from("cohorts")
+    .select("slug, name, signup_code, signup_cap, grant_matches, active")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (cohortError) {
+    console.error("[signup-cohort] cohort lookup failed:", cohortError);
     return { error: "Something went wrong. Please try again, or email us." };
   }
-  if (data.code.trim().toLowerCase() !== expectedCode.toLowerCase()) {
-    return { error: "That code doesn't look right. Check the code from Mariska and try again." };
+  // Unknown, inactive, or no code set yet: signup is closed. Same message for
+  // all three so the form doesn't reveal which cohorts exist.
+  if (!cohort || !cohort.active || !cohort.signup_code) {
+    return { error: "Signup isn't open right now. Please email us if you think this is a mistake." };
+  }
+  if (data.code.trim().toLowerCase() !== cohort.signup_code) {
+    return { error: "That code doesn't look right. Check the code you were given and try again." };
+  }
+
+  if (cohort.signup_cap !== null) {
+    const { count, error: countError } = await supabase
+      .from("members")
+      .select("id", { count: "exact", head: true })
+      .eq("cohort", slug);
+    if (countError || count === null) {
+      console.error("[signup-cohort] cap check failed:", countError);
+      return { error: "Something went wrong. Please try again, or email us." };
+    }
+    if (count >= cohort.signup_cap) {
+      return { error: "Sorry, all the places for this cohort are taken. Please email us and we'll help." };
+    }
   }
 
   const email = data.email.trim().toLowerCase();
-  const supabase = createAdminClient();
   const now = new Date().toISOString();
 
   const { data: member, error } = await supabase
@@ -55,7 +83,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
       last_name: data.lastName.trim(),
       email,
       status: "active",
-      cohort: COHORT_DSA,
+      cohort: slug,
       billing_mode: "comped_no_perks",
       eligibility_confirmed_at: now,
       guidelines_accepted_at: now,
@@ -75,12 +103,14 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
   }
 
   try {
-    await recordEntitlement(supabase, {
-      memberId: member.id,
-      event: "manual_grant",
-      delta: 1,
-      note: `cohort:${COHORT_DSA}`,
-    });
+    if (cohort.grant_matches > 0) {
+      await recordEntitlement(supabase, {
+        memberId: member.id,
+        event: "manual_grant",
+        delta: cohort.grant_matches,
+        note: `cohort:${slug}`,
+      });
+    }
   } catch (e) {
     console.error("[signup-cohort] grant failed, rolling back member:", e);
     await supabase.from("members").delete().eq("id", member.id);
@@ -89,7 +119,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
 
   try {
     const { signInLink } = await createWelcomeSignIn(supabase, email);
-    await sendCohortWelcomeEmail(email, data.firstName.trim() || "there", signInLink, COHORT_NAME);
+    await sendCohortWelcomeEmail(email, data.firstName.trim() || "there", signInLink, cohort.name);
   } catch (e) {
     // Non-fatal: the member and grant exist; a failed email shouldn't undo them.
     console.error("[signup-cohort] welcome email failed (non-fatal):", e);

@@ -154,7 +154,7 @@ export default function DutchSpeakingAcademyPage() {
             </p>
           </div>
           <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
-            <DutchCohortSignupForm />
+            <DutchCohortSignupForm cohort="dsa" />
           </div>
         </section>
 

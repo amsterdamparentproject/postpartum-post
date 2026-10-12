@@ -14,7 +14,7 @@ const labelClass = "block text-sm font-medium text-dark mb-1";
  * splash page). Calls signupCohort: a free, no-card signup that creates a
  * comped member tagged with the cohort.
  */
-export default function DutchCohortSignupForm() {
+export default function DutchCohortSignupForm({ cohort }: { cohort: string }) {
   const [eligibilityConfirmed, setEligibilityConfirmed] = useState(false);
   const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +27,7 @@ export default function DutchCohortSignupForm() {
     setError(null);
     startTransition(async () => {
       const result = await signupCohort({
+        cohort,
         firstName: String(form.get("firstName") ?? ""),
         lastName: String(form.get("lastName") ?? ""),
         email: String(form.get("email") ?? ""),
@@ -104,7 +105,7 @@ export default function DutchCohortSignupForm() {
 
       <div>
         <label htmlFor="dfp-code" className={labelClass}>
-          Your Dutch for Parents code <RequiredMark />
+          Your Dutch Speaking Academy code <RequiredMark />
         </label>
         <input
           id="dfp-code"
@@ -130,7 +131,7 @@ export default function DutchCohortSignupForm() {
           Free cohort match (€0)
         </span>
         <span className="block text-sm text-muted mt-1">
-          1 free match with a fellow student during your Dutch for Parents course
+          1 free match with a fellow student during your Dutch Speaking Academy course
         </span>
       </div>
 

@@ -13,7 +13,6 @@ import { unsubscribe } from "@/app/actions/unsubscribe";
 import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES, type MemberStatusMessage } from "@/lib/member-status";
 import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
 import { isComped, hasPerksAccess } from "@/lib/billing-mode";
-import { COHORT_NAMES } from "@/lib/cohort";
 
 // Accepts either a Stripe unix timestamp (a real instant — formatted in the
 // viewer's local zone, as this always has) or a Date (deriveMemberStatusMessage's
@@ -196,7 +195,7 @@ function BillingContent() {
           <p className="text-sm text-muted">Fetching your plan…</p>
         ) : !subscription ? (
           isComped(member.billing_mode) && member.status === "active" ? (
-            // Comped members (e.g. the free Dutch for Parents match) have no
+            // Comped members (e.g. the free Dutch Speaking Academy match) have no
             // Stripe subscription, so there's no plan, billing date or portal.
             <>
               <div className="flex items-center justify-between text-sm">
@@ -212,8 +211,8 @@ function BillingContent() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted">Plan</span>
                 <span className="text-dark font-medium">
-                  {member.cohort && COHORT_NAMES[member.cohort]
-                    ? `Free match, ${COHORT_NAMES[member.cohort]}`
+                  {member.cohort_name
+                    ? `Free match, ${member.cohort_name}`
                     : "Free match"}
                 </span>
               </div>

@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getBaseStats, getMonthlyRevenue, getMatchRoundStats, getCohortHeadcount } from "./stats/actions";
-import { COHORT_NAMES } from "@/lib/cohort";
+import { getCohortNames } from "@/lib/cohort";
+import { createAdminClient } from "@/lib/supabase";
 import { verifyAdminSessionToken } from "@/lib/admin-session";
 
 function pct(n: number, total: number) {
@@ -41,11 +42,12 @@ export default async function AdminStatsPage() {
   const session = cookieStore.get("admin_session");
   if (!verifyAdminSessionToken(session?.value)) redirect("/admin/login");
 
-  const [base, revenue, round, cohorts] = await Promise.all([
+  const [base, revenue, round, cohorts, cohortNames] = await Promise.all([
     getBaseStats(),
     getMonthlyRevenue(),
     getMatchRoundStats(),
     getCohortHeadcount(),
+    getCohortNames(createAdminClient()),
   ]);
 
   const maxRevenue = Math.max(...revenue.map((m) => m.amountCents), 1);
@@ -88,7 +90,7 @@ export default async function AdminStatsPage() {
           </div>
         </section>
 
-        {/* Partner cohorts (e.g. Dutch for Parents), for per-participant invoicing */}
+        {/* Partner cohorts (e.g. Dutch Speaking Academy), for per-participant invoicing */}
         {cohorts.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-xs font-semibold text-muted uppercase tracking-wide">Partner cohorts</h2>
@@ -96,7 +98,7 @@ export default async function AdminStatsPage() {
               {cohorts.map((c) => (
                 <div key={c.cohort} className="bg-white rounded-xl border border-border p-5 space-y-3">
                   <div className="flex items-baseline justify-between gap-4">
-                    <p className="text-sm font-semibold text-dark">{COHORT_NAMES[c.cohort] ?? c.cohort}</p>
+                    <p className="text-sm font-semibold text-dark">{cohortNames.get(c.cohort) ?? c.cohort}</p>
                     <p className="text-xs text-muted">
                       {c.total} signed up · {c.comped} free · {c.continued} continued
                     </p>

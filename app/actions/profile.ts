@@ -1,5 +1,6 @@
 "use server";
 
+import { getCohortNames } from "@/lib/cohort";
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { geocodeZipcode } from "@/lib/matcher";
@@ -36,6 +37,8 @@ export type MemberProfile = {
   matches_remaining: number;
   // Cohort attribution (e.g. "dsa") and how the member is billed.
   cohort: string | null;
+  /** Display name of the member's cohort (cohorts.name), for member-facing copy. */
+  cohort_name: string | null;
   billing_mode: BillingMode;
 };
 
@@ -100,7 +103,13 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
     // PGRST116 = "no rows returned" — expected for non-members. Anything else is a real error.
     console.error("[getMemberProfile] query error:", error.code, error.message);
   }
-  return data;
+  if (!data) return null;
+
+  let cohortName: string | null = null;
+  if (data.cohort) {
+    cohortName = (await getCohortNames(supabase)).get(data.cohort) ?? null;
+  }
+  return { ...data, cohort_name: cohortName } as MemberProfile;
 }
 
 export async function getTopics(): Promise<Topic[]> {
