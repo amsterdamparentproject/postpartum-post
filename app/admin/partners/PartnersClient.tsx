@@ -19,6 +19,7 @@ import {
   addPerkForPartner,
   updatePartner,
   deletePartner,
+  resendPartnerWelcome,
   updatePerkAdmin,
   createPartnerImageUploadAdmin,
   setPartnerImageAdmin,
@@ -911,12 +912,21 @@ function EditPartnerForm({
 function PartnerCard({ partner, onChanged }: { partner: PartnerOption; onChanged: () => void }) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [welcomeStatus, setWelcomeStatus] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleDelete() {
     startTransition(async () => {
       await deletePartner(partner.id);
       onChanged();
+    });
+  }
+
+  function handleResendWelcome() {
+    setWelcomeStatus(null);
+    startTransition(async () => {
+      const result = await resendPartnerWelcome(partner.id);
+      setWelcomeStatus(result.success ? "Welcome email sent" : result.error ?? "Couldn't send — try again");
     });
   }
 
@@ -938,6 +948,15 @@ function PartnerCard({ partner, onChanged }: { partner: PartnerOption; onChanged
         <div className="flex items-center gap-2 shrink-0">
           {!partner.email && (
             <StatusBadge label="No portal access yet" className="bg-gray-100 text-muted border-border" />
+          )}
+          {showIcons && !confirmingDelete && partner.email && (
+            <button
+              onClick={handleResendWelcome}
+              disabled={isPending}
+              className="text-xs font-semibold text-coral hover:text-coral-dark transition whitespace-nowrap"
+            >
+              {isPending ? "Sending…" : "Resend welcome"}
+            </button>
           )}
           {showIcons && !confirmingDelete && (
             <div className="flex items-center gap-1">
@@ -974,6 +993,8 @@ function PartnerCard({ partner, onChanged }: { partner: PartnerOption; onChanged
           )}
         </div>
       </div>
+
+      {welcomeStatus && <p className="text-xs text-muted mt-2" role="status">{welcomeStatus}</p>}
 
       {editing && (
         <EditPartnerForm

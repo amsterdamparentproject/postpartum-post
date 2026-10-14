@@ -1,10 +1,12 @@
 "use server";
 
+import { getCohortNames } from "@/lib/cohort";
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { geocodeZipcode } from "@/lib/matcher";
 import { requireMember } from "@/lib/require-member";
 import { currentMonth, monthToDate } from "@/lib/tokens";
+import type { BillingMode } from "@/lib/billing-mode";
 
 export type Availability = {
   days: string[];
@@ -33,6 +35,13 @@ export type MemberProfile = {
   open_to_second_match: boolean;
   // Track C1: the counter Track B introduced, now actually read.
   matches_remaining: number;
+  // Cohort attribution (e.g. "dsa") and how the member is billed.
+  cohort: string | null;
+  /** Display name of the member's cohort (cohorts.name), for member-facing copy. */
+  cohort_name: string | null;
+  /** Standing match-pool choice: true = just my cohort, false = anyone. Defaults to true. */
+  cohort_only: boolean;
+  billing_mode: BillingMode;
 };
 
 export type Topic = {
@@ -89,14 +98,20 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("members")
-    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, availability, match_priority, children, open_to_second_match, matches_remaining")
+    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, availability, match_priority, children, open_to_second_match, matches_remaining, cohort, cohort_only, billing_mode")
     .eq("id", authed.memberId)
     .single();
   if (error && error.code !== "PGRST116") {
     // PGRST116 = "no rows returned" — expected for non-members. Anything else is a real error.
     console.error("[getMemberProfile] query error:", error.code, error.message);
   }
-  return data;
+  if (!data) return null;
+
+  let cohortName: string | null = null;
+  if (data.cohort) {
+    cohortName = (await getCohortNames(supabase)).get(data.cohort) ?? null;
+  }
+  return { ...data, cohort_name: cohortName, cohort_only: data.cohort_only !== false } as MemberProfile;
 }
 
 export async function getTopics(): Promise<Topic[]> {
@@ -242,6 +257,7 @@ type ProfileUpdates = Partial<{
   match_priority: "age" | "proximity" | null;
   children: Child[] | null;
   open_to_second_match: boolean;
+  cohort_only: boolean;
 }>;
 
 /**

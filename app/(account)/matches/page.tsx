@@ -3,8 +3,11 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
+import MatchPoolPicker from "@/components/MatchPoolPicker";
+import { updateMemberProfile, type MemberProfile } from "@/app/actions/profile";
 import { OPTIN_DEADLINE_DAY, isOptinWindowOpen } from "@/lib/optin-window";
 import { useAccount } from "@/app/(account)/AccountContext";
+import { hasPerksAccess } from "@/lib/billing-mode";
 import {
   getMatchStatus,
   getExclusions,
@@ -60,6 +63,7 @@ export default function MatchesPage() {
             isOptinWindowOpen() ? (
               <OptInCard
                 accessToken={accessToken ?? ""}
+                perksEnabled={hasPerksAccess(member.billing_mode)}
                 onOptIn={() => getMatchStatus(accessToken ?? "").then(setStatus)}
               />
             ) : pastMatches.length === 0 ? (
@@ -67,6 +71,7 @@ export default function MatchesPage() {
             ) : (
               <ClosedCard
                 accessToken={accessToken ?? ""}
+                perksEnabled={hasPerksAccess(member.billing_mode)}
                 onOptIn={() => getMatchStatus(accessToken ?? "").then(setStatus)}
               />
             )
@@ -94,6 +99,7 @@ export default function MatchesPage() {
           exclusions={exclusions}
           onExclusionsChange={setExclusions}
           hasAnyMatch={status?.type === "matched" || pastMatches.length > 0}
+          member={member}
         />
       </div>
     </div>
@@ -104,12 +110,41 @@ export default function MatchesPage() {
 // Match admin panel
 // ---------------------------------------------------------------------------
 
+function MatchPoolCard({ accessToken, member }: { accessToken: string; member: MemberProfile }) {
+  const [cohortOnly, setCohortOnly] = useState(member.cohort_only);
+  const [error, setError] = useState<string | null>(null);
+
+  function change(next: boolean) {
+    const previous = cohortOnly;
+    setCohortOnly(next);
+    setError(null);
+    updateMemberProfile(accessToken, { cohort_only: next }).catch(() => {
+      setCohortOnly(previous);
+      setError("Couldn't save, try again.");
+    });
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-2">
+      <MatchPoolPicker
+        name="matchPoolPanel"
+        cohortName={member.cohort_name ?? ""}
+        cohortOnly={cohortOnly}
+        onChange={change}
+      />
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 function MatchAdmin({
   accessToken,
   exclusions,
   onExclusionsChange,
   hasAnyMatch,
+  member,
 }: {
+  member: MemberProfile;
   accessToken: string;
   exclusions: Exclusion[];
   onExclusionsChange: (e: Exclusion[]) => void;
@@ -161,6 +196,9 @@ function MatchAdmin({
             Share feedback
           </Link>
         </div>
+      )}
+      {member.cohort && member.cohort_name && (
+        <MatchPoolCard accessToken={accessToken} member={member} />
       )}
       <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-5">
       <h2 className="font-semibold text-dark text-sm">Parents you won&apos;t match with</h2>
@@ -525,7 +563,17 @@ function SkippedCard({ month }: { month: string }) {
   );
 }
 
-function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () => void }) {
+function OptInCard({
+  accessToken,
+  onOptIn,
+  perksEnabled,
+}: {
+  accessToken: string;
+  onOptIn: () => void;
+  /** Cohort display name ("" if unknown) when matching is locked to the member's cohort (comped), else null. */
+  /** False for comped_no_perks members: the perks-only choice is hidden. */
+  perksEnabled: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<OptInAction | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -562,7 +610,7 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         Let us know how you&apos;d like to meet this month — we&apos;ll take care of the rest.
         You have until the {OPTIN_DEADLINE_DAY}th to respond. Any choice below uses one of your rounds; skipping doesn&apos;t.
       </p>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className={`grid gap-2 ${perksEnabled ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <button
           onClick={() => handleChoice("coffee")}
           disabled={isPending}
@@ -579,6 +627,7 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         >
           {isPending && pendingAction === "playdate" ? "Joining…" : "🛝 Meet for a playdate"}
         </button>
+        {perksEnabled && (
         <button
           onClick={() => handleChoice("perks")}
           disabled={isPending}
@@ -587,6 +636,7 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
         >
           {isPending && pendingAction === "perks" ? "Joining…" : "🎁 No meetup, just perks"}
         </button>
+        )}
       </div>
       <button
         onClick={() => handleChoice("skip")}
@@ -601,7 +651,15 @@ function OptInCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () 
   );
 }
 
-function ClosedCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: () => void }) {
+function ClosedCard({
+  accessToken,
+  onOptIn,
+  perksEnabled,
+}: {
+  accessToken: string;
+  onOptIn: () => void;
+  perksEnabled: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -623,6 +681,19 @@ function ClosedCard({ accessToken, onOptIn }: { accessToken: string; onOptIn: ()
         setError(messages[result.error] ?? "Something went wrong.");
       }
     });
+  }
+
+  if (!perksEnabled) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border p-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🗓️</span>
+          <p className="text-sm text-muted">
+            This month&apos;s match window has closed. Next month&apos;s invitation lands in your inbox around the 1st.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

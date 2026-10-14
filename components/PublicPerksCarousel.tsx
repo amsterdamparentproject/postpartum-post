@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Carousel from "@/components/Carousel";
 import PerkCard from "@/components/PerkCard";
 import Sparkle from "@/components/Sparkle";
@@ -35,19 +35,39 @@ export default function PublicPerksCarousel({
 }) {
   const [showAll, setShowAll] = useState(false);
 
+  // Deep link: /perks?perk=<slug or id> opens the carousel on that perk's page
+  // and rings its card. Read after mount (not on the server) so /perks stays a
+  // cached static page. setState sits in a function the effect calls, the same
+  // pattern Carousel uses for the set-state-in-effect rule.
+  const [linkedId, setLinkedId] = useState<string | null>(null);
+  useEffect(() => {
+    const readLink = () => {
+      const wanted = new URLSearchParams(window.location.search).get("perk");
+      const match = wanted ? perks.find((p) => p.slug === wanted || p.id === wanted) : undefined;
+      setLinkedId(match?.id ?? null);
+    };
+    readLink();
+  }, [perks]);
+  const linkedIndex = linkedId ? perks.findIndex((p) => p.id === linkedId) : 0;
+
   const renderCard = (perk: PublicPerk) => (
-    <PerkCard
-      perk={perk}
-      partner={perk.partner}
-      locationLabel={perk.location_label}
-      badge={
-        perk.status === "coming_soon" ? (
-          <span className="text-xs font-medium px-2.5 py-1 rounded-full border shadow-sm bg-blue-50 text-blue-700 border-blue-200">
-            Coming soon
-          </span>
-        ) : undefined
-      }
-    />
+    <div
+      className="flex-1 flex rounded-2xl"
+      style={perk.id === linkedId ? { boxShadow: "0 0 0 3px #8A9E3A" } : undefined}
+    >
+      <PerkCard
+        perk={perk}
+        partner={perk.partner}
+        locationLabel={perk.location_label}
+        badge={
+          perk.status === "coming_soon" ? (
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full border shadow-sm bg-blue-50 text-blue-700 border-blue-200">
+              Coming soon
+            </span>
+          ) : undefined
+        }
+      />
+    </div>
   );
 
   return (
@@ -96,7 +116,12 @@ export default function PublicPerksCarousel({
           })}
         </div>
       ) : (
-        <Carousel items={perks} getKey={(perk) => perk.id} renderItem={renderCard} />
+        <Carousel
+          items={perks}
+          getKey={(perk) => perk.id}
+          renderItem={renderCard}
+          initialIndex={Math.max(linkedIndex, 0)}
+        />
       )}
 
       {showAllToggle && perks.length > 1 && (

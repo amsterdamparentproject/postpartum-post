@@ -4,6 +4,8 @@ import { verifyOptinToken, type OptinAction } from "@/lib/optin-token";
 import { monthToDate } from "@/lib/tokens";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 import { debitLatePerksIfRoundCommitted } from "@/lib/match-ledger";
+import { resolveCohortOnly } from "@/lib/cohort";
+import { hasPerksAccess } from "@/lib/billing-mode";
 
 /**
  * GET /api/optin?member={memberId}&month={YYYY-MM}&action={coffee|playdate|skip}&token={hmac}
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
   // Fetch member email (needed for magic link generation)
   const { data: memberRow } = await supabase
     .from("members")
-    .select("email, consecutive_skips, matches_remaining")
+    .select("email, consecutive_skips, matches_remaining, billing_mode")
     .eq("id", memberId)
     .single();
 
@@ -124,6 +126,10 @@ export async function GET(request: NextRequest) {
   // the same still-valid email), so this just lands them back on /profile
   // rather than needing its own banner copy.
   if (action === "perks") {
+    // Comped members without Perks can't take the perks-only choice.
+    if (!hasPerksAccess(memberRow.billing_mode)) {
+      return signInAndRedirect(supabase, memberRow.email, `${origin}/matches`, origin);
+    }
     const { data: existingParticipation } = await supabase
       .from("monthly_participation")
       .select("id")
@@ -177,10 +183,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/`);
   }
 
+  // Comped cohort members are always matched inside their cohort.
+  let cohortOnly: boolean;
+  try {
+    cohortOnly = await resolveCohortOnly(supabase, memberId);
+  } catch (e) {
+    console.error("[optin] cohort lookup failed:", e);
+    return NextResponse.redirect(`${origin}/`);
+  }
+
   const { error: participationError } = await supabase
     .from("monthly_participation")
     .upsert(
-      { member_id: memberId, month: monthDate, topic_id: topic.id },
+      { member_id: memberId, month: monthDate, topic_id: topic.id, cohort_only: cohortOnly },
       { onConflict: "member_id,month" }
     );
 

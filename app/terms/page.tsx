@@ -22,7 +22,7 @@ export default function TermsOfService() {
           >
             Terms of Service
           </h1>
-          <p className="text-muted text-sm mb-10">Last updated: September 2026</p>
+          <p className="text-muted text-sm mb-10">Last updated: October 2026</p>
 
           <div className="space-y-10 text-dark leading-relaxed">
 
@@ -66,6 +66,58 @@ export default function TermsOfService() {
                 You can manage your subscription — including cancellation — at any time via the
                 Billing tab in your profile. Cancellations take effect at the end of your current
                 billing period.
+              </p>
+            </section>
+
+            <section id="partner-cohorts" className="scroll-mt-24">
+              <h2 className="text-xl font-semibold mb-3">Free matches through partner programs</h2>
+              <p className="mb-3">
+                Some partner programs, like the Dutch Speaking Academy courses,
+                include a free match. Signing up with a partner code creates a free membership, or, if
+                you&apos;re already a member, adds the free match to your account. These terms apply
+                to the free match, along with the points below.
+              </p>
+              <ul className="list-disc list-inside space-y-2 mb-3">
+                <li>
+                  <strong className="mr-1">Nothing is charged.</strong>
+                  A free match needs no card, and nothing renews on its own. If you&apos;re already a member,
+                  your plan and billing stay exactly as they are.
+                </li>
+                <li>
+                  <strong className="mr-1">Claim it in the opt-in window.</strong>
+                  Opt in between the 1st and the 5th of a month and your match is delivered on the 7th.
+                  If you don&apos;t respond in that window, your free match is used up for that round. If you
+                  skip the month from your monthly email, it is saved for next time.
+                </li>
+                <li>
+                  <strong className="mr-1">Matched within your program, by default.</strong>
+                  Your free match is with another parent from the same partner program. You can
+                  change this under &ldquo;Choose your match pool&rdquo; in your profile, and match with
+                  anyone instead. We can&apos;t guarantee that a match is available in a given round. If we can&apos;t pair you, your
+                  free match isn&apos;t used up.
+                </li>
+                <li>
+                  <strong className="mr-1">No Post Perks.</strong>
+                  Post Perks are part of a paid membership. They unlock when you continue.
+                </li>
+                <li>
+                  <strong className="mr-1">Continuing is optional.</strong>
+                  After your free match we may email you a special offer to keep going. If you accept,
+                  the subscription and billing terms above apply from that point.
+                </li>
+                <li>
+                  <strong className="mr-1">Leaving.</strong>
+                  You can leave at any time from the Billing tab in your profile. If you only have a free
+                  match, any unused free match is forfeited. If you&apos;re already a paying member,
+                  canceling works as described under Subscriptions and billing.
+                </li>
+              </ul>
+              <p>
+                Partner programs are run independently of Postpartum Post. Questions about a free
+                match? Email us at{" "}
+                <a href="mailto:post@amsterdamparentproject.nl" className="underline underline-offset-2 hover:text-coral transition-colors">
+                  post@amsterdamparentproject.nl
+                </a>.
               </p>
             </section>
 

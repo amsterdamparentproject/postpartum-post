@@ -22,6 +22,8 @@ export type PublicPerkLocation = PerkLocationLite & {
  */
 export type PublicPerk = PerkCardPerk & {
   id: string;
+  /** Optional short link name (/perks?perk=<slug>). */
+  slug: string | null;
   status: "published" | "coming_soon";
   partner: PerkCardPartner;
   location_label: string | null;
@@ -62,7 +64,7 @@ export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean
   const { data, error } = await supabase
     .from("perks_partners")
     .select(
-      "id, status, title, description, expires_at, exclusive, frequency, estimated_savings, featured, created_at, partner_name, partner_image_url, is_online, locations",
+      "id, slug, status, title, description, expires_at, exclusive, frequency, estimated_savings, featured, created_at, partner_name, partner_image_url, is_online, locations",
     )
     .in("status", liveOnly ? ["published"] : ["published", "coming_soon"])
     .or(`expires_at.is.null,expires_at.gte.${today}`);
@@ -110,6 +112,7 @@ export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean
 
     return {
       id: p.id as string,
+      slug: (p.slug as string | null) ?? null,
       status: p.status as PublicPerk["status"],
       title: p.title as string,
       description: p.description as string,

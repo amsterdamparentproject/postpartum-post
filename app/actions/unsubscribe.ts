@@ -5,6 +5,9 @@ import { pauseSubscriptionCollection } from "@/lib/subscription-utils";
 import { createAdminClient } from "@/lib/supabase";
 import { requireMember } from "@/lib/require-member";
 import { sendCancellationConfirmedEmail } from "@/lib/emails";
+import { isComped } from "@/lib/billing-mode";
+import { recordEntitlement } from "@/lib/match-ledger";
+import { monthToDate, currentMonth } from "@/lib/tokens";
 
 export async function unsubscribe(accessToken: string) {
   // Identity comes from the verified session, never a client-supplied id
@@ -23,6 +26,16 @@ export async function unsubscribe(accessToken: string) {
     .single();
 
   if (error || !subscription) {
+    // Comped cohort members (billing_mode comped_*) have no Stripe
+    // subscription at all, so there's nothing to pause: they leave at once.
+    const { data: billing } = await supabase
+      .from("members")
+      .select("billing_mode")
+      .eq("id", memberId)
+      .single();
+    if (isComped(billing?.billing_mode)) {
+      await cancelCompedMember(supabase, memberId);
+    }
     throw new Error("No active subscription found");
   }
 
@@ -61,4 +74,53 @@ export async function unsubscribe(accessToken: string) {
   }
 
   redirect(`/unsubscribe/confirmed?matches=${matchesRemaining}`);
+}
+
+/**
+ * Cancels a comped member (no subscription, nothing in Stripe). They become
+ * inactive immediately and forfeit any unused free credit, and they're pulled
+ * out of this month's matcher pool so they can't be matched after leaving.
+ * Always redirects.
+ */
+async function cancelCompedMember(
+  supabase: ReturnType<typeof createAdminClient>,
+  memberId: string
+): Promise<never> {
+  const { data: member } = await supabase
+    .from("members")
+    .select("email, first_name, matches_remaining")
+    .eq("id", memberId)
+    .single();
+
+  const forfeited = Math.max(member?.matches_remaining ?? 0, 0);
+  if (forfeited > 0) {
+    try {
+      await recordEntitlement(supabase, {
+        memberId,
+        event: "canceled",
+        delta: -forfeited,
+        note: "comped member canceled; unused free credit forfeited",
+      });
+    } catch (e) {
+      console.error("[unsubscribe] forfeiting comped credit failed (non-fatal):", e);
+    }
+  }
+
+  await supabase
+    .from("monthly_participation")
+    .delete()
+    .eq("member_id", memberId)
+    .eq("month", monthToDate(currentMonth()));
+
+  await supabase.from("members").update({ status: "inactive" }).eq("id", memberId);
+
+  if (member?.email) {
+    try {
+      await sendCancellationConfirmedEmail(member.email, member.first_name ?? "there", 0);
+    } catch (e) {
+      console.error("[unsubscribe] sendCancellationConfirmedEmail failed (non-fatal):", e);
+    }
+  }
+
+  redirect("/unsubscribe/confirmed?matches=0");
 }

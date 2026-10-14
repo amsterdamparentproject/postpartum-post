@@ -1,5 +1,6 @@
 "use client";
 
+import MatchPoolPicker from "@/components/MatchPoolPicker";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getOnboardingSignInLink } from "@/app/actions/auth";
@@ -207,6 +208,8 @@ export default function ProfileForm({ initialData, mode, section, sessionId }: P
   const [availabilityTimes, setAvailabilityTimes] = useState<string[]>(initialData.availability?.times ?? []);
   const [matchPriority, setMatchPriority] = useState<"age" | "proximity" | "">(initialData.match_priority ?? "");
   const [openToSecondMatch, setOpenToSecondMatch] = useState<boolean>(initialData.open_to_second_match ?? true);
+  const [cohortOnly, setCohortOnly] = useState<boolean>(initialData.cohort_only ?? true);
+  const showMatchPool = !!initialData.cohort && !!initialData.cohort_name;
   const [children, setChildren] = useState<Child[]>(initialData.children ?? []);
 
   const firstNameField = useRequiredField("First name");
@@ -280,7 +283,7 @@ export default function ProfileForm({ initialData, mode, section, sessionId }: P
   );
 
   const { status: preferencesStatus, error: preferencesError } = useAutosave(
-    { parentType, matchPriority, openToSecondMatch },
+    { parentType, matchPriority, openToSecondMatch, cohortOnly },
     async (v) => {
       const token = await getAccessToken();
       if (!token) return { success: false, error: SESSION_EXPIRED };
@@ -289,6 +292,7 @@ export default function ProfileForm({ initialData, mode, section, sessionId }: P
           parent_type: (v.parentType as "mom" | "dad" | "anyone") || "anyone",
           match_priority: (v.matchPriority as "age" | "proximity") || null,
           open_to_second_match: v.openToSecondMatch,
+          ...(showMatchPool ? { cohort_only: v.cohortOnly } : {}),
         });
         return { success: true };
       } catch {
@@ -566,6 +570,15 @@ export default function ProfileForm({ initialData, mode, section, sessionId }: P
           </button>
         </div>
         </>
+      )}
+
+      {/* Match pool — preferences section, cohort members only */}
+      {section === "preferences" && showMatchPool && (
+        <MatchPoolPicker
+          cohortName={initialData.cohort_name!}
+          cohortOnly={cohortOnly}
+          onChange={setCohortOnly}
+        />
       )}
 
       {/* Parent type — preferences section only */}

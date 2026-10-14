@@ -308,6 +308,41 @@ export async function setLeadStatus(
   return { success: true };
 }
 
+/**
+ * Sends the partner welcome email (lib/emails/partner-welcome.ts) with a
+ * signed magic link so "Go to your portal" signs the partner straight into
+ * /partners/profile — same pattern app/api/send-match-emails/route.ts uses
+ * for member emails. Falls back to a plain /partners/login URL (a normal,
+ * if slightly slower, sign-in) if link generation fails, rather than
+ * blocking the welcome email on it. Never throws: shared by
+ * convertLeadToPartner and addPartner (both fire-and-forget, the partner
+ * row is already saved) and resendPartnerWelcome (which surfaces the error).
+ */
+async function sendWelcomeToPartner(
+  supabase: ReturnType<typeof createAdminClient>,
+  partner: { firstName: string; businessName: string; email: string },
+): Promise<{ success: boolean; error?: string }> {
+  const loginUrl = `${SITE_URL}/partners/login`;
+  const linkResult = await generateMagicLinkWithRetry(supabase, partner.email, `${SITE_URL}/partners/profile`);
+  if (!linkResult.success) {
+    console.error("[sendWelcomeToPartner] generateLink failed:", linkResult.error);
+  }
+  const portalUrl = linkResult.success ? linkResult.url : loginUrl;
+
+  try {
+    await sendPartnerWelcomeEmail({
+      firstName: partner.firstName,
+      businessName: partner.businessName,
+      email: partner.email,
+      portalUrl,
+    });
+    return { success: true };
+  } catch (emailError) {
+    console.error("[sendWelcomeToPartner] welcome email failed:", emailError);
+    return { success: false, error: emailError instanceof Error ? emailError.message : "Email failed to send" };
+  }
+}
+
 export type ConvertLeadInput = {
   leadId: string;
   firstName: string;
@@ -370,25 +405,12 @@ export async function convertLeadToPartner(
     console.error("[convertLeadToPartner] lead update error:", leadError.message);
   }
 
-  // Signed magic link so "Go to your portal" in the welcome email
-  // signs the partner straight into /partners/profile — same pattern
-  // app/api/send-match-emails/route.ts uses for member emails. Falls back
-  // to a plain /partners/login URL (a normal, if slightly slower, sign-in)
-  // if link generation fails, rather than blocking the welcome email on it.
-  const loginUrl = `${SITE_URL}/partners/login`;
-  const linkResult = await generateMagicLinkWithRetry(supabase, email, `${SITE_URL}/partners/profile`);
-  if (!linkResult.success) {
-    console.error("[convertLeadToPartner] generateLink failed:", linkResult.error);
-  }
-  const portalUrl = linkResult.success ? linkResult.url : loginUrl;
-
   // Fire-and-forget — the partner row is already saved above regardless of
   // whether this welcome email succeeds (same call submitPartnerLead makes
   // for its own notification email).
-  try {
-    await sendPartnerWelcomeEmail({ firstName, businessName, email, portalUrl });
-  } catch (emailError) {
-    console.error("[convertLeadToPartner] welcome email failed:", emailError);
+  const welcome = await sendWelcomeToPartner(supabase, { firstName, businessName, email });
+  if (!welcome.success) {
+    console.error("[convertLeadToPartner] welcome email failed:", welcome.error);
   }
 
   return { success: true, partnerId: partner.id as string };
@@ -443,7 +465,42 @@ export async function addPartner(
     return { success: false, error: "Couldn't create partner — try again" };
   }
 
+  // A partner with an email can sign in, so welcome them the same way
+  // convertLeadToPartner does. No email = no portal access yet = nothing to
+  // send. Fire-and-forget: the row is saved either way, and a failure can
+  // be retried from the partner card's "Resend welcome" button.
+  if (email) {
+    const welcome = await sendWelcomeToPartner(supabase, { firstName, businessName, email });
+    if (!welcome.success) {
+      console.error("[addPartner] welcome email failed:", welcome.error);
+    }
+  }
+
   return { success: true, partnerId: partner.id as string };
+}
+
+/**
+ * Re-sends the welcome email to an existing partner — the "Resend welcome"
+ * button on a partner card, for partners who were added before addPartner
+ * started sending it (or whose first send failed). Unlike the
+ * fire-and-forget callers, this reports failure so Alex knows to retry.
+ */
+export async function resendPartnerWelcome(partnerId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient();
+  const { data: partner } = await supabase
+    .from("partners")
+    .select("first_name, business_name, email")
+    .eq("id", partnerId)
+    .maybeSingle();
+  if (!partner) return { success: false, error: "Partner not found" };
+  if (!partner.email) return { success: false, error: "This partner has no email yet — add one first" };
+
+  const result = await sendWelcomeToPartner(supabase, {
+    firstName: partner.first_name as string,
+    businessName: partner.business_name as string,
+    email: partner.email as string,
+  });
+  return result.success ? { success: true } : { success: false, error: `Couldn't send — ${result.error}` };
 }
 
 // ---------------------------------------------------------------------------

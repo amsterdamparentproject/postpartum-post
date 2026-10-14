@@ -14,7 +14,14 @@
 import React, { useState, useEffect } from "react";
 import { StampSVG } from "@/components/StampIcons";
 
-const STEPS = [
+export type HowStep = {
+  number: string;
+  title: string;
+  description: React.ReactNode;
+  icon: React.ReactNode;
+};
+
+const MATCHING_STEPS: HowStep[] = [
   {
     number: "01",
     title: "Fill in your profile",
@@ -100,10 +107,10 @@ const STEPS = [
 // Mobile carousel
 // ---------------------------------------------------------------------------
 
-function MobileCarousel() {
+function MobileCarousel({ steps }: { steps: HowStep[] }) {
   const [page, setPage] = useState(0);
   const touchStartX = React.useRef<number | null>(null);
-  const total = STEPS.length;
+  const total = steps.length;
 
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
@@ -130,7 +137,7 @@ function MobileCarousel() {
           className="flex transition-transform duration-300 ease-in-out"
           style={{ transform: `translateX(-${page * 100}%)` }}
         >
-          {STEPS.map((step) => (
+          {steps.map((step) => (
             <div key={step.number} className="w-full shrink-0 pr-[2px] pb-[2px]">
               <div className="bg-white/80 backdrop-blur rounded-xl border border-border shadow-sm p-6 flex flex-col items-center text-center gap-4 min-h-[220px] justify-center">
                 <div className="shrink-0">{step.icon}</div>
@@ -156,7 +163,7 @@ function MobileCarousel() {
         </button>
 
         <div className="flex items-center gap-1.5">
-          {STEPS.map((_, i) => (
+          {steps.map((_, i) => (
             <button
               key={i}
               onClick={() => setPage(i)}
@@ -187,14 +194,14 @@ function MobileCarousel() {
 // Desktop list
 // ---------------------------------------------------------------------------
 
-function DesktopList() {
+function DesktopList({ steps }: { steps: HowStep[] }) {
   return (
     <div className="relative">
       {/* Vertical connector line */}
       <div className="absolute left-[31px] top-10 bottom-10 w-px bg-border" aria-hidden="true" />
 
       <div className="space-y-4">
-        {STEPS.map((step) => (
+        {steps.map((step) => (
           <div key={step.number} className="flex gap-5 items-start">
             <div className="shrink-0 w-[62px] flex flex-col items-center mt-[17px]">
               <div className="w-[46px] h-[46px] rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-xs font-bold text-coral z-10">
@@ -219,7 +226,20 @@ function DesktopList() {
 // Main export
 // ---------------------------------------------------------------------------
 
-export default function HowMatchingWorks() {
+export default function HowMatchingWorks({
+  steps = MATCHING_STEPS,
+  heading = (
+    <>
+      How <span className="text-coral">matching</span> works
+    </>
+  ),
+  intro = "Every match is made by our own purpose-built algorithm (no AI), reviewed with care, and delivered right to your inbox. Our goal is to make conversation feel easy between you both.",
+}: {
+  steps?: HowStep[];
+  heading?: React.ReactNode;
+  /** Paragraph under the heading; pass null for none. */
+  intro?: React.ReactNode;
+} = {}) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -233,16 +253,18 @@ export default function HowMatchingWorks() {
   return (
     <section id="how-it-works" className="w-full max-w-lg mx-auto">
       <h2
-        className="text-2xl text-dark text-center mb-2"
+        className={`text-2xl text-dark text-center ${intro ? "mb-2" : "mb-10"}`}
         style={{ fontFamily: "var(--font-serif)" }}
       >
-        How <span className="text-coral">matching</span> works
+        {heading}
       </h2>
-      <p className="text-sm text-muted text-center mb-10 max-w-md mx-auto leading-relaxed">
-        Every match is made by our own purpose-built algorithm (no AI), reviewed with care, and delivered right to your inbox. Our goal is to make conversation feel easy between you both.
-      </p>
+      {intro && (
+        <p className="text-sm text-muted text-center mb-10 max-w-md mx-auto leading-relaxed">
+          {intro}
+        </p>
+      )}
 
-      {isMobile ? <MobileCarousel /> : <DesktopList />}
+      {isMobile ? <MobileCarousel steps={steps} /> : <DesktopList steps={steps} />}
     </section>
   );
 }

@@ -8,14 +8,23 @@ function lastMatchNoticeBillingUrl(): string {
   return `${SITE_URL}/billing?utm_source=email&utm_campaign=transactional&utm_content=last-match-notice`;
 }
 
+export type OptinEmailOptions = {
+  /** False for comped_no_perks members: no Perks buttons or mentions. */
+  perksEnabled?: boolean;
+  /** Set for comped cohort members, who are matched within their cohort. */
+  cohortName?: string | null;
+};
+
 function optinHtml(
   firstName: string,
   coffeeUrl: string,
   playdateUrl: string,
   perksUrl: string,
   skipUrl: string,
-  lastMatchNotice: boolean
+  lastMatchNotice: boolean,
+  options: OptinEmailOptions = {}
 ): string {
+  const { perksEnabled = true, cohortName = null } = options;
   // Billing plan §"Renewal timing" (Track E, 2026-08-26): the soft half of
   // the two-tier renewal notice. Fires a cycle earlier than the loud
   // match-reveal notice (lib/billing-notice.ts, Track C4) — while this
@@ -41,18 +50,23 @@ function optinHtml(
                                       It's the start of the month, which means that it's time to connect with a new parent nearby! Let us know how you'd like to meet this month — we'll take care of the rest.
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      You have until the <span style="font-weight:700">5th of the month</span> to respond. You'll receive your introduction on the 7th, along with all of the Post Perks for both of you 💌
-                                    </td></tr>`, true) +
-    ctaButton("☕ Coffee + perks", coffeeUrl) +
-    ctaButton("🛝 Playdate + perks", playdateUrl) +
-    bodySection(`
+                                      You have until the <span style="font-weight:700">5th of the month</span> to respond. You'll receive your introduction on the 7th${perksEnabled ? ", along with all of the Post Perks for both of you" : ""} 💌
+                                    </td></tr>${cohortName ? `
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
+                                      This is your free match from ${cohortName}, so you'll be matched with another student from the course. If you skip the window, the free match is used up.
+                                    </td></tr>` : ""}`, true) +
+    ctaButton(perksEnabled ? "☕ Coffee + perks" : "☕ Coffee", coffeeUrl) +
+    ctaButton(perksEnabled ? "🛝 Playdate + perks" : "🛝 Playdate", playdateUrl) +
+    (perksEnabled
+      ? bodySection(`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       <span style="font-weight:700">Don't have time to meet this month?</span> Instead, choose to access only your Post Perks to still get discounts and freebies across Amsterdam, just for you and your family.
                                     </td></tr>`) +
-    ctaButton("🎁 No meetup, just perks", perksUrl) +
+        ctaButton("🎁 No meetup, just perks", perksUrl)
+      : "") +
     bodySection(`
                                     <tr><td dir="ltr" style="font-size:13px;text-align:center;color:#666666;line-height:1.4;mso-line-height-alt:18.2px">
-                                      Need a break? <a href="${skipUrl}" style="color:#666666;text-decoration:underline">Skip this month</a> for free. If we don't hear from you, we'll assume you don't want to be matched or access perks this month.
+                                      Need a break? <a href="${skipUrl}" style="color:#666666;text-decoration:underline">Skip this month</a> for free. If we don't hear from you, we'll assume you don't want to be matched${perksEnabled ? " or access perks" : ""} this month.
                                     </td></tr>`) +
     lastMatchSection;
 
@@ -66,14 +80,15 @@ export async function sendOptinEmail(
   playdateUrl: string,
   perksUrl: string,
   skipUrl: string,
-  lastMatchNotice = false
+  lastMatchNotice = false,
+  options: OptinEmailOptions = {}
 ) {
   const resend = getResend();
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
     subject: `${subjectPrefix()}Let's meet this month! 💌`,
-    html: optinHtml(firstName, coffeeUrl, playdateUrl, perksUrl, skipUrl, lastMatchNotice),
+    html: optinHtml(firstName, coffeeUrl, playdateUrl, perksUrl, skipUrl, lastMatchNotice, options),
   });
   if (error) {
     console.error("[resend] sendOptinEmail error:", error);

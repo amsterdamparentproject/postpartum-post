@@ -15,10 +15,13 @@ export default function Carousel<T>({
   items,
   renderItem,
   getKey,
+  initialIndex = 0,
 }: {
   items: T[];
   renderItem: (item: T, index: number) => ReactNode;
   getKey?: (item: T, index: number) => string | number;
+  /** Item to start on: the carousel opens on the page that holds it (a deep link to one card). */
+  initialIndex?: number;
 }) {
   const [mounted, setMounted] = useState(false);
   const [perPage, setPerPage] = useState(2);
@@ -31,13 +34,14 @@ export default function Carousel<T>({
     // the effect body) — what the set-state-in-effect lint rule requires.
     const update = () => {
       setMounted(true);
-      setPerPage(mq.matches ? 2 : 1);
-      setPage(0);
+      const per = mq.matches ? 2 : 1;
+      setPerPage(per);
+      setPage(Math.floor(Math.max(initialIndex, 0) / per));
     };
     update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
-  }, []);
+  }, [initialIndex]);
 
   const totalPages = Math.max(1, Math.ceil(items.length / perPage));
 

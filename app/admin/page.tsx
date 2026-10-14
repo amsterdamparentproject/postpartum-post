@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getBaseStats, getMonthlyRevenue, getMatchRoundStats } from "./stats/actions";
+import { getBaseStats, getMonthlyRevenue, getMatchRoundStats, getCohortHeadcount } from "./stats/actions";
+import { getCohortNames } from "@/lib/cohort";
+import { createAdminClient } from "@/lib/supabase";
 import { verifyAdminSessionToken } from "@/lib/admin-session";
 
 function pct(n: number, total: number) {
@@ -40,10 +42,12 @@ export default async function AdminStatsPage() {
   const session = cookieStore.get("admin_session");
   if (!verifyAdminSessionToken(session?.value)) redirect("/admin/login");
 
-  const [base, revenue, round] = await Promise.all([
+  const [base, revenue, round, cohorts, cohortNames] = await Promise.all([
     getBaseStats(),
     getMonthlyRevenue(),
     getMatchRoundStats(),
+    getCohortHeadcount(),
+    getCohortNames(createAdminClient()),
   ]);
 
   const maxRevenue = Math.max(...revenue.map((m) => m.amountCents), 1);
@@ -85,6 +89,35 @@ export default async function AdminStatsPage() {
             ))}
           </div>
         </section>
+
+        {/* Partner cohorts (e.g. Dutch Speaking Academy), for per-participant invoicing */}
+        {cohorts.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-xs font-semibold text-muted uppercase tracking-wide">Partner cohorts</h2>
+            <div className="space-y-3">
+              {cohorts.map((c) => (
+                <div key={c.cohort} className="bg-white rounded-xl border border-border p-5 space-y-3">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <p className="text-sm font-semibold text-dark">{cohortNames.get(c.cohort) ?? c.cohort}</p>
+                    <p className="text-xs text-muted">
+                      {c.total} signed up · {c.comped} free · {c.continued} continued
+                    </p>
+                  </div>
+                  <ul className="text-sm text-dark space-y-1">
+                    {c.byMonth.map((m) => (
+                      <li key={m.month} className="flex justify-between">
+                        <span className="text-muted">
+                          {new Date(m.month + "-01").toLocaleString("en-US", { month: "long", year: "numeric" })}
+                        </span>
+                        <span className="font-medium">{m.count} signed up</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Revenue chart */}
         <section className="space-y-3">

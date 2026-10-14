@@ -37,7 +37,7 @@ export default function About() {
               Parent groups can be great for support, but <b>sometimes you need just one person</b>, not a room full of them.
             </p>
             <p>
-              We&apos;re here to <b>connect new and expecting parents in the neighborhood</b> for coffee, a playdate,
+              We&apos;re here to <b>connect new and expecting parents in the neighborhood</b>{" "}for coffee, a playdate,
               or an understanding chat. We&apos;ll warmly introduce you to one person each month, sharing their name and contact
               along with local activities handpicked for your families.
             </p>

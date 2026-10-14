@@ -268,6 +268,9 @@ export async function seedPerk(
     url?: string | null;
     status?: "pending" | "published";
     exclusive?: boolean;
+    featured?: boolean;
+    /** Short link name for /my-perks?perk=<slug> and /perks?perk=<slug> (needs migration 034). */
+    slug?: string;
   },
 ): Promise<{ id: string }> {
   const id = crypto.randomUUID();
@@ -282,6 +285,8 @@ export async function seedPerk(
     redemption_code: perk.code ?? null,
     url: perk.url ?? null,
     exclusive: perk.exclusive ?? false,
+    featured: perk.featured ?? false,
+    ...(perk.slug ? { slug: perk.slug } : {}),
   });
   if (error) throw new Error(`seedPerk failed: ${error.message}`);
   return { id };
@@ -392,6 +397,21 @@ export async function getMemberStatusByEmail(email: string): Promise<string | nu
     .eq("email", email.toLowerCase())
     .maybeSingle();
   return data?.status ?? null;
+}
+
+/** Returns the member's cohort fields, or null if no member exists for this email. */
+export async function getMemberCohortByEmail(email: string): Promise<{
+  cohort: string | null;
+  billing_mode: string | null;
+  matches_remaining: number;
+  cohort_joined_at: string | null;
+} | null> {
+  const { data } = await supabase()
+    .from("members")
+    .select("cohort, billing_mode, matches_remaining, cohort_joined_at")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  return data ?? null;
 }
 
 /** Returns the member's current matches_remaining, or null if no member exists for this email. */
