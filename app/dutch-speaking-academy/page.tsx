@@ -206,7 +206,7 @@ export default async function DutchSpeakingAcademyPage() {
         </div>
 
         <p className="mt-10 text-xs text-muted text-center max-w-sm leading-relaxed">
-          This collaboration is run by{" "}
+          This collaboration is run by
           <a
             href="https://dutchspeakingacademy.nl/"
             target="_blank"
@@ -215,7 +215,7 @@ export default async function DutchSpeakingAcademyPage() {
           >
             Dutch Speaking Academy{" "}
           </a>
-          and Postpartum Post. Curious how it all works?{" "}
+          {" "}and Postpartum Post. Curious how it all works?{" "}
           <Link href="/about" className="underline underline-offset-2 hover:text-coral transition-colors">
             Read more about us
           </Link>
