@@ -14,6 +14,7 @@ import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES, type MemberStatusMes
 import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
 import { isComped, hasPerksAccess } from "@/lib/billing-mode";
 import PartnerCodeCard from "@/components/PartnerCodeCard";
+import ContinueOffer from "@/components/ContinueOffer";
 
 // Accepts either a Stripe unix timestamp (a real instant — formatted in the
 // viewer's local zone, as this always has) or a Date (deriveMemberStatusMessage's
@@ -220,6 +221,9 @@ function BillingContent() {
                 </span>
               </div>
               <hr className="border-border" />
+              {member.matches_remaining <= 0 && member.continue_offer && accessToken && (
+                <ContinueOffer accessToken={accessToken} />
+              )}
               <p className="text-xs text-muted leading-relaxed">
                 {member.matches_remaining > 0
                   ? "Nothing is charged, and no card is on file. Opt in between the 1st and the 5th of the month to claim your match."

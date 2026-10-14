@@ -607,6 +607,38 @@ describe("Stripe webhook", () => {
     expect(sub?.status).toBe("canceled");
   });
 
+  it("switches a comped member to subscription billing when they check out (the continue offer)", async () => {
+    const member = await seedMember({ status: "active", matches_remaining: 0, billing_mode: "comped_no_perks" });
+    memberId = member.id;
+
+    mockRetrieve.mockResolvedValue({
+      items: { data: [{ price: { id: "price_test_monthly" } }] },
+      metadata: {},
+    });
+    mockConstructEvent.mockReturnValue({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          metadata: { member_id: memberId, continue_offer: "1" },
+          customer_details: { email: member.email, name: "Test Member" },
+          subscription: `sub_test_${memberId.slice(0, 8)}`,
+        },
+      },
+    });
+
+    const res = await POST(makeRequest("{}"));
+    expect(res.status).toBe(200);
+
+    const supabase = createTestSupabase();
+    const { data: updated } = await supabase
+      .from("members")
+      .select("status, billing_mode")
+      .eq("id", memberId)
+      .single();
+    expect(updated?.status).toBe("active");
+    expect(updated?.billing_mode).toBe("subscription");
+  });
+
   it("leaves a comped member alone when their old Stripe subscription is deleted (customer.subscription.deleted)", async () => {
     // Comped members (billing_mode comped_*) are never activated or deactivated
     // by Stripe. Cancelling a leftover subscription only marks the row canceled.
