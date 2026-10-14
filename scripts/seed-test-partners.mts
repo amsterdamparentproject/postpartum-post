@@ -66,7 +66,8 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 // manual test partners in this DB across a test run if you want them to
 // survive it.
 //
-// Four profiles: "yoga-studio" has a location and portal access (the
+// Five profiles (the fifth, "dutch-speaking-academy", seeds the perk behind
+// step 0 on /dutch-speaking-academy; see its entry below): "yoga-studio" has a location and portal access (the
 // common case); "renske" has neither — a Circle-of-Experts-style
 // contributor with no location and, deliberately, no perk — exercising the
 // "no portal access yet" state the admin Partners tab renders
@@ -110,6 +111,8 @@ interface ReferencePerk {
   // 'once' = an intro offer, redeemable a single time per member ever
   // (db/migrations/028_perk_intro_offers.sql). Default 'monthly'.
   frequency?: "monthly" | "once";
+  // Shown as the "Save €X" figure (db/migrations/031_perk_estimated_savings.sql).
+  estimated_savings?: number;
 }
 
 interface ReferencePartner {
@@ -222,6 +225,29 @@ const REFERENCE_PARTNERS: ReferencePartner[] = [
         description: "Show this screen at the ticket desk for free entry, once a month.",
         redemption_type: "in_person",
         frequency: "monthly",
+      },
+    ],
+  },
+  {
+    // Powers step 0 on /dutch-speaking-academy: lib/cohort-perk.ts finds the
+    // published perk by this exact business_name. Online-only, so no location.
+    // The code is a placeholder; the real one lives with the live partner.
+    slug: "dutch-speaking-academy",
+    first_name: "Mariska",
+    last_name: "Dutch Speaking Academy",
+    business_name: "Dutch Speaking Academy",
+    url: "https://dutchspeakingacademy.nl",
+    description: "Dutch courses for parents, in partnership with Postpartum Post.",
+    email: null,
+    location: null,
+    perks: [
+      {
+        title: "25% off the Dutch for Parents course",
+        description: "Activate this perk before you register, then use the code at checkout on the Dutch Speaking Academy site.",
+        redemption_type: "code",
+        redemption_code: "TESTDSA25",
+        frequency: "once",
+        estimated_savings: 83,
       },
     ],
   },
@@ -401,6 +427,7 @@ async function syncReferencePerks(
       url: perk.url ?? null,
       exclusive: perk.exclusive ?? false,
       frequency: perk.frequency ?? "monthly",
+      estimated_savings: perk.estimated_savings ?? null,
     };
 
     let perkId = keep?.id as string | undefined;
