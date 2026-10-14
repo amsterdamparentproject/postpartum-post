@@ -77,6 +77,29 @@ export function GiftStamp({ fill = "rgba(212, 224, 155, 0.18)", stroke = "#8A9E3
 }
 
 /**
+ * Green by default — the Post Perks brand sparkle (public/sparkle.svg) as a
+ * stamp: one large and two small four-point stars with concave sides.
+ */
+export function SparkleStamp({ fill = "rgba(212, 224, 155, 0.18)", stroke = "#8A9E3A", size = 64, background }: {
+  fill?: string;
+  stroke?: string;
+  size?: number;
+  background?: string;
+}) {
+  // Four-point star centered on (cx, cy) with tip radius r; quadratic curves
+  // pulled to the center give the concave sides.
+  const star = (cx: number, cy: number, r: number) =>
+    `M${cx} ${cy - r} Q${cx} ${cy} ${cx + r} ${cy} Q${cx} ${cy} ${cx} ${cy + r} Q${cx} ${cy} ${cx - r} ${cy} Q${cx} ${cy} ${cx} ${cy - r} Z`;
+  return (
+    <StampSVG fill={fill} stroke={stroke} size={size} background={background}>
+      <path d={star(19, 21, 15)} fill={stroke} opacity="0.3" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d={star(36, 35, 9)} fill={stroke} opacity="0.3" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" />
+      <path d={star(37, 10, 6)} fill={stroke} opacity="0.3" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" />
+    </StampSVG>
+  );
+}
+
+/**
  * Coral by default — matches the base palette of /perks' suggestion card
  * (PerkIdeaForm), which is where this replaces the plain 🗺️ emoji. The
  * center circle is punched through to `background` (default: the page's
