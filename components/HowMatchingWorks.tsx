@@ -19,6 +19,10 @@ export type HowStep = {
   title: string;
   description: React.ReactNode;
   icon: React.ReactNode;
+  /** Replaces the number in the desktop step bubble (e.g. an icon). `number` still keys the step. */
+  badge?: React.ReactNode;
+  /** Optional call-to-action (e.g. a button) rendered under the description. */
+  action?: React.ReactNode;
 };
 
 const MATCHING_STEPS: HowStep[] = [
@@ -144,6 +148,7 @@ function MobileCarousel({ steps }: { steps: HowStep[] }) {
                 <div>
                   <h3 className="text-sm font-semibold text-dark mb-2">{step.title}</h3>
                   <p className="text-xs text-muted leading-relaxed">{step.description}</p>
+                  {step.action && <div className="mt-4">{step.action}</div>}
                 </div>
               </div>
             </div>
@@ -205,7 +210,7 @@ function DesktopList({ steps }: { steps: HowStep[] }) {
           <div key={step.number} className="flex gap-5 items-start">
             <div className="shrink-0 w-[62px] flex flex-col items-center mt-[17px]">
               <div className="w-[46px] h-[46px] rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-xs font-bold text-coral z-10">
-                {step.number}
+                {step.badge ?? step.number}
               </div>
             </div>
             <div className="flex-1 bg-white/80 backdrop-blur rounded-xl border border-border shadow-sm p-5">
@@ -214,10 +219,46 @@ function DesktopList({ steps }: { steps: HowStep[] }) {
                 <h3 className="text-sm font-semibold text-dark">{step.title}</h3>
               </div>
               <p className="text-xs text-muted leading-relaxed">{step.description}</p>
+              {step.action && <div className="mt-4">{step.action}</div>}
             </div>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mobile stack (opt-in)
+// ---------------------------------------------------------------------------
+
+/**
+ * Every step visible at once, for pages where the order matters and a swipe
+ * could skip something time-sensitive (e.g. /dutch-speaking-academy, where
+ * the perk must be activated before registering). Like the desktop list but
+ * without the number column and connector line, which waste width on a phone.
+ */
+function StackedList({ steps }: { steps: HowStep[] }) {
+  return (
+    <div className="space-y-4">
+      {steps.map((step) => (
+        <div
+          key={step.number}
+          className="bg-white/80 backdrop-blur rounded-xl border border-border shadow-sm p-5 flex gap-4 items-start"
+        >
+          <div className="shrink-0">{step.icon}</div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="shrink-0 w-7 h-7 rounded-full bg-white border border-border flex items-center justify-center text-[11px] font-bold text-coral">
+                {step.badge ?? step.number}
+              </div>
+              <h3 className="text-sm font-semibold text-dark">{step.title}</h3>
+            </div>
+            <p className="text-xs text-muted leading-relaxed">{step.description}</p>
+            {step.action && <div className="mt-4">{step.action}</div>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -233,12 +274,15 @@ export default function HowMatchingWorks({
       How <span className="text-coral">matching</span> works
     </>
   ),
+  stackOnMobile = false,
   intro = "Every match is made by our own purpose-built algorithm (no AI), reviewed with care, and delivered right to your inbox. Our goal is to make conversation feel easy between you both.",
 }: {
   steps?: HowStep[];
   heading?: React.ReactNode;
   /** Paragraph under the heading; pass null for none. */
   intro?: React.ReactNode;
+  /** Show all steps stacked on mobile instead of the swipeable carousel. */
+  stackOnMobile?: boolean;
 } = {}) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -264,7 +308,11 @@ export default function HowMatchingWorks({
         </p>
       )}
 
-      {isMobile ? <MobileCarousel steps={steps} /> : <DesktopList steps={steps} />}
+      {isMobile ? (
+        stackOnMobile ? <StackedList steps={steps} /> : <MobileCarousel steps={steps} />
+      ) : (
+        <DesktopList steps={steps} />
+      )}
     </section>
   );
 }

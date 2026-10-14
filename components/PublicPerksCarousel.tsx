@@ -14,6 +14,12 @@ import type { PublicPerk } from "@/lib/public-perks";
  * blobs. Display-only: no codes or links reach these pages
  * (lib/public-perks.ts).
  *
+ * With `linkToRedeem`, each live perk's card (and its row in the list view)
+ * links to /my-perks?perk=<slug or id>: signed-in members land on the perk's
+ * redeem dialog, everyone else on the sign-in form plus the signup pitch
+ * (the same path as the DSA page's perk card). Coming-soon perks don't link —
+ * there's nothing to redeem yet.
+ *
  * Below the carousel, "Show all N perks" swaps it for a condensed list of
  * every perk (the same ListRow the match page's Perks tab uses), so on mobile
  * (one card per page) people can take in the whole set at once.
@@ -25,13 +31,21 @@ function mapsUrl(locations: PublicPerk["locations"]): string | null {
   return geocoded ? `https://www.google.com/maps?q=${geocoded.lat},${geocoded.lng}` : null;
 }
 
+/** Where a public perk leads: the members' redeem flow, which also handles signed-out visitors. */
+function redeemHref(perk: PublicPerk): string | null {
+  return perk.status === "published" ? `/my-perks?perk=${encodeURIComponent(perk.slug ?? perk.id)}` : null;
+}
+
 export default function PublicPerksCarousel({
   perks,
   showAllToggle = true,
+  linkToRedeem = false,
 }: {
   perks: PublicPerk[];
   /** The "Show all N perks" list toggle; the homepage turns it off (the carousel is enough there). */
   showAllToggle?: boolean;
+  /** Link live perks to /my-perks?perk=… (redeem if a member, sign in / join if not). Off where cards should stay display-only. */
+  linkToRedeem?: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
 
@@ -50,25 +64,31 @@ export default function PublicPerksCarousel({
   }, [perks]);
   const linkedIndex = linkedId ? perks.findIndex((p) => p.id === linkedId) : 0;
 
-  const renderCard = (perk: PublicPerk) => (
-    <div
-      className="flex-1 flex rounded-2xl"
-      style={perk.id === linkedId ? { boxShadow: "0 0 0 3px #8A9E3A" } : undefined}
-    >
-      <PerkCard
-        perk={perk}
-        partner={perk.partner}
-        locationLabel={perk.location_label}
-        badge={
-          perk.status === "coming_soon" ? (
-            <span className="text-xs font-medium px-2.5 py-1 rounded-full border shadow-sm bg-blue-50 text-blue-700 border-blue-200">
-              Coming soon
-            </span>
-          ) : undefined
-        }
-      />
-    </div>
-  );
+  const renderCard = (perk: PublicPerk) => {
+    const href = linkToRedeem ? redeemHref(perk) : null;
+    return (
+      <div
+        className="flex-1 flex rounded-2xl"
+        style={perk.id === linkedId ? { boxShadow: "0 0 0 3px #8A9E3A" } : undefined}
+      >
+        <PerkCard
+          perk={perk}
+          partner={perk.partner}
+          locationLabel={perk.location_label}
+          href={href ?? undefined}
+          actionLabel={href ? "Redeem now" : undefined}
+          umamiEvent={href ? "Perks: Open card from /perks" : undefined}
+          badge={
+            perk.status === "coming_soon" ? (
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full border shadow-sm bg-white text-dark border-border">
+                Coming soon
+              </span>
+            ) : undefined
+          }
+        />
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -76,6 +96,7 @@ export default function PublicPerksCarousel({
         <div className="space-y-3 px-1 pt-1 pb-2 text-left">
           {perks.map((perk) => {
             const meta = [perk.partner.business_name, perk.location_label].filter(Boolean).join(" · ");
+            const href = linkToRedeem ? redeemHref(perk) : null;
             const showBadges = perk.status === "coming_soon" || perk.exclusive || perk.frequency === "once";
             return (
               <ListRow
@@ -89,7 +110,7 @@ export default function PublicPerksCarousel({
                   showBadges && (
                     <span className="inline-flex flex-wrap items-center gap-1.5">
                       {perk.status === "coming_soon" && (
-                        <span className="px-2 py-0.5 rounded-full border text-[11px] font-medium bg-blue-50 text-blue-700 border-blue-200">
+                        <span className="px-2 py-0.5 rounded-full border text-[11px] font-bold bg-white text-dark border-border">
                           Coming soon
                         </span>
                       )}
@@ -109,6 +130,9 @@ export default function PublicPerksCarousel({
                       )}
                     </span>
                   )
+                }
+                action={
+                  href ? { label: "Redeem now", href, umamiEvent: "Perks: Open list row from /perks" } : null
                 }
                 mapsUrl={mapsUrl(perk.locations)}
               />

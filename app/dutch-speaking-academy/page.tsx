@@ -6,23 +6,47 @@ import TextLogo from "@/components/TextLogo";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 import DutchCohortSignupForm from "@/components/DutchCohortSignupForm";
 import HowMatchingWorks from "@/components/HowMatchingWorks";
-import { DSA_STEPS } from "@/components/DutchCohortSteps";
+import { DSA_STEPS, DSA_TERRACOTTA, dsaPerkStep } from "@/components/DutchCohortSteps";
 import FAQ, { type FAQItem } from "@/components/FAQ";
 import { getCohortPerk } from "@/lib/cohort-perk";
-import PostPerksWordMark from "@/components/PostPerksWordMark";
-import Sparkle from "@/components/Sparkle";
 
 const title = "Dutch Speaking Academy × Postpartum Post";
 const description =
-  "Dutch Speaking Academy students get one free match through Postpartum Post: a fellow parent from your round to practice real Dutch with, in person or on video.";
+  "Practice Dutch 1:1 with a fellow parent who's equally committed — and make a new friend along the way. Dutch Speaking Academy students get one free match through Postpartum Post.";
 
+const banner = {
+  url: "/og-dsa.png",
+  width: 1200,
+  height: 630,
+  alt: "Dutch Speaking Academy × Postpartum Post",
+};
+
+// openGraph and twitter replace the root layout's blocks wholesale rather
+// than merging, so siteName/locale/card are repeated. The title already names
+// both brands, so it isn't run through the root layout's title template for
+// the share cards.
 export const metadata: Metadata = {
   title,
   description,
+  alternates: { canonical: "/dutch-speaking-academy" },
+  openGraph: {
+    type: "website",
+    locale: "en_NL",
+    siteName: "Postpartum Post",
+    url: "/dutch-speaking-academy",
+    title,
+    description,
+    images: [banner],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: [banner.url],
+  },
 };
 
-// DSA's own colors, sampled from its logo, used as accents next to Post's coral.
-const DSA_TERRACOTTA = "#B1502B";
+// DSA's own gold, sampled from its logo (its terracotta lives in DutchCohortSteps).
 const DSA_GOLD = "#E4C58F";
 
 const FAQS: FAQItem[] = [
@@ -125,52 +149,19 @@ export default async function DutchSpeakingAcademyPage() {
             Claim your free match
             <span aria-hidden="true">→</span>
           </a>
-          {perk && (
-            <Link
-              href={`/my-perks?perk=${perk.slug ?? perk.id}`}
-              data-umami-event="DSA: Activate perk"
-              className="group mt-6 block w-full max-w-md mx-auto text-left bg-white/90 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition p-5"
-              style={{ border: "1.5px solid rgba(203, 223, 189, 0.90)" }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted">
-                  <Sparkle className="w-5 h-5 group-hover-wiggle" />
-                  <PostPerksWordMark size="text-base" plural={false} className="normal-case tracking-normal" />
-                </span>
-                {perk.estimatedSavings ? (
-                  <span
-                    className="text-xs font-bold px-2.5 py-1 rounded-full text-white shrink-0"
-                    style={{ backgroundColor: "#4F5F1E" }}
-                  >
-                    Save €{perk.estimatedSavings}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-3 text-sm text-muted">Already a Postpartum Post member?</p>
-              <p className="text-lg leading-snug text-dark" style={{ fontFamily: "var(--font-serif)" }}>
-                {perk.title}
-              </p>
-              <span
-                className="flex items-center justify-center gap-2 mt-4 py-2.5 px-5 rounded-full font-bold text-white group-hover:brightness-110 transition"
-                style={{ backgroundColor: "#8A9E3A" }}
-              >
-                Activate your perk
-                <span aria-hidden="true">→</span>
-              </span>
-            </Link>
-          )}
         </section>
 
         {/* How it works */}
         <div className="w-full mt-12 md:mt-16">
           <HowMatchingWorks
-            steps={DSA_STEPS}
+            steps={perk ? [dsaPerkStep(perk), ...DSA_STEPS] : DSA_STEPS}
             heading={
               <>
                 How it <span className="text-coral">works</span>
               </>
             }
             intro={null}
+            stackOnMobile
           />
         </div>
 
@@ -206,7 +197,7 @@ export default async function DutchSpeakingAcademyPage() {
         </div>
 
         <p className="mt-10 text-xs text-muted text-center max-w-sm leading-relaxed">
-          This collaboration is run by{" "}
+          This collaboration is run by
           <a
             href="https://dutchspeakingacademy.nl/"
             target="_blank"
@@ -215,7 +206,7 @@ export default async function DutchSpeakingAcademyPage() {
           >
             Dutch Speaking Academy{" "}
           </a>
-          and Postpartum Post. Curious how it all works?{" "}
+          {" "}and Postpartum Post. Curious how it all works?{" "}
           <Link href="/about" className="underline underline-offset-2 hover:text-coral transition-colors">
             Read more about us
           </Link>

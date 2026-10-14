@@ -55,9 +55,9 @@ export const revalidate = 300;
  * partner CTA stay as they are; live and coming-soon perks (the first
  * ones!) list under the idea form as PerkCards, paged like the /partners
  * carousel (PublicPerksCarousel), and the section simply doesn't render
- * while there are none. Cards are display-only: no codes
- * or links leave the server here (see lib/public-perks.ts) — redeeming is
- * the future members-only "Use this perk" flow.
+ * while there are none. No codes or links leave the server here (see
+ * lib/public-perks.ts); each live card links to /my-perks?perk=… instead,
+ * where members redeem and everyone else signs in or joins.
  *
  * Originally a placeholder for the eventual public Post Perks page — mirrors
  * not-found.tsx's look on purpose (same emoji/serif-heading/muted-subtext
@@ -93,7 +93,7 @@ export default async function PerksPage() {
               )}{" "}
               If you are new here, don’t miss the giveaway below 🎁
             </p>
-            <PublicPerksCarousel perks={perks} />
+            <PublicPerksCarousel perks={perks} linkToRedeem />
           </section>
         ) : (
           // No perks yet: keep the "coming soon" hero so the page isn't just a form.

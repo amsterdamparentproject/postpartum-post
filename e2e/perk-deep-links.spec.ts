@@ -8,6 +8,7 @@
  *    Academy" perk, linking to /my-perks?perk=<slug>.
  * 3. Signed out, that link shows the sign-in form and the membership signup form.
  * 4. Signed in with perks access, it opens the perk's dialog.
+ * 5. Cards in the /perks carousel link to /my-perks?perk=<slug> the same way.
  *
  * Prerequisites: migration 034 applied to the DB that .env.local points at
  * (perks.slug and the perks_partners view). Seeds its own partners and perks,
@@ -65,11 +66,12 @@ test("DSA page perk card → /my-perks sign-in plus signup, or the perk dialog w
   await seedMonthlyPerks(member.id, new Date().toISOString().slice(0, 7));
 
   try {
-    // ── 2. The card on the splash page ──────────────────────────────────────
+    // ── 2. Step 0 on the splash page ──────────────────────────────────────
     await page.goto("/dutch-speaking-academy");
-    const cta = page.getByRole("link", { name: new RegExp(title) });
+    // The perk is "step 0" of How it works: the step names the perk, the button links to it.
+    await expect(page.getByText(title)).toBeVisible();
+    const cta = page.getByRole("link", { name: /Claim your member discount/ });
     await expect(cta).toHaveAttribute("href", `/my-perks?perk=${slug}`);
-    await expect(cta.getByText("Activate your perk")).toBeVisible();
 
     // ── 3. Signed out: sign in, or join ─────────────────────────────────────
     await cta.click();
@@ -85,5 +87,27 @@ test("DSA page perk card → /my-perks sign-in plus signup, or the perk dialog w
     await cleanupPartner(partner.id);
     await cleanupMember(member.id);
     await cleanupAuthUser(member.email);
+  }
+});
+
+test("/perks carousel cards link to /my-perks?perk=<slug>", async ({ page }) => {
+  const run = crypto.randomUUID().slice(0, 8);
+  const title = `E2E carousel link perk ${run}`;
+  const slug = `e2e-carousel-${run}`;
+  const partner = await seedPartner({ businessName: `E2E Carousel Cafe ${run}` });
+  await seedPerk(partner.id, { title, redemptionType: "code", code: `E2E${run}`, slug, featured: true });
+
+  try {
+    await page.setViewportSize({ width: 390, height: 844 }); // one card per page
+    await page.goto(`/perks?perk=${slug}`); // opens the carousel on this perk
+    const card = page.getByRole("link", { name: new RegExp(title) });
+    await expect(card).toHaveAttribute("href", `/my-perks?perk=${slug}`);
+
+    // Signed out: sign-in plus the join pitch, with the perk kept in the URL.
+    await card.click();
+    await expect(page).toHaveURL(new RegExp(`/my-perks\\?perk=${slug}`));
+    await expect(page.getByText("Already a member? Sign in to activate your perk")).toBeVisible();
+  } finally {
+    await cleanupPartner(partner.id);
   }
 });
