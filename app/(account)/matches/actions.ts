@@ -418,8 +418,7 @@ export type OptInResult =
  */
 export async function optInFromMatches(
   accessToken: string,
-  action: OptInAction,
-  requestedCohortOnly = false
+  action: OptInAction
 ): Promise<OptInResult> {
   // Matching itself closes after the 5th, but perks-only doesn't need a
   // matcher round to mean anything -- it stays available all month (the
@@ -518,11 +517,11 @@ export async function optInFromMatches(
 
   if (topicError || !topic) return { success: false, error: "server_error" };
 
-  // Comped cohort members are always matched inside their cohort; other
-  // cohort members get what they asked for (the editable checkbox ships later).
+  // Cohort members are matched inside their cohort unless they chose "Anyone"
+  // (members.cohort_only, default true); comped members have no choice.
   let cohortOnly: boolean;
   try {
-    cohortOnly = await resolveCohortOnly(supabase, memberId, requestedCohortOnly);
+    cohortOnly = await resolveCohortOnly(supabase, memberId);
   } catch (e) {
     console.error("[optInFromMatches] cohort lookup failed:", e);
     return { success: false, error: "server_error" };

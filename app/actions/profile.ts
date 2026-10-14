@@ -39,6 +39,8 @@ export type MemberProfile = {
   cohort: string | null;
   /** Display name of the member's cohort (cohorts.name), for member-facing copy. */
   cohort_name: string | null;
+  /** Standing match-pool choice: true = just my cohort, false = anyone. Defaults to true. */
+  cohort_only: boolean;
   billing_mode: BillingMode;
 };
 
@@ -96,7 +98,7 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("members")
-    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, availability, match_priority, children, open_to_second_match, matches_remaining, cohort, billing_mode")
+    .select("id, first_name, last_name, email, status, zipcode, language, parent_type, stripe_customer_id, availability, match_priority, children, open_to_second_match, matches_remaining, cohort, cohort_only, billing_mode")
     .eq("id", authed.memberId)
     .single();
   if (error && error.code !== "PGRST116") {
@@ -109,7 +111,7 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
   if (data.cohort) {
     cohortName = (await getCohortNames(supabase)).get(data.cohort) ?? null;
   }
-  return { ...data, cohort_name: cohortName } as MemberProfile;
+  return { ...data, cohort_name: cohortName, cohort_only: data.cohort_only !== false } as MemberProfile;
 }
 
 export async function getTopics(): Promise<Topic[]> {
@@ -255,6 +257,7 @@ type ProfileUpdates = Partial<{
   match_priority: "age" | "proximity" | null;
   children: Child[] | null;
   open_to_second_match: boolean;
+  cohort_only: boolean;
 }>;
 
 /**

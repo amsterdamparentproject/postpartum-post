@@ -3,10 +3,11 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
+import MatchPoolPicker from "@/components/MatchPoolPicker";
+import { updateMemberProfile, type MemberProfile } from "@/app/actions/profile";
 import { OPTIN_DEADLINE_DAY, isOptinWindowOpen } from "@/lib/optin-window";
 import { useAccount } from "@/app/(account)/AccountContext";
-import { cohortOnlyLabel } from "@/lib/cohort";
-import { isComped, hasPerksAccess } from "@/lib/billing-mode";
+import { hasPerksAccess } from "@/lib/billing-mode";
 import {
   getMatchStatus,
   getExclusions,
@@ -62,7 +63,6 @@ export default function MatchesPage() {
             isOptinWindowOpen() ? (
               <OptInCard
                 accessToken={accessToken ?? ""}
-                cohortLocked={isComped(member.billing_mode) && member.cohort ? (member.cohort_name ?? "") : null}
                 perksEnabled={hasPerksAccess(member.billing_mode)}
                 onOptIn={() => getMatchStatus(accessToken ?? "").then(setStatus)}
               />
@@ -99,6 +99,7 @@ export default function MatchesPage() {
           exclusions={exclusions}
           onExclusionsChange={setExclusions}
           hasAnyMatch={status?.type === "matched" || pastMatches.length > 0}
+          member={member}
         />
       </div>
     </div>
@@ -109,12 +110,41 @@ export default function MatchesPage() {
 // Match admin panel
 // ---------------------------------------------------------------------------
 
+function MatchPoolCard({ accessToken, member }: { accessToken: string; member: MemberProfile }) {
+  const [cohortOnly, setCohortOnly] = useState(member.cohort_only);
+  const [error, setError] = useState<string | null>(null);
+
+  function change(next: boolean) {
+    const previous = cohortOnly;
+    setCohortOnly(next);
+    setError(null);
+    updateMemberProfile(accessToken, { cohort_only: next }).catch(() => {
+      setCohortOnly(previous);
+      setError("Couldn't save, try again.");
+    });
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-2">
+      <MatchPoolPicker
+        name="matchPoolPanel"
+        cohortName={member.cohort_name ?? ""}
+        cohortOnly={cohortOnly}
+        onChange={change}
+      />
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 function MatchAdmin({
   accessToken,
   exclusions,
   onExclusionsChange,
   hasAnyMatch,
+  member,
 }: {
+  member: MemberProfile;
   accessToken: string;
   exclusions: Exclusion[];
   onExclusionsChange: (e: Exclusion[]) => void;
@@ -166,6 +196,9 @@ function MatchAdmin({
             Share feedback
           </Link>
         </div>
+      )}
+      {member.cohort && member.cohort_name && (
+        <MatchPoolCard accessToken={accessToken} member={member} />
       )}
       <div className="rounded-2xl border border-border bg-white/80 backdrop-blur p-6 space-y-5">
       <h2 className="font-semibold text-dark text-sm">Parents you won&apos;t match with</h2>
@@ -533,13 +566,11 @@ function SkippedCard({ month }: { month: string }) {
 function OptInCard({
   accessToken,
   onOptIn,
-  cohortLocked,
   perksEnabled,
 }: {
   accessToken: string;
   onOptIn: () => void;
   /** Cohort display name ("" if unknown) when matching is locked to the member's cohort (comped), else null. */
-  cohortLocked: string | null;
   /** False for comped_no_perks members: the perks-only choice is hidden. */
   perksEnabled: boolean;
 }) {
@@ -607,15 +638,6 @@ function OptInCard({
         </button>
         )}
       </div>
-      {cohortLocked && (
-        <label className="flex items-start gap-3 text-sm text-dark opacity-70 cursor-not-allowed">
-          <input type="checkbox" checked disabled readOnly className="mt-0.5 shrink-0 accent-coral" />
-          <span>
-            {cohortOnlyLabel(cohortLocked || null)}
-            <span className="block text-xs text-muted">Your free match is with your cohort.</span>
-          </span>
-        </label>
-      )}
       <button
         onClick={() => handleChoice("skip")}
         disabled={isPending}

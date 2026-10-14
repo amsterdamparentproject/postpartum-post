@@ -1,4 +1,4 @@
--- Migration 034: cohorts table
+-- Migration 034: cohorts table, unique signup codes, cohort_joined_at, cohort_only
 --
 -- Moves per-cohort settings out of code and environment variables. Until now
 -- the Dutch Speaking Academy cohort ("dsa") was hard-coded: its name and
@@ -19,13 +19,8 @@
 --   signup_cap             maximum number of signups (members with this cohort).
 --                          NULL means no cap.
 --   grant_matches          matches granted at signup
---   restrict_while_comped  comped members of this cohort are matched only
---                          inside the cohort (DSA: true, FYP: false)
---   offers_choice          after the member starts paying, they get the editable
---                          "match me only with <cohort>" checkbox
 --   partner_rate_cents     what the partner is invoiced per participant, for the
 --                          admin headcount. Set in the SQL editor, like the code.
---   perk_text, logo_url    optional partner copy and logo for member-facing pages
 --   active                 inactive cohorts refuse new signups
 --
 -- Row level security is on with no policies: only the service role (the
@@ -40,23 +35,39 @@ create table if not exists postpartumpost.cohorts (
   signup_code text check (signup_code is null or signup_code = lower(signup_code)),
   signup_cap integer check (signup_cap is null or signup_cap > 0),
   grant_matches integer not null default 1 check (grant_matches >= 0),
-  restrict_while_comped boolean not null default false,
-  offers_choice boolean not null default false,
   partner_rate_cents integer check (partner_rate_cents is null or partner_rate_cents >= 0),
-  perk_text text,
-  logo_url text,
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 alter table postpartumpost.cohorts enable row level security;
 
-insert into postpartumpost.cohorts (slug, name, grant_matches, restrict_while_comped, offers_choice, logo_url)
-values ('dsa', 'Dutch Speaking Academy', 1, true, true, '/dsa/dsa-logo.png')
+-- A signup code identifies one cohort: existing members redeem a code on the
+-- billing page without naming the cohort, so the code has to be unique.
+create unique index if not exists cohorts_signup_code_key
+  on postpartumpost.cohorts (signup_code)
+  where signup_code is not null;
+
+insert into postpartumpost.cohorts (slug, name, grant_matches)
+values ('dsa', 'Dutch Speaking Academy', 1)
 on conflict (slug) do nothing;
 
 alter table postpartumpost.members
   add constraint members_cohort_fkey
   foreign key (cohort) references postpartumpost.cohorts (slug);
+
+-- When a member joined their cohort. A new cohort signup joins at created_at,
+-- but an existing member can redeem a code months after they signed up, and the
+-- partner invoice is by month joined. Set at signup and at redemption.
+alter table postpartumpost.members
+  add column if not exists cohort_joined_at timestamptz;
+
+-- A member's standing match-pool choice: true = matched only with their cohort,
+-- false = anyone. Defaults to true, so a member who joins a cohort is matched
+-- inside it until they pick "Anyone" on /profile. Ignored for members without a
+-- cohort. Comped members can change it too: the free match being inside the
+-- cohort is the default, not a lock.
+alter table postpartumpost.members
+  add column if not exists cohort_only boolean not null default true;
 
 notify pgrst, 'reload schema';
