@@ -62,6 +62,10 @@ test("signing up again with the same email doesn't grant a second free match", a
   await fillForm(page, CODE!);
   await page.getByRole("button", { name: /claim my free match/i }).click();
 
-  await expect(page.getByText(/already a Postpartum Post member|already joined a partner program/i)).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page
+      .getByText(/already a Postpartum Post member|already joined a partner program/i)
+      .and(page.locator("p.text-red-600")),
+  ).toBeVisible({ timeout: 10_000 });
   expect((await getMemberCohortByEmail(EMAIL))!.matches_remaining).toBe(1);
 });

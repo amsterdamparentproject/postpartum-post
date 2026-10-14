@@ -268,6 +268,9 @@ export async function seedPerk(
     url?: string | null;
     status?: "pending" | "published";
     exclusive?: boolean;
+    featured?: boolean;
+    /** Short link name for /my-perks?perk=<slug> and /perks?perk=<slug> (needs migration 034). */
+    slug?: string;
   },
 ): Promise<{ id: string }> {
   const id = crypto.randomUUID();
@@ -282,6 +285,8 @@ export async function seedPerk(
     redemption_code: perk.code ?? null,
     url: perk.url ?? null,
     exclusive: perk.exclusive ?? false,
+    featured: perk.featured ?? false,
+    ...(perk.slug ? { slug: perk.slug } : {}),
   });
   if (error) throw new Error(`seedPerk failed: ${error.message}`);
   return { id };
