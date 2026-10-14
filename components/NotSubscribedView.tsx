@@ -3,10 +3,24 @@
 import { useEffect, useState } from "react";
 import SignupForm from "@/components/SignupForm";
 import MagicLinkRequest from "@/components/MagicLinkRequest";
+import { createBrowserClient } from "@/lib/supabase";
 import { getSignupMeta, type SignupMeta } from "@/app/actions/signup";
 
 export default function NotSubscribedView({ email }: { email: string }) {
   const [meta, setMeta] = useState<SignupMeta | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  // Clears the current session so the visitor can sign in as someone else.
+  // AccountContext's onAuthStateChange then sees no session and the page
+  // falls back to the plain sign-in form — no redirect needed.
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await createBrowserClient().auth.signOut();
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   useEffect(() => {
     getSignupMeta().then(setMeta);
@@ -22,6 +36,14 @@ export default function NotSubscribedView({ email }: { email: string }) {
           <strong className="text-dark">{email}</strong>{" "}isn&apos;t associated with a subscription.
           Try a different address, or sign up below.
         </p>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="text-sm text-coral hover:text-coral-dark underline underline-offset-2 disabled:opacity-60"
+        >
+          {signingOut ? "Signing out…" : `Not you? Sign out of ${email}`}
+        </button>
       </div>
 
       {/* Try a different email */}

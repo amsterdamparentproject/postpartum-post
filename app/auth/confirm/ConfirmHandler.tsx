@@ -28,25 +28,34 @@ export default function ConfirmHandler({ next }: { next: string }) {
   useEffect(() => {
     const supabase = createBrowserClient();
 
-    // Already signed in — e.g. this exact link was already clicked and
-    // verified once earlier. Tokens are single-use, so re-verifying would
-    // just fail with "expired"; if a session already exists, skip straight
-    // to the destination instead of showing that error to someone who's
-    // still validly logged in.
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+      const tokenHash = searchParams.get("token_hash");
+      const type = searchParams.get("type");
+
+      // No token in the URL and a session already exists — just continue.
+      // (With a token present we must still verify it below: a pre-existing
+      // session may belong to a different account than the link's, e.g. a
+      // stale test session, and skipping verification would silently ignore
+      // the link and leave the visitor signed in as the wrong user.)
+      if (session && !(tokenHash && type)) {
         setStatus("success");
         router.replace(next);
         return;
       }
 
-      const tokenHash = searchParams.get("token_hash");
-      const type = searchParams.get("type");
-
       // PKCE flow: token_hash arrives as a query param (standard magic link emails)
       if (tokenHash && type) {
         verifyMagicLinkToken(tokenHash, type).then((errorMessage) => {
           if (errorMessage) {
+            // Tokens are single-use: if this exact link was already
+            // verified (e.g. a double-click or reload) the session it
+            // created is still valid — continue instead of showing
+            // "expired" to someone who's validly signed in.
+            if (session) {
+              setStatus("success");
+              router.replace(next);
+              return;
+            }
             console.error("[auth/confirm] verifyOtp error:", errorMessage);
             setStatus("error");
           } else {
