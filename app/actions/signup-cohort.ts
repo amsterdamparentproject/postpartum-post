@@ -25,7 +25,7 @@ export type CohortSignupResult = { ok: true; existingMember?: boolean } | { erro
  * Free, no-card signup for a partner cohort (first: Dutch Speaking Academy, "dsa").
  *
  * Reads the cohort's settings from the cohorts table: the shared signup code
- * (case-insensitive, never sent to the browser), the signup cap, and how many
+ * (case-sensitive, never sent to the browser), the signup cap, and how many
  * matches to grant. Creates an active member tagged cohort=<slug> /
  * billing_mode=comped_no_perks and grants the matches through the ledger (a
  * manual_grant). Nothing touches Stripe: no customer, no subscription.
@@ -58,7 +58,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
   if (!cohort || !cohort.active || !cohort.signup_code) {
     return { error: "Signup isn't open right now. Please email us if you think this is a mistake." };
   }
-  if (data.code.trim().toLowerCase() !== cohort.signup_code) {
+  if (data.code.trim() !== cohort.signup_code) {
     return { error: "That code doesn't look right. Check the code you were given and try again." };
   }
 

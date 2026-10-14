@@ -32,7 +32,7 @@ describe("redeemCohortCode — integration", () => {
     const { error } = await supabase.from("cohorts").insert({
       slug: SLUG,
       name: "Test Academy",
-      signup_code: CODE.toLowerCase(),
+      signup_code: CODE,
       grant_matches: 1,
       ...fields,
     });
@@ -48,10 +48,10 @@ describe("redeemCohortCode — integration", () => {
     await createTestSupabase().from("cohorts").delete().eq("slug", SLUG);
   });
 
-  it("tags the member with the cohort and grants the free match (code is case-insensitive)", async () => {
+  it("tags the member with the cohort and grants the free match (surrounding spaces are ignored)", async () => {
     const member = await seed({ matches_remaining: 1 });
 
-    const result = await redeemCohortCode(member.id, `  ${CODE.toUpperCase()} `);
+    const result = await redeemCohortCode(member.id, `  ${CODE} `);
     expect(result).toEqual({ ok: true, cohortName: "Test Academy", matchesGranted: 1 });
 
     const { data } = await createTestSupabase()
@@ -63,6 +63,19 @@ describe("redeemCohortCode — integration", () => {
     expect(data?.cohort_joined_at).toBeTruthy();
     expect(data?.matches_remaining).toBe(2);
     expect(data?.billing_mode).toBe("subscription");
+  });
+
+  it("treats the code as case-sensitive", async () => {
+    const member = await seed({ matches_remaining: 1 });
+
+    for (const attempt of [CODE.toUpperCase(), CODE.toLowerCase()]) {
+      const result = await redeemCohortCode(member.id, attempt);
+      expect(result).toHaveProperty("error");
+    }
+
+    const { data } = await createTestSupabase().from("members").select("cohort, matches_remaining").eq("id", member.id).single();
+    expect(data?.cohort).toBeNull();
+    expect(data?.matches_remaining).toBe(1);
   });
 
   it("rejects a wrong code and changes nothing", async () => {

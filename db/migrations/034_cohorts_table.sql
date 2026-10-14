@@ -9,13 +9,14 @@
 -- One row per cohort:
 --   slug                   short id stored in members.cohort ("dsa")
 --   name                   display name used in member-facing copy
---   signup_code            the shared signup code, stored lower-case. NULL means
+--   signup_code            the shared signup code, case-sensitive: members have to
+--                          enter it exactly as given. NULL means
 --                          signup is closed. A secret: it is read only on the
 --                          server and never sent to the browser. It is NOT set
 --                          by this migration, so it never enters the repo; set
 --                          it in the Supabase SQL editor:
 --                            update postpartumpost.cohorts
---                            set signup_code = lower('<code>') where slug = 'dsa';
+--                            set signup_code = '<code>' where slug = 'dsa';
 --   signup_cap             maximum number of signups (members with this cohort).
 --                          NULL means no cap.
 --   grant_matches          matches granted at signup
@@ -32,7 +33,7 @@
 create table if not exists postpartumpost.cohorts (
   slug text primary key check (slug = lower(slug)),
   name text not null,
-  signup_code text check (signup_code is null or signup_code = lower(signup_code)),
+  signup_code text,
   signup_cap integer check (signup_cap is null or signup_cap > 0),
   grant_matches integer not null default 1 check (grant_matches >= 0),
   partner_rate_cents integer check (partner_rate_cents is null or partner_rate_cents >= 0),

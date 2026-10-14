@@ -44,11 +44,11 @@ export type CodeCohort = {
 
 /**
  * Finds the active cohort a signup code belongs to (codes are unique, stored
- * lower-case, matched case-insensitively). Null for a blank, unknown or
+ * matched exactly, case included). Null for a blank, unknown or
  * inactive code, so callers can answer all three the same way.
  */
 export async function findCohortByCode(supabase: AdminClient, code: string): Promise<CodeCohort | null> {
-  const normalized = code.trim().toLowerCase();
+  const normalized = code.trim();
   if (!normalized) return null;
   const { data, error } = await supabase
     .from("cohorts")

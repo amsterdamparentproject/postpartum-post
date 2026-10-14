@@ -127,11 +127,11 @@ export default function DutchCohortSignupForm({ cohort }: { cohort: string }) {
           name="code"
           type="text"
           required
-          autoCapitalize="characters"
+          autoCapitalize="none"
           autoComplete="off"
           spellCheck={false}
           placeholder="Code from Mariska"
-          className={`${inputClass} uppercase placeholder:normal-case`}
+          className={inputClass}
         />
       </div>
 
