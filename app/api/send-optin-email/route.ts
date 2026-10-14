@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient();
   const { data: members, error } = await supabase
     .from("members")
-    .select("id, first_name, email, matches_remaining, cohort, billing_mode")
+    .select("id, first_name, email, matches_remaining, cohort, cohort_only, billing_mode")
     .or("status.eq.active,and(status.eq.canceling,matches_remaining.gt.0)");
 
   if (error) {
@@ -129,7 +129,11 @@ export async function POST(req: NextRequest) {
         lastMatchNotice,
         {
           perksEnabled: hasPerksAccess(member.billing_mode),
-          cohortName: isComped(member.billing_mode) && member.cohort ? (cohortNames.get(member.cohort) ?? null) : null,
+          // Cohort-branded when this round's match is inside the cohort: the
+          // member's own pool choice (lib/cohort.ts's resolveCohortOnly rule),
+          // so a cohort member who picked "Anyone" gets the regular email.
+          cohortName: member.cohort && member.cohort_only !== false ? (cohortNames.get(member.cohort) ?? null) : null,
+          cohortFreeMatch: isComped(member.billing_mode),
         }
       );
       sent++;

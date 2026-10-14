@@ -3,14 +3,11 @@ import { FROM, SITE_URL, ASSETS_URL, getResend, bodySection, ctaButton, baseEmai
 const ROW = `font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px`;
 
 /**
- * Welcome email for comped cohort members (Dutch Speaking Academy). They never
- * saw a billing screen, so the closing note says the match is a gift from
- * their course, nothing is charged, and nothing renews. The 1st to 5th
- * opt-in window is explained above the button.
+ * Double-branded header (Dutch Speaking Academy and Postpartum Post), shared by
+ * the cohort welcome email and the cohort version of the monthly opt-in email.
  */
-export function cohortWelcomeHtml(firstName: string, signInLink: string, cohortName: string): string {
-  // Double-branded header: Dutch Speaking Academy & Postpartum Post.
-  const headerImage = `
+export function cohortHeader(): string {
+  return `
                   <tr><td style="padding:0 24px 16px">
                     <table cellpadding="0" cellspacing="0" border="0" style="width:100%"><tbody><tr>
                       <td align="center">
@@ -24,6 +21,18 @@ export function cohortWelcomeHtml(firstName: string, signInLink: string, cohortN
                       </td>
                     </tr></tbody></table>
                   </td></tr>`;
+}
+
+export const COHORT_HEADER_PRELOAD = `<link rel="preload" as="image" href="${ASSETS_URL}/email-images/welcome-dsa.png">`;
+
+/**
+ * Welcome email for comped cohort members (Dutch Speaking Academy). They never
+ * saw a billing screen, so the closing note says the match is a gift from
+ * their course, nothing is charged, and nothing renews. The 1st to 5th
+ * opt-in window is explained above the button.
+ */
+export function cohortWelcomeHtml(firstName: string, signInLink: string, cohortName: string): string {
+  const headerImage = cohortHeader();
 
   const rows = `
                                     <tr><td dir="ltr" style="${ROW}">
@@ -48,7 +57,7 @@ export function cohortWelcomeHtml(firstName: string, signInLink: string, cohortN
 
   return baseEmail(
     headerImage + bodySection(rows) + ctaButton("Go to my profile", signInLink) + bodySection(afterRows),
-    `<link rel="preload" as="image" href="${ASSETS_URL}/email-images/welcome-dsa.png">`
+    COHORT_HEADER_PRELOAD
   );
 }
 

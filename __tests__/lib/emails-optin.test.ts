@@ -68,7 +68,7 @@ describe("opt-in email — comped cohort members (no Perks)", () => {
     mockSend.mockClear();
   });
 
-  async function sendWithOptions(options?: { perksEnabled?: boolean; cohortName?: string | null }): Promise<string> {
+  async function sendWithOptions(options?: { perksEnabled?: boolean; cohortName?: string | null; cohortFreeMatch?: boolean }): Promise<string> {
     await sendOptinEmail(
       "recipient@example.test",
       "Robin",
@@ -98,9 +98,36 @@ describe("opt-in email — comped cohort members (no Perks)", () => {
     expect(html).toContain("action=skip");
   });
 
-  it("tells a cohort member the match is within the cohort and expires if skipped", async () => {
-    const html = await sendWithOptions({ perksEnabled: false, cohortName: "Dutch Speaking Academy" });
+  it("tells a comped cohort member this is their free match, and that skipping keeps it for next month", async () => {
+    const html = await sendWithOptions({ perksEnabled: false, cohortName: "Dutch Speaking Academy", cohortFreeMatch: true });
     expect(html).toContain("your free match from Dutch Speaking Academy");
-    expect(html).toContain("another student from the course");
+    // The free-match note takes the place of the usual "Need a break?" footer line.
+    expect(html).toContain("skip this month</a> and use your free match next month");
+    expect(html).toContain("can't guarantee that you'll be matched with another Dutch Speaking Academy member");
+    expect(html).toContain("action=skip");
+    expect(html).not.toContain("If we don't hear from you");
+    expect(html).not.toContain("used up");
+  });
+
+  it("uses the double-branded header and explains online matching for cohort members", async () => {
+    const html = await sendWithOptions({ cohortName: "Dutch Speaking Academy" });
+    expect(html).toContain("welcome-dsa.png");
+    expect(html).toContain("Live outside Amsterdam?");
+    expect(html).toContain("a video call is a great way to practice Dutch");
+  });
+
+  it("says the round is within the cohort but not that skipping uses up a free match, for a paying member", async () => {
+    const html = await sendWithOptions({ cohortName: "Dutch Speaking Academy", cohortFreeMatch: false });
+    expect(html).toContain("This round you'll be matched with another parent from");
+    expect(html).toContain("<span style=\"font-weight:700\">Dutch Speaking Academy</span>");
+    expect(html).not.toContain("your free match from");
+    expect(html).toContain("Need a break?");
+    expect(html).toContain("action=skip");
+  });
+
+  it("keeps the regular header and no cohort copy without a cohort", async () => {
+    const html = await sendWithOptions();
+    expect(html).not.toContain("welcome-dsa.png");
+    expect(html).not.toContain("Live outside Amsterdam?");
   });
 });
