@@ -94,14 +94,15 @@ export type CohortHeadcount = {
 
 /**
  * Headcount per partner cohort, e.g. for invoicing Dutch Speaking Academy a
- * per-participant rate. Counts members by signup month, regardless of what
+ * per-participant rate. Counts members by the month they joined the cohort
+ * (new signups and existing members who redeemed a code alike), regardless of what
  * they do afterwards, so a later cancellation never changes a past invoice.
  */
 export async function getCohortHeadcount(): Promise<CohortHeadcount[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("members")
-    .select("cohort, billing_mode, created_at")
+    .select("cohort, billing_mode, created_at, cohort_joined_at")
     .not("cohort", "is", null);
   if (error) {
     console.error("[getCohortHeadcount] query failed:", error.message);
@@ -121,7 +122,7 @@ export async function getCohortHeadcount(): Promise<CohortHeadcount[]> {
     if (row.billing_mode === "comped_no_perks" || row.billing_mode === "comped_with_perks") entry.comped++;
     else entry.continued++;
     // "2026-10" from en-CA's "2026-10"
-    const month = monthFormat.format(new Date(row.created_at as string));
+    const month = monthFormat.format(new Date((row.cohort_joined_at ?? row.created_at) as string));
     entry.months.set(month, (entry.months.get(month) ?? 0) + 1);
     byCohort.set(cohort, entry);
   }

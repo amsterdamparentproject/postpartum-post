@@ -3,7 +3,10 @@
 import { createAdminClient } from "@/lib/supabase";
 import { recordEntitlement } from "@/lib/match-ledger";
 import { createWelcomeSignIn } from "@/lib/member-welcome";
-import { sendCohortWelcomeEmail } from "@/lib/emails";
+import { sendCohortWelcomeEmail, sendCohortExistingMemberEmail } from "@/lib/emails";
+import { isComped } from "@/lib/billing-mode";
+import { cohortIsFull } from "@/lib/cohort";
+import { joinCohortAsExistingMember } from "@/lib/cohort-join";
 
 export type CohortSignupFormData = {
   /** Which cohort to join, e.g. "dsa" (cohorts.slug). */
@@ -16,7 +19,7 @@ export type CohortSignupFormData = {
   guidelinesAccepted: boolean;
 };
 
-export type CohortSignupResult = { ok: true } | { error: string };
+export type CohortSignupResult = { ok: true; existingMember?: boolean } | { error: string };
 
 /**
  * Free, no-card signup for a partner cohort (first: Dutch Speaking Academy, "dsa").
@@ -59,22 +62,51 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
     return { error: "That code doesn't look right. Check the code you were given and try again." };
   }
 
-  if (cohort.signup_cap !== null) {
-    const { count, error: countError } = await supabase
-      .from("members")
-      .select("id", { count: "exact", head: true })
-      .eq("cohort", slug);
-    if (countError || count === null) {
-      console.error("[signup-cohort] cap check failed:", countError);
-      return { error: "Something went wrong. Please try again, or email us." };
-    }
-    if (count >= cohort.signup_cap) {
+  try {
+    if (await cohortIsFull(supabase, cohort)) {
       return { error: "Sorry, all the places for this cohort are taken. Please email us and we'll help." };
     }
+  } catch (e) {
+    console.error("[signup-cohort] cap check failed:", e);
+    return { error: "Something went wrong. Please try again, or email us." };
   }
 
   const email = data.email.trim().toLowerCase();
   const now = new Date().toISOString();
+
+  // The email already belongs to a member (the code has been checked above, so
+  // this is only revealed to someone holding a valid code): add the cohort and
+  // the free match to their account instead of creating a new one. Only an
+  // active, paying, cohort-less member qualifies, the same rule as the code box
+  // on the billing page. They get a short confirmation email (their plan is unchanged,
+  // so not the comped welcome).
+  const { data: existing, error: existingError } = await supabase
+    .from("members")
+    .select("id, status, billing_mode, cohort")
+    .eq("email", email)
+    .maybeSingle();
+  if (existingError) {
+    console.error("[signup-cohort] existing member lookup failed:", existingError);
+    return { error: "Something went wrong. Please try again, or email us." };
+  }
+  if (existing) {
+    if (existing.cohort) {
+      return { error: "You've already joined a partner program, so there's nothing more to add. Email us if that's a mistake." };
+    }
+    if (existing.status !== "active" || isComped(existing.billing_mode)) {
+      return { error: "This email is already a Postpartum Post member, but we can't add the code automatically. Please email us and we'll sort it out." };
+    }
+    if (!(await joinCohortAsExistingMember(supabase, existing.id, cohort))) {
+      return { error: "Something went wrong. Please try again, or email us." };
+    }
+    try {
+      const { signInLink } = await createWelcomeSignIn(supabase, email);
+      await sendCohortExistingMemberEmail(email, signInLink, cohort.name);
+    } catch (e) {
+      console.error("[signup-cohort] existing-member email failed (non-fatal):", e);
+    }
+    return { ok: true, existingMember: true };
+  }
 
   const { data: member, error } = await supabase
     .from("members")
@@ -84,6 +116,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
       email,
       status: "active",
       cohort: slug,
+      cohort_joined_at: now,
       billing_mode: "comped_no_perks",
       eligibility_confirmed_at: now,
       guidelines_accepted_at: now,
@@ -95,7 +128,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
     if (error?.code === "23505") {
       return {
         error:
-          "This email is already signed up for Postpartum Post. Sign in to your account instead, or email us if you need help.",
+          "This email is already a Postpartum Post member. Sign in to your account and add your code on the Billing page to get your free round, or email us if you need help.",
       };
     }
     console.error("[signup-cohort] member insert failed:", error);

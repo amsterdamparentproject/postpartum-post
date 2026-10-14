@@ -18,7 +18,7 @@ export default function DutchCohortSignupForm({ cohort }: { cohort: string }) {
   const [eligibilityConfirmed, setEligibilityConfirmed] = useState(false);
   const [guidelinesAccepted, setGuidelinesAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<null | "new" | "existing">(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -38,9 +38,24 @@ export default function DutchCohortSignupForm({ cohort }: { cohort: string }) {
       if ("error" in result) {
         setError(result.error);
       } else {
-        setDone(true);
+        setDone(result.existingMember ? "existing" : "new");
       }
     });
+  }
+
+  if (done === "existing") {
+    return (
+      <div className="text-center space-y-3 py-4">
+        <span className="text-4xl" aria-hidden="true">💌</span>
+        <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
+          You&apos;re already a member with us!
+        </p>
+        <p className="text-sm text-muted leading-relaxed">
+          1 free round will be added to your account, and your next match will be with a Dutch
+          Speaking Academy student.
+        </p>
+      </div>
+    );
   }
 
   if (done) {

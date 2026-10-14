@@ -70,3 +70,43 @@ export async function sendCohortWelcomeEmail(
     throw error;
   }
 }
+
+/**
+ * Confirmation for an existing, paying member who joined a cohort with its code
+ * (billing page or splash page). Unlike cohortWelcomeHtml, their plan is
+ * unchanged: the free round is on top of it, and nothing about billing is said
+ * to stop. Also tells the real owner of the inbox that a code was used on the
+ * account.
+ */
+export function cohortExistingMemberHtml(signInLink: string, cohortName: string): string {
+  const rows = `
+                                    <tr><td dir="ltr" style="${ROW}">
+                                      <span style="font-weight:700">Welcome to the ${cohortName} in Postpartum Post!</span>
+                                      <span> The code you entered has granted you 1 free round, included with your course — when you use it next month, you'll be matched with another member of the ${cohortName}.</span>
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="${ROW}">
+                                      <span>Nothing changes about your plan or billing. The free round is on top of it. Per usual, you can opt in between the 1st and the 5th of the month, and your match arrives on the 7th.</span>
+                                    </td></tr>
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;line-height:1.4;mso-line-height-alt:22.4px">
+                                      <span>Didn't use a code? Reply to this email and we'll sort it out.</span>
+                                    </td></tr>`;
+  return baseEmail(bodySection(rows) + ctaButton("Go to my account", signInLink));
+}
+
+export async function sendCohortExistingMemberEmail(
+  email: string,
+  signInLink: string,
+  cohortName: string
+) {
+  const resend = getResend();
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `${subjectPrefix()}Your free round is added 💌`,
+    html: cohortExistingMemberHtml(signInLink, cohortName),
+  });
+  if (error) {
+    console.error("[resend] sendCohortExistingMemberEmail error:", error);
+    throw error;
+  }
+}

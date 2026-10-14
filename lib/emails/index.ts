@@ -5,4 +5,4 @@ export { sendOptinEmail } from "./optin";
 export { sendMatchRevealEmail } from "./match-reveal";
 export { sendGiftCardEmail } from "./gift-card";
 export { sendMeetupReminderEmail } from "./meetup-reminder";
-export { sendCohortWelcomeEmail } from "./welcome-cohort";
+export { sendCohortWelcomeEmail, sendCohortExistingMemberEmail } from "./welcome-cohort";
