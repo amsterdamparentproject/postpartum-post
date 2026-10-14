@@ -12,11 +12,38 @@ import { getCohortPerk } from "@/lib/cohort-perk";
 
 const title = "Dutch Speaking Academy × Postpartum Post";
 const description =
-  "Dutch Speaking Academy students get one free match through Postpartum Post: a fellow parent from your round to practice real Dutch with, in person or on video.";
+  "Practice Dutch 1:1 with a fellow parent who's equally committed — and make a new friend along the way. Dutch Speaking Academy students get one free match through Postpartum Post.";
 
+const banner = {
+  url: "/og-dsa.png",
+  width: 1200,
+  height: 630,
+  alt: "Dutch Speaking Academy × Postpartum Post",
+};
+
+// openGraph and twitter replace the root layout's blocks wholesale rather
+// than merging, so siteName/locale/card are repeated. The title already names
+// both brands, so it isn't run through the root layout's title template for
+// the share cards.
 export const metadata: Metadata = {
   title,
   description,
+  alternates: { canonical: "/dutch-speaking-academy" },
+  openGraph: {
+    type: "website",
+    locale: "en_NL",
+    siteName: "Postpartum Post",
+    url: "/dutch-speaking-academy",
+    title,
+    description,
+    images: [banner],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: [banner.url],
+  },
 };
 
 // DSA's own gold, sampled from its logo (its terracotta lives in DutchCohortSteps).
@@ -134,6 +161,7 @@ export default async function DutchSpeakingAcademyPage() {
               </>
             }
             intro={null}
+            stackOnMobile
           />
         </div>
 
@@ -161,7 +189,6 @@ export default async function DutchSpeakingAcademyPage() {
             faqs={FAQS}
             heading={
               <>
-            stackOnMobile
                 Frequently asked <span className="text-coral">questions</span>
               </>
             }
