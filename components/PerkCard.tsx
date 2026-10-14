@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import Sparkle from "@/components/Sparkle";
 import { formatExpiry } from "@/lib/perk-display";
 
@@ -33,7 +34,8 @@ export type PerkCardPartner = {
  * this perk", see __claude__/perks-simplification-plan.md) wraps this later.
  * `badge` is a slot on the photo's top-right corner (e.g. the partner
  * portal's review status, or "Redeemed"); when it's empty the corner shows
- * the "Save €X" pill instead, if the perk has estimated_savings, and `onClick` makes the whole card a button.
+ * the "Save €X" pill instead, if the perk has estimated_savings, and `onClick` makes the whole card a button
+ * (or `href` makes it a link, for the public carousel's path to /my-perks).
  * `actionLabel` is shown in an overlay on hover/keyboard focus of a
  * clickable card: "Edit perk" in the partner portal, "Redeem now" on a
  * live perk for members. On touch screens there's no hover, so a tap goes
@@ -48,6 +50,7 @@ export default function PerkCard({
   locationLabel,
   badge,
   onClick,
+  href,
   actionLabel,
   umamiEvent,
 }: {
@@ -56,6 +59,8 @@ export default function PerkCard({
   locationLabel?: string | null;
   badge?: ReactNode;
   onClick?: () => void;
+  /** Makes the whole card a link instead of a button. Ignored when `onClick` is set. */
+  href?: string;
   actionLabel?: string;
   /** Optional data-umami-event label for the members' /my-perks and match-page
    *  uses of this card. Left unset for the partner portal/admin uses so their
@@ -123,31 +128,53 @@ export default function PerkCard({
   const shell =
     "w-full text-left bg-white rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col";
 
-  return onClick ? (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={actionLabel ? `${actionLabel}: ${perk.title}` : undefined}
-      data-umami-event={umamiEvent}
-      data-umami-event-perk={umamiEvent ? perk.title : undefined}
-      className={`group relative ${shell} hover:border-coral/40 hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-coral/40`}
+  const interactiveClass = `group relative ${shell} hover:border-coral/40 hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-coral/40`;
+  const overlay = actionLabel && (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center bg-green/70 backdrop-blur-[2px] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
     >
-      {body}
-      {actionLabel && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center bg-green/70 backdrop-blur-[2px] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-        >
-          <span className="text-xl leading-snug text-dark line-clamp-3" style={{ fontFamily: "var(--font-serif)" }}>
-            {perk.title}
-          </span>
-          <span className="px-5 py-2.5 rounded-full bg-coral text-white text-sm font-semibold shadow-md">
-            {actionLabel}
-          </span>
-        </span>
-      )}
-    </button>
-  ) : (
-    <div className={shell}>{body}</div>
+      <span className="text-xl leading-snug text-dark line-clamp-3" style={{ fontFamily: "var(--font-serif)" }}>
+        {perk.title}
+      </span>
+      <span className="px-5 py-2.5 rounded-full bg-coral text-white text-sm font-semibold shadow-md">
+        {actionLabel}
+      </span>
+    </span>
   );
+  const ariaLabel = actionLabel ? `${actionLabel}: ${perk.title}` : undefined;
+  const umamiPerk = umamiEvent ? perk.title : undefined;
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={ariaLabel}
+        data-umami-event={umamiEvent}
+        data-umami-event-perk={umamiPerk}
+        className={interactiveClass}
+      >
+        {body}
+        {overlay}
+      </button>
+    );
+  }
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        aria-label={ariaLabel}
+        data-umami-event={umamiEvent}
+        data-umami-event-perk={umamiPerk}
+        className={interactiveClass}
+      >
+        {body}
+        {overlay}
+      </Link>
+    );
+  }
+
+  return <div className={shell}>{body}</div>;
 }
