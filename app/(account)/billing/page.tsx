@@ -13,6 +13,7 @@ import { unsubscribe } from "@/app/actions/unsubscribe";
 import { deriveMemberStatusMessage, STATUS_TONE_CLASSNAMES, type MemberStatusMessage } from "@/lib/member-status";
 import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
 import { isComped, hasPerksAccess } from "@/lib/billing-mode";
+import PartnerCodeCard from "@/components/PartnerCodeCard";
 
 // Accepts either a Stripe unix timestamp (a real instant — formatted in the
 // viewer's local zone, as this always has) or a Date (deriveMemberStatusMessage's
@@ -187,7 +188,9 @@ function BillingContent() {
         </div>
       )}
 
-      <div className="max-w-md space-y-6">
+      <div className="grid md:grid-cols-2 gap-6 items-start">
+      {/* Left column — plan & billing */}
+      <div className="space-y-6">
       <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8 space-y-4">
         <h2 className="text-base font-semibold text-dark">Plan & billing</h2>
 
@@ -361,6 +364,26 @@ function BillingContent() {
           </>
         )}
       </div>
+      </div>
+
+      {/* Right column — partner program */}
+      {member && !isComped(member.billing_mode) && member.status === "active" && (
+        (!member.cohort && accessToken) || (member.cohort && member.cohort_name)
+      ) && (
+        <div className="space-y-6">
+        <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8 space-y-4">
+          <h2 className="text-base font-semibold text-dark">Partner program</h2>
+          {member.cohort && member.cohort_name ? (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Your program</span>
+              <span className="text-dark font-medium">{member.cohort_name}</span>
+            </div>
+          ) : (
+            <PartnerCodeCard accessToken={accessToken!} />
+          )}
+        </div>
+        </div>
+      )}
       </div>
     </div>
   );
