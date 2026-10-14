@@ -1,4 +1,4 @@
--- Migration 034: cohorts table, unique signup codes, cohort_joined_at, cohort_only
+-- Migration 034: cohorts table, unique signup codes, cohort_joined_at, cohort_only, perk slugs
 --
 -- Moves per-cohort settings out of code and environment variables. Until now
 -- the Dutch Speaking Academy cohort ("dsa") was hard-coded: its name and
@@ -70,5 +70,45 @@ alter table postpartumpost.members
 -- cohort is the default, not a lock.
 alter table postpartumpost.members
   add column if not exists cohort_only boolean not null default true;
+
+-- Short, readable link for a perk: /my-perks?perk=dsa instead of the perk's
+-- UUID. Optional and set by hand (a partner's perk that gets shared outside the
+-- app, like the Dutch Speaking Academy one):
+--   update postpartumpost.perks set slug = 'dsa' where id = '<perk id>';
+-- Lowercase letters, digits and hyphens. /my-perks accepts a slug or an id.
+alter table postpartumpost.perks
+  add column if not exists slug text
+  check (slug is null or slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$');
+
+create unique index if not exists perks_slug_key
+  on postpartumpost.perks (slug)
+  where slug is not null;
+
+-- perks_partners is `select pk.*, ...`, and a view's column list is frozen at
+-- CREATE time, so it is dropped and recreated (identical to
+-- 031_perk_estimated_savings.sql otherwise) for slug to show up in it.
+drop view if exists postpartumpost.perks_partners;
+
+create view postpartumpost.perks_partners as
+  select pk.*, pt.business_name as partner_name,
+         pt.url as partner_url, pt.image_url as partner_image_url,
+         pt.description as partner_description,
+         coalesce(loc.locations, '[]'::jsonb) as locations
+  from postpartumpost.perks pk
+  join postpartumpost.partners pt on pt.id = pk.partner_id
+  left join lateral (
+    select jsonb_agg(
+      jsonb_build_object(
+        'neighborhood', pl.neighborhood,
+        'area', pl.area,
+        'latitude', pl.latitude,
+        'longitude', pl.longitude
+      )
+      order by pl.created_at
+    ) as locations
+    from postpartumpost.perk_locations plk
+    join postpartumpost.partner_locations pl on pl.id = plk.location_id
+    where plk.perk_id = pk.id
+  ) loc on true;
 
 notify pgrst, 'reload schema';

@@ -30,6 +30,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      // Short link for socials. Temporary (307) so it can be repointed later;
+      // the query string (UTM tags) passes through.
+      { source: "/dsa", destination: "/dutch-speaking-academy", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

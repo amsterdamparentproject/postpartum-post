@@ -54,12 +54,12 @@ export default function MyPerksPage() {
       setOptedIn(result.optedIn);
       setPerksDisabled(!!result.perksDisabled);
       setPerks(result.perks);
-      // Deep link from the match page's perks strip: /my-perks?perk=<id>
+      // Deep link from the match page's perks strip: /my-perks?perk=<id or slug>
       // opens that perk's dialog straight away (and counts as a view).
       const params = new URLSearchParams(window.location.search);
       if (params.get("optin") === "perks" && result.optedIn) setJustOptedInToPerks(true);
       const perkId = params.get("perk");
-      const linked = perkId ? result.perks.find((p) => p.id === perkId) : undefined;
+      const linked = perkId ? result.perks.find((p) => p.id === perkId || p.slug === perkId) : undefined;
       if (linked) {
         setOpen(linked);
         if (!linked.reveal) void viewPerk(token, linked.id);
@@ -85,7 +85,11 @@ export default function MyPerksPage() {
   }, [perks, filter]);
 
   if (loading) return <p className="text-muted text-sm text-center">Loading…</p>;
-  if (!member) return <MagicLinkRequest />;
+  // Keep a deep link (?perk=<id>) through sign-in, so someone arriving from a
+  // partner page lands on their perk instead of /profile.
+  if (!member) {
+    return <MagicLinkRequest redirectTo={`/my-perks${typeof window !== "undefined" ? window.location.search : ""}`} />;
+  }
 
   function handleRedeemed(perkId: string, reveal: PerkReveal) {
     setPerks((list) => list?.map((p) => (p.id === perkId ? { ...p, reveal } : p)) ?? null);

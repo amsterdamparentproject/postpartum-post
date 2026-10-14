@@ -46,6 +46,8 @@ export type PerkReveal = {
 
 export type MemberPerk = {
   id: string;
+  /** Optional short link name, so /my-perks?perk=<slug> works as well as ?perk=<id>. */
+  slug: string | null;
   title: string;
   description: string;
   expires_at: string | null;
@@ -71,13 +73,14 @@ function today(): string {
 }
 
 const LIVE_PERK_FIELDS =
-  "id, title, description, expires_at, exclusive, frequency, estimated_savings, featured, created_at, redemption_type, redemption_code, url, partner_name, partner_url, partner_image_url, is_online, locations";
+  "id, slug, title, description, expires_at, exclusive, frequency, estimated_savings, featured, created_at, redemption_type, redemption_code, url, partner_name, partner_url, partner_image_url, is_online, locations";
 
 /** One of the perk's locations, straight from the perks_partners view's jsonb (db/migrations/031_perk_multi_location.sql). */
 type LiveLocationRow = { neighborhood: string | null; area: string | null; latitude: number | null; longitude: number | null };
 
 type LivePerkRow = {
   id: string;
+  slug: string | null;
   title: string;
   description: string;
   expires_at: string | null;
@@ -193,6 +196,7 @@ export async function listMemberPerks(accessToken: string): Promise<MemberPerksR
     .sort((a, b) => comparePerks(a.rank, b.rank))
     .map(({ r }) => ({
       id: r.id,
+      slug: r.slug,
       title: r.title,
       description: r.description,
       expires_at: r.expires_at,
