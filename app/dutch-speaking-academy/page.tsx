@@ -27,34 +27,29 @@ const DSA_GOLD = "#E4C58F";
 
 const FAQS: FAQItem[] = [
   {
-    question: "Do I need a card?",
+    question: "Do I need a card to sign up?",
     answer:
-      "No. Your free match doesn't need any payment details. Afterward you can choose to continue with a special offer for Dutch Speaking Academy students. Nothing renews on its own, because there's nothing on file to charge.",
+      "No. Your free match doesn't need any payment details. Afterward you can choose to continue with a special membership specifically for Dutch Speaking Academy students.",
   },
   {
     question: "Do I have to live in Amsterdam?",
     answer:
-      "No. You're matched with another parent from your Dutch Speaking Academy round, wherever you live. If you live near each other, you can meet in person. If not, a video call is a great way to practice Dutch too.",
+      "No. You're matched with another parent from Dutch Speaking Academy, wherever you live. If you live near each other, you can meet in person. If not, a video call is a great way to practice Dutch too.",
   },
   {
     question: "Who will I be matched with?",
     answer:
-      "Another parent from your round, picked by looking at things like your availability and, where possible, how close you live. We warmly introduce you by email, and what happens next is up to the two of you.",
+      "Another parent from your class or from the Dutch Speaking Academy. We match you by looking at things like your availability and how close you live. We warmly introduce you by email, and what happens next is up to the two of you.",
   },
   {
-    question: "What if my Dutch isn't great yet?",
+    question: "What information is shared with my match?",
     answer:
-      "Perfect, you're in good company! Everyone at Dutch Speaking Academy is practicing, and mistakes are the whole point. You'll be paired with someone doing exactly the same.",
+      "Only your name and contact email, in a warm introduction to the parent you've matched with. We never share your personal profile details. AI is not involved in the matching process. You can read more on our Privacy Policy page.",
   },
   {
     question: "What happens after my free match?",
     answer:
       "Your free match is one round, and then it's over unless you'd like more. We'll send Dutch Speaking Academy students a special offer to keep going, completely optional.",
-  },
-  {
-    question: "What information is shared with my match?",
-    answer:
-      "Only your name and contact email, in a warm introduction to the parent you've matched with. We never share your personal profile details. You can read more on our Privacy Policy page.",
   },
   {
     question: "What is Postpartum Post?",
