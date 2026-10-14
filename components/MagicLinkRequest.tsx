@@ -16,7 +16,14 @@ type State = "idle" | "sending" | "sent" | "not_found";
 export default function MagicLinkRequest({
   defaultEmail,
   redirectTo,
-}: { defaultEmail?: string; redirectTo?: string } = {}) {
+  perkSignup = false,
+}: {
+  defaultEmail?: string;
+  redirectTo?: string;
+  /** Arriving from a perk link: sign-in is framed around the perk, and the
+   *  membership signup shows up front instead of only after a failed lookup. */
+  perkSignup?: boolean;
+} = {}) {
   const [email, setEmail] = useState(defaultEmail ?? "");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [state, setState] = useState<State>("idle");
@@ -25,10 +32,10 @@ export default function MagicLinkRequest({
 
   // Fetch signup meta lazily when we need to show the subscription form
   useEffect(() => {
-    if (state === "not_found") {
+    if (state === "not_found" || perkSignup) {
       getSignupMeta().then(setSignupMeta);
     }
-  }, [state]);
+  }, [state, perkSignup]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -93,9 +100,11 @@ export default function MagicLinkRequest({
   const notFound = state === "not_found";
 
   return (
-    <div className="max-w-sm mx-auto space-y-6">
-      <div className="text-center">
-        <p className="text-dark font-medium mb-1">Sign in to your profile</p>
+    <div className={`${perkSignup ? "max-w-md" : "max-w-sm"} mx-auto space-y-6`}>
+      <div className={`text-center ${perkSignup ? "max-w-sm mx-auto" : ""}`}>
+        <p className="text-dark font-medium mb-1">
+          {perkSignup ? "Already a member? Sign in to activate your perk" : "Sign in to your profile"}
+        </p>
         <p className="text-muted text-sm mb-6">
           Enter the email address you signed up with and we&apos;ll send you a sign-in link.
         </p>
@@ -127,16 +136,16 @@ export default function MagicLinkRequest({
         </form>
       </div>
 
-      {notFound && (
+      {(notFound || perkSignup) && (
         <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
           <h2
             className="text-xl text-dark mb-1"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            Or become a member now:
+            {perkSignup && !notFound ? "Not a member yet? Join to unlock this perk!" : "Or become a member now!"}
           </h2>
           <p className="text-sm text-muted mb-6">
-            Subscribe and we&apos;ll introduce you to another new parent in Amsterdam each month.
+            Subscribe and we&apos;ll introduce you to another new parent in Amsterdam each month. Post Perks come with your membership.
           </p>
           <SignupForm
             first20SpotsRemaining={signupMeta?.first20SpotsRemaining}

@@ -88,7 +88,8 @@ export default function MyPerksPage() {
   // Keep a deep link (?perk=<id>) through sign-in, so someone arriving from a
   // partner page lands on their perk instead of /profile.
   if (!member) {
-    return <MagicLinkRequest redirectTo={`/my-perks${typeof window !== "undefined" ? window.location.search : ""}`} />;
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    return <MagicLinkRequest redirectTo={`/my-perks${search}`} perkSignup={new URLSearchParams(search).has("perk")} />;
   }
 
   function handleRedeemed(perkId: string, reveal: PerkReveal) {

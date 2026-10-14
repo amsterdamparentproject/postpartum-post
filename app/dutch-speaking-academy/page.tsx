@@ -9,6 +9,8 @@ import HowMatchingWorks from "@/components/HowMatchingWorks";
 import { DSA_STEPS } from "@/components/DutchCohortSteps";
 import FAQ, { type FAQItem } from "@/components/FAQ";
 import { getCohortPerk } from "@/lib/cohort-perk";
+import PostPerksWordMark from "@/components/PostPerksWordMark";
+import Sparkle from "@/components/Sparkle";
 
 const title = "Dutch Speaking Academy × Postpartum Post";
 const description =
@@ -123,6 +125,40 @@ export default async function DutchSpeakingAcademyPage() {
             Claim your free match
             <span aria-hidden="true">→</span>
           </a>
+          {perk && (
+            <Link
+              href={`/my-perks?perk=${perk.slug ?? perk.id}`}
+              data-umami-event="DSA: Activate perk"
+              className="group mt-6 block w-full max-w-md mx-auto text-left bg-white/90 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition p-5"
+              style={{ border: "1.5px solid rgba(203, 223, 189, 0.90)" }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+                  <Sparkle className="w-5 h-5 group-hover-wiggle" />
+                  <PostPerksWordMark size="text-base" plural={false} className="normal-case tracking-normal" />
+                </span>
+                {perk.estimatedSavings ? (
+                  <span
+                    className="text-xs font-bold px-2.5 py-1 rounded-full text-white shrink-0"
+                    style={{ backgroundColor: "#4F5F1E" }}
+                  >
+                    Save €{perk.estimatedSavings}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-3 text-sm text-muted">Already a Postpartum Post member?</p>
+              <p className="text-lg leading-snug text-dark" style={{ fontFamily: "var(--font-serif)" }}>
+                {perk.title}
+              </p>
+              <span
+                className="flex items-center justify-center gap-2 mt-4 py-2.5 px-5 rounded-full font-bold text-white group-hover:brightness-110 transition"
+                style={{ backgroundColor: "#8A9E3A" }}
+              >
+                Activate your perk
+                <span aria-hidden="true">→</span>
+              </span>
+            </Link>
+          )}
         </section>
 
         {/* How it works */}
@@ -155,35 +191,6 @@ export default async function DutchSpeakingAcademyPage() {
             <DutchCohortSignupForm cohort="dsa" />
           </div>
         </section>
-
-        {/* Existing members: activate the Dutch Speaking Academy perk */}
-        {perk && (
-          <section className="w-full max-w-md mt-8">
-            <div className="rounded-2xl border border-border bg-white/80 backdrop-blur shadow-sm p-6 text-center">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted mb-2">
-                Already a Postpartum Post member?
-              </p>
-              <h2 className="text-xl text-dark mb-2" style={{ fontFamily: "var(--font-serif)" }}>
-                Your Dutch Speaking Academy perk
-              </h2>
-              <p className="text-sm text-dark leading-relaxed">
-                <strong>{perk.title}</strong>
-                {perk.estimatedSavings ? <>, worth up to €{perk.estimatedSavings} in savings</> : null}. Post Perks are
-                part of your membership. Sign in with the email on your account to activate it.
-              </p>
-              <Link
-                href={`/my-perks?perk=${perk.slug ?? perk.id}`}
-                data-umami-event="DSA: Activate perk"
-                className="mt-4 inline-block w-full py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition"
-              >
-                Activate your perk →
-              </Link>
-              <p className="mt-3 text-xs text-muted leading-relaxed">
-                Perks open once you&apos;ve opted into the month&apos;s round, and &ldquo;just perks&rdquo; counts.
-              </p>
-            </div>
-          </section>
-        )}
 
         {/* FAQ */}
         <div className="w-full max-w-xl mt-12">

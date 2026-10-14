@@ -28,7 +28,11 @@ export async function getCohortPerk(partnerName: string): Promise<CohortPerk | n
       .order("featured", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error || !data) return null;
+    if (error) {
+      console.error("[getCohortPerk] query failed:", error.message);
+      return null;
+    }
+    if (!data) return null;
     return {
       id: data.id as string,
       slug: (data.slug as string | null) ?? null,
