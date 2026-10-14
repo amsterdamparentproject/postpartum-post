@@ -154,14 +154,14 @@ function backoffMs(attempt: number, lastError: string | undefined): number {
 }
 
 /**
- * Spaces out real calls to admin.auth.admin.generateLink — the specific
- * endpoint that trips Supabase's "Request rate limit reached" under
- * full-suite load (see getAccessTokenForEmail's own comment) — so a burst
- * of calls across many test files doesn't reach the limit in the first
- * place. Cheaper than backoffMs's after-the-fact retry, and the two are
- * complementary: this smooths ordinary bursts, backoffMs is the fallback
- * for whatever it doesn't catch (e.g. the limit was already low from
- * activity outside this run).
+ * Spaces out real calls to the Admin Auth API — generateLink,
+ * listUsers, deleteUser (see getAccessTokenForEmail and cleanupAuthUser) —
+ * which all share the bucket behind Supabase's "Request rate limit reached"
+ * under full-suite load, so a burst of calls across many test files doesn't
+ * reach the limit in the first place. Cheaper than backoffMs's after-the-
+ * fact retry, and the two are complementary: this smooths ordinary bursts,
+ * backoffMs is the fallback for whatever it doesn't catch (e.g. the limit
+ * was already low from activity outside this run).
  *
  * Module-level state shared by every call in the process: safe because
  * vitest runs this whole suite single-threaded (poolOptions.threads
@@ -262,13 +262,21 @@ export async function getAccessTokenForEmail(email: string): Promise<string> {
   throw new Error(`getAccessTokenForEmail: failed after ${maxAttempts} attempts: ${lastError}`);
 }
 
-/** Deletes the Supabase Auth user created by getAccessTokenForEmail, if any. */
+/**
+ * Deletes the Supabase Auth user created by getAccessTokenForEmail, if any.
+ *
+ * Routed through the same throttledAuthCall gate as generateLink: listUsers
+ * and deleteUser hit the same Admin Auth API, and afterAll hooks across the
+ * ~15 describe blocks that call this fire in quick succession, bursting
+ * against the same rate-limit bucket generateLink's spacing exists to avoid
+ * — leaving this unthrottled defeated that spacing's purpose.
+ */
 export async function cleanupAuthUser(email: string): Promise<void> {
   const admin = createTestSupabase();
-  const { data } = await admin.auth.admin.listUsers();
+  const { data } = await throttledAuthCall(() => admin.auth.admin.listUsers());
   const user = data?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
   if (user) {
-    await admin.auth.admin.deleteUser(user.id);
+    await throttledAuthCall(() => admin.auth.admin.deleteUser(user.id));
   }
 }
 
