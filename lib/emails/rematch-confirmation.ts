@@ -8,7 +8,7 @@ function rematchConfirmationHtml(firstName: string, credited: boolean): string {
                                       Hi ${firstName},
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Thanks for letting us know — we've received your report and ended this month's match.${credited ? " We've added one match back to your balance, so you won't lose a match to this." : ""}
+                                      We've received your report and ended this month's match — thanks for letting us know.${credited ? " We've added one match back to your balance, so you won't lose a match to this." : ""}
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       You can still use your Post Perks this month, and you'll be matched again in the next round.
