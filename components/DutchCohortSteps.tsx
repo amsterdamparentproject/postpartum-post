@@ -9,12 +9,12 @@ export const DSA_STEPS: HowStep[] = [
     description: (
       <>
         <a
-          href="https://dutchspeakingacademy.nl/dutch-for-parents-academy/"
+          href="https://dutchspeakingacademy.nl/"
           target="_blank"
           rel="noopener noreferrer"
           className="underline underline-offset-2 hover:text-coral transition-colors"
         >
-          Register for the course
+          Register for a course
         </a>
         . After signing up, you&apos;ll receive your free code for Postpartum Post.
       </>
@@ -54,7 +54,7 @@ export const DSA_STEPS: HowStep[] = [
     number: "04",
     title: "Continue with a special discount",
     description:
-      "After your free match, we'll email you a special offer for Dutch Speaking Academy students to keep you practicing Dutch even after the course ends. Completely optional.",
+      "After your free match, we'll email you a special offer just for Dutch Speaking Academy students who want to continue. Completely optional, but a wonderful way to keep practicing Dutch — even after the course ends!",
     icon: <GiftStamp background="white" />,
   },
 ];

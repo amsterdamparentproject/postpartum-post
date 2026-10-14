@@ -13,12 +13,9 @@ const title = "Dutch Speaking Academy × Postpartum Post";
 const description =
   "Dutch Speaking Academy students get one free match through Postpartum Post: a fellow parent from your round to practice real Dutch with, in person or on video.";
 
-// Prototype for Dutch Speaking Academy to review: kept out of search results
-// (and out of the sitemap) until the partnership terms are final.
 export const metadata: Metadata = {
   title,
   description,
-  robots: { index: false, follow: false },
 };
 
 // DSA's own colors, sampled from its logo, used as accents next to Post's coral.
@@ -145,7 +142,7 @@ export default function DutchSpeakingAcademyPage() {
               Claim your <span className="text-coral">free match</span>
             </h2>
             <p className="text-muted text-sm">
-              For Dutch Speaking Academy students. You&apos;ll need the code from Mariska.
+              Just for Dutch Speaking Academy students. You&apos;ll need the code from Mariska in order to claim your match.
             </p>
           </div>
           <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-8">
@@ -167,16 +164,16 @@ export default function DutchSpeakingAcademyPage() {
         </div>
 
         <p className="mt-10 text-xs text-muted text-center max-w-sm leading-relaxed">
-          This signup is run by{" "}
+          This collaboration is run by{" "}
           <a
             href="https://dutchspeakingacademy.nl/"
             target="_blank"
             rel="noopener noreferrer"
             className="underline underline-offset-2 hover:text-coral transition-colors"
           >
-            Dutch Speaking Academy
+            Dutch Speaking Academy{" "}
           </a>
-          . Matching is run by Postpartum Post. Curious how it works?{" "}
+          and Postpartum Post. Curious how it all works?{" "}
           <Link href="/about" className="underline underline-offset-2 hover:text-coral transition-colors">
             Read more about us
           </Link>

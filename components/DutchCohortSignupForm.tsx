@@ -116,6 +116,11 @@ export default function DutchCohortSignupForm({ cohort }: { cohort: string }) {
           autoComplete="email"
           className={inputClass}
         />
+        <p className="mt-1.5 text-xs text-muted leading-relaxed">
+          Already a Postpartum Post member? Use the email on your account. We&apos;ll add you to the
+          Dutch Speaking Academy cohort along with your free match. Your plan and billing stay the
+          same.
+        </p>
       </div>
 
       <div>
