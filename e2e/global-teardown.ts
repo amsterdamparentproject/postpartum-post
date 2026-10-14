@@ -24,6 +24,7 @@ import { purgeTestMembers } from "./helpers/db";
 const REPO_ROOT = path.resolve(__dirname, "..");
 
 dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
+dotenv.config({ path: path.resolve(__dirname, "../.env.test") });
 
 export default async function globalTeardown() {
   const [current, legacyEmail, legacyTest] = await Promise.all([
