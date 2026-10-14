@@ -66,11 +66,12 @@ test("DSA page perk card → /my-perks sign-in plus signup, or the perk dialog w
   await seedMonthlyPerks(member.id, new Date().toISOString().slice(0, 7));
 
   try {
-    // ── 2. The card on the splash page ──────────────────────────────────────
+    // ── 2. Step 0 on the splash page ──────────────────────────────────────
     await page.goto("/dutch-speaking-academy");
-    const cta = page.getByRole("link", { name: new RegExp(title) });
+    // The perk is "step 0" of How it works: the step names the perk, the button links to it.
+    await expect(page.getByText(title)).toBeVisible();
+    const cta = page.getByRole("link", { name: /Claim your member discount/ });
     await expect(cta).toHaveAttribute("href", `/my-perks?perk=${slug}`);
-    await expect(cta.getByText("Activate your perk")).toBeVisible();
 
     // ── 3. Signed out: sign in, or join ─────────────────────────────────────
     await cta.click();

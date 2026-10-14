@@ -6,11 +6,9 @@ import TextLogo from "@/components/TextLogo";
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 import DutchCohortSignupForm from "@/components/DutchCohortSignupForm";
 import HowMatchingWorks from "@/components/HowMatchingWorks";
-import { DSA_STEPS } from "@/components/DutchCohortSteps";
+import { DSA_STEPS, DSA_TERRACOTTA, dsaPerkStep } from "@/components/DutchCohortSteps";
 import FAQ, { type FAQItem } from "@/components/FAQ";
 import { getCohortPerk } from "@/lib/cohort-perk";
-import PostPerksWordMark from "@/components/PostPerksWordMark";
-import Sparkle from "@/components/Sparkle";
 
 const title = "Dutch Speaking Academy × Postpartum Post";
 const description =
@@ -21,8 +19,7 @@ export const metadata: Metadata = {
   description,
 };
 
-// DSA's own colors, sampled from its logo, used as accents next to Post's coral.
-const DSA_TERRACOTTA = "#B1502B";
+// DSA's own gold, sampled from its logo (its terracotta lives in DutchCohortSteps).
 const DSA_GOLD = "#E4C58F";
 
 const FAQS: FAQItem[] = [
@@ -125,46 +122,12 @@ export default async function DutchSpeakingAcademyPage() {
             Claim your free match
             <span aria-hidden="true">→</span>
           </a>
-          {perk && (
-            <Link
-              href={`/my-perks?perk=${perk.slug ?? perk.id}`}
-              data-umami-event="DSA: Activate perk"
-              className="group mt-6 block w-full max-w-md mx-auto text-left bg-white/90 rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition p-5"
-              style={{ border: "1.5px solid rgba(203, 223, 189, 0.90)" }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted">
-                  <Sparkle className="w-5 h-5 group-hover-wiggle" />
-                  <PostPerksWordMark size="text-base" plural={false} className="normal-case tracking-normal" />
-                </span>
-                {perk.estimatedSavings ? (
-                  <span
-                    className="text-xs font-bold px-2.5 py-1 rounded-full text-white shrink-0"
-                    style={{ backgroundColor: "#4F5F1E" }}
-                  >
-                    Save €{perk.estimatedSavings}
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-3 text-sm text-muted">Already a Postpartum Post member?</p>
-              <p className="text-lg leading-snug text-dark" style={{ fontFamily: "var(--font-serif)" }}>
-                {perk.title}
-              </p>
-              <span
-                className="flex items-center justify-center gap-2 mt-4 py-2.5 px-5 rounded-full font-bold text-white group-hover:brightness-110 transition"
-                style={{ backgroundColor: "#8A9E3A" }}
-              >
-                Activate your perk
-                <span aria-hidden="true">→</span>
-              </span>
-            </Link>
-          )}
         </section>
 
         {/* How it works */}
         <div className="w-full mt-12 md:mt-16">
           <HowMatchingWorks
-            steps={DSA_STEPS}
+            steps={perk ? [dsaPerkStep(perk), ...DSA_STEPS] : DSA_STEPS}
             heading={
               <>
                 How it <span className="text-coral">works</span>
@@ -198,6 +161,7 @@ export default async function DutchSpeakingAcademyPage() {
             faqs={FAQS}
             heading={
               <>
+            stackOnMobile
                 Frequently asked <span className="text-coral">questions</span>
               </>
             }
