@@ -10,9 +10,11 @@ export default function AnimatedMail() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    // Trigger off the subscribe form so the animation fires when the user
-    // is about to see the signup CTA, not when the envelope itself appears.
-    const target = document.getElementById("alex-intro") ?? ref.current;
+    // Trigger off the envelope itself, so it opens while it's on screen.
+    // (It used to key off #alex-intro, which was right below it; the sample
+    // match page and perks swiper now sit between the two, so the envelope
+    // was long scrolled out of view by the time it opened.)
+    const target = ref.current;
     if (!target) return;
 
     let openTimer: ReturnType<typeof setTimeout>;
@@ -27,7 +29,7 @@ export default function AnimatedMail() {
           setOpen(false);
         }
       },
-      { threshold: 0.3 }
+      { threshold: 0.6 }
     );
 
     observer.observe(target);
