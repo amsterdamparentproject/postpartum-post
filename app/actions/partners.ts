@@ -10,6 +10,7 @@ import { findMatchingLead, mergeIntoLead } from "@/lib/lead-matching";
 import { commitPartnerImage, createPartnerImageUploadFor, type ImageUploadTicket } from "@/lib/partner-image-save";
 import { normalizePerkInput, type PerkInput, type SavedPerkFields } from "@/lib/perk-input";
 import { resolvePerkLocations, savePerkLocations } from "@/lib/perk-save";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export type PartnerLocation = {
   id: string;
@@ -210,6 +211,8 @@ export type PartnerLeadInput = {
   url: string;
   email: string;
   note: string;
+  /** One-time Cloudflare Turnstile token from useTurnstile(); see lib/turnstile.ts. */
+  turnstileToken?: string;
 };
 
 /**
@@ -227,6 +230,9 @@ export type PartnerLeadInput = {
 export async function submitPartnerLead(
   input: PartnerLeadInput,
 ): Promise<{ success: boolean; error?: string }> {
+  const human = await verifyTurnstile(input.turnstileToken);
+  if (!human.ok) return { success: false, error: human.error };
+
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
   const businessName = input.businessName.trim();
@@ -316,6 +322,8 @@ export type PerkIdeaInput = {
   notifyWhenLive?: boolean;
   name?: string;
   email?: string;
+  /** One-time Cloudflare Turnstile token from useTurnstile(); see lib/turnstile.ts. */
+  turnstileToken?: string;
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -345,6 +353,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export async function submitPerkIdea(
   input: PerkIdeaInput,
 ): Promise<{ success: boolean; error?: string; giveawayError?: string; notifyError?: string }> {
+  const human = await verifyTurnstile(input.turnstileToken);
+  if (!human.ok) return { success: false, error: human.error };
+
   const url = input.url.trim();
   if (!url) {
     return { success: false, error: "Add a link first" };

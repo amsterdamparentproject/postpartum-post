@@ -5,6 +5,7 @@ import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 import { getBaseUrl } from "@/lib/base-url";
 import { getLivePerksSummary } from "@/lib/public-perks";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 const FIRST20_TOTAL = 20;
 const PILOT_ONLY_UNTIL = new Date("2026-07-01");
@@ -48,11 +49,17 @@ export type SignupFormData = {
   eligibilityConfirmed: boolean;
   guidelinesAccepted: boolean;
   giftCode?: string;
+  /** One-time Cloudflare Turnstile token from useTurnstile(); see lib/turnstile.ts. */
+  turnstileToken?: string;
 };
 
 export type SignupError = { error: string };
 
 export async function signup(data: SignupFormData): Promise<SignupError | void> {
+  // First, before any DB or Stripe work: this action creates a Stripe customer per call.
+  const human = await verifyTurnstile(data.turnstileToken);
+  if (!human.ok) return { error: human.error };
+
   if (!data.eligibilityConfirmed || !data.guidelinesAccepted) {
     return { error: "Please confirm your eligibility and agree to the Community Guidelines." };
   }

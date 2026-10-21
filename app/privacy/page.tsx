@@ -22,7 +22,7 @@ export default function PrivacyPolicy() {
           >
             Privacy Policy
           </h1>
-          <p className="text-muted text-sm mb-10">Last updated: June 2026</p>
+          <p className="text-muted text-sm mb-10">Last updated: October 2026</p>
 
           <div className="space-y-10 text-dark leading-relaxed">
 
@@ -111,6 +111,7 @@ export default function PrivacyPolicy() {
                 <li><strong>Netlify</strong> — website and application hosting</li>
                 <li><strong>n8n</strong> — automation that runs the monthly matching process</li>
                 <li><strong>Umami</strong> — privacy-first website analytics (no personal data shared)</li>
+                <li><strong>Cloudflare Turnstile</strong> — bot protection on our sign-up and contact forms (checks that a form is being filled in by a person; it receives technical details such as your IP address and browser information)</li>
               </ul>
               <p className="mt-3">
                 Each of these providers processes data only as necessary to deliver their service, and is bound by
@@ -175,7 +176,8 @@ export default function PrivacyPolicy() {
               <p>
                 Postpartum Post uses only essential cookies necessary to keep you signed in and to process
                 your subscription securely. We do not use tracking or advertising cookies. Our analytics
-                tool (Umami) is cookieless.
+                tool (Umami) is cookieless. The bot-protection check on our forms (Cloudflare Turnstile) may
+                set a strictly necessary cookie to do its job.
               </p>
             </section>
 

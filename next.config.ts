@@ -2,12 +2,12 @@ import type { NextConfig } from "next";
 
 const ContentSecurityPolicy = `
   default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' *.stripe.com cloud.umami.is;
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' *.stripe.com cloud.umami.is challenges.cloudflare.com;
   style-src 'self' 'unsafe-inline' fonts.googleapis.com;
   img-src * blob: data:;
   connect-src *;
   font-src 'self' fonts.gstatic.com;
-  frame-src 'self' js.stripe.com;
+  frame-src 'self' js.stripe.com challenges.cloudflare.com;
 `;
 
 const securityHeaders = [
