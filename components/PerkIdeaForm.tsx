@@ -6,6 +6,7 @@ import AnimatedThankYou from "@/components/AnimatedThankYou";
 import { LocationStamp } from "@/components/StampIcons";
 import Link from "next/link";
 import JoinLink from "@/components/JoinLink";
+import { useTurnstile } from "@/components/TurnstileWidget";
 
 /** Fire a custom Umami event (no-op if the script isn't loaded, e.g. no website ID or an ad blocker). */
 function track(event: string, data?: Record<string, string | number | boolean>) {
@@ -68,6 +69,7 @@ export default function PerkIdeaForm() {
   const [notifyError, setNotifyError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const turnstile = useTurnstile("perk_idea");
   // An email in the "Get notified when it becomes a Perk" box is the opt-in.
   const notifyWhenLive = email.trim() !== "";
 
@@ -92,7 +94,10 @@ export default function PerkIdeaForm() {
         wantsGiveaway,
         notifyWhenLive,
         email: notifyWhenLive ? email : undefined,
+        turnstileToken: turnstile.token,
       });
+      // A Turnstile token works once; get a fresh one for any retry.
+      turnstile.reset();
       if (!result.success) {
         setError(result.error ?? "Couldn't submit — try again");
         return;
@@ -251,10 +256,11 @@ export default function PerkIdeaForm() {
           )}
         </div>
 
+        {turnstile.widget}
         {error && <p className="text-sm text-coral">{error}</p>}
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || turnstile.pending}
           className="w-full py-3 px-6 bg-green hover:bg-green-light text-dark font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isPending ? "Sending…" : "Send"}

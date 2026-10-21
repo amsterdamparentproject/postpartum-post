@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { signup, type SignupFormData } from "@/app/actions/signup";
+import { useTurnstile } from "@/components/TurnstileWidget";
 import { PLANS, resolvePlans, defaultPlan, effectivePilotOnly, planIncludes } from "@/lib/plans";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,6 +37,7 @@ export default function SignupForm({
   const plans = resolvePlans(PLANS, pilotOnly, first20SoldOut);
 
   const [isPending, startTransition] = useTransition();
+  const turnstile = useTurnstile("signup");
   const [selectedPlan, setSelectedPlan] = useState<SignupFormData["plan"]>(
     lockedPlan ?? defaultPlan(effectivePilotOnly(pilotOnly))
   );
@@ -88,10 +90,13 @@ export default function SignupForm({
       eligibilityConfirmed,
       guidelinesAccepted,
       ...(giftCode ? { giftCode } : {}),
+      turnstileToken: turnstile.token,
     };
 
     startTransition(async () => {
       const result = await signup(data);
+      // A Turnstile token works once; get a fresh one for any retry.
+      turnstile.reset();
       if (result?.error) {
         setError(result.error);
       }
@@ -320,9 +325,11 @@ export default function SignupForm({
         <p className="text-sm text-coral">{error}</p>
       )}
 
+      {turnstile.widget}
+
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || turnstile.pending}
         onMouseEnter={() => onSubmitHover?.(true)}
         onMouseLeave={() => onSubmitHover?.(false)}
         data-umami-event="Home: Subscribe"

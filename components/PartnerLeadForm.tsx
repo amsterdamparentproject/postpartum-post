@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { submitPartnerLead } from "@/app/actions/partners";
 import RequiredMark from "@/components/RequiredMark";
+import { useTurnstile } from "@/components/TurnstileWidget";
 
 const inputClass =
   "w-full px-4 py-2.5 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition";
@@ -25,12 +26,23 @@ export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const turnstile = useTurnstile("partner_lead");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await submitPartnerLead({ businessName, url, firstName, lastName, email, note });
+      const result = await submitPartnerLead({
+        businessName,
+        url,
+        firstName,
+        lastName,
+        email,
+        note,
+        turnstileToken: turnstile.token,
+      });
+      // A Turnstile token works once; get a fresh one for any retry.
+      turnstile.reset();
       if (!result.success) {
         setError(result.error ?? "Couldn't submit — try again");
         return;
@@ -130,10 +142,11 @@ export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string
           placeholder="A discount, a free class, whatever you have in mind"
         />
       </div>
+      {turnstile.widget}
       {error && <p className="text-xs text-coral">{error}</p>}
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isPending || turnstile.pending}
         data-umami-event="Partners: Submit Lead"
         className="w-full py-2.5 px-6 bg-green hover:bg-green-light text-dark font-semibold rounded-lg transition disabled:opacity-60 disabled:cursor-not-allowed"
       >
