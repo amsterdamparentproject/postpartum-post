@@ -24,8 +24,8 @@ const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export type TurnstileResult = { ok: true } | { ok: false; error: string };
 
-const MISSING_TOKEN = "Please complete the verification and try again.";
-const FAILED = "Verification failed. Please refresh the page and try again.";
+const MISSING_TOKEN = "Please wait a moment for the security check to finish, then try again.";
+const FAILED = "We couldn't confirm you're a person. Please refresh the page and try again.";
 
 async function clientIp(): Promise<string | undefined> {
   try {

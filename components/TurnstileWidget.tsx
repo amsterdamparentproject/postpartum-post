@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { reportTurnstileOutcome, type TurnstileOutcome } from "@/app/actions/turnstile-report";
 
 /**
  * Client half of lib/turnstile.ts. Usage in a form:
@@ -10,6 +11,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *   ...disable the button while turnstile.pending
  *   ...send turnstile.token with the server action
  *   ...call turnstile.reset() after every submission attempt (a token works once)
+ *
+ * Pass the form name ("signup" | "partner_lead" | "perk_idea"); outcomes are
+ * counted per form by app/actions/turnstile-report.ts.
  *
  * With no NEXT_PUBLIC_TURNSTILE_SITE_KEY the widget renders nothing and
  * never blocks the form. The script is loaded straight from Cloudflare, as
@@ -51,7 +55,7 @@ function loadTurnstile(): Promise<void> {
   return scriptPromise;
 }
 
-export function useTurnstile() {
+export function useTurnstile(form: "signup" | "partner_lead" | "perk_idea") {
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const enabled = Boolean(siteKey);
   // Held in state (not a plain ref) so the widget re-renders whenever its
@@ -59,7 +63,25 @@ export function useTurnstile() {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const widgetId = useRef<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  // "blocked": the Cloudflare script never loaded (often an ad/privacy blocker).
+  // "error": the widget loaded but could not run (e.g. the domain is not allowed).
+  const [problem, setProblem] = useState<"blocked" | "error" | null>(null);
+  // One passed/blocked/error outcome per visit, so the counts are per visitor.
+  const reported = useRef(false);
+  const report = useCallback(
+    (outcome: TurnstileOutcome) => {
+      void reportTurnstileOutcome(outcome, form, window.location.pathname).catch(() => {});
+    },
+    [form],
+  );
+  const reportOnce = useCallback(
+    (outcome: TurnstileOutcome) => {
+      if (reported.current) return;
+      reported.current = true;
+      report(outcome);
+    },
+    [report],
+  );
 
   useEffect(() => {
     if (!siteKey || !container) return;
@@ -75,18 +97,27 @@ export function useTurnstile() {
           // Hidden unless Cloudflare needs a checkbox, so most visitors see nothing.
           appearance: "interaction-only",
           callback: (t: string) => {
-            setFailed(false);
+            setProblem(null);
             setToken(t);
+            reportOnce("passed");
           },
+          // Cloudflare decided it needs a click after all.
+          "before-interactive-callback": () => report("checkbox"),
           "expired-callback": () => setToken(null),
-          "error-callback": () => {
+          "error-callback": (code: unknown) => {
+            // Cloudflare error codes are for us, not visitors (e.g. 110200 = domain not allowed).
+            console.warn("[turnstile] widget error", code);
             setToken(null);
-            setFailed(true);
+            setProblem("error");
+            reportOnce("error");
           },
         });
       })
       .catch(() => {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) {
+          setProblem("blocked");
+          reportOnce("blocked");
+        }
       });
 
     return () => {
@@ -94,7 +125,7 @@ export function useTurnstile() {
       if (widgetId.current && window.turnstile) window.turnstile.remove(widgetId.current);
       widgetId.current = null;
     };
-  }, [siteKey, container]);
+  }, [siteKey, container, report, reportOnce]);
 
   const reset = useCallback(() => {
     setToken(null);
@@ -104,10 +135,24 @@ export function useTurnstile() {
   const widget = enabled ? (
     <div>
       <div ref={setContainer} />
-      {failed && (
+      {problem === "blocked" && (
         <p className="text-xs text-coral mt-1">
-          We couldn&apos;t load the verification check. Please disable any content blockers for this page and
-          refresh.
+          We couldn&apos;t run our security check. If you use an ad or privacy blocker, try turning it off for
+          this page, then refresh. Still stuck? Email us at{" "}
+          <a href="mailto:post@amsterdamparentproject.nl" className="underline">
+            post@amsterdamparentproject.nl
+          </a>
+          .
+        </p>
+      )}
+      {problem === "error" && (
+        <p className="text-xs text-coral mt-1">
+          Something went wrong with our security check. Please refresh the page and try again. Still stuck?
+          Email us at{" "}
+          <a href="mailto:post@amsterdamparentproject.nl" className="underline">
+            post@amsterdamparentproject.nl
+          </a>
+          .
         </p>
       )}
     </div>

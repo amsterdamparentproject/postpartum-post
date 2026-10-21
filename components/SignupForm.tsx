@@ -37,7 +37,7 @@ export default function SignupForm({
   const plans = resolvePlans(PLANS, pilotOnly, first20SoldOut);
 
   const [isPending, startTransition] = useTransition();
-  const turnstile = useTurnstile();
+  const turnstile = useTurnstile("signup");
   const [selectedPlan, setSelectedPlan] = useState<SignupFormData["plan"]>(
     lockedPlan ?? defaultPlan(effectivePilotOnly(pilotOnly))
   );

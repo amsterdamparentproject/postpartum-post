@@ -26,7 +26,7 @@ export default function PartnerLeadForm({ defaultEmail }: { defaultEmail: string
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const turnstile = useTurnstile();
+  const turnstile = useTurnstile("partner_lead");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

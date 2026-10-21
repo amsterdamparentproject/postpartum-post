@@ -69,7 +69,7 @@ export default function PerkIdeaForm() {
   const [notifyError, setNotifyError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const turnstile = useTurnstile();
+  const turnstile = useTurnstile("perk_idea");
   // An email in the "Get notified when it becomes a Perk" box is the opt-in.
   const notifyWhenLive = email.trim() !== "";
 
