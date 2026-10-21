@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 /**
  * Terms for the "win 1 of 3 free matches" giveaway on /perks (the entry form
  * is components/PerkIdeaForm.tsx). Free, promotional prize draw: no purchase,
- * random pick, adults only. Winners are announced Wed 21 Oct 2026.
+ * random pick, adults only. Winners are announced Fri 23 Oct 2026.
  */
 export default function GiveawayTerms() {
   return (
@@ -74,7 +74,7 @@ export default function GiveawayTerms() {
               <h2 className="text-xl font-semibold mb-3">How winners are picked</h2>
               <p>
                 Winners are chosen at random from all valid entries received before the drawing, so every entry has the same chance, and the more spots you share, the more chances you have. Each person can win only once: if your entry is drawn again, we&apos;ll draw another. We&apos;ll announce
-                the winners on <strong>Wednesday, October 21, 2026</strong>, and we&apos;ll email each winner at the
+                the winners on <strong>Friday, October 23, 2026</strong>, and we&apos;ll email each winner at the
                 address they entered with. We don&apos;t select winners by any other criteria.
               </p>
             </section>

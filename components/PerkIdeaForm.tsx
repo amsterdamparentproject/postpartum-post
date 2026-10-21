@@ -127,7 +127,7 @@ export default function PerkIdeaForm() {
         </p>
         {wantsGiveaway && !giveawayError && (
           <p className="text-sm text-muted mt-2">
-            We&apos;ll announce giveaway winners on Wednesday, October 21, and
+            We&apos;ll announce giveaway winners on Friday, October 23, and
             we&apos;ll let you know if you&apos;ve won over email. Subscribe to our{" "}
             <Link
               href="https://amsterdamparentproject.com/newsletter"
@@ -220,7 +220,7 @@ export default function PerkIdeaForm() {
             <p className="text-xs pl-6 text-coral leading-relaxed">Add your email below to enter</p>
           )}
           <p className="text-xs pl-6 text-muted leading-relaxed">
-            Free to enter, winners announced October 21.{" "}
+            Free to enter, winners announced October 23.{" "}
             <Link href="/terms/giveaway" data-umami-event="Perks: Giveaway terms" className="underline underline-offset-2 hover:text-coral transition-colors">
               Giveaway terms
             </Link>
