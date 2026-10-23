@@ -14,7 +14,7 @@
  * helpers/db.ts), so nothing reaches a real inbox, and the sent message is
  * read back from Resend (helpers/email.ts) to check the real rendered HTML.
  *
- * Prerequisites: ADMIN_USERNAME, ADMIN_PASSWORD, RESEND_API_KEY (full access),
+ * Prerequisites: ADMIN_USERNAME, ADMIN_PASSWORD in .env.local, E2E_RESEND_API_KEY (full access) in .env.test,
  * NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY in .env.local.
  */
 

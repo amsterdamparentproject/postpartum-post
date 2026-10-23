@@ -6,7 +6,7 @@
  * to no inbox. This helper fetches the logged message through Resend's REST
  * API so a spec can assert on the real rendered subject, HTML and links.
  *
- * Needs RESEND_API_KEY in .env.local with full access. A sending-only key can
+ * Needs E2E_RESEND_API_KEY in .env.test (falls back to RESEND_API_KEY) with full access. A sending-only key can
  * send but not list/retrieve, and the helper fails with a clear message.
  * Resend allows ~2 requests/second, so polling stays slower than that.
  */
@@ -23,8 +23,12 @@ export interface SentEmail {
 }
 
 function apiKey(): string {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("Missing RESEND_API_KEY in .env.local");
+  // E2E_RESEND_API_KEY (a full-access key kept in .env.test) wins; it has its
+  // own name because playwright.config.ts loads .env.local first and dotenv
+  // never overrides a variable that is already set, so a RESEND_API_KEY in
+  // .env.test would be ignored whenever .env.local also defines one.
+  const key = process.env.E2E_RESEND_API_KEY ?? process.env.RESEND_API_KEY;
+  if (!key) throw new Error("Missing E2E_RESEND_API_KEY in .env.test (or RESEND_API_KEY in .env.local)");
   return key;
 }
 
