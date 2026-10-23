@@ -1,33 +1,39 @@
 /**
  * Sends the "keep going?" email to comped cohort members whose free match is
- * used (matches_remaining at 0). Each email carries two signed checkout links
- * (1 round, 3 rounds) with the cohort's Stripe promotion code applied. Prices and
- * discount are read from Stripe.
+ * used (matches_remaining at 0). Each email
+ * carries two signed checkout links (1 round, 3 rounds) with the cohort's
+ * Stripe promotion code applied. Prices and discount are read from Stripe.
  *
- * There is no "already sent" marker, so run it once per batch. Use --dry-run
- * first to see who would get it, and --only <email> to send to one member.
+ * The monthly job (POST /api/send-continue-offers, n8n, the 10th) does the same
+ * thing automatically; this script is for running it by hand, e.g. to send
+ * early or to one person. Both share lib/continue-offer-send.ts and the
+ * members.continue_offer_sent_at marker (migration 035), so nobody is emailed
+ * twice, whichever of the two runs first.
+ *
+ * Use --dry-run first to see who would get it, and --only <email> to send to
+ * one member. To re-send to someone already sent, clear their
+ * continue_offer_sent_at in the SQL editor first.
  *
  * Usage:
  *   yarn cohort-continue:test                       # .env.test, dry run only
  *   yarn cohort-continue:prod --dry-run             # lists recipients, sends nothing
  *   yarn cohort-continue:prod --only a@b.com        # sends to one member
  *   yarn cohort-continue:prod                       # sends to every eligible member
- *   add --cohort <slug> to pick another cohort (default: dsa)
+ *   add --cohort <slug> to pick another cohort (default: every cohort with an offer)
  */
 
 import { config } from "dotenv";
 import { resolve } from "path";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
-import { sendCohortContinueEmail } from "../lib/emails/continue-cohort.ts";
-import { generateContinueToken } from "../lib/tokens.ts";
-import { loadContinueOffer } from "../lib/continue-offer-pricing.ts";
+import { sendContinueOffers } from "../lib/continue-offer-send.ts";
+import { STRIPE_API_VERSION } from "../lib/stripe.ts";
 
 const env = process.argv[2];
 const args = process.argv.slice(3);
 const dryRun = args.includes("--dry-run") || env === "test";
 const only = args.includes("--only") ? args[args.indexOf("--only") + 1]?.trim().toLowerCase() : null;
-const slug = args.includes("--cohort") ? args[args.indexOf("--cohort") + 1] : "dsa";
+const slug = args.includes("--cohort") ? args[args.indexOf("--cohort") + 1] : undefined;
 
 if (env !== "test" && env !== "prod") {
   console.error("Usage: tsx scripts/send-cohort-continue.mts <test|prod> [--dry-run] [--only <email>] [--cohort <slug>]");
@@ -48,75 +54,39 @@ const siteUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com"
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, { db: { schema: "postpartumpost" } });
 
-const { data: cohort, error: cohortError } = await supabase
-  .from("cohorts")
-  .select("slug, name, continue_promo_code_id")
-  .eq("slug", slug)
-  .maybeSingle();
-if (cohortError || !cohort) {
-  console.error(`Cohort "${slug}" not found:`, cohortError?.message ?? "no row");
-  process.exit(1);
-}
-if (!cohort.continue_promo_code_id) {
-  console.error(`Cohort "${slug}" has no continue_promo_code_id yet. Create the coupon in Stripe and set it first.`);
-  process.exit(1);
-}
-
 const stripeKey = process.env.STRIPE_SECRET_KEY;
 if (!stripeKey) {
   console.error(`Missing STRIPE_SECRET_KEY in ${envFile}`);
   process.exit(1);
 }
-const offer = await loadContinueOffer(new Stripe(stripeKey), cohort.continue_promo_code_id);
-if (!offer) {
-  console.error(`The promotion code ${cohort.continue_promo_code_id} is inactive, has no coupon, or a plan price is missing in Stripe.`);
-  process.exit(1);
-}
-console.log(`Offer: ${offer.discountText}; ${offer.plans.map((p) => `${p.label} ${p.offerCents / 100} (was ${p.regularCents / 100})`).join(", ")}`);
 
-let query = supabase
-  .from("members")
-  .select("id, email, first_name")
-  .eq("cohort", slug)
-  .in("billing_mode", ["comped_no_perks", "comped_with_perks"])
-  .eq("status", "active")
-  .lte("matches_remaining", 0);
-if (only) query = query.eq("email", only);
-const { data: members, error } = await query;
-if (error) {
-  console.error("Failed to fetch members:", error.message);
-  process.exit(1);
-}
-if (!members?.length) {
-  console.log("No eligible members found.");
+const results = await sendContinueOffers(supabase, {
+  stripe: new Stripe(stripeKey, { apiVersion: STRIPE_API_VERSION }),
+  siteUrl,
+  dryRun,
+  cohortSlug: slug,
+  onlyEmail: only,
+});
+
+if (!results.length) {
+  console.log(`No cohort with a continue offer found${slug ? ` for "${slug}"` : ""}. Set continue_promo_code_id on the cohort first.`);
   process.exit(0);
 }
 
-const link = (memberId: string, plan: string) =>
-  `${siteUrl}/api/continue?member_id=${memberId}&plan=${plan}&token=${generateContinueToken(memberId, plan)}`;
-
-console.log(`${dryRun ? "DRY RUN: " : ""}${members.length} member(s) in "${cohort.name}":`);
-let sent = 0;
 let failed = 0;
-for (const member of members) {
-  if (dryRun) {
-    console.log(`  would send to ${member.email}`);
+for (const r of results) {
+  console.log(`\n${dryRun ? "DRY RUN: " : ""}cohort "${r.slug}"`);
+  if (r.status === "offer_unavailable") {
+    console.error("  The promotion code is inactive, has no coupon, or a plan price is missing in Stripe. Nothing sent.");
+    failed++;
     continue;
   }
-  try {
-    await sendCohortContinueEmail(
-      member.email,
-      member.first_name ?? "there",
-      cohort.name,
-      link(member.id, "standard_monthly"),
-      link(member.id, "commitment_3mo"),
-      offer
-    );
-    console.log(`✓ ${member.email}`);
-    sent++;
-  } catch (e) {
-    console.error(`✗ ${member.email}:`, e instanceof Error ? e.message : String(e));
-    failed++;
+  console.log(`  ${r.eligible} comped member(s) at 0 not yet sent the offer`);
+  for (const m of r.members) {
+    const mark = { would_send: "would send to", sent: "✓", failed: "✗", skipped_already_claimed: "skipped (already claimed)" }[m.outcome];
+    console.log(`  ${mark} ${m.email}`);
   }
+  if (!dryRun) console.log(`  Done: ${r.sent} sent, ${r.failed} failed`);
+  failed += r.failed;
 }
-if (!dryRun) console.log(`\nDone: ${sent} sent, ${failed} failed`);
+process.exit(failed ? 1 : 0);
