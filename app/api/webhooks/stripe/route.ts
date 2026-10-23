@@ -85,9 +85,20 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient();
 
+    // A comped cohort member who checks out (the "continue" offer) is now a
+    // paying member: switch their billing mode so Post Perks unlock and the
+    // renew-check bills them from here on. Their cohort tag stays.
+    const { data: beforeCheckout } = await supabase
+      .from("members")
+      .select("billing_mode")
+      .eq("id", memberId)
+      .maybeSingle();
+    const memberUpdate: { status: string; billing_mode?: string } = { status: "active" };
+    if (isComped(beforeCheckout?.billing_mode)) memberUpdate.billing_mode = "subscription";
+
     const { error: memberError } = await supabase
       .from("members")
-      .update({ status: "active" })
+      .update(memberUpdate)
       .eq("id", memberId);
     console.log("[webhook] member update", { error: memberError?.message });
 

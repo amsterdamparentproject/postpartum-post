@@ -5,6 +5,8 @@
  *   - { dryRun: true } body: same checks, zero Stripe writes, per-member
  *     details; any ambiguous dry-run flag is a 400, never a real run
  *   - Auth enforcement
+ *   - Comped guard: a comped_* member is skipped whatever Stripe holds for
+ *     them (even a live subscription with a card), billed or canceling
  *   - Payment-method guard: no default_payment_method -> skipped, no invoice
  *   - Payment-method guard checks the subscription-level default_payment_method
  *     too, not just the customer's invoice_settings — real Checkout-created
@@ -468,6 +470,41 @@ describe("POST /api/renew-check", () => {
     expect(billedCustomers).not.toContain(member.stripe_customer_id);
   });
 
+  it.each(["comped_with_perks", "comped_no_perks"] as const)(
+    "never bills a %s member at zero, even with a live subscription and a card on file",
+    async (billingMode) => {
+      const member = await seedMember({ status: "active", matches_remaining: 0, billing_mode: billingMode });
+      memberId = member.id;
+      const sub = await seedSubscription(memberId, { status: "active" });
+      // stripeSubResponse() has a card on both the subscription and the customer:
+      // without the comped guard this member would be billed.
+
+      const res = await POST(makeRequest());
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.skippedComped).toBeGreaterThanOrEqual(1);
+      expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+
+      // Not even read from Stripe, let alone paused or invoiced.
+      expect(mockRetrieve).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+      expect(mockUpdate).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+      const touchedSubs = [...mockInvoiceItemCreate.mock.calls, ...mockInvoiceCreate.mock.calls].map(
+        ([args]) => (args as { subscription?: string }).subscription
+      );
+      expect(touchedSubs).not.toContain(sub.stripe_subscription_id);
+    }
+  );
+
+  it("does not cancel a comped member's subscription, even one marked canceling", async () => {
+    const member = await seedMember({ status: "canceling", matches_remaining: 0, billing_mode: "comped_with_perks" });
+    memberId = member.id;
+    const sub = await seedSubscription(memberId, { status: "active" });
+
+    const res = await POST(makeRequest());
+    expect(res.status).toBe(200);
+    expect(mockCancel).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+  });
+
   const DRY = JSON.stringify({ dryRun: true });
 
   describe("dry run ({ dryRun: true } body)", () => {
@@ -518,6 +555,18 @@ describe("POST /api/renew-check", () => {
         expect.objectContaining({ memberId: member.id, wouldDo: "skipped_no_payment_method" })
       );
       expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it("reports a comped member as skipped_comped", async () => {
+      const member = await seedMember({ status: "active", matches_remaining: 0, billing_mode: "comped_with_perks" });
+      memberId = member.id;
+      await seedSubscription(memberId, { status: "active" });
+
+      const res = await POST(makeRequest(undefined, { body: DRY }));
+      const body = await res.json();
+      expect(body.details).toContainEqual(
+        expect.objectContaining({ memberId: member.id, wouldDo: "skipped_comped" })
+      );
     });
 
     it("reports a canceling member as would-cancel without cancelling", async () => {

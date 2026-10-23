@@ -63,6 +63,29 @@ export function verifyConsentToken(memberId: string, token: string): boolean {
   }
 }
 
+/**
+ * Signed links for the cohort "continue" email (one link per plan).
+ * Token = HMAC-SHA256( "continue:{memberId}:{plan}", SKIP_TOKEN_SECRET )
+ * Not month-bound: the email's links keep working until the member continues.
+ */
+export function generateContinueToken(memberId: string, plan: string): string {
+  return createHmac("sha256", getSecret())
+    .update(`continue:${memberId}:${plan}`)
+    .digest("hex");
+}
+
+export function verifyContinueToken(memberId: string, plan: string, token: string): boolean {
+  const expected = generateContinueToken(memberId, plan);
+  try {
+    const expectedBuf = Buffer.from(expected, "hex");
+    const tokenBuf = Buffer.from(token, "hex");
+    if (expectedBuf.length !== tokenBuf.length) return false;
+    return timingSafeEqual(expectedBuf, tokenBuf);
+  } catch {
+    return false;
+  }
+}
+
 /** Returns the current month as YYYY-MM, e.g. "2026-05" */
 export function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);

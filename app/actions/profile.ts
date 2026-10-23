@@ -41,6 +41,8 @@ export type MemberProfile = {
   cohort_name: string | null;
   /** Standing match-pool choice: true = just my cohort, false = anyone. Defaults to true. */
   cohort_only: boolean;
+  /** True when the member's cohort has a continue offer (a promotion code is set). */
+  continue_offer: boolean;
   billing_mode: BillingMode;
 };
 
@@ -108,10 +110,22 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
   if (!data) return null;
 
   let cohortName: string | null = null;
+  let continueOffer = false;
   if (data.cohort) {
     cohortName = (await getCohortNames(supabase)).get(data.cohort) ?? null;
+    const { data: cohortRow } = await supabase
+      .from("cohorts")
+      .select("continue_promo_code_id")
+      .eq("slug", data.cohort)
+      .maybeSingle();
+    continueOffer = !!cohortRow?.continue_promo_code_id;
   }
-  return { ...data, cohort_name: cohortName, cohort_only: data.cohort_only !== false } as MemberProfile;
+  return {
+    ...data,
+    cohort_name: cohortName,
+    cohort_only: data.cohort_only !== false,
+    continue_offer: continueOffer,
+  } as MemberProfile;
 }
 
 export async function getTopics(): Promise<Topic[]> {
