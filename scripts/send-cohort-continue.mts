@@ -4,7 +4,7 @@
  * carries two signed checkout links (1 round, 3 rounds) with the cohort's
  * Stripe promotion code applied. Prices and discount are read from Stripe.
  *
- * The monthly job (POST /api/send-continue-offers, n8n, the 10th) does the same
+ * The monthly job (POST /api/send-continue-offers, n8n, the 27th) does the same
  * thing automatically; this script is for running it by hand, e.g. to send
  * early or to one person. Both share lib/continue-offer-send.ts and the
  * members.continue_offer_sent_at marker (migration 035), so nobody is emailed

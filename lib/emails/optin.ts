@@ -1,4 +1,4 @@
-import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
+import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix, escapeHtml } from "./base";
 
 // Distinct utm_content from the footer's own "Manage subscription" link
 // (lib/emails/base.ts's emailFooter) and from the match-reveal renewal
@@ -11,8 +11,19 @@ function lastMatchNoticeBillingUrl(): string {
 export type OptinEmailOptions = {
   /** False for comped_no_perks members: no Perks buttons or mentions. */
   perksEnabled?: boolean;
-  /** Set for comped cohort members, who are matched within their cohort. */
+  /**
+   * Set for members whose match this round is within their cohort (a cohort
+   * member who hasn't chosen "Anyone"). Names the cohort in the intro; the
+   * header and extra note below come from lib/cohort-config.ts.
+   */
   cohortName?: string | null;
+  /** Cohort header HTML (and its <head> preload); the standard header when unset. */
+  cohortHeaderHtml?: string | null;
+  cohortHeaderPreload?: string | null;
+  /** Extra cohort paragraph, plain text; nothing is added when unset. */
+  cohortNote?: { lead?: string; body: string } | null;
+  /** True when the match is the cohort's free one (comped members): skipping the window uses it up. */
+  cohortFreeMatch?: boolean;
 };
 
 function optinHtml(
@@ -24,7 +35,14 @@ function optinHtml(
   lastMatchNotice: boolean,
   options: OptinEmailOptions = {}
 ): string {
-  const { perksEnabled = true, cohortName = null } = options;
+  const {
+    perksEnabled = true,
+    cohortName = null,
+    cohortHeaderHtml = null,
+    cohortHeaderPreload = null,
+    cohortNote = null,
+    cohortFreeMatch = false,
+  } = options;
   // Billing plan §"Renewal timing" (Track E, 2026-08-26): the soft half of
   // the two-tier renewal notice. Fires a cycle earlier than the loud
   // match-reveal notice (lib/billing-notice.ts, Track C4) — while this
@@ -42,18 +60,18 @@ function optinHtml(
                                     </td></tr>`)
     : "";
 
-  const content = emailHeader() + bodySection(`
+  const content = (cohortHeaderHtml ?? emailHeader()) + bodySection(`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       Hi ${firstName},
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      It's the start of the month, which means that it's time to connect with a new parent nearby! Let us know how you'd like to meet this month — we'll take care of the rest.
+                                      It's the start of the month, which means that it's time to connect with a new parent nearby! ${cohortName ? `This round you'll be matched with another parent from <span style="font-weight:700">${cohortName}</span>. ` : ""}Let us know how you'd like to meet this month — we'll take care of the rest.
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       You have until the <span style="font-weight:700">5th of the month</span> to respond. You'll receive your introduction on the 7th${perksEnabled ? ", along with all of the Post Perks for both of you" : ""} 💌
-                                    </td></tr>${cohortName ? `
+                                    </td></tr>${cohortNote ? `
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      This is your free match from ${cohortName}, so you'll be matched with another student from the course. If you skip the window, the free match is used up.
+                                      ${cohortNote.lead ? `<span style="font-weight:700">${escapeHtml(cohortNote.lead)}</span> ` : ""}${escapeHtml(cohortNote.body)}
                                     </td></tr>` : ""}`, true) +
     ctaButton(perksEnabled ? "☕ Coffee + perks" : "☕ Coffee", coffeeUrl) +
     ctaButton(perksEnabled ? "🛝 Playdate + perks" : "🛝 Playdate", playdateUrl) +
@@ -66,11 +84,13 @@ function optinHtml(
       : "") +
     bodySection(`
                                     <tr><td dir="ltr" style="font-size:13px;text-align:center;color:#666666;line-height:1.4;mso-line-height-alt:18.2px">
-                                      Need a break? <a href="${skipUrl}" style="color:#666666;text-decoration:underline">Skip this month</a> for free. If we don't hear from you, we'll assume you don't want to be matched${perksEnabled ? " or access perks" : ""} this month.
+                                      ${cohortFreeMatch && cohortName
+        ? `This is your free match from ${cohortName}. Need a break? You can <a href="${skipUrl}" style="color:#666666;text-decoration:underline">skip this month</a> and use your free match next month — we just can't guarantee that you'll be matched with another ${cohortName} member. If we don't hear from you by the 5th, your free match is used up.`
+        : `Need a break? <a href="${skipUrl}" style="color:#666666;text-decoration:underline">Skip this month</a> for free. If we don't hear from you, we'll assume you don't want to be matched${perksEnabled ? " or access perks" : ""} this month.`}
                                     </td></tr>`) +
     lastMatchSection;
 
-  return baseEmail(content);
+  return baseEmail(content, cohortHeaderPreload ?? undefined);
 }
 
 export async function sendOptinEmail(
