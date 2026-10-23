@@ -8,7 +8,7 @@ const inputClass =
   "w-full px-3 py-2 rounded-lg border border-border bg-white text-dark placeholder-muted focus:outline-none focus:ring-2 focus:ring-coral/40 focus:border-coral transition text-sm";
 const labelClass = "block text-xs font-medium text-dark mb-1";
 
-const roundsText = (n: number) => (n === 1 ? "one free round" : `${n} free rounds`);
+const roundsText = (n: number) => (n === 1 ? "1 free round" : `${n} free rounds`);
 
 export default function CompMemberForm() {
   const [email, setEmail] = useState("");
