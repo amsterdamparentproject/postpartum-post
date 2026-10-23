@@ -18,9 +18,9 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { cleanupMemberByEmail, getMemberStatusByEmail } from "./helpers/db";
+import { cleanupMemberByEmail, getMemberStatusByEmail, testEmail } from "./helpers/db";
 
-const TEST_EMAIL = `e2e-abandoned-${Date.now()}@example.com`;
+const TEST_EMAIL = testEmail(`e2e-abandoned-${Date.now()}`);
 
 test.afterAll(async () => {
   await cleanupMemberByEmail(TEST_EMAIL);

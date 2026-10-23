@@ -13,10 +13,10 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { cleanupMemberByEmail, getMemberCohortByEmail } from "./helpers/db";
+import { cleanupMemberByEmail, getMemberCohortByEmail, testEmail } from "./helpers/db";
 
 const CODE = process.env.E2E_DSA_CODE;
-const EMAIL = `amsterdamparentproject+e2e-cohort-new-${Date.now()}@gmail.com`;
+const EMAIL = testEmail(`e2e-cohort-new-${Date.now()}`);
 
 test.skip(!CODE, "E2E_DSA_CODE not set in .env.local");
 

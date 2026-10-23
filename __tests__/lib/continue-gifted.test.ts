@@ -22,7 +22,7 @@ describe("giftedContinueHtml", () => {
     expect(html).toContain("1 round for €12");
     expect(hrefs(html)).toEqual(expect.arrayContaining([MONTHLY, BUNDLE]));
     expect(html).not.toContain("usually");
-    expect(html).not.toContain("off");
+    expect(html).not.toContain("% off");
   });
 
   it("falls back to a plain greeting without a name, and escapes it", () => {

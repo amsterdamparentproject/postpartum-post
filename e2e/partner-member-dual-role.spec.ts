@@ -25,12 +25,13 @@ import {
   cleanupMember,
   cleanupPartner,
   cleanupAuthUser,
+  testEmail,
 } from "./helpers/db";
 
 test("a member who is also a partner can see both, and visiting one never signs out the other", async ({ page }) => {
   // Same email on both rows — the one Supabase Auth user this creates is
   // what both sides look up by.
-  const email = `amsterdamparentproject+e2e-dual-${crypto.randomUUID().slice(0, 8)}@gmail.com`;
+  const email = testEmail(`e2e-dual-${crypto.randomUUID().slice(0, 8)}`);
   const member = await seedMember({ email, firstName: "Dana", lastName: "Dual" });
   const partner = await seedPartner({ email, businessName: "Dana's Dual Studio" });
 
