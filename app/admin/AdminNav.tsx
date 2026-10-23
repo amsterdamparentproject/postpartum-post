@@ -14,9 +14,9 @@ export default function AdminNav({ active }: { active: "stats" | "matches" | "me
       </div>
       <nav className="flex gap-1">
         <Link href="/admin" className={active === "stats" ? on : off}>Stats</Link>
-        <Link href="/admin/matches" className={active === "matches" ? on : off}>Matches</Link>
         <Link href="/admin/members" className={active === "members" ? on : off}>Members</Link>
         <Link href="/admin/partners" className={active === "partners" ? on : off}>Partners</Link>
+        <Link href="/admin/matches" className={active === "matches" ? on : off}>Matches</Link>
       </nav>
     </div>
   );

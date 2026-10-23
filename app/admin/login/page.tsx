@@ -20,7 +20,7 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ username, password }),
       });
       if (res.ok) {
-        router.push("/admin/matches");
+        router.push("/admin");
       } else {
         setError("Incorrect username or password.");
         setPassword("");
