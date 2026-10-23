@@ -8,3 +8,4 @@ export { sendMeetupReminderEmail } from "./meetup-reminder";
 export { sendCohortWelcomeEmail, sendCohortExistingMemberEmail } from "./welcome-cohort";
 export { sendCohortContinueEmail } from "./continue-cohort";
 export { sendGiftedWelcomeEmail } from "./welcome-gifted";
+export { sendGiftedRoundsEmail } from "./gifted-rounds";

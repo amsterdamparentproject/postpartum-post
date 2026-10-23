@@ -38,7 +38,9 @@ export type GrantResult = {
  */
 export async function grantFreeMonth(
   memberEmail: string,
-  grantReason: string
+  grantReason: string,
+  /** How many rounds to credit. Defaults to one free month; the admin comp tool passes more. */
+  matches = 1
 ): Promise<GrantResult> {
   const supabase = createAdminClient();
 
@@ -65,7 +67,7 @@ export async function grantFreeMonth(
     throw new Error(`No active subscription found for ${memberEmail}`);
   }
 
-  const matchesGranted = 1;
+  const matchesGranted = matches;
 
   await recordEntitlement(supabase, {
     memberId: member.id,
