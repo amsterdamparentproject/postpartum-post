@@ -35,6 +35,20 @@
  * members.status -> inactive, the unsubscribed email — so there's nothing
  * more to do here once the cancel call succeeds.
  *
+ * Comped guard: a member whose billing_mode is comped_no_perks or
+ * comped_with_perks is skipped entirely, whatever Stripe holds for them —
+ * no pause, no invoice, no cancellation (reported as skipped_comped). Their
+ * access is a free ledger grant; they only start paying by choosing to (the
+ * cohort continue offer flips them to "subscription" at checkout). Without
+ * this check the only thing keeping a comped member out of renewal was having
+ * no Stripe subscription or card, so a member switched to comped while still
+ * holding a subscription with a card on file (an existing member moved to a
+ * free-forever cohort, say) would be billed at zero. This only stops THIS
+ * job: a live Stripe subscription that isn't paused still bills on Stripe's
+ * own schedule, so convert a subscriber to comped by canceling their
+ * subscription first (the deletion webhook leaves comped members alone).
+ * The daily subscription audit already treats comped members the same way.
+ *
  * Payment-method guard (plan §5 / Appendix A): a member with no
  * default_payment_method (the FYP/comped population) is skipped entirely —
  * no pause, no invoice, no cancellation. Touching pause_collection for
@@ -121,6 +135,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { currentMonth, monthToDate } from "@/lib/tokens";
+import { isComped } from "@/lib/billing-mode";
 
 // Processed in batches of this size rather than unbounded — plenty of
 // headroom over the current/expected member count to collapse total wall
@@ -131,6 +146,7 @@ const BATCH_CONCURRENCY = 20;
 type RenewOutcome =
   | { kind: "billed"; amount?: number; currency?: string }
   | { kind: "canceled" }
+  | { kind: "skipped_comped" }
   | { kind: "skipped_no_payment_method" }
   | { kind: "skipped_open_invoice"; invoiceId: string }
   | { kind: "no_op" }
@@ -418,7 +434,7 @@ export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
   const { data: candidates, error: candidatesError } = await supabase
     .from("members")
-    .select("id, status, matches_remaining")
+    .select("id, status, matches_remaining, billing_mode")
     .in("status", ["active", "canceling"])
     .lte("matches_remaining", 0);
 
@@ -430,6 +446,7 @@ export async function POST(req: NextRequest) {
   let billed = 0;
   let canceled = 0;
   let deferredActiveMatch = 0;
+  let skippedComped = 0;
   let skippedNoPaymentMethod = 0;
   let skippedOpenInvoice = 0;
   const errors: { memberId: string; error: string }[] = [];
@@ -442,11 +459,13 @@ export async function POST(req: NextRequest) {
   for (let i = 0; i < list.length; i += BATCH_CONCURRENCY) {
     const batch = list.slice(i, i + BATCH_CONCURRENCY);
     const outcomes = await Promise.all(
-      batch.map((member) =>
-        member.status === "canceling"
+      batch.map((member): Promise<RenewOutcome> => {
+        // Comped guard (see the docblock): checked before any Stripe call.
+        if (isComped(member.billing_mode)) return Promise.resolve({ kind: "skipped_comped" });
+        return member.status === "canceling"
           ? finalizeCancellation(member, supabase, stripe, dryRun)
-          : renewMember(member, supabase, stripe, cycleKey, dryRun)
-      )
+          : renewMember(member, supabase, stripe, cycleKey, dryRun);
+      })
     );
     for (const [idx, outcome] of outcomes.entries()) {
       if (dryRun) {
@@ -466,6 +485,7 @@ export async function POST(req: NextRequest) {
       if (outcome.kind === "billed") billed++;
       else if (outcome.kind === "canceled") canceled++;
       else if (outcome.kind === "deferred_active_match") deferredActiveMatch++;
+      else if (outcome.kind === "skipped_comped") skippedComped++;
       else if (outcome.kind === "skipped_no_payment_method") skippedNoPaymentMethod++;
       else if (outcome.kind === "skipped_open_invoice") skippedOpenInvoice++;
       else if (outcome.kind === "error") errors.push({ memberId: outcome.memberId, error: outcome.error });
@@ -479,6 +499,7 @@ export async function POST(req: NextRequest) {
     billed,
     canceled,
     deferredActiveMatch,
+    skippedComped,
     skippedNoPaymentMethod,
     skippedOpenInvoice,
     errors,
