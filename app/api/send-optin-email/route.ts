@@ -18,6 +18,7 @@ import { sendOptinEmail } from "@/lib/emails";
 import { fetchBillingNoticeContext } from "@/lib/billing-notice";
 import { hasPerksAccess, isComped } from "@/lib/billing-mode";
 import { getCohortNames } from "@/lib/cohort";
+import { getCohortConfig } from "@/lib/cohort-config";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
@@ -94,6 +95,11 @@ export async function POST(req: NextRequest) {
   const cohortNames = await getCohortNames(supabase);
 
   for (const member of targets) {
+    // Cohort-branded when this round's match is inside the cohort: the
+    // member's own pool choice (lib/cohort.ts's resolveCohortOnly rule), so a
+    // cohort member who picked "Anyone" gets the regular email.
+    const inCohortRound = !!member.cohort && member.cohort_only !== false;
+    const cohortConfig = inCohortRound ? getCohortConfig(member.cohort) : {};
     const buildUrl = (action: "coffee" | "playdate" | "perks" | "skip") => {
       const token = generateOptinToken(member.id, month, action);
       return `${SITE_URL}/api/optin?member=${member.id}&month=${month}&action=${action}&token=${token}`;
@@ -129,10 +135,12 @@ export async function POST(req: NextRequest) {
         lastMatchNotice,
         {
           perksEnabled: hasPerksAccess(member.billing_mode),
-          // Cohort-branded when this round's match is inside the cohort: the
-          // member's own pool choice (lib/cohort.ts's resolveCohortOnly rule),
-          // so a cohort member who picked "Anyone" gets the regular email.
-          cohortName: member.cohort && member.cohort_only !== false ? (cohortNames.get(member.cohort) ?? null) : null,
+          cohortName: inCohortRound ? (cohortNames.get(member.cohort!) ?? null) : null,
+          // Header and extra note per cohort (lib/cohort-config.ts); any piece
+          // a cohort doesn't define falls back to the generic email.
+          cohortHeaderHtml: cohortConfig.headerHtml ?? null,
+          cohortHeaderPreload: cohortConfig.headerPreload ?? null,
+          cohortNote: cohortConfig.optinNote ?? null,
           cohortFreeMatch: isComped(member.billing_mode),
         }
       );

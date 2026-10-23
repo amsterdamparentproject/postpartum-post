@@ -1,5 +1,4 @@
-import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
-import { cohortHeader, COHORT_HEADER_PRELOAD } from "./welcome-cohort";
+import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix, escapeHtml } from "./base";
 
 // Distinct utm_content from the footer's own "Manage subscription" link
 // (lib/emails/base.ts's emailFooter) and from the match-reveal renewal
@@ -14,10 +13,15 @@ export type OptinEmailOptions = {
   perksEnabled?: boolean;
   /**
    * Set for members whose match this round is within their cohort (a cohort
-   * member who hasn't chosen "Anyone"). Switches on the cohort-branded header
-   * and the note about meeting online.
+   * member who hasn't chosen "Anyone"). Names the cohort in the intro; the
+   * header and extra note below come from lib/cohort-config.ts.
    */
   cohortName?: string | null;
+  /** Cohort header HTML (and its <head> preload); the standard header when unset. */
+  cohortHeaderHtml?: string | null;
+  cohortHeaderPreload?: string | null;
+  /** Extra cohort paragraph, plain text; nothing is added when unset. */
+  cohortNote?: { lead?: string; body: string } | null;
   /** True when the match is the cohort's free one (comped members): skipping the window uses it up. */
   cohortFreeMatch?: boolean;
 };
@@ -31,7 +35,14 @@ function optinHtml(
   lastMatchNotice: boolean,
   options: OptinEmailOptions = {}
 ): string {
-  const { perksEnabled = true, cohortName = null, cohortFreeMatch = false } = options;
+  const {
+    perksEnabled = true,
+    cohortName = null,
+    cohortHeaderHtml = null,
+    cohortHeaderPreload = null,
+    cohortNote = null,
+    cohortFreeMatch = false,
+  } = options;
   // Billing plan §"Renewal timing" (Track E, 2026-08-26): the soft half of
   // the two-tier renewal notice. Fires a cycle earlier than the loud
   // match-reveal notice (lib/billing-notice.ts, Track C4) — while this
@@ -49,7 +60,7 @@ function optinHtml(
                                     </td></tr>`)
     : "";
 
-  const content = (cohortName ? cohortHeader() : emailHeader()) + bodySection(`
+  const content = (cohortHeaderHtml ?? emailHeader()) + bodySection(`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       Hi ${firstName},
                                     </td></tr>
@@ -58,9 +69,9 @@ function optinHtml(
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       You have until the <span style="font-weight:700">5th of the month</span> to respond. You'll receive your introduction on the 7th${perksEnabled ? ", along with all of the Post Perks for both of you" : ""} 💌
-                                    </td></tr>${cohortName ? `
+                                    </td></tr>${cohortNote ? `
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      <span style="font-weight:700">Live outside Amsterdam?</span> No problem: ${cohortName} parents live all over, so you can be matched wherever you are. If you live near each other, try to meet in person! If not, a video call is a great way to practice Dutch together. You'll agree on what works once you're introduced.
+                                      ${cohortNote.lead ? `<span style="font-weight:700">${escapeHtml(cohortNote.lead)}</span> ` : ""}${escapeHtml(cohortNote.body)}
                                     </td></tr>` : ""}`, true) +
     ctaButton(perksEnabled ? "☕ Coffee + perks" : "☕ Coffee", coffeeUrl) +
     ctaButton(perksEnabled ? "🛝 Playdate + perks" : "🛝 Playdate", playdateUrl) +
@@ -74,12 +85,12 @@ function optinHtml(
     bodySection(`
                                     <tr><td dir="ltr" style="font-size:13px;text-align:center;color:#666666;line-height:1.4;mso-line-height-alt:18.2px">
                                       ${cohortFreeMatch && cohortName
-        ? `This is your free match from ${cohortName}. Need a break? You can <a href="${skipUrl}" style="color:#666666;text-decoration:underline">skip this month</a> and use your free match next month — we just can't guarantee that you'll be matched with another ${cohortName} member.`
+        ? `This is your free match from ${cohortName}. Need a break? You can <a href="${skipUrl}" style="color:#666666;text-decoration:underline">skip this month</a> and use your free match next month — we just can't guarantee that you'll be matched with another ${cohortName} member. If we don't hear from you by the 5th, your free match is used up.`
         : `Need a break? <a href="${skipUrl}" style="color:#666666;text-decoration:underline">Skip this month</a> for free. If we don't hear from you, we'll assume you don't want to be matched${perksEnabled ? " or access perks" : ""} this month.`}
                                     </td></tr>`) +
     lastMatchSection;
 
-  return baseEmail(content, cohortName ? COHORT_HEADER_PRELOAD : undefined);
+  return baseEmail(content, cohortHeaderPreload ?? undefined);
 }
 
 export async function sendOptinEmail(
