@@ -4,9 +4,13 @@
  * Emails the "keep going?" offer to comped cohort members whose free match is
  * used (see lib/continue-offer-send.ts for exactly who is eligible, and
  * __claude__/dsa-continue-offer.md for the offer itself). Runs monthly on the
- * 10th, at 10:00 (n8n cron `0 0 10 10 * *`), an hour after renew-check and
- * three days after the 7th's match reveal. By then the 7th's commit has spent
- * the free credit and the member has had a few days with their match.
+ * 27th, at 10:00 (n8n cron `0 0 10 27 * *`; every month has a 27th). The free
+ * credit is spent at the 7th's commit, the moment the match is delivered, so
+ * "0 matches left" does not mean the match is over. The 27th is after the 23rd's
+ * meetup reminder (about three weeks with the match) and before the 1st's
+ * opt-in email, so a member who continues in time can opt into the next round.
+ * (A date earlier in the month, like the 10th, would say "your free match is
+ * done" while they are still arranging to meet.)
  *
  * Safe to retry or run twice: each member is claimed (members.continue_offer_sent_at,
  * migration 035) before the email goes out, so nobody gets it twice. A failed
