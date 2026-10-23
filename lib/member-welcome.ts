@@ -11,14 +11,17 @@ type AdminClient = ReturnType<typeof createAdminClient>;
  * replace the first's token. Falls back to the plain URL if link generation
  * fails, so the email still goes out.
  *
- * Shared by the Stripe checkout webhook and the comped cohort signup.
+ * Pass `path` (e.g. "/profile") to land somewhere fixed instead.
+ *
+ * Shared by the Stripe checkout webhook, the comped cohort signup and the admin comp tool.
  */
 export async function createWelcomeSignIn(
   supabase: AdminClient,
-  email: string
+  email: string,
+  options: { path?: string } = {}
 ): Promise<{ signInLink: string; windowOpen: boolean }> {
   const windowOpen = isOptinWindowOpen();
-  const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}/${windowOpen ? "matches" : "my-perks"}`;
+  const redirectTo = `${process.env.NEXT_PUBLIC_BASE_URL}${options.path ?? `/${windowOpen ? "matches" : "my-perks"}`}`;
   const linkResult = await generateMagicLinkWithRetry(supabase, email, redirectTo);
   if (linkResult.success) {
     return { signInLink: linkResult.url, windowOpen };
