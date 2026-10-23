@@ -19,12 +19,13 @@ export function consentEntryLink(memberId: string): string {
   return `${SITE_URL}/api/consent/enter?member_id=${memberId}&token=${generateConsentToken(memberId)}`;
 }
 
-// Sits in the same bodySection as the Perks paragraph (see below): two sections
-// would stack their 26px paddings and leave a big gap between the two.
-const finePrint = (gapBelow: boolean) => `
-                                    <tr><td dir="ltr" style="font-size:13px;text-align:center;padding:0 0 ${gapBelow ? 16 : 0}px;line-height:1.4;mso-line-height-alt:18px;color:#555555">
-                                      <span>By clicking, you agree to our </span><a href="${SITE_URL}/community-guidelines" style="color:#555555;text-decoration:underline">Community Guidelines</a><span> and confirm you're a parent (or expecting a child) and 18 or older.</span>
-                                    </td></tr>`;
+// A bare row right under the button, not a bodySection: a bodySection's 26px
+// padding on top of the button's own 16px left a big gap above this line. The
+// 50px side padding lines the text up with the body copy (24px + 26px).
+const finePrint = (includePerks: boolean) => `
+                  <tr><td dir="ltr" style="padding:0 50px ${includePerks ? 8 : 24}px;font-family:Arial,Helvetica,sans-serif;font-size:13px;text-align:center;line-height:1.4;mso-line-height-alt:18px;color:#555555">
+                    <span>By clicking, you agree to our </span><a href="${SITE_URL}/community-guidelines" style="color:#555555;text-decoration:underline">Community Guidelines</a><span> and confirm you're a parent (or expecting a child) and 18 or older.</span>
+                  </td></tr>`;
 
 export function giftedWelcomeHtml(entryLink: string, includePerks: boolean, note?: string | null): string {
   // An admin's note ("Congrats, Holly — you won our Post Perks giveaway!") replaces the plain "Welcome!".
@@ -48,7 +49,7 @@ export function giftedWelcomeHtml(entryLink: string, includePerks: boolean, note
                                     </td></tr>`;
 
   return baseEmail(
-    emailHeader() + bodySection(rows) + ctaButton("Go to your profile", entryLink) + bodySection(finePrint(includePerks) + (includePerks ? perksRows : ""))
+    emailHeader() + bodySection(rows) + ctaButton("Go to your profile", entryLink) + finePrint(includePerks) + (includePerks ? bodySection(perksRows) : "")
   );
 }
 

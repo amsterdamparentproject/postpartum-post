@@ -518,7 +518,7 @@ export async function optInFromMatches(
   if (topicError || !topic) return { success: false, error: "server_error" };
 
   // Cohort members are matched inside their cohort unless they chose "Anyone"
-  // (members.cohort_only, default true); comped members have no choice.
+  // (members.cohort_only, turned on when they join); comped members have no choice.
   let cohortOnly: boolean;
   try {
     cohortOnly = await resolveCohortOnly(supabase, memberId);

@@ -77,9 +77,10 @@ export async function cohortIsFull(supabase: AdminClient, cohort: Pick<CodeCohor
 
 /**
  * Decides what to store in monthly_participation.cohort_only when a member
- * opts into a round: their own standing choice (members.cohort_only), which
- * defaults to true. A member with a cohort is matched only inside it until they
- * pick "Anyone" on /profile or /matches; a member without a cohort never is.
+ * opts into a round: their own standing choice (members.cohort_only). It is
+ * false by default and set true by a trigger when a member joins a cohort
+ * (migration 036), so a member with a cohort is matched only inside it until
+ * they pick "Anyone" on /profile or /matches; a member without a cohort never is.
  *
  * Throws on a lookup failure instead of defaulting to false: failing open would
  * pair a cohort member outside the cohort.
