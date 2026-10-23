@@ -100,3 +100,24 @@ export async function loadContinueOffer(
   }
   return { discountText: describeDiscount(coupon), durationNote: describeDuration(coupon), plans };
 }
+
+/**
+ * The same two plans at their regular price, for a comped member whose free
+ * round isn't tied to a cohort offer (e.g. a gifted membership). offerCents
+ * equals regularCents and discountText is empty, so the UI shows plain prices.
+ * Null when a plan price can't be found in Stripe.
+ */
+export async function loadRegularContinuePlans(stripe: Stripe): Promise<ContinueOfferDetails | null> {
+  const plans: ContinueOfferDetails["plans"] = [];
+  for (const plan of CONTINUE_PLAN_ORDER) {
+    const prices = await stripe.prices.list({ lookup_keys: [plan], active: true, limit: 1 });
+    const price = prices.data[0];
+    if (!price || price.unit_amount == null) return null;
+    plans.push({ plan, label: CONTINUE_PLAN_LABELS[plan], regularCents: price.unit_amount, offerCents: price.unit_amount });
+  }
+  return {
+    discountText: "",
+    durationNote: "Your plan renews when your rounds run out, and you can cancel anytime.",
+    plans,
+  };
+}

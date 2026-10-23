@@ -6,7 +6,7 @@ import { getStripe } from "@/lib/stripe";
 import { geocodeZipcode } from "@/lib/matcher";
 import { requireMember } from "@/lib/require-member";
 import { currentMonth, monthToDate } from "@/lib/tokens";
-import type { BillingMode } from "@/lib/billing-mode";
+import { isComped, type BillingMode } from "@/lib/billing-mode";
 
 export type Availability = {
   days: string[];
@@ -41,7 +41,7 @@ export type MemberProfile = {
   cohort_name: string | null;
   /** Standing match-pool choice: true = just my cohort, false = anyone. Defaults to true. */
   cohort_only: boolean;
-  /** True when the member's cohort has a continue offer (a promotion code is set). */
+  /** True when the member can continue: their cohort has a continue offer (a promotion code is set), or they are an active comped member (regular price). */
   continue_offer: boolean;
   billing_mode: BillingMode;
 };
@@ -120,6 +120,9 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
       .maybeSingle();
     continueOffer = !!cohortRow?.continue_promo_code_id;
   }
+  // Any other active comped member (no cohort, or a cohort with no code) can
+  // continue at the regular price.
+  if (!continueOffer) continueOffer = isComped(data.billing_mode) && data.status === "active";
   return {
     ...data,
     cohort_name: cohortName,

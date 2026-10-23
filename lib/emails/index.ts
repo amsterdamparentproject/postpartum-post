@@ -7,3 +7,4 @@ export { sendGiftCardEmail } from "./gift-card";
 export { sendMeetupReminderEmail } from "./meetup-reminder";
 export { sendCohortWelcomeEmail, sendCohortExistingMemberEmail } from "./welcome-cohort";
 export { sendCohortContinueEmail } from "./continue-cohort";
+export { sendGiftedWelcomeEmail } from "./welcome-gifted";

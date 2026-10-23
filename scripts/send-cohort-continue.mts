@@ -27,6 +27,7 @@ import { resolve } from "path";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
 import { sendContinueOffers } from "../lib/continue-offer-send.ts";
+import { sendGiftedContinueOffers } from "../lib/gifted-continue-send.ts";
 import { STRIPE_API_VERSION } from "../lib/stripe.ts";
 
 const env = process.argv[2];
@@ -60,13 +61,10 @@ if (!stripeKey) {
   process.exit(1);
 }
 
-const results = await sendContinueOffers(supabase, {
-  stripe: new Stripe(stripeKey, { apiVersion: STRIPE_API_VERSION }),
-  siteUrl,
-  dryRun,
-  cohortSlug: slug,
-  onlyEmail: only,
-});
+const stripe = new Stripe(stripeKey, { apiVersion: STRIPE_API_VERSION });
+const results = await sendContinueOffers(supabase, { stripe, siteUrl, dryRun, cohortSlug: slug, onlyEmail: only });
+// Comped members with no cohort offer (gifted, or a cohort without a code) get the regular-price version, listed as "regular-price".
+if (!slug) results.push(...(await sendGiftedContinueOffers(supabase, { stripe, siteUrl, dryRun, onlyEmail: only })));
 
 if (!results.length) {
   console.log(`No cohort with a continue offer found${slug ? ` for "${slug}"` : ""}. Set continue_promo_code_id on the cohort first.`);

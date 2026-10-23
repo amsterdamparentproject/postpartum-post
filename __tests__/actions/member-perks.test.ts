@@ -137,4 +137,28 @@ describe("member perks", () => {
       await cleanupMember(notOptedIn.id);
     }
   });
+
+  it("tells a comped_no_perks member Perks are disabled, with the live Perks total for the unlock line", async () => {
+    const noPerks = await seedMember({ billing_mode: "comped_no_perks" });
+    try {
+      const listed = await listMemberPerks(await getAccessTokenForEmail(noPerks.email));
+      expect(listed).toMatchObject({ optedIn: false, perks: [], perksDisabled: true });
+      // The figure is the live Perks' estimated value, or null when none have one.
+      expect(listed.perksTotal === null || typeof listed.perksTotal === "number").toBe(true);
+    } finally {
+      await cleanupAuthUser(noPerks.email);
+      await cleanupMember(noPerks.id);
+    }
+  });
+
+  it("does not disable Perks for a comped_with_perks member who hasn't opted in", async () => {
+    const withPerks = await seedMember({ billing_mode: "comped_with_perks" });
+    try {
+      const listed = await listMemberPerks(await getAccessTokenForEmail(withPerks.email));
+      expect(listed).toEqual({ optedIn: false, perks: [] });
+    } finally {
+      await cleanupAuthUser(withPerks.email);
+      await cleanupMember(withPerks.id);
+    }
+  });
 });

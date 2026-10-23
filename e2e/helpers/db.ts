@@ -27,22 +27,25 @@ function stripe() {
 }
 
 /**
- * Builds a synthetic-but-real test email via Gmail's `+` addressing — all
- * mail still lands in the same real inbox (or nowhere, if unread), but the
- * domain is genuinely deliverable.
+ * Builds a test email at Resend's reserved test domain: `delivered@resend.dev`
+ * accepts the send (the app's own Resend calls succeed and the message shows
+ * up in Resend's logs, so e2e/helpers/email.ts can read it back) without
+ * reaching any real inbox. The `+label` part makes each address unique, so a
+ * run's members never collide and each run's mail is findable by recipient.
  *
- * Diagnosed 2026-07-24 (same root cause hit in the site repo): `@example.com`
- * (RFC 2606's reserved example domain, previously used here) gets a hard
- * SMTP 550 from Supabase's mail relay — "Invalid `to` field. Please use our
- * testing email address instead of domains like `example.com`." Every e2e
- * test that signs in via signInAs() (auth.ts) reaches
- * supabase.auth.admin.generateLink(), which attempts this send as a side
- * effect regardless of whether the link is actually followed — and that
- * send failing surfaces as a confusing, unrelated-looking "unrecognized JWT
- * kid" signature-verification error, not the real cause.
+ * History: this used to be `amsterdamparentproject+label@gmail.com`, because
+ * `@example.com` got a hard SMTP 550 from Supabase's mail relay ("Invalid `to`
+ * field. Please use our testing email address instead of domains like
+ * `example.com`"). That relay message is Resend's, and `@resend.dev` is the
+ * testing address it asks for. Every e2e test that signs in via signInAs()
+ * (auth.ts) reaches supabase.auth.admin.generateLink(), which attempts a send
+ * as a side effect, and that send failing surfaces as a confusing "unrecognized
+ * JWT kid" error. Gmail avoided it, but put real mail in a real inbox.
+ *
+ * Keep the label starting with `e2e-` so global-teardown's sweep finds strays.
  */
-function testEmail(label: string): string {
-  return `amsterdamparentproject+${label}@gmail.com`;
+export function testEmail(label: string): string {
+  return `delivered+${label}@resend.dev`;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +91,77 @@ export async function seedMember(
 
   if (error) throw new Error(`seedMember failed: ${error.message}`);
   return { id, email, stripeCustomerId };
+}
+
+/**
+ * Insert an active comped member (free round, no subscription, no card) in the
+ * state the continue offer applies to. stripe_customer_id stays null on
+ * purpose: the continue checkout then creates a real Stripe test customer,
+ * where a fake `cus_e2e_*` id would make Stripe reject the session.
+ * Pass `cohort` to attach an existing cohorts.slug (see seedCohort).
+ */
+export async function seedCompedMember(
+  overrides: {
+    email?: string;
+    matchesRemaining?: number;
+    includePerks?: boolean;
+    cohort?: string;
+  } = {}
+): Promise<{ id: string; email: string }> {
+  const db = supabase();
+  const id = crypto.randomUUID();
+  const email = overrides.email ?? testEmail(`e2e-comped-${id.slice(0, 8)}`);
+  const { error } = await db.from("members").insert({
+    id,
+    email,
+    first_name: "Comped",
+    last_name: "Member",
+    status: "active",
+    billing_mode: overrides.includePerks === false ? "comped_no_perks" : "comped_with_perks",
+    matches_remaining: overrides.matchesRemaining ?? 0,
+    consecutive_skips: 0,
+    cohort: overrides.cohort ?? null,
+  });
+  if (error) throw new Error(`seedCompedMember failed: ${error.message}`);
+  return { id, email };
+}
+
+/**
+ * Insert a throwaway cohort with no signup code and no continue offer, i.e. a
+ * cohort whose members fall back to the regular price. Slug must start `e2e-`.
+ */
+export async function seedCohort(slug: string): Promise<void> {
+  const { error } = await supabase().from("cohorts").insert({ slug, name: `E2E ${slug}`, grant_matches: 1 });
+  if (error) throw new Error(`seedCohort failed: ${error.message}`);
+}
+
+/** Delete a cohort made by seedCohort. Delete its members first (foreign key). */
+export async function cleanupCohort(slug: string): Promise<void> {
+  await supabase().from("cohorts").delete().eq("slug", slug);
+}
+
+/** Returns the member's consent timestamps, or null if no member has this email. */
+export async function getMemberConsentByEmail(
+  email: string
+): Promise<{ guidelines_accepted_at: string | null; eligibility_confirmed_at: string | null } | null> {
+  const { data } = await supabase()
+    .from("members")
+    .select("guidelines_accepted_at, eligibility_confirmed_at")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  return data ?? null;
+}
+
+/** Returns billing_mode and matches_remaining, or null if no member has this email. */
+export async function getMemberBillingByEmail(
+  email: string
+): Promise<{ billing_mode: string | null; matches_remaining: number; first_name: string | null } | null> {
+  const { data } = await supabase()
+    .from("members")
+    .select("billing_mode, matches_remaining, first_name")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  return data ?? null;
 }
 
 /**

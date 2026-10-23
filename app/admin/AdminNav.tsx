@@ -1,7 +1,7 @@
 import EnvelopeLogo from "@/components/EnvelopeLogo";
 import Link from "next/link";
 
-export default function AdminNav({ active }: { active: "stats" | "matches" | "demographics" | "partners" }) {
+export default function AdminNav({ active }: { active: "stats" | "matches" | "members" | "partners" }) {
   const base = "text-sm font-medium px-3 py-1.5 rounded-lg transition-colors";
   const on = `${base} bg-dark text-white`;
   const off = `${base} text-muted hover:text-dark`;
@@ -15,7 +15,7 @@ export default function AdminNav({ active }: { active: "stats" | "matches" | "de
       <nav className="flex gap-1">
         <Link href="/admin" className={active === "stats" ? on : off}>Stats</Link>
         <Link href="/admin/matches" className={active === "matches" ? on : off}>Matches</Link>
-        <Link href="/admin/demographics" className={active === "demographics" ? on : off}>Demographics</Link>
+        <Link href="/admin/members" className={active === "members" ? on : off}>Members</Link>
         <Link href="/admin/partners" className={active === "partners" ? on : off}>Partners</Link>
       </nav>
     </div>

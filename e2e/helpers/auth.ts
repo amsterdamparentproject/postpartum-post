@@ -57,9 +57,9 @@ function throttledAuthCall<T>(fn: () => Promise<T>): Promise<T> {
  *    ES256" — a token with no `kid` header failing to match the project's
  *    single active ECC signing key. Not caused by an @example.com-domain
  *    email (Supabase's mail relay rejects that outright with a different,
- *    unambiguous SMTP error — test emails here already use a real
- *    gmail.com address, see e2e/helpers/db.ts) — this recurs even with a
- *    real, deliverable email. Clears on the next attempt, so a quick retry
+ *    unambiguous SMTP error — test emails here use Resend's resend.dev
+ *    test address, see e2e/helpers/db.ts) — this recurs even with a
+ *    valid, accepted email. Clears on the next attempt, so a quick retry
  *    is enough.
  *  - Diagnosed 2026-09-28: enough signInAs calls across a full e2e run can
  *    trip Supabase's own "Request rate limit reached" on this same

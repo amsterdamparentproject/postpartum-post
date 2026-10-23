@@ -5,10 +5,10 @@ import { startContinueCheckout, getContinueOfferDetails } from "@/app/actions/co
 import { formatCents, type ContinueOfferDetails, type ContinuePlan } from "@/lib/continue-offer-pricing";
 
 /**
- * "Keep going" buttons on the billing page of a comped cohort member whose free
- * match is used. Prices and discount come from Stripe (the cohort's promotion
- * code), and each button starts a Checkout with the discount already applied
- * (see lib/continue-offer.ts).
+ * "Keep going" buttons on the billing page of a comped member whose free
+ * round is used. Prices come from Stripe. A cohort member sees their cohort's
+ * discount, already applied at Checkout; a member with no cohort (a gifted
+ * membership) sees the regular prices (see lib/continue-offer.ts).
  */
 export default function ContinueOffer({ accessToken }: { accessToken: string }) {
   const [offer, setOffer] = useState<ContinueOfferDetails | null>(null);
@@ -47,7 +47,9 @@ export default function ContinueOffer({ accessToken }: { accessToken: string }) 
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-dark font-medium">Keep going? Here&apos;s {offer.discountText} as a thank-you.</p>
+      <p className="text-sm text-dark font-medium">
+        {offer.discountText ? <>Keep going? Here&apos;s {offer.discountText} as a thank-you.</> : "Want to keep going? Pick how many rounds."}
+      </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {offer.plans.map(({ plan, label, regularCents, offerCents }) => (
           <button
@@ -58,7 +60,8 @@ export default function ContinueOffer({ accessToken }: { accessToken: string }) 
           >
             <span className="block text-sm font-semibold text-dark">{label}</span>
             <span className="block text-sm text-dark">
-              {formatCents(offerCents)} <span className="text-muted line-through">{formatCents(regularCents)}</span>
+              {formatCents(offerCents)}{" "}
+              {offerCents < regularCents && <span className="text-muted line-through">{formatCents(regularCents)}</span>}
             </span>
             {isPending && pendingPlan === plan && <span className="block text-xs text-muted mt-1">One moment…</span>}
           </button>
@@ -66,7 +69,8 @@ export default function ContinueOffer({ accessToken }: { accessToken: string }) 
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
       <p className="text-xs text-muted leading-relaxed">
-        {offer.durationNote} Post Perks unlock when you continue.
+        {offer.durationNote}
+        {offer.discountText && " Post Perks unlock when you continue."}
       </p>
     </div>
   );

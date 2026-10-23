@@ -4,8 +4,9 @@ import { NextRequest } from "next/server";
 // The route's own job is auth, strict body parsing and shaping the response.
 // Who is eligible and the send itself live in lib/continue-offer-send.ts, so
 // they are mocked here (no database or Stripe needed).
-const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }));
+const { mockSend, mockGifted } = vi.hoisted(() => ({ mockSend: vi.fn(), mockGifted: vi.fn() }));
 vi.mock("@/lib/continue-offer-send", () => ({ sendContinueOffers: mockSend }));
+vi.mock("@/lib/gifted-continue-send", () => ({ sendGiftedContinueOffers: mockGifted }));
 vi.mock("@/lib/supabase", () => ({ createAdminClient: () => ({}) }));
 vi.mock("@/lib/stripe", () => ({ getStripe: () => ({}) }));
 
@@ -41,6 +42,8 @@ describe("POST /api/send-continue-offers", () => {
     process.env.MATCHER_API_SECRET = SECRET;
     mockSend.mockReset();
     mockSend.mockResolvedValue(RESULT);
+    mockGifted.mockReset();
+    mockGifted.mockResolvedValue([]);
   });
   afterEach(() => {
     process.env.MATCHER_API_SECRET = original;
@@ -94,5 +97,20 @@ describe("POST /api/send-continue-offers", () => {
   it("500s when sending throws", async () => {
     mockSend.mockRejectedValue(new Error("db down"));
     expect((await POST(req())).status).toBe(500);
+  });
+
+  it("adds the regular-price (no cohort offer) run to the response, as cohort \"regular-price\"", async () => {
+    mockGifted.mockResolvedValue([
+      { slug: "regular-price", status: "ok", eligible: 1, sent: 1, failed: 0, members: [{ memberId: "g1", email: "g@example.test", outcome: "sent" }] },
+    ]);
+    const body = await (await POST(req({}))).json();
+    expect(body.cohorts.map((c: { slug: string }) => c.slug)).toEqual(["dsa", "regular-price"]);
+    expect(body.members).toContainEqual({ memberId: "g1", cohort: "regular-price", outcome: "sent" });
+    expect(JSON.stringify(body)).not.toContain("example.test");
+  });
+
+  it("skips the regular-price run when limited to one cohort", async () => {
+    await POST(req({ cohort: "dsa" }));
+    expect(mockGifted).not.toHaveBeenCalled();
   });
 });
