@@ -70,6 +70,25 @@ describe("giftedWelcomeHtml", () => {
     expect(html).toContain("You've been gifted a free round to Postpartum Post.");
   });
 
+  it("puts the consent line under the button and links the guidelines", async () => {
+    const { giftedWelcomeHtml } = await import("@/lib/emails/welcome-gifted");
+    const html = giftedWelcomeHtml("https://x.test/enter", false);
+    expect(html).toContain("By clicking, you agree to our ");
+    expect(html).toContain("/community-guidelines");
+    expect(html).toContain("18 or older");
+    expect(html.indexOf("Go to your profile")).toBeLessThan(html.indexOf("By clicking, you agree"));
+  });
+
+  it("builds the entry link with a consent token tied to the member id", async () => {
+    const { consentEntryLink } = await import("@/lib/emails/welcome-gifted");
+    const { verifyConsentToken } = await import("@/lib/tokens");
+    const url = new URL(consentEntryLink("member-1"));
+    expect(url.pathname).toBe("/api/consent/enter");
+    expect(url.searchParams.get("member_id")).toBe("member-1");
+    expect(verifyConsentToken("member-1", url.searchParams.get("token")!)).toBe(true);
+    expect(verifyConsentToken("member-2", url.searchParams.get("token")!)).toBe(false);
+  });
+
   it("ignores a blank note", async () => {
     const { giftedWelcomeHtml } = await import("@/lib/emails/welcome-gifted");
     expect(giftedWelcomeHtml("https://x.test", false, "   ")).toContain(">Welcome!</span>");

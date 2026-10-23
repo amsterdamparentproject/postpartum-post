@@ -26,6 +26,7 @@ import {
   cleanupMemberByEmail,
   cleanupAuthUser,
   getMemberBillingByEmail,
+  getMemberConsentByEmail,
 } from "./helpers/db";
 import { waitForEmail, hrefsIn } from "./helpers/email";
 
@@ -78,6 +79,19 @@ test("comps a new member with Post Perks and sends the gifted welcome email with
     expect(sent.html).not.toContain("Welcome!");
     expect(sent.html).toContain("Go to your profile");
     expect(hrefsIn(sent.html).some((h) => h.endsWith("/perks"))).toBe(true);
+    expect(sent.html).toContain("By clicking, you agree to our ");
+
+    // Not consented until they click "Go to your profile"; clicking records it and signs them in.
+    expect((await getMemberConsentByEmail(email))!.guidelines_accepted_at).toBeNull();
+    const entry = hrefsIn(sent.html).find((h) => h.includes("/api/consent/enter"));
+    expect(entry).toBeTruthy();
+    const { pathname, search } = new URL(entry!);
+    await page.goto(`${pathname}${search}`);
+    await page.waitForURL(/\/profile/, { timeout: 30_000 });
+    await expect(page.getByLabel("First name")).toBeVisible();
+    const consent = await getMemberConsentByEmail(email);
+    expect(consent!.guidelines_accepted_at).not.toBeNull();
+    expect(consent!.eligibility_confirmed_at).not.toBeNull();
   } finally {
     await cleanupMemberByEmail(email);
     await cleanupAuthUser(email);

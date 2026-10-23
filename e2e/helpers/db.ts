@@ -140,6 +140,18 @@ export async function cleanupCohort(slug: string): Promise<void> {
   await supabase().from("cohorts").delete().eq("slug", slug);
 }
 
+/** Returns the member's consent timestamps, or null if no member has this email. */
+export async function getMemberConsentByEmail(
+  email: string
+): Promise<{ guidelines_accepted_at: string | null; eligibility_confirmed_at: string | null } | null> {
+  const { data } = await supabase()
+    .from("members")
+    .select("guidelines_accepted_at, eligibility_confirmed_at")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  return data ?? null;
+}
+
 /** Returns billing_mode and matches_remaining, or null if no member has this email. */
 export async function getMemberBillingByEmail(
   email: string

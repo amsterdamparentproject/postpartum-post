@@ -4,8 +4,8 @@ import { cookies } from "next/headers";
 import { verifyAdminSessionToken } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase";
 import { compMember, lookupCompTarget, type CompLookup } from "@/lib/comp-member";
-import { createWelcomeSignIn } from "@/lib/member-welcome";
 import { sendGiftedWelcomeEmail } from "@/lib/emails";
+import { consentEntryLink } from "@/lib/emails/welcome-gifted";
 
 export type CompMemberActionResult =
   | { ok: true; email: string; emailSent: boolean; includePerks: boolean }
@@ -42,8 +42,7 @@ export async function compMemberAction(input: { email: string; name?: string; in
   // The member and the round exist now; a failed email shouldn't undo them.
   let emailSent = false;
   try {
-    const { signInLink } = await createWelcomeSignIn(supabase, result.email, { path: "/profile" });
-    await sendGiftedWelcomeEmail(result.email, signInLink, result.includePerks, input.note?.trim().slice(0, 300) || null);
+    await sendGiftedWelcomeEmail(result.email, consentEntryLink(result.memberId), result.includePerks, input.note?.trim().slice(0, 300) || null);
     emailSent = true;
   } catch (e) {
     console.error("[comp-member] welcome email failed (non-fatal):", e);

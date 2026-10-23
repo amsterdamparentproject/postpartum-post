@@ -1,4 +1,5 @@
 import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, subjectPrefix, emailHeader, escapeHtml } from "./base";
+import { generateConsentToken } from "@/lib/tokens";
 
 const ROW = `font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px`;
 
@@ -6,11 +7,26 @@ const ROW = `font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso
  * Welcome email for a member an admin comped (lib/comp-member.ts). They never
  * saw a billing screen and may not have signed up themselves, so it says the
  * round is a gift and how the 1st to 5th opt-in window works. An optional note
- * from the admin replaces the "Welcome!" opening. The button signs
- * them in to their profile. When the gift includes Post Perks, a closing
- * paragraph explains them.
+ * from the admin replaces the "Welcome!" opening. The button is also their
+ * consent: the small print under it says clicking means they agree to the
+ * Community Guidelines and are eligible, and the link (consentEntryLink) records
+ * that and signs them in to their profile. When the gift includes Post Perks, a
+ * closing paragraph explains them.
  */
-export function giftedWelcomeHtml(signInLink: string, includePerks: boolean, note?: string | null): string {
+
+/** The button's link: records consent, then signs the member in. See app/api/consent/enter/route.ts. */
+export function consentEntryLink(memberId: string): string {
+  return `${SITE_URL}/api/consent/enter?member_id=${memberId}&token=${generateConsentToken(memberId)}`;
+}
+
+// Sits in the same bodySection as the Perks paragraph (see below): two sections
+// would stack their 26px paddings and leave a big gap between the two.
+const finePrint = (gapBelow: boolean) => `
+                                    <tr><td dir="ltr" style="font-size:13px;text-align:center;padding:0 0 ${gapBelow ? 16 : 0}px;line-height:1.4;mso-line-height-alt:18px;color:#555555">
+                                      <span>By clicking, you agree to our </span><a href="${SITE_URL}/community-guidelines" style="color:#555555;text-decoration:underline">Community Guidelines</a><span> and confirm you're a parent (or expecting a child) and 18 or older.</span>
+                                    </td></tr>`;
+
+export function giftedWelcomeHtml(entryLink: string, includePerks: boolean, note?: string | null): string {
   // An admin's note ("Congrats, Holly — you won our Post Perks giveaway!") replaces the plain "Welcome!".
   const opening = escapeHtml(note?.trim() || "Welcome!");
   const rows = `
@@ -32,17 +48,17 @@ export function giftedWelcomeHtml(signInLink: string, includePerks: boolean, not
                                     </td></tr>`;
 
   return baseEmail(
-    emailHeader() + bodySection(rows) + ctaButton("Go to your profile", signInLink) + (includePerks ? bodySection(perksRows) : "")
+    emailHeader() + bodySection(rows) + ctaButton("Go to your profile", entryLink) + bodySection(finePrint(includePerks) + (includePerks ? perksRows : ""))
   );
 }
 
-export async function sendGiftedWelcomeEmail(email: string, signInLink: string, includePerks: boolean, note?: string | null) {
+export async function sendGiftedWelcomeEmail(email: string, entryLink: string, includePerks: boolean, note?: string | null) {
   const resend = getResend();
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
     subject: `${subjectPrefix()}You've been gifted a free round of Postpartum Post 💌`,
-    html: giftedWelcomeHtml(signInLink, includePerks, note),
+    html: giftedWelcomeHtml(entryLink, includePerks, note),
   });
   if (error) {
     console.error("[resend] sendGiftedWelcomeEmail error:", error);
