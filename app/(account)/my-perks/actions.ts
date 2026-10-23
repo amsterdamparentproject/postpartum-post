@@ -8,6 +8,7 @@ import { revalidatePerksPage } from "@/lib/revalidate-perks";
 import { nearestKm } from "@/lib/geo-distance";
 import { hasOptedInForMonth } from "@/lib/monthly-opt-in";
 import { hasPerksAccess } from "@/lib/billing-mode";
+import { getLivePerksSummary } from "@/lib/public-perks";
 import type { PerkFrequency, RedemptionType } from "@/lib/perk-input";
 
 /**
@@ -116,6 +117,8 @@ export type MemberPerksResult = {
   /** True for comped_no_perks members: Perks aren't part of their plan, so the
    *  page shows a "continue to unlock" note instead of the grid or opt-in prompt. */
   perksDisabled?: boolean;
+  /** With perksDisabled: whole euros, the estimated value of the live Perks (the same figure the homepage shows), for the "you'll unlock €X" line. Null when it can't be loaded or nothing is live. */
+  perksTotal?: number | null;
 };
 
 async function memberHasPerksAccess(
@@ -132,7 +135,8 @@ export async function listMemberPerks(accessToken: string): Promise<MemberPerksR
 
   const supabase = createAdminClient();
   if (!(await memberHasPerksAccess(supabase, authed.memberId))) {
-    return { optedIn: false, perks: [], perksDisabled: true };
+    const summary = await getLivePerksSummary();
+    return { optedIn: false, perks: [], perksDisabled: true, perksTotal: summary?.totalSavings ?? null };
   }
   const optedIn = await hasOptedInForMonth(supabase, authed.memberId, currentMonth());
   if (!optedIn) return { optedIn: false, perks: [] };

@@ -48,11 +48,14 @@ export default function MyPerksPage() {
   const [justOptedInToPerks, setJustOptedInToPerks] = useState(false);
   // True for comped_no_perks members (e.g. the free cohort match).
   const [perksDisabled, setPerksDisabled] = useState(false);
+  // Estimated value of the live Perks, shown to comped_no_perks members (null hides the figure).
+  const [perksTotal, setPerksTotal] = useState<number | null>(null);
 
   function fetchPerks(token: string) {
     listMemberPerks(token).then((result) => {
       setOptedIn(result.optedIn);
       setPerksDisabled(!!result.perksDisabled);
+      setPerksTotal(result.perksTotal ?? null);
       setPerks(result.perks);
       // Deep link from the match page's perks strip: /my-perks?perk=<id or slug>
       // opens that perk's dialog straight away (and counts as a view).
@@ -97,15 +100,23 @@ export default function MyPerksPage() {
     setOpen((p) => (p && p.id === perkId ? { ...p, reveal } : p));
   }
 
-  if (perks !== null && perksDisabled) {
+  // Wait for the perks answer before drawing the page: the heading and intro
+  // below would flash first for a member whose plan turns out not to include Perks.
+  if (perks === null) return <p className="text-muted text-sm text-center">Loading…</p>;
+
+  if (perksDisabled) {
     return (
-      <div className="rounded-2xl border border-dashed border-border p-6 text-center space-y-2">
-        <span className="text-3xl" aria-hidden="true">🎁</span>
+      <div className="rounded-2xl border border-dashed border-border p-6 text-center space-y-3">
+        <Sparkle className="w-10 h-auto mx-auto" />
         <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
           Post Perks are for members who continue
         </p>
         <p className="text-sm text-muted">
-          Your free match doesn&apos;t include Perks. Continue after it and the local deals unlock.
+          Your free match doesn&apos;t include Perks. If you join us as a member after your free match, you&apos;ll
+          unlock {perksTotal ? `€${perksTotal} of ` : ""}Post Perks!{" "}
+          <Link href="/perks" className="underline underline-offset-2 hover:text-coral transition-colors">
+            Learn more
+          </Link>
         </p>
       </div>
     );
@@ -148,8 +159,6 @@ export default function MyPerksPage() {
           How Post Perks work
         </Link>
       </div>
-
-      {perks === null && <p className="text-sm text-muted">Loading…</p>}
 
       {perks !== null && optedIn === false && accessToken && (
         <NotOptedInPrompt
@@ -271,11 +280,17 @@ function NotOptedInPrompt({ accessToken, onOptedIn }: { accessToken: string; onO
   }
 
   return (
-    <div className="rounded-2xl border border-dashed border-border p-6 space-y-4">
-      <p className="text-sm text-dark">
+    <div className="rounded-2xl border border-dashed border-border p-6 text-center space-y-3">
+      <Sparkle className="w-10 h-auto mx-auto" />
+      <p className="text-xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
         {windowOpen
-          ? <>You haven&apos;t opted into this month&apos;s round yet. To access Post Perks, select:</>
-          : <>It&apos;s not too late to join this month&apos;s round! Use a round for Post Perks now, or wait for next month&apos;s match.</>}
+          ? <>You haven&apos;t opted into this month&apos;s round yet</>
+          : <>It&apos;s not too late to join this month&apos;s round!</>}
+      </p>
+      <p className="text-sm text-muted">
+        {windowOpen
+          ? <>To access Post Perks, select:</>
+          : <>Use a round for Post Perks now, or wait for next month&apos;s match.</>}
       </p>
       {windowOpen ? (
         <div className="grid gap-2 sm:grid-cols-3">
@@ -305,14 +320,16 @@ function NotOptedInPrompt({ accessToken, onOptedIn }: { accessToken: string; onO
           </button>
         </div>
       ) : (
-        <button
-          onClick={() => handleChoice("perks")}
-          disabled={isPending}
-          data-umami-event="Perks Prompt: Get this month's perks"
-          className="rounded-lg bg-dark text-white text-sm py-2.5 px-4 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-        >
-          {isPending ? "One sec…" : "🎁 Get this month's Post Perks"}
-        </button>
+        <div className="flex justify-center">
+          <button
+            onClick={() => handleChoice("perks")}
+            disabled={isPending}
+            data-umami-event="Perks Prompt: Get this month's perks"
+            className="rounded-lg bg-dark text-white text-sm py-2.5 px-4 font-medium transition-opacity hover:opacity-80 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+          >
+            {isPending ? "One sec…" : "🎁 Get this month's Post Perks"}
+          </button>
+        </div>
       )}
       <p className="text-xs text-muted">
         {windowOpen
