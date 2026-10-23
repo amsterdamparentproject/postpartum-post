@@ -6,6 +6,7 @@ import { createWelcomeSignIn } from "@/lib/member-welcome";
 import { sendCohortWelcomeEmail, sendCohortExistingMemberEmail } from "@/lib/emails";
 import { isComped } from "@/lib/billing-mode";
 import { cohortIsFull } from "@/lib/cohort";
+import { getCohortConfig } from "@/lib/cohort-config";
 import { joinCohortAsExistingMember } from "@/lib/cohort-join";
 
 export type CohortSignupFormData = {
@@ -152,7 +153,15 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
 
   try {
     const { signInLink } = await createWelcomeSignIn(supabase, email);
-    await sendCohortWelcomeEmail(email, data.firstName.trim() || "there", signInLink, cohort.name);
+    // Header and copy per cohort (lib/cohort-config.ts); generic where unset.
+    const config = getCohortConfig(slug);
+    await sendCohortWelcomeEmail(email, data.firstName.trim() || "there", signInLink, cohort.name, {
+      headerHtml: config.headerHtml ?? null,
+      headerPreload: config.headerPreload ?? null,
+      matchLine: config.welcomeMatchLine ?? null,
+      continueLine: config.welcomeContinueLine ?? null,
+      giftLine: config.welcomeGiftLine ?? null,
+    });
   } catch (e) {
     // Non-fatal: the member and grant exist; a failed email shouldn't undo them.
     console.error("[signup-cohort] welcome email failed (non-fatal):", e);
