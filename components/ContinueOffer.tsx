@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { startContinueCheckout, getContinueOfferDetails } from "@/app/actions/continue";
-import { formatEuros, type ContinueOfferDetails, type ContinuePlan } from "@/lib/continue-offer-pricing";
+import { formatCents, type ContinueOfferDetails, type ContinuePlan } from "@/lib/continue-offer-pricing";
 
 /**
  * "Keep going" buttons on the billing page of a comped cohort member whose free
@@ -58,7 +58,7 @@ export default function ContinueOffer({ accessToken }: { accessToken: string }) 
           >
             <span className="block text-sm font-semibold text-dark">{label}</span>
             <span className="block text-sm text-dark">
-              {formatEuros(offerCents)} <span className="text-muted line-through">{formatEuros(regularCents)}</span>
+              {formatCents(offerCents)} <span className="text-muted line-through">{formatCents(regularCents)}</span>
             </span>
             {isPending && pendingPlan === plan && <span className="block text-xs text-muted mt-1">One moment…</span>}
           </button>

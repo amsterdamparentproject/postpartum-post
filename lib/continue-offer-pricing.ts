@@ -31,10 +31,22 @@ export type ContinueOfferDetails = {
 
 type CouponTerms = Pick<Stripe.Coupon, "amount_off" | "percent_off" | "currency" | "duration" | "duration_in_months">;
 
-/** 800 -> "€8", 850 -> "€8.50". */
-export function formatEuros(cents: number): string {
-  const euros = cents / 100;
+/**
+ * Money units in this repo: Stripe amounts (price.unit_amount, coupon.amount_off,
+ * invoice totals) are integer CENTS and stay that way inside the code, so there
+ * is never a float to round before a Stripe call. Anything a person types or
+ * reads in the database (perks.estimated_savings, cohorts.partner_rate_eur) is
+ * EUROS. The name says which: formatCents takes cents, formatEuros takes euros.
+ */
+
+/** Euros to text: 6 -> "€6", 6.5 -> "€6.50", 108 -> "€108". */
+export function formatEuros(euros: number): string {
   return `€${Number.isInteger(euros) ? euros : euros.toFixed(2)}`;
+}
+
+/** Stripe cents to text: 800 -> "€8", 850 -> "€8.50". */
+export function formatCents(cents: number): string {
+  return formatEuros(cents / 100);
 }
 
 /** Price after the coupon, or null when the coupon can't be applied (wrong currency). */
@@ -50,19 +62,19 @@ export function applyCoupon(unitCents: number, currency: string, coupon: CouponT
 }
 
 export function describeDiscount(coupon: CouponTerms): string {
-  if (coupon.amount_off != null) return `${formatEuros(coupon.amount_off)} off`;
+  if (coupon.amount_off != null) return `${formatCents(coupon.amount_off)} off`;
   return `${coupon.percent_off}% off`;
 }
 
 export function describeDuration(coupon: CouponTerms): string {
   if (coupon.duration === "once") {
-    return "The discount applies to your first payment only. After that your plan renews at the regular price, and you can cancel anytime.";
+    return "The membership discount applies to your first payment only. After that your plan renews at the regular price, and you can cancel anytime.";
   }
   if (coupon.duration === "repeating") {
     const n = coupon.duration_in_months ?? 1;
-    return `The discount applies for your first ${n === 1 ? "month" : `${n} months`}. After that your plan renews at the regular price, and you can cancel anytime.`;
+    return `The membership discount applies for your first ${n === 1 ? "month" : `${n} months`}. After that your plan renews at the regular price, and you can cancel anytime.`;
   }
-  return "The discount stays on your plan for as long as you're a member, and you can cancel anytime.";
+  return "The membership discount stays on your plan for as long as you're a member, and you can cancel anytime.";
 }
 
 /**
