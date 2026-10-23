@@ -5,10 +5,13 @@
  *   1. New email → green "not associated" message on blur; submitting creates
  *      an active comped_with_perks member with 1 round, and the gifted welcome
  *      email goes out with the admin's note replacing "Welcome!".
- *   2. New email, "match only" → comped_no_perks, and the email has no
- *      Post Perks paragraph.
- *   3. Existing member → green "already associated" message, name/note/perks
- *      fields hide, submitting adds one round and sends nothing.
+ *   2. New email, "match only", 3 rounds → comped_no_perks with 3 rounds, the
+ *      message and email follow the count, and the email has no Post Perks
+ *      paragraph.
+ *   3. Existing member, 2 rounds → green "already associated" message, the
+ *      name and Perks fields hide, submitting adds 2 rounds and emails them a
+ *      short "rounds added" note (no welcome, no consent line).
+ *   4. Existing member with the email box unticked → rounds added, no email.
  *
  * Emails: members use delivered+…@resend.dev (see testEmail() in
  * helpers/db.ts), so nothing reaches a real inbox, and the sent message is
@@ -66,6 +69,7 @@ test("comps a new member with Post Perks and sends the gifted welcome email with
     await enterEmail(page, email);
     await expect(page.getByText(GREEN_NEW)).toBeVisible();
 
+    await page.getByLabel("Reason").selectOption("giveaway");
     await page.getByPlaceholder(/Congrats, Holly/).fill("Congrats, Test — you won our e2e giveaway!");
     const sentAfter = new Date();
     await page.getByRole("button", { name: "Comp this member" }).click();
@@ -105,16 +109,21 @@ test("comping match-only creates comped_no_perks and the email leaves out Post P
     await expect(page.getByText(GREEN_NEW)).toBeVisible();
 
     await page.getByLabel("Match only, no Post Perks").check();
+    // Three rounds: the message follows the count, and the email says so.
+    await page.getByLabel("Reason").selectOption("friend_gift");
+    await page.getByLabel("Rounds to give").fill("3");
+    await expect(page.getByText("A new member will be created with 3 free rounds.")).toBeVisible();
     const sentAfter = new Date();
     await page.getByRole("button", { name: "Comp this member" }).click();
     await expect(page.getByText(/match only, no Post Perks/)).toBeVisible();
 
     expect(await getMemberBillingByEmail(email)).toMatchObject({
       billing_mode: "comped_no_perks",
-      matches_remaining: 1,
+      matches_remaining: 3,
     });
 
-    const sent = await waitForEmail({ to: email, subjectIncludes: "gifted a free round", since: sentAfter });
+    const sent = await waitForEmail({ to: email, subjectIncludes: "gifted 3 free rounds", since: sentAfter });
+    expect(sent.html).toContain("You've been gifted 3 free rounds");
     expect(sent.html).toContain("Welcome!");
     expect(hrefsIn(sent.html).some((h) => h.endsWith("/perks"))).toBe(false);
   } finally {
@@ -123,22 +132,49 @@ test("comping match-only creates comped_no_perks and the email leaves out Post P
   }
 });
 
-test("an existing member gets one more round, the extra fields hide, and no email is sent", async ({ page }) => {
+test("an existing member gets rounds added, the name and Perks fields hide, and they are emailed", async ({ page }) => {
   const member = await seedCompedMember({ matchesRemaining: 0 });
   try {
     await enterEmail(page, member.email);
     await expect(page.getByText(GREEN_EXISTING)).toBeVisible();
-    await expect(page.getByPlaceholder(/Congrats, Holly/)).toBeHidden();
     await expect(page.getByLabel("Match only, no Post Perks")).toBeHidden();
+    // The note stays, since the email can carry one.
+    await expect(page.getByPlaceholder(/Congrats, Holly/)).toBeVisible();
 
+    await page.getByLabel("Reason").selectOption("customer_service");
+    await page.getByLabel("Rounds to give").fill("2");
+    await page.getByPlaceholder(/Congrats, Holly/).fill("Thanks for your patience!");
+    await expect(page.getByText("2 free rounds will be added to their total.")).toBeVisible();
+    const sentAfter = new Date();
     await page.getByRole("button", { name: "Comp this member" }).click();
-    await expect(page.getByText(/already a member, so I added one round/)).toBeVisible();
-    await expect(page.getByText(/no email was sent/)).toBeVisible();
+    await expect(page.getByText(/already a member, so I added 2 free rounds/)).toBeVisible();
+    await expect(page.getByText(/I emailed them to say so/)).toBeVisible();
 
     expect(await getMemberBillingByEmail(member.email)).toMatchObject({
       billing_mode: "comped_with_perks", // plan untouched
-      matches_remaining: 1,
+      matches_remaining: 2,
     });
+
+    const sent = await waitForEmail({ to: member.email, subjectIncludes: "gifted 2 free rounds", since: sentAfter });
+    expect(sent.html).toContain("Thanks for your patience!");
+    expect(sent.html).toContain("You now have 2 rounds to use.");
+    expect(sent.html).toContain("Go to billing");
+    expect(sent.html).not.toContain("By clicking, you agree"); // no consent line for existing members
+  } finally {
+    await cleanupMember(member.id);
+  }
+});
+
+test("unticking the email box adds the rounds and sends nothing", async ({ page }) => {
+  const member = await seedCompedMember({ matchesRemaining: 0 });
+  try {
+    await enterEmail(page, member.email);
+    await expect(page.getByText(GREEN_EXISTING)).toBeVisible();
+    await page.getByLabel("Email them to say rounds were added").uncheck();
+    await page.getByLabel("Reason").selectOption("friend_gift");
+    await page.getByRole("button", { name: "Comp this member" }).click();
+    await expect(page.getByText(/No email was sent\./)).toBeVisible();
+    expect(await getMemberBillingByEmail(member.email)).toMatchObject({ matches_remaining: 1 });
   } finally {
     await cleanupMember(member.id);
   }

@@ -89,8 +89,48 @@ describe("giftedWelcomeHtml", () => {
     expect(verifyConsentToken("member-2", url.searchParams.get("token")!)).toBe(false);
   });
 
+  it("says how many rounds when there is more than one", async () => {
+    const { giftedWelcomeHtml } = await import("@/lib/emails/welcome-gifted");
+    const many = giftedWelcomeHtml("https://x.test", true, null, 3);
+    expect(many).toContain("You've been gifted 3 free rounds to Postpartum Post.");
+    expect(many).toContain("Your free rounds also come with");
+    expect(many).toContain("one of your free rounds");
+    const one = giftedWelcomeHtml("https://x.test", true);
+    expect(one).toContain("You've been gifted a free round to Postpartum Post.");
+    expect(one).toContain("Your free round also comes with");
+    expect(one).toContain("your free match");
+  });
+
   it("ignores a blank note", async () => {
     const { giftedWelcomeHtml } = await import("@/lib/emails/welcome-gifted");
     expect(giftedWelcomeHtml("https://x.test", false, "   ")).toContain(">Welcome!</span>");
+  });
+});
+
+describe("giftedRoundsHtml", () => {
+  it("says what was added and the new total, with no welcome or consent line", async () => {
+    const { giftedRoundsHtml } = await import("@/lib/emails/gifted-rounds");
+    const html = giftedRoundsHtml({ firstName: "Holly", rounds: 3, total: 4, link: "https://x.test/in" });
+    expect(html).toContain("Hi Holly,");
+    expect(html).toContain("Good news!");
+    expect(html).toContain("We've added 3 free rounds to your Postpartum Post account");
+    expect(html).toContain("You now have 4 rounds to use.");
+    expect(html).toContain("check out your plan and billing details");
+    expect(html).toContain("just reply to this email!");
+    expect(html).toContain("Go to billing");
+    expect(html).not.toContain("Opt in between");
+    expect(html).toContain("https://x.test/in");
+    expect(html).not.toContain("By clicking, you agree");
+    expect(html).not.toContain("Welcome!");
+  });
+
+  it("is singular for one round, drops the greeting without a name, and escapes the note", async () => {
+    const { giftedRoundsHtml } = await import("@/lib/emails/gifted-rounds");
+    const html = giftedRoundsHtml({ firstName: " ", rounds: 1, total: 1, link: "https://x.test/in", note: "Thanks <b>!" });
+    expect(html).not.toContain("Hi ");
+    expect(html).toContain("We've added a free round to your");
+    expect(html).toContain("You now have 1 round to use");
+    expect(html).toContain("Thanks &lt;b&gt;!");
+    expect(html).not.toContain("Good news!");
   });
 });

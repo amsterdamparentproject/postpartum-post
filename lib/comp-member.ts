@@ -5,18 +5,37 @@ import { isComped } from "@/lib/billing-mode";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
+/** Why the rounds were given. Stored on the ledger row as `comped:<value>`, so it shows up in match_entitlements. */
+export const COMP_REASONS = [
+  { value: "giveaway", label: "Giveaway prize" },
+  { value: "friend_gift", label: "Gift to a friend" },
+  { value: "customer_service", label: "Customer service" },
+  { value: "partner", label: "Partner or collaboration" },
+  { value: "art_comp", label: "Smidge of Whimsy" },
+  { value: "other", label: "Other" },
+] as const;
+
+export type CompReason = (typeof COMP_REASONS)[number]["value"];
+
 export type CompMemberInput = {
   email: string;
   /** Optional full name as typed; split on the first space into first and last name. */
   name?: string;
   /** Whether the free round includes Post Perks (comped_with_perks) or is match only (comped_no_perks). */
   includePerks: boolean;
+  /** Why, from COMP_REASONS. Required so every comp can be told apart on the ledger later. */
+  reason: CompReason;
+  /** How many free rounds to give, a whole number from 1 to MAX_COMP_ROUNDS. Defaults to 1. */
+  rounds?: number;
 };
 
+/** Upper limit for one comp, so a typo (50 instead of 5) can't hand out a year of free matches. */
+export const MAX_COMP_ROUNDS = 12;
+
 export type CompMemberResult =
-  | { ok: true; existing: false; memberId: string; email: string; firstName: string; includePerks: boolean }
-  /** The email already belonged to an active member, so they got +1 round and nothing else changed. */
-  | { ok: true; existing: true; email: string; matchesRemaining: number }
+  | { ok: true; existing: false; memberId: string; email: string; firstName: string; includePerks: boolean; rounds: number }
+  /** The email already belonged to an active member, so they got the rounds added and nothing else changed. */
+  | { ok: true; existing: true; email: string; firstName: string; matchesRemaining: number; rounds: number }
   | { error: string };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -51,18 +70,18 @@ export function splitName(name: string | undefined): { firstName: string; lastNa
 }
 
 /**
- * Gifts a brand-new person one free round of Postpartum Post, with or without
+ * Gifts a brand-new person free rounds (one by default) of Postpartum Post, with or without
  * Post Perks, with no Stripe objects at all and no gift card.
  *
  * Creates an active member with billing_mode = comped_with_perks (or
  * comped_no_perks when includePerks is false) and credits
- * one round through the ledger (a manual_grant, the same call the cohort
+ * the rounds through the ledger (a manual_grant, the same call the cohort
  * signup uses). No subscription row means renew-check never bills them, and no
  * cohort means the matcher puts them in the normal pool (cohort_only is only
  * forced for members who have a cohort).
  *
  * If the email already belongs to an ACTIVE member, nobody is created: they
- * get +1 round instead (grantFreeMonth for a paying member, a direct ledger
+ * get the rounds added instead (grantFreeMonth for a paying member, a direct ledger
  * credit for a comped one). Their plan, billing mode and Perks access stay as
  * they are, so includePerks is ignored. No email is sent for that case.
  *
@@ -72,11 +91,20 @@ export async function compMember(supabase: AdminClient, input: CompMemberInput):
   const email = input.email.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) return { error: "That doesn't look like a valid email address." };
 
+  if (!COMP_REASONS.some((r) => r.value === input.reason)) {
+    return { error: "Pick a reason for the comp." };
+  }
+  const note = `comped:${input.reason}`;
+  const rounds = input.rounds ?? 1;
+  if (!Number.isInteger(rounds) || rounds < 1 || rounds > MAX_COMP_ROUNDS) {
+    return { error: `Rounds must be a whole number from 1 to ${MAX_COMP_ROUNDS}.` };
+  }
+
   const { firstName, lastName } = splitName(input.name);
 
   const { data: existing, error: lookupError } = await supabase
     .from("members")
-    .select("id, status, billing_mode")
+    .select("id, status, billing_mode, first_name")
     .eq("email", email)
     .maybeSingle();
   if (lookupError) {
@@ -89,12 +117,12 @@ export async function compMember(supabase: AdminClient, input: CompMemberInput):
     }
     try {
       if (isComped(existing.billing_mode)) {
-        await recordEntitlement(supabase, { memberId: existing.id, event: "manual_grant", delta: 1, note: "comped:admin" });
+        await recordEntitlement(supabase, { memberId: existing.id, event: "manual_grant", delta: rounds, note });
         const { data: updated } = await supabase.from("members").select("matches_remaining").eq("id", existing.id).single();
-        return { ok: true, existing: true, email, matchesRemaining: updated?.matches_remaining ?? 1 };
+        return { ok: true, existing: true, email, matchesRemaining: updated?.matches_remaining ?? rounds, rounds, firstName: (existing.first_name as string | null) ?? "" };
       }
-      const granted = await grantFreeMonth(email, "comped:admin");
-      return { ok: true, existing: true, email, matchesRemaining: granted.matchesRemaining };
+      const granted = await grantFreeMonth(email, note, rounds);
+      return { ok: true, existing: true, email, matchesRemaining: granted.matchesRemaining, rounds, firstName: (existing.first_name as string | null) ?? "" };
     } catch (e) {
       console.error("[comp-member] grant to existing member failed:", e);
       return { error: e instanceof Error ? `Couldn't add a round: ${e.message}` : "Couldn't add a round. Nothing was changed." };
@@ -124,8 +152,8 @@ export async function compMember(supabase: AdminClient, input: CompMemberInput):
     await recordEntitlement(supabase, {
       memberId: member.id,
       event: "manual_grant",
-      delta: 1,
-      note: "comped:admin",
+      delta: rounds,
+      note,
     });
   } catch (e) {
     console.error("[comp-member] grant failed, rolling back member:", e);
@@ -133,5 +161,5 @@ export async function compMember(supabase: AdminClient, input: CompMemberInput):
     return { error: "Couldn't credit the free round, so the member was not created." };
   }
 
-  return { ok: true, existing: false, memberId: member.id as string, email, firstName, includePerks: input.includePerks };
+  return { ok: true, existing: false, memberId: member.id as string, email, firstName, includePerks: input.includePerks, rounds };
 }

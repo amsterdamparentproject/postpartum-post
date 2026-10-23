@@ -27,13 +27,15 @@ const finePrint = (includePerks: boolean) => `
                     <span>By clicking, you agree to our </span><a href="${SITE_URL}/community-guidelines" style="color:#555555;text-decoration:underline">Community Guidelines</a><span> and confirm you're a parent (or expecting a child) and 18 or older.</span>
                   </td></tr>`;
 
-export function giftedWelcomeHtml(entryLink: string, includePerks: boolean, note?: string | null): string {
+export function giftedWelcomeHtml(entryLink: string, includePerks: boolean, note?: string | null, rounds = 1): string {
+  const many = rounds > 1;
+  const gift = many ? `${rounds} free rounds` : "a free round";
   // An admin's note ("Congrats, Holly — you won our Post Perks giveaway!") replaces the plain "Welcome!".
   const opening = escapeHtml(note?.trim() || "Welcome!");
   const rows = `
                                     <tr><td dir="ltr" style="${ROW}">
                                       <span style="font-weight:700">${opening}</span>
-                                      <span> You've been gifted a free round to Postpartum Post. We're really excited to have you in the community ❤️</span>
+                                      <span> You've been gifted ${gift} to Postpartum Post. We're really excited to have you in the community ❤️</span>
                                     </td></tr>
                                     <tr><td dir="ltr" style="${ROW}">
                                       <span>Every month is 1 round: a hand-picked match with another new or expecting parent nearby, delivered via email. Think of it as a </span><span style="font-weight:700">friendship starter pack</span><span>: you'll both have each others' names, contact, and a list of fun activities to do by yourselves or together with your families.</span>
@@ -45,7 +47,7 @@ export function giftedWelcomeHtml(entryLink: string, includePerks: boolean, note
 
   const perksRows = `
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;line-height:1.4;mso-line-height-alt:22.4px">
-                                      <span>Your free round also comes with </span><a href="${SITE_URL}/perks" style="color:#000000;font-weight:700;text-decoration:underline">Post Perks</a><span>: discounts and freebies from local family-friendly businesses. To make meetups all the sweeter — or to treat yourself. You can use Perks right away (which will use your free match) or wait until next month to get them alongside a match.</span>
+                                      <span>Your ${many ? "free rounds also come" : "free round also comes"} with </span><a href="${SITE_URL}/perks" style="color:#000000;font-weight:700;text-decoration:underline">Post Perks</a><span>: discounts and freebies from local family-friendly businesses. To make meetups all the sweeter — or to treat yourself. You can use Perks right away (which will use ${many ? "one of your free rounds" : "your free match"}) or wait until next month to get them alongside a match.</span>
                                     </td></tr>`;
 
   return baseEmail(
@@ -53,13 +55,13 @@ export function giftedWelcomeHtml(entryLink: string, includePerks: boolean, note
   );
 }
 
-export async function sendGiftedWelcomeEmail(email: string, entryLink: string, includePerks: boolean, note?: string | null) {
+export async function sendGiftedWelcomeEmail(email: string, entryLink: string, includePerks: boolean, note?: string | null, rounds = 1) {
   const resend = getResend();
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `${subjectPrefix()}You've been gifted a free round of Postpartum Post 💌`,
-    html: giftedWelcomeHtml(entryLink, includePerks, note),
+    subject: `${subjectPrefix()}You've been gifted ${rounds > 1 ? `${rounds} free rounds` : "a free round"} of Postpartum Post 💌`,
+    html: giftedWelcomeHtml(entryLink, includePerks, note, rounds),
   });
   if (error) {
     console.error("[resend] sendGiftedWelcomeEmail error:", error);
