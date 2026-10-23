@@ -227,7 +227,7 @@ function BillingContent() {
               <p className="text-xs text-muted leading-relaxed">
                 {member.matches_remaining > 0
                   ? "Nothing is charged, and no card is on file. Opt in between the 1st and the 5th of the month to claim your match."
-                  : "Your free match has been used. Nothing is charged, and nothing renews. We'll email you a special offer if you'd like to keep going."}
+                  : "Your free round has been used. Nothing is charged, and nothing renews. Pick a plan above if you'd like to keep going."}
                 {!hasPerksAccess(member.billing_mode) && " Post Perks unlock when you continue."}
               </p>
               <div className="text-center">

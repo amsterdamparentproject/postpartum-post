@@ -1,7 +1,7 @@
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
 import { isComped } from "@/lib/billing-mode";
-import { loadContinueOffer, type ContinuePlan } from "@/lib/continue-offer-pricing";
+import { loadContinueOffer, loadRegularContinuePlans, type ContinuePlan } from "@/lib/continue-offer-pricing";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -12,11 +12,16 @@ export { isContinuePlan, type ContinuePlan } from "@/lib/continue-offer-pricing"
 export type ContinueCheckoutResult = { url: string } | { error: string };
 
 /**
- * Starts a Stripe Checkout for a comped cohort member who wants to keep going.
+ * Starts a Stripe Checkout for a comped member who wants to keep going.
  *
- * Only an active comped member whose cohort has a continue promotion code can
- * use it. The promotion code is applied up front (the discount is whatever the
- * Stripe coupon says), so the member never types a code. On completion the Stripe webhook switches
+ * Any active comped member can use it:
+ *  - a cohort member whose cohort has a continue promotion code gets that
+ *    discount. The code is applied up front (the discount is whatever the
+ *    Stripe coupon says), so the member never types a code.
+ *  - everyone else (no cohort, e.g. a gifted membership, or a cohort with no
+ *    code set) pays the regular price. Special offers go through cohorts.
+ * A cohort whose code is set but unusable is "offer_misconfigured", not a
+ * silent fallback to full price. On completion the Stripe webhook switches
  * the member to billing_mode "subscription", and the usual term-payment
  * handling grants the matches.
  */
@@ -31,25 +36,30 @@ export async function createContinueCheckoutUrl(
     .eq("id", memberId)
     .maybeSingle();
 
-  if (!member || member.status !== "active" || !isComped(member.billing_mode) || !member.cohort) {
+  if (!member || member.status !== "active" || !isComped(member.billing_mode)) {
     return { error: "not_eligible" };
   }
 
-  const { data: cohort } = await supabase
-    .from("cohorts")
-    .select("continue_promo_code_id")
-    .eq("slug", member.cohort)
-    .maybeSingle();
-  const promotionCodeId = cohort?.continue_promo_code_id;
-  if (!promotionCodeId) return { error: "no_offer" };
-
   const stripe = getStripe();
 
-  // Active promotion code with a coupon that applies to both plans.
-  const offer = await loadContinueOffer(stripe, promotionCodeId);
-  if (!offer) {
-    console.error("[continue-offer] promotion code unusable (inactive, no coupon, or a plan price missing):", promotionCodeId);
-    return { error: "offer_misconfigured" };
+  // A cohort with a continue code gets its discount; no cohort, or a cohort with
+  // no code, pays the regular price.
+  let promotionCodeId: string | null = null;
+  if (member.cohort) {
+    const { data: cohort } = await supabase
+      .from("cohorts")
+      .select("continue_promo_code_id")
+      .eq("slug", member.cohort)
+      .maybeSingle();
+    promotionCodeId = cohort?.continue_promo_code_id ?? null;
+  }
+  if (promotionCodeId) {
+    // Active promotion code with a coupon that applies to both plans.
+    const offer = await loadContinueOffer(stripe, promotionCodeId);
+    if (!offer) {
+      console.error("[continue-offer] promotion code unusable (inactive, no coupon, or a plan price missing):", promotionCodeId);
+      return { error: "offer_misconfigured" };
+    }
   }
 
   const prices = await stripe.prices.list({ lookup_keys: [plan], active: true, limit: 1 });
@@ -74,7 +84,7 @@ export async function createContinueCheckoutUrl(
     customer: customerId,
     mode: "subscription",
     line_items: [{ price: price.id, quantity: 1 }],
-    discounts: [{ promotion_code: promotionCodeId }],
+    ...(promotionCodeId ? { discounts: [{ promotion_code: promotionCodeId }] } : {}),
     automatic_tax: { enabled: false },
     metadata: { member_id: member.id, continue_offer: "1" },
     success_url: `${SITE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -88,8 +98,10 @@ export async function createContinueCheckoutUrl(
 }
 
 /**
- * The offer as the billing page shows it, for a comped cohort member whose
- * cohort has a continue promotion code. Null when there's nothing to show.
+ * The offer as the billing page shows it: a comped cohort member's discounted
+ * prices (when the cohort has a continue promotion code), or the regular prices
+ * for any other comped member (no cohort, or a cohort with no code). Null when
+ * there's nothing to show.
  */
 export async function getContinueOfferForMember(
   supabase: AdminClient,
@@ -100,17 +112,22 @@ export async function getContinueOfferForMember(
     .select("status, billing_mode, cohort")
     .eq("id", memberId)
     .maybeSingle();
-  if (!member || member.status !== "active" || !isComped(member.billing_mode) || !member.cohort) return null;
+  if (!member || member.status !== "active" || !isComped(member.billing_mode)) return null;
 
-  const { data: cohort } = await supabase
-    .from("cohorts")
-    .select("continue_promo_code_id")
-    .eq("slug", member.cohort)
-    .maybeSingle();
-  if (!cohort?.continue_promo_code_id) return null;
+  let promotionCodeId: string | null = null;
+  if (member.cohort) {
+    const { data: cohort } = await supabase
+      .from("cohorts")
+      .select("continue_promo_code_id")
+      .eq("slug", member.cohort)
+      .maybeSingle();
+    promotionCodeId = cohort?.continue_promo_code_id ?? null;
+  }
 
   try {
-    return await loadContinueOffer(getStripe(), cohort.continue_promo_code_id);
+    return promotionCodeId
+      ? await loadContinueOffer(getStripe(), promotionCodeId)
+      : await loadRegularContinuePlans(getStripe());
   } catch (e) {
     console.error("[continue-offer] loading the offer failed:", e);
     return null;

@@ -2,7 +2,10 @@
  * POST /api/send-continue-offers
  *
  * Emails the "keep going?" offer to comped cohort members whose free match is
- * used (see lib/continue-offer-send.ts for exactly who is eligible, and
+ * used, plus the regular-price version to comped members with no cohort offer
+ * (no cohort, or a cohort without a code; lib/gifted-continue-send.ts, reported
+ * as cohort "regular-price"). See
+ * lib/continue-offer-send.ts for exactly who is eligible, and
  * __claude__/dsa-continue-offer.md for the offer itself). Runs monthly on the
  * 27th, at 10:00 (n8n cron `0 0 10 27 * *`; every month has a 27th). The free
  * credit is spent at the 7th's commit, the moment the match is delivered, so
@@ -36,6 +39,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { sendContinueOffers } from "@/lib/continue-offer-send";
+import { sendGiftedContinueOffers } from "@/lib/gifted-continue-send";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 
@@ -87,12 +91,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const results = await sendContinueOffers(createAdminClient(), {
-      stripe: getStripe(),
-      siteUrl: SITE_URL,
-      dryRun,
-      cohortSlug,
-    });
+    const supabase = createAdminClient();
+    const stripe = getStripe();
+    const cohortResults = await sendContinueOffers(supabase, { stripe, siteUrl: SITE_URL, dryRun, cohortSlug });
+    // Comped members with no cohort offer (gifted, or a cohort without a code) get the regular-price version, reported as slug "regular-price".
+    // Skipped when the run is limited to one cohort.
+    const giftedResults = cohortSlug ? [] : await sendGiftedContinueOffers(supabase, { stripe, siteUrl: SITE_URL, dryRun });
+    const results = [...cohortResults, ...giftedResults];
 
     // Member ids only: this response lands in n8n's execution log.
     return NextResponse.json({
