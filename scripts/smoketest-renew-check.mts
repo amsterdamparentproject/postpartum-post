@@ -398,6 +398,26 @@ async function main() {
   console.log(`  member ${canceling.memberId} (${canceling.email})`);
   console.log(`  subscription ${canceling.subscriptionId}, expecting an explicit cancel — no invoice\n`);
 
+  // Each seed creates a trialing subscription, and Stripe pays its $0
+  // subscription_create invoice right away. Since 2026-09-11 the webhook
+  // credits every paid subscription invoice (no billing_reason filter), so
+  // with `stripe listen` running all three seeded members get +N within a few
+  // seconds — which takes them out of renew-check's candidate set (it only
+  // looks at matches_remaining <= 0) and makes the credit checks below pass
+  // for the wrong reason. Wait for that credit to land, then put each counter
+  // back to 0, as if the paid term had been used up.
+  console.log("Waiting for the seed subscriptions' $0 trial invoices to be credited, then resetting counters to 0...");
+  for (const c of [billable, subLevelCard, canceling]) {
+    for (const delayMs of [500, 500, 1000, 1000, 2000, 2000, 3000]) {
+      await sleep(delayMs);
+      const { data } = await supabase.from("members").select("matches_remaining").eq("id", c.memberId).single();
+      if ((data?.matches_remaining ?? 0) > 0) break;
+    }
+    const { error: resetError } = await supabase.from("members").update({ matches_remaining: 0 }).eq("id", c.memberId);
+    if (resetError) throw new Error(`Counter reset failed for ${c.memberId}: ${resetError.message}`);
+  }
+  console.log("  counters reset\n");
+
   // Stripe creates its own $0 invoice (billing_reason=subscription_create)
   // the moment a trialing subscription is created, independent of anything
   // renew-check does — captured here so the "no invoice" check below only
@@ -418,6 +438,10 @@ async function main() {
     console.log(`  ${res.status} ${JSON.stringify(body)}\n`);
     if (!res.ok) {
       console.error("FAIL: renew-check did not return 2xx.");
+      passed = false;
+    }
+    if (typeof body.billed === "number" && body.billed < 2) {
+      console.error("FAIL: expected renew-check to bill both billable candidates.");
       passed = false;
     }
     if (typeof body.canceled === "number" && body.canceled < 1) {
