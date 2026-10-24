@@ -253,13 +253,37 @@ async function renewMember(
       { idempotencyKey: `renew-check-item-${member.id}-${cycleKey}` }
     );
 
-    await stripe.invoices.create(
+    const invoice = await stripe.invoices.create(
       {
         customer: customerId,
         subscription: sub.stripe_subscription_id,
         auto_advance: true,
       },
       { idempotencyKey: `renew-check-invoice-${member.id}-${cycleKey}` }
+    );
+
+    // auto_advance only queues eventual background finalization (Stripe's
+    // docs: up to an hour) — confirmed via a standalone script against this
+    // account/API version that a draft invoice with auto_advance: true can
+    // sit unfinalized (attempted: false) for minutes. finalizeInvoice moves
+    // it to `open` immediately, but — also confirmed via a standalone script,
+    // specifically for an invoice carrying a `subscription` reference like
+    // this one — finalizing alone does NOT attempt payment (attempted stays
+    // false); a bare, subscription-less invoice does get attempted on
+    // finalize, so this is specific to subscription-linked invoices under
+    // this API version. invoices.pay() is the explicit, synchronous
+    // attempt-payment call this route actually needs — renew-check only
+    // submits the charge; the invoice.payment_succeeded webhook (Track E2)
+    // does the rest once Stripe confirms it.
+    await stripe.invoices.finalizeInvoice(
+      invoice.id!,
+      {},
+      { idempotencyKey: `renew-check-finalize-${member.id}-${cycleKey}` }
+    );
+    await stripe.invoices.pay(
+      invoice.id!,
+      {},
+      { idempotencyKey: `renew-check-pay-${member.id}-${cycleKey}` }
     );
 
     return { kind: "billed" };
