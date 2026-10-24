@@ -29,19 +29,29 @@ import { POST } from "@/app/api/renew-check/route";
 
 // --- Mocks ---
 
-const { mockRetrieve, mockUpdate, mockCancel, mockInvoiceItemCreate, mockInvoiceCreate } = vi.hoisted(() => ({
+const {
+  mockRetrieve,
+  mockUpdate,
+  mockCancel,
+  mockInvoiceItemCreate,
+  mockInvoiceCreate,
+  mockFinalizeInvoice,
+  mockPay,
+} = vi.hoisted(() => ({
   mockRetrieve: vi.fn(),
   mockUpdate: vi.fn().mockResolvedValue({}),
   mockCancel: vi.fn().mockResolvedValue({}),
   mockInvoiceItemCreate: vi.fn().mockResolvedValue({}),
-  mockInvoiceCreate: vi.fn().mockResolvedValue({}),
+  mockInvoiceCreate: vi.fn().mockResolvedValue({ id: "in_test_123" }),
+  mockFinalizeInvoice: vi.fn().mockResolvedValue({}),
+  mockPay: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({
     subscriptions: { retrieve: mockRetrieve, update: mockUpdate, cancel: mockCancel },
     invoiceItems: { create: mockInvoiceItemCreate },
-    invoices: { create: mockInvoiceCreate },
+    invoices: { create: mockInvoiceCreate, finalizeInvoice: mockFinalizeInvoice, pay: mockPay },
   }),
 }));
 
@@ -119,7 +129,9 @@ describe("POST /api/renew-check", () => {
     mockUpdate.mockReset().mockResolvedValue({});
     mockCancel.mockReset().mockResolvedValue({});
     mockInvoiceItemCreate.mockReset().mockResolvedValue({});
-    mockInvoiceCreate.mockReset().mockResolvedValue({});
+    mockInvoiceCreate.mockReset().mockResolvedValue({ id: "in_test_123" });
+    mockFinalizeInvoice.mockReset().mockResolvedValue({});
+    mockPay.mockReset().mockResolvedValue({});
   });
 
   afterEach(async () => {
@@ -276,6 +288,19 @@ describe("POST /api/renew-check", () => {
         auto_advance: true,
       }),
       { idempotencyKey: `renew-check-invoice-${member.id}-${cycleKey}` }
+    );
+    // auto_advance alone doesn't reliably finalize or attempt payment for a
+    // subscription-linked invoice (confirmed against live Stripe test mode)
+    // — finalizeInvoice and pay must both be called explicitly.
+    expect(mockFinalizeInvoice).toHaveBeenCalledWith(
+      "in_test_123",
+      {},
+      { idempotencyKey: `renew-check-finalize-${member.id}-${cycleKey}` }
+    );
+    expect(mockPay).toHaveBeenCalledWith(
+      "in_test_123",
+      {},
+      { idempotencyKey: `renew-check-pay-${member.id}-${cycleKey}` }
     );
   });
 
