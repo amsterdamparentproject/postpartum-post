@@ -1,4 +1,4 @@
-import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
+import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "../base";
 
 function pendingFollowupHtml(firstName: string, signupUrl: string): string {
   const content =

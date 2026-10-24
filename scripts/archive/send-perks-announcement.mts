@@ -1,5 +1,5 @@
 /**
- * One-off script — sends the Post Perks announcement (lib/emails/perks-announcement.ts)
+ * One-off script — sends the Post Perks announcement (lib/emails/archive/perks-announcement.ts)
  * to all active/canceling members.
  *
  * Usage:
@@ -15,7 +15,7 @@ import { config } from "dotenv";
 import { resolve } from "path";
 import { createInterface } from "readline/promises";
 import { createClient } from "@supabase/supabase-js";
-import { sendPerksAnnouncementEmail } from "../lib/emails/perks-announcement.ts";
+import { sendPerksAnnouncementEmail } from "../lib/emails/archive/perks-announcement.ts";
 
 const env = process.argv[2];
 const dryRun = process.argv.includes("--dry-run");

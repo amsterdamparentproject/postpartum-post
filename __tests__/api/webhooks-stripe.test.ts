@@ -325,7 +325,7 @@ describe("Stripe webhook", () => {
   // invoice_settings.default_payment_method. Nothing reads the customer-level
   // field for billing decisions today, but Stripe's own dunning/Smart Retries
   // and the billing portal do — so checkout.session.completed sets it
-  // explicitly, once, at signup (see scripts/backfill-default-payment-method.mts
+  // explicitly, once, at signup (see scripts/archive/backfill-default-payment-method.mts
   // for the one-time backfill of members who signed up before this existed).
 
   it("sets the customer's default_payment_method from the subscription's card on checkout.session.completed", async () => {
@@ -999,7 +999,7 @@ describe("Stripe webhook", () => {
     // allow-list ("subscription_create" / "subscription_cycle" only)
     // silently rejected, so every successful renewal since 2026-09-07 was
     // charged but never credited. See
-    // scripts/backfill-missed-renewal-entitlements.mts for the one-time
+    // scripts/archive/backfill-missed-renewal-entitlements.mts for the one-time
     // backfill this incident required.
     it("credits a manual-billing_reason invoice (renew-check's renewal invoices)", async () => {
       const { member, stripeSubId } = await seedMemberWithSubscription({ intervalCount: 1 });

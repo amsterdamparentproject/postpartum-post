@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     // check bit us once already (the renew-check payment-method guard,
     // fixed 2026-09-11). Set it explicitly here, once, at signup — the
     // earliest point a card exists — so it's never missing for a new
-    // member. (A one-time backfill, scripts/backfill-default-payment-method.mts,
+    // member. (A one-time backfill, scripts/archive/backfill-default-payment-method.mts,
     // covers members who signed up before this existed.)
     if (stripeSubscription.default_payment_method && session.customer) {
       const paymentMethodId =
@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
       // Track E1's renew-check job billing every renewal via a manually
       // created invoice (billing_reason "manual") — so every successful
       // renewal from 2026-09-07 to 2026-09-11 was silently skipped here and
-      // never credited. See scripts/backfill-missed-renewal-entitlements.mts
+      // never credited. See scripts/archive/backfill-missed-renewal-entitlements.mts
       // for the one-time backfill of invoices caught by that bug.
 
       const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionId, {

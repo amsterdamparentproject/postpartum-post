@@ -22,9 +22,7 @@ import { sendOptinEmail } from "../lib/emails/optin.ts";
 import { sendMatchRevealEmail } from "../lib/emails/match-reveal.ts";
 import type { BillingNotice } from "../lib/billing-notice.ts";
 import { sendRematchConfirmationEmail } from "../lib/emails/rematch-confirmation.ts";
-import { sendMemberUpdateEmail } from "../lib/emails/member-update.ts";
 import { sendMeetupReminderEmail } from "../lib/emails/meetup-reminder.ts";
-import { sendPendingFollowupEmail } from "../lib/emails/pending-followup.ts";
 import { sendPartnerWelcomeEmail } from "../lib/emails/partner-welcome.ts";
 
 const args = process.argv.slice(2);
@@ -152,16 +150,8 @@ await send("rematch-confirmation-credited", () =>
   sendRematchConfirmationEmail(TO, "Alex", true)
 );
 
-await send("member-update", () =>
-  sendMemberUpdateEmail(TO, "Alex", "00000000-0000-0000-0000-000000000000")
-);
-
 await send("meetup-reminder", () =>
   sendMeetupReminderEmail(TO, "Alex", "Sarah", "sarah.vanderberg@example.com", "https://postpartumpost.com/matches", "https://postpartumpost.com/matches")
-);
-
-await send("pending-followup", () =>
-  sendPendingFollowupEmail(TO, "Alex", "Test")
 );
 
 await send("partner-welcome", () =>

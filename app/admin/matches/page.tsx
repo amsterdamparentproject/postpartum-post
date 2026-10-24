@@ -132,7 +132,6 @@ function TestControls() {
 // ---------------------------------------------------------------------------
 
 const EMAIL_TESTS: { kind: TestEmailKind; label: string; note: string }[] = [
-  { kind: "perks-announcement", label: "Perks announcement", note: "Heads-up before the round; test member only" },
   { kind: "optin", label: "Opt-in", note: "Monthly \u201cLet\u2019s meet this month\u201d, real signed buttons" },
   { kind: "match-reveal", label: "Match reveal", note: "Your match this month; needs a committed match" },
   { kind: "meetup-reminder", label: "Meetup reminder", note: "\u201cDid you meet?\u201d links; needs a match this month" },
@@ -141,8 +140,6 @@ const EMAIL_TESTS: { kind: TestEmailKind; label: string; note: string }[] = [
   { kind: "unsubscribed", label: "Unsubscribed", note: "Feedback link signs you in" },
   { kind: "rematch-confirmation", label: "Report confirmation", note: "Problem report received" },
   { kind: "gift-card", label: "Gift card", note: "Placeholder code TESTCODE, so redeeming won\u2019t work" },
-  { kind: "member-update", label: "Member update", note: "Consent-confirm link acts on your member" },
-  { kind: "pending-followup", label: "Pending follow-up", note: "Sign-up link prefilled with your details" },
   { kind: "partner-welcome", label: "Partner welcome", note: "Magic link into /partners/profile" },
   { kind: "perk-live", label: "Perk live", note: "Sample perk, links to /perks" },
 ];

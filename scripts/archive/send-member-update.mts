@@ -10,7 +10,7 @@
 import { config } from "dotenv";
 import { resolve } from "path";
 import { createClient } from "@supabase/supabase-js";
-import { sendMemberUpdateEmail } from "../lib/emails/member-update.ts";
+import { sendMemberUpdateEmail } from "../lib/emails/archive/member-update.ts";
 
 const env = process.argv[2];
 const dryRun = process.argv.includes("--dry-run");

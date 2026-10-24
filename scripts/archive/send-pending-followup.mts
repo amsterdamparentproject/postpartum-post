@@ -20,7 +20,7 @@ import { config } from "dotenv";
 import { resolve } from "path";
 import { createInterface } from "readline/promises";
 import { createClient } from "@supabase/supabase-js";
-import { sendPendingFollowupEmail } from "../lib/emails/pending-followup.ts";
+import { sendPendingFollowupEmail } from "../lib/emails/archive/pending-followup.ts";
 
 const env = process.argv[2];
 const dryRun = process.argv.includes("--dry-run");

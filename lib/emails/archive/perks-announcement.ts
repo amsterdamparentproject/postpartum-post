@@ -2,7 +2,7 @@
  * One-off announcement to existing members, sent the day before the round
  * that introduces Post Perks (2026-10): Post Perks are live, they're part of
  * the membership, and the opt-in email gains a "No meetup, just perks"
- * button. Sent by scripts/send-perks-announcement.mts (never automatically).
+ * button. Sent by scripts/archive/send-perks-announcement.mts (never automatically).
  *
  * The "first perks" link goes to the public /perks page rather than
  * /my-perks on purpose: until a member opts in for the month, /my-perks
@@ -10,7 +10,7 @@
  * land on no perks. /perks needs no sign-in and lists the live perks.
  */
 
-import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
+import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "../base";
 
 const P = `dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px"`;
 const P_LAST = `dir="ltr" style="font-size:16px;text-align:left;line-height:1.4;mso-line-height-alt:22.4px"`;

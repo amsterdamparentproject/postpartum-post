@@ -14,7 +14,7 @@
  * For every ACTIVE member sitting at matches_remaining <= 0: clear
  * pause_collection and build the refill invoice by hand
  * (invoiceItems.create + invoices.create), exactly as rehearsed against a
- * real Stripe test clock in scripts/rehearse-track-d.mts (cases 2/3/5/6).
+ * real Stripe test clock in scripts/archive/rehearse-track-d.mts (cases 2/3/5/6).
  * This route only SUBMITS the charge — granting the +N and re-pausing the
  * subscription both happen later, via the existing invoice.payment_succeeded
  * webhook handler (Track E2), whenever Stripe actually confirms payment.

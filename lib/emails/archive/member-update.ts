@@ -1,4 +1,4 @@
-import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
+import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "../base";
 import { generateConsentToken } from "@/lib/tokens";
 
 function memberUpdateHtml(firstName: string, confirmUrl: string): string {

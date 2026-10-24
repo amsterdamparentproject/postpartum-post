@@ -1,0 +1,84 @@
+Track D rehearsal — plan: commitment_3mo
+
+[setup] resolved lookup_key "commitment_3mo" → price price_1TcMrFQa5oNdvF7x2QIOhE1A (unit_amount=2400 eur)
+
+--- case 1 ---
+[rehearse-case-1] clock created: clock_1U8ofXQa5oNdvF7xLqNENQ3V, frozen at 2026-08-26T21:47:39.000Z
+[case 1] subscription sub_1U8ofYQa5oNdvF7xhSrUJK1g created, status=active, natural current_period_end=2026-11-26T21:47:39.000Z
+[case 1] paused (void), open-ended — no resumes_at
+[case 1] 1 invoice(s) since 2026-11-26T21:47:39.000Z
+[case 1]   invoice in_1U8offQa5oNdvF7xFexSdbCR: status=void auto_advance=false amount_due=2400 created=2026-11-26T21:47:39.000Z
+[case 1] confirmed: 1 invoice(s) appeared at the natural boundary while paused, correctly voided (behavior: "void" working as documented).
+[case 1] cleared pause_collection at 2026-11-27T21:47:39.000Z
+[case 1] 0 invoice(s) since 2026-11-27T21:47:39.000Z
+[case 1] ✓ CASE 1: clearing pause_collection alone did not bill anything, as expected — Track E must build the refill invoice itself.
+[case 1] subscription status after clearing pause_collection: active
+
+--- case 2 ---
+[rehearse-case-2] clock created: clock_1U8oftQa5oNdvF7xNj7C1Lvz, frozen at 2026-08-26T21:48:01.000Z
+[case 2] subscription sub_1U8ofuQa5oNdvF7xi7J4JBfU created, status=active, natural current_period_end=2026-11-26T21:48:01.000Z
+[case 2] paused (void), open-ended — no resumes_at
+[case 2] 1 invoice(s) since 2026-11-26T21:48:01.000Z
+[case 2]   invoice in_1U8ofzQa5oNdvF7xRhuSaJMR: status=void auto_advance=false amount_due=2400 created=2026-11-26T21:48:01.000Z
+[case 2] confirmed: 1 invoice(s) appeared at the natural boundary while paused, correctly voided (behavior: "void" working as documented).
+[case 2] cleared pause_collection at 2026-11-27T21:48:01.000Z
+[case 2] created a pending invoice item (ii_1U8og7Qa5oNdvF7xX23tfWt1) for the subscription's own price
+[case 2] created invoice in_1U8og8Qa5oNdvF7xNENGobz9, status=draft, auto_advance=true
+[case 2] ✓ CASE 2: the manually-built refill invoice (in_1U8og8Qa5oNdvF7xNENGobz9) reached "paid" on its own.
+
+--- case 3 ---
+[rehearse-case-3] clock created: clock_1U8ogHQa5oNdvF7xUdBX3a8K, frozen at 2026-08-26T21:48:25.000Z
+[case 3] subscription sub_1U8ogIQa5oNdvF7xSw0AD743 created, status=active, natural current_period_end=2026-11-26T21:48:25.000Z
+[case 3] paused (void), open-ended — no resumes_at
+[case 3] 1 invoice(s) since 2026-11-26T21:48:25.000Z
+[case 3]   invoice in_1U8ogPQa5oNdvF7xoGdXRKKy: status=void auto_advance=false amount_due=2400 created=2026-11-26T21:48:25.000Z
+[case 3] confirmed: 1 invoice(s) appeared at the natural boundary while paused, correctly voided (behavior: "void" working as documented).
+[case 3] swapped default payment method to a will-fail-to-charge card (pm_1U8ogXQa5oNdvF7xUWAZNmrb)
+[case 3] created invoice in_1U8ogZQa5oNdvF7xzDvpropT against the bad card, item ii_1U8ogZQa5oNdvF7xOfjCYtZa
+[case 3] subscription status after the failed charge: past_due
+[case 3] invoice status after the failed charge: open (attempted=true, attempt_count=1)
+[case 3] ✓ CASE 3: subscription flips to "past_due" (invoice stays "open", retrying) — this is the real signal Track E's renew-check job should watch, and maps cleanly onto our own "payment_failed" status.
+
+--- case 4 ---
+[rehearse-case-4] clock created: clock_1U8ogqQa5oNdvF7x30t4Cgqa, frozen at 2026-08-26T21:48:59.000Z
+[case 4] subscription sub_1U8ogrQa5oNdvF7xEpFAL4T4 created, status=active
+[case 4] paused (void), open-ended, immediately after initial payment
+[case 4] 0 invoice(s) since 2026-08-26T21:49:00.000Z
+[case 4] customer.balance before=0, after=0
+[case 4] credit notes issued: 0
+[case 4] ✓ CASE 4: no proration credit or stray invoice appeared from pausing right after payment.
+
+--- case 5 ---
+[rehearse-case-5] clock created: clock_1U8oguQa5oNdvF7xPp4USH3k, frozen at 2026-08-26T21:49:04.000Z
+[case 5] subscription sub_1U8ogvQa5oNdvF7xtVxcu0ow created, status=active, natural current_period_end=2026-11-26T21:49:04.000Z
+[case 5] paused (void), open-ended — no resumes_at
+[case 5] 1 invoice(s) since 2026-11-26T21:49:04.000Z
+[case 5]   invoice in_1U8oh2Qa5oNdvF7xc3YP7YIi: status=void auto_advance=false amount_due=2400 created=2026-11-26T21:49:04.000Z
+[case 5] confirmed: 1 invoice(s) appeared at the natural boundary while paused, correctly voided (behavior: "void" working as documented).
+[case 5] created invoice in_1U8ohCQa5oNdvF7xkPJjzuD3 from item ii_1U8ohBQa5oNdvF7xB539GzGa
+[case 5] invoice total=2400, expected plan unit_amount=2400, proration lines=0
+[case 5] ✓ CASE 5: refill invoice total matches the plan price exactly, no proration lines.
+
+--- case 6 ---
+[rehearse-case-6a] clock created: clock_1U8ohOQa5oNdvF7xAcFvNiiU, frozen at 2026-08-26T21:49:33.000Z
+[case 6a] subscription sub_1U8ohPQa5oNdvF7xFH049UKS created (card), status=active, natural current_period_end=2026-11-26T21:49:33.000Z
+[case 6a] switched default payment method to SEPA (pm_1U8ohRQa5oNdvF7xDUA3XHo3, iban ending ...5267)
+[case 6a] paused (void), open-ended — no resumes_at
+[case 6a] created invoice in_1U8ohdQa5oNdvF7xuRQl301X against a SEPA-funded default payment method (successDelayed IBAN), item ii_1U8ohcQa5oNdvF7xDp9Hia6V
+[case 6a] at submission: status=open, attempted=true
+[case 6a]   t+0s real time: status=open attempted=true attempt_count=1
+[case 6a]   t+264s real time: status=paid attempted=true attempt_count=1
+[case 6a] ✓ CASE 6a: invoice stayed unpaid through submission and only reached "paid" after a real settlement delay — confirms invoice.paid fires on SETTLEMENT, not submission. E1/E2 must key off the webhook, not the calendar date (as the plan already assumes).
+[rehearse-case-6b] clock created: clock_1U8om2Qa5oNdvF7x8fXfQrpt, frozen at 2026-08-26T21:54:22.000Z
+[case 6b] subscription sub_1U8om3Qa5oNdvF7xTZWiBdRb created (card), status=active, natural current_period_end=2026-11-26T21:54:22.000Z
+[case 6b] switched default payment method to SEPA (pm_1U8om6Qa5oNdvF7xFAVMXrjx, iban ending ...5268)
+[case 6b] paused (void), open-ended — no resumes_at
+[case 6b] created invoice in_1U8omHQa5oNdvF7xxheHitvl against a SEPA-funded default payment method (failedDelayed IBAN), item ii_1U8omHQa5oNdvF7xKJlTGL65
+[case 6b]   t+0s real time: invoice.status=open attempted=true attempt_count=1 | subscription.status=active
+[case 6b]   t+381s real time: invoice.status=open attempted=true attempt_count=1 | subscription.status=canceled
+[case 6b] ⚠ gave up polling after 480s real time — still not resolved
+[case 6b] subscription status after the failed SEPA charge: canceled
+[case 6b] invoice status after the failed SEPA charge: open (attempted=true, attempt_count=1)
+[case 6b] ? CASE 6b: subscription=canceled, invoice=open — doesn't match case 3's card-failure shape. Worth a look before assuming SEPA and card failures are interchangeable in Track E.
+
+Done. Inspect the sandbox Dashboard (Developers → Test clocks) for full detail on any case.

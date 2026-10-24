@@ -14,11 +14,8 @@ import {
   sendGiftCardEmail,
 } from "@/lib/emails";
 import { sendRematchConfirmationEmail } from "@/lib/emails/rematch-confirmation";
-import { sendMemberUpdateEmail } from "@/lib/emails/member-update";
-import { sendPendingFollowupEmail } from "@/lib/emails/pending-followup";
 import { sendPartnerWelcomeEmail } from "@/lib/emails/partner-welcome";
 import { sendPerkLiveEmail } from "@/lib/emails/perk-live";
-import { sendPerksAnnouncementEmail } from "@/lib/emails/perks-announcement";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -976,11 +973,8 @@ export type TestEmailKind =
   | "unsubscribed"
   | "rematch-confirmation"
   | "gift-card"
-  | "member-update"
-  | "pending-followup"
   | "partner-welcome"
-  | "perk-live"
-  | "perks-announcement";
+  | "perk-live";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 
@@ -1018,7 +1012,6 @@ export async function testSendEmail(kind: TestEmailKind): Promise<TestStepResult
     return { success: false, error: `No member with email ${testEmail} — nothing sent` };
   }
   const firstName = (member?.first_name as string | undefined) ?? "there";
-  const lastName = (member?.last_name as string | undefined) ?? "";
   const memberId = member?.id as string | undefined;
   const ok = (what: string): TestStepResult => ({ success: true, message: `Sent ${what} to ${testEmail}` });
 
@@ -1076,14 +1069,6 @@ export async function testSendEmail(kind: TestEmailKind): Promise<TestStepResult
         await sendGiftCardEmail(testEmail, "TESTCODE", 3);
         return ok("the gift card email (placeholder code)");
 
-      case "member-update":
-        await sendMemberUpdateEmail(testEmail, firstName, memberId!);
-        return ok("the member update email");
-
-      case "pending-followup":
-        await sendPendingFollowupEmail(testEmail, firstName, lastName);
-        return ok("the pending follow-up email");
-
       case "partner-welcome": {
         const link = await generateMagicLinkWithRetry(supabase, testEmail, `${SITE_URL}/partners/profile`);
         await sendPartnerWelcomeEmail({
@@ -1094,12 +1079,6 @@ export async function testSendEmail(kind: TestEmailKind): Promise<TestStepResult
         });
         return ok("the partner welcome email");
       }
-
-      case "perks-announcement":
-        // Test member only. The send to all members is the
-        // perks-announcement:prod script, never this button.
-        await sendPerksAnnouncementEmail(testEmail, firstName);
-        return ok("the Post Perks announcement");
 
       case "perk-live":
         await sendPerkLiveEmail({ firstName, businessName: "Test Business", email: testEmail, perkTitle: "Test perk" });
