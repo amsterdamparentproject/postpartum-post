@@ -483,6 +483,26 @@ describe("POST /api/commit-matches", () => {
       expect(await matchEntitlementsFor(canceling.id)).toHaveLength(1);
     });
 
+    it("does not charge a canceling member already at zero for silence", async () => {
+      const canceling = await seedMember({ status: "canceling" });
+      const b = await seedMember();
+      const c = await seedMember();
+      memberIds.push(canceling.id, b.id, c.id);
+      await seedParticipation(b.id);
+      await seedParticipation(c.id);
+      await setMatchesRemaining(canceling.id, 0);
+
+      const roundId = await seedMatchRound("draft");
+      await seedMatchDraft(roundId, b.id, c.id);
+
+      const res = await POST(makeRequest({ month: TEST_MONTH }));
+      expect(res.status).toBe(200);
+
+      expect(await matchesRemainingFor(canceling.id)).toBe(0); // not driven to -1
+      const rows = (await matchEntitlementsFor(canceling.id)).filter((r) => r.event === "no_response");
+      expect(rows).toHaveLength(0);
+    });
+
     it("never decrements a paused member for silence", async () => {
       const paused = await seedMember({ status: "paused" });
       const b = await seedMember();
