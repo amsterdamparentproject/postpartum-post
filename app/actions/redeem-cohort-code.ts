@@ -7,6 +7,7 @@ import { createWelcomeSignIn } from "@/lib/member-welcome";
 import { sendCohortExistingMemberEmail } from "@/lib/emails";
 import { findCohortByCode, cohortIsFull } from "@/lib/cohort";
 import { joinCohortAsExistingMember } from "@/lib/cohort-join";
+import { logError } from "@/lib/log-error";
 
 export type RedeemCohortCodeResult =
   | { ok: true; cohortName: string; matchesGranted: number }
@@ -46,6 +47,7 @@ export async function redeemCohortCode(accessToken: string, code: string): Promi
     cohort = await findCohortByCode(supabase, code);
   } catch (e) {
     console.error("[redeem-cohort-code] lookup failed:", e);
+    await logError("signup.redeem.lookup_failed", e, { memberId: member.id });
     return { error: "Something went wrong. Please try again, or email us." };
   }
   if (!cohort) {
@@ -58,10 +60,12 @@ export async function redeemCohortCode(accessToken: string, code: string): Promi
     }
   } catch (e) {
     console.error("[redeem-cohort-code] cap check failed:", e);
+    await logError("signup.redeem.cap_check_failed", e, { memberId: member.id });
     return { error: "Something went wrong. Please try again, or email us." };
   }
 
   if (!(await joinCohortAsExistingMember(supabase, member.id, cohort))) {
+    await logError("signup.redeem.join_failed", new Error("joinCohortAsExistingMember returned false"), { memberId: member.id });
     return { error: "Something went wrong. Please try again, or email us." };
   }
 
@@ -70,6 +74,7 @@ export async function redeemCohortCode(accessToken: string, code: string): Promi
     await sendCohortExistingMemberEmail(member.email, signInLink, cohort.name);
   } catch (e) {
     console.error("[redeem-cohort-code] confirmation email failed (non-fatal):", e);
+    await logError("signup.redeem.confirmation_email_failed", e, { memberId: member.id });
   }
 
   return { ok: true, cohortName: cohort.name, matchesGranted: cohort.grant_matches };
