@@ -92,6 +92,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase";
+import { logError } from "@/lib/log-error";
 
 /**
  * Whole calendar months between "now" and a YYYY-MM-DD target date, rounded
@@ -216,6 +217,7 @@ const TERMINAL_SUBSCRIPTION_STATUSES = new Set([
 export async function POST(req: NextRequest) {
   const secret = process.env.FYP_ACTIVATE_API_SECRET;
   if (!secret) {
+    await logError("fyp.activate.secret_missing", new Error("FYP_ACTIVATE_API_SECRET is not set"));
     console.error("[fyp activate] FYP_ACTIVATE_API_SECRET is not set");
     return NextResponse.json(
       { error: "Server misconfiguration" },
@@ -302,6 +304,7 @@ export async function POST(req: NextRequest) {
         productIdFromPrice(price),
       );
       if (!couponId) {
+        await logError("fyp.activate.coupon_missing", new Error("FYP_COMP_COUPON_ID is not set"));
         console.error("[fyp activate] FYP_COMP_COUPON_ID is not set");
         return NextResponse.json(
           { error: "Server misconfiguration" },
@@ -314,6 +317,7 @@ export async function POST(req: NextRequest) {
           discounts: [{ coupon: couponId }],
         });
       } catch (err) {
+        await logError("fyp.activate.comp_existing_failed", err, { memberId: existing.id });
         console.error(
           `[fyp activate] failed to comp existing member ${existing.id}'s subscription ${existingSub!.stripe_subscription_id}:`,
           err,
@@ -342,6 +346,7 @@ export async function POST(req: NextRequest) {
         productIdFromPrice(price),
       );
       if (!couponId) {
+        await logError("fyp.activate.coupon_missing", new Error("FYP_COMP_COUPON_ID is not set"));
         console.error("[fyp activate] FYP_COMP_COUPON_ID is not set");
         return NextResponse.json(
           { error: "Server misconfiguration" },
@@ -367,12 +372,14 @@ export async function POST(req: NextRequest) {
             status: "active",
           });
         if (subError) {
+          await logError("fyp.activate.subscription_row_failed", new Error("fyp.activate.subscription_row_failed"), { memberId: existing.id });
           console.error(
             "[fyp activate] subscription insert failed for existing member (Stripe subscription still created):",
             JSON.stringify(subError),
           );
         }
       } catch (err) {
+        await logError("fyp.activate.comp_new_sub_failed", err, { memberId: existing.id });
         console.error(
           `[fyp activate] failed to create comped subscription for existing member ${existing.id}:`,
           err,
@@ -385,6 +392,7 @@ export async function POST(req: NextRequest) {
     } else {
       // No stripe_customer_id at all — shouldn't happen for a real member
       // row, but don't block the link over it; just log loudly.
+      await logError("fyp.activate.no_stripe_customer", new Error("fyp.activate.no_stripe_customer"), { memberId: existing.id });
       console.error(
         `[fyp activate] existing member ${existing.id} has no stripe_customer_id — can't comp`,
       );
@@ -413,6 +421,7 @@ export async function POST(req: NextRequest) {
     productId,
   );
   if (!couponId) {
+    await logError("fyp.activate.coupon_missing", new Error("FYP_COMP_COUPON_ID is not set"));
     console.error("[fyp activate] FYP_COMP_COUPON_ID is not set");
     return NextResponse.json(
       { error: "Server misconfiguration" },
@@ -460,6 +469,7 @@ export async function POST(req: NextRequest) {
         });
       }
     }
+    await logError("fyp.activate.member_insert_failed", new Error("fyp.activate.member_insert_failed"));
     console.error(
       "[fyp activate] member insert failed:",
       JSON.stringify(memberError),
@@ -482,6 +492,7 @@ export async function POST(req: NextRequest) {
     // the request, since the member row (the thing site needs to pin) is
     // already committed. A missing subscriptions row would only surface
     // later, as "No active subscription found" from grantFreeMonth().
+    await logError("fyp.activate.subscription_row_failed", new Error("fyp.activate.subscription_row_failed"), { memberId: member.id });
     console.error(
       "[fyp activate] subscription insert failed (member still created):",
       JSON.stringify(subError),
