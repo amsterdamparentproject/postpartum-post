@@ -136,6 +136,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { isComped } from "@/lib/billing-mode";
+import { logError } from "@/lib/log-error";
 
 // Processed in batches of this size rather than unbounded — plenty of
 // headroom over the current/expected member count to collapse total wall
@@ -289,6 +290,7 @@ async function renewMember(
     return { kind: "billed" };
   } catch (e) {
     console.error(`[renew-check] Failed to renew member ${member.id}:`, e);
+    await logError("billing.renew.failed", e, { memberId: member.id });
     return {
       kind: "error",
       memberId: member.id,
@@ -391,6 +393,7 @@ async function finalizeCancellation(
     return { kind: "canceled" };
   } catch (e) {
     console.error(`[renew-check] Failed to finalize cancellation for member ${member.id}:`, e);
+    await logError("billing.renew.cancel_failed", e, { memberId: member.id });
     return {
       kind: "error",
       memberId: member.id,

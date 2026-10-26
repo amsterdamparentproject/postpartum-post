@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const ContentSecurityPolicy = `
   default-src 'self';
@@ -47,4 +48,37 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry (EU region). Token and project come from env so nothing secret is
+// committed. Without SENTRY_AUTH_TOKEN the build skips source-map upload.
+export default withSentryConfig(
+  {
+    ...nextConfig,
+    env: {
+      ...nextConfig.env,
+      // Netlify's CONTEXT is "production" | "deploy-preview" | "branch-deploy".
+      NEXT_PUBLIC_SENTRY_ENVIRONMENT:
+        process.env.CONTEXT || process.env.NODE_ENV || "development",
+    },
+  },
+  {
+    org: "amsterdam-parent-project",
+    project: process.env.SENTRY_PROJECT || "postpartum-post",
+    // EU region: source-map upload must go to the EU host.
+    sentryUrl: process.env.SENTRY_URL || "https://de.sentry.io",
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    silent: !process.env.CI,
+    telemetry: false,
+    widenClientFileUpload: true,
+
+    // Send browser events through our own /monitoring route so ad blockers
+    // don't drop them (the error-page reference depends on the event arriving).
+    // proxy.ts only matches /admin/*, so it does not intercept this route.
+    tunnelRoute: "/monitoring",
+
+    webpack: {
+      treeshake: {
+        removeDebugLogging: true,
+      },
+    },
+  }
+);

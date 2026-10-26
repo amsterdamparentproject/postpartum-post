@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
     // being matched requires having opted in.
     const { data: billableMembers, error: billableError } = await supabase
       .from("members")
-      .select("id, matches_remaining, billing_mode")
+      .select("id, status, matches_remaining, billing_mode")
       .in("status", ["active", "canceling"]);
 
     const { data: participation, error: participationError } = await supabase
@@ -279,8 +279,13 @@ export async function POST(req: NextRequest) {
             // A comped member whose free credit is already spent has nothing
             // left to debit: they stay "active" (no subscription to cancel)
             // until they continue, and a -1 row each month would only skew
-            // their ledger.
-            .filter((m) => !(isComped(m.billing_mode) && (m.matches_remaining ?? 0) <= 0))
+            // their ledger. Same for a canceling member already at zero: they
+            // get no opt-in email, have nothing left to spend, and renew-check
+            // finalizes them on the 10th — a -1 here only drives them negative.
+            .filter(
+              (m) =>
+                !((isComped(m.billing_mode) || m.status === "canceling") && (m.matches_remaining ?? 0) <= 0)
+            )
             .map((m) => m.id)
             .filter(
               (id) =>

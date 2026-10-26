@@ -47,3 +47,5 @@ docs/
 playwright-report/
 test-results/
 scripts/seed-test-members.mts
+# Sentry
+.env.sentry-build-plugin

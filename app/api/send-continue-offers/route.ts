@@ -40,6 +40,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getStripe } from "@/lib/stripe";
 import { sendContinueOffers } from "@/lib/continue-offer-send";
 import { sendGiftedContinueOffers } from "@/lib/gifted-continue-send";
+import { logError } from "@/lib/log-error";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     console.error("[send-continue-offers] failed:", e);
+    await logError("billing.continue_offers.failed", e);
     return NextResponse.json({ error: "Failed to send continue offers" }, { status: 500 });
   }
 }

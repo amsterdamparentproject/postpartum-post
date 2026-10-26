@@ -6,6 +6,7 @@ import { sendWelcomeEmail, sendUnsubscribedEmail } from "@/lib/emails";
 import { createGiftCard, redeemGiftCard } from "@/lib/gift-cards";
 import { createWelcomeSignIn } from "@/lib/member-welcome";
 import { isComped } from "@/lib/billing-mode";
+import { logError } from "@/lib/log-error";
 import { recordEntitlement, FYP_LOOKUP_KEYS, GIFT_ENTITLEMENT_NOTE } from "@/lib/match-ledger";
 
 export async function POST(req: NextRequest) {
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
         console.log("[webhook] set customer default_payment_method", { paymentMethodId });
       } catch (e) {
         console.error("[webhook] setting customer default_payment_method failed (non-fatal):", e);
+        await logError("billing.webhook.default_pm_failed", e);
       }
     }
 
@@ -147,6 +149,7 @@ export async function POST(req: NextRequest) {
           console.log("[webhook] gift card redeemed", { promoCodeId });
         } catch (e) {
           console.error("[webhook] redeemGiftCard failed (non-fatal):", e);
+          await logError("billing.webhook.gift_redeem_failed", e);
         }
       }
     }
@@ -158,9 +161,11 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       // Non-fatal — log and continue. Member is subscribed; email failure shouldn't block.
       console.error("[webhook] sendWelcomeEmail failed (non-fatal):", e);
+      await logError("email.welcome_failed", e, { memberId });
     }
     } catch (e) {
       console.error("[webhook] unhandled error in checkout.session.completed handler:", e);
+      await logError("billing.webhook.checkout_failed", e);
       // Return 200 so Stripe doesn't retry — manual investigation needed.
       return NextResponse.json({ received: true, error: "handler_error" });
     }
@@ -322,10 +327,12 @@ export async function POST(req: NextRequest) {
           console.log("[webhook] paused subscription after grant", { subscriptionId });
         } catch (e) {
           console.error("[webhook] pause_collection update failed (non-fatal):", e);
+          await logError("billing.webhook.pause_failed", e);
         }
       }
     } catch (e) {
       console.error("[webhook] invoice.payment_succeeded handler failed (non-fatal):", e);
+      await logError("billing.webhook.invoice_paid_failed", e);
     }
   }
 
@@ -388,6 +395,7 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error("[webhook] subscription.deleted handler failed (non-fatal):", e);
+      await logError("billing.webhook.sub_deleted_failed", e);
     }
   }
 

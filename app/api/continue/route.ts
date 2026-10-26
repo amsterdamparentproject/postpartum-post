@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { verifyContinueToken } from "@/lib/tokens";
 import { createContinueCheckoutUrl, isContinuePlan } from "@/lib/continue-offer";
+import { logError } from "@/lib/log-error";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
     console.error("[continue] checkout not started:", result.error, { memberId });
   } catch (e) {
     console.error("[continue] checkout failed:", e);
+    await logError("billing.continue.checkout_failed", e, { memberId });
   }
   return NextResponse.redirect(`${SITE_URL}/billing`, 303);
 }
