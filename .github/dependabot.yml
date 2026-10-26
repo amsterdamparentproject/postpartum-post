@@ -3,16 +3,23 @@ updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      # Monthly runs on the 1st of the month.
+      interval: monthly
       time: "09:00"
       timezone: Europe/Amsterdam
     open-pull-requests-limit: 5
+    # Each rebase is a push, i.e. another Netlify deploy preview.
+    # Use "@dependabot recreate" on a PR if it goes stale.
+    rebase-strategy: disabled
     groups:
-      # One weekly PR for all minor/patch bumps; majors stay separate PRs.
-      minor-and-patch:
-        update-types: [minor, patch]
-      # Security fixes (any version) arrive together in one PR.
+      # Listed first: a dependency joins the first group it matches.
+      # Framework, runtime, data, payments and build tooling. Review carefully.
+      risky:
+        patterns: ["next", "react", "react-dom", "@types/react", "@types/react-dom", "@supabase/*", "@sentry/nextjs", "stripe", "typescript", "eslint-config-next", "tailwindcss", "@tailwindcss/*"]
+      # Everything else (patch, minor and major) in one PR.
+      routine:
+        patterns: ["*"]
+      # Security fixes (any version) arrive immediately, outside the monthly schedule.
       security:
         applies-to: security-updates
         patterns: ["*"]
