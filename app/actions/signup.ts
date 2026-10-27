@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getBaseUrl } from "@/lib/base-url";
 import { getLivePerksSummary } from "@/lib/public-perks";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { logError } from "@/lib/log-error";
 
 const FIRST20_TOTAL = 20;
 const PILOT_ONLY_UNTIL = new Date("2026-07-01");
@@ -109,6 +110,7 @@ export async function signup(data: SignupFormData): Promise<SignupError | void> 
 
       return { error: "You're already signed up! Check your email for your sign-in link, or contact us if you need help." };
     }
+    await logError("signup.member_insert.failed", new Error(`members insert failed: ${error?.code ?? "no row returned"}`));
     return { error: `Something went wrong. Please try again.` };
   }
 
@@ -220,7 +222,8 @@ export async function abandonCheckout(sessionId: string): Promise<void> {
       .update({ status: "abandoned" })
       .eq("id", memberId)
       .eq("status", "pending");
-  } catch {
+  } catch (e) {
     // non-fatal — best-effort marking
+    await logError("signup.abandon.failed", e);
   }
 }

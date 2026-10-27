@@ -8,6 +8,7 @@ import { isComped } from "@/lib/billing-mode";
 import { cohortIsFull } from "@/lib/cohort";
 import { getCohortConfig } from "@/lib/cohort-config";
 import { joinCohortAsExistingMember } from "@/lib/cohort-join";
+import { logError } from "@/lib/log-error";
 
 export type CohortSignupFormData = {
   /** Which cohort to join, e.g. "dsa" (cohorts.slug). */
@@ -52,6 +53,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
     .maybeSingle();
   if (cohortError) {
     console.error("[signup-cohort] cohort lookup failed:", cohortError);
+    await logError("signup.cohort.lookup_failed", new Error(`cohorts lookup failed: ${cohortError.code}`));
     return { error: "Something went wrong. Please try again, or email us." };
   }
   // Unknown, inactive, or no code set yet: signup is closed. Same message for
@@ -69,6 +71,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
     }
   } catch (e) {
     console.error("[signup-cohort] cap check failed:", e);
+    await logError("signup.cohort.cap_check_failed", e);
     return { error: "Something went wrong. Please try again, or email us." };
   }
 
@@ -88,6 +91,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
     .maybeSingle();
   if (existingError) {
     console.error("[signup-cohort] existing member lookup failed:", existingError);
+    await logError("signup.cohort.member_lookup_failed", new Error(`members lookup failed: ${existingError.code}`));
     return { error: "Something went wrong. Please try again, or email us." };
   }
   if (existing) {
@@ -98,6 +102,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
       return { error: "This email is already a Postpartum Post member, but we can't add the code automatically. Please email us and we'll sort it out." };
     }
     if (!(await joinCohortAsExistingMember(supabase, existing.id, cohort))) {
+      await logError("signup.cohort.join_failed", new Error("joinCohortAsExistingMember returned false"), { memberId: existing.id });
       return { error: "Something went wrong. Please try again, or email us." };
     }
     try {
@@ -105,6 +110,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
       await sendCohortExistingMemberEmail(email, signInLink, cohort.name);
     } catch (e) {
       console.error("[signup-cohort] existing-member email failed (non-fatal):", e);
+      await logError("signup.cohort.existing_email_failed", e, { memberId: existing.id });
     }
     return { ok: true, existingMember: true };
   }
@@ -133,6 +139,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
       };
     }
     console.error("[signup-cohort] member insert failed:", error);
+    await logError("signup.cohort.member_insert_failed", new Error(`members insert failed: ${error?.code ?? "no row returned"}`));
     return { error: "Something went wrong. Please try again." };
   }
 
@@ -147,6 +154,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
     }
   } catch (e) {
     console.error("[signup-cohort] grant failed, rolling back member:", e);
+    await logError("signup.cohort.grant_failed", e, { memberId: member.id });
     await supabase.from("members").delete().eq("id", member.id);
     return { error: "Something went wrong. Please try again." };
   }
@@ -165,6 +173,7 @@ export async function signupCohort(data: CohortSignupFormData): Promise<CohortSi
   } catch (e) {
     // Non-fatal: the member and grant exist; a failed email shouldn't undo them.
     console.error("[signup-cohort] welcome email failed (non-fatal):", e);
+    await logError("signup.cohort.welcome_email_failed", e, { memberId: member.id });
   }
 
   return { ok: true };
