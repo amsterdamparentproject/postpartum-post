@@ -24,6 +24,7 @@ import ActivitiesSection from "@/app/matches/[id]/ActivitiesSection";
 import { PerkList, type MatchPerk } from "@/app/matches/[id]/PerkList";
 import MatchCards from "@/app/matches/[id]/MatchCards";
 import CohortMeetupSection from "@/app/matches/[id]/CohortMeetupSection";
+import DevMatchTools from "@/app/matches/[id]/DevMatchTools";
 import { nearestKm } from "@/lib/geo-distance";
 import { PERK_SORTS, type SortOrder } from "@/app/matches/[id]/activities-utils";
 import type { PublicPerk } from "@/lib/public-perks";
@@ -196,7 +197,7 @@ function MatchPageReady({
   monthlyWhimsy?: React.ReactNode;
   perks: PublicPerk[];
 }) {
-  const { m1, m2, monthLabel, matchedOn, viewerIsM1, viewerIsInitiator, topic, hasActivities, recommendedPlaces, recommendedActivities, allActivities, center, memberCoords, playgrounds, cohortPage, meetupMode, showPerks } = data;
+  const { m1, m2, monthLabel, matchedOn, viewerIsM1, viewerIsInitiator, topic, hasActivities, recommendedPlaces, recommendedActivities, allActivities, center, memberCoords, playgrounds, cohortPage, meetupMode, showPerks, devTools } = data;
 
   const them = viewerIsM1 ? m2 : m1;
   // Cohort pairs who aren't meeting in person get a video / decide-together
@@ -429,6 +430,7 @@ function MatchPageReady({
 
         </div>
       </main>
+      {devTools && <DevMatchTools />}
     </PageLayout>
   );
 }

@@ -6,6 +6,8 @@ import { currentMonth, monthToDate } from "@/lib/tokens";
 import { scorePair, maxAchievableScore, qualityTier, getLastMatchedMap, type MatchCandidate } from "@/lib/matcher";
 import { ALEX_TEST_EMAIL, ensureAlexPastMatches } from "@/lib/test-fixtures/alex-past-matches";
 import { generateMatchToken } from "@/lib/match-token";
+import { devToolsEnabledFor, type DevDistance, type DevScenario } from "@/lib/dev-tools";
+import { buildDevMatch } from "@/lib/dev-match";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 import {
   sendWelcomeEmail,
@@ -920,6 +922,21 @@ export async function testSimulateMatchEmails(): Promise<TestStepResult> {
     message: `${testMember.first_name} & ${other?.first_name ?? "their match"} — no emails sent`,
     link: `/matches/${match.id}?token=${generateMatchToken(match.id as string)}`,
   };
+}
+
+/**
+ * Rebuilds the cohort match page test match for the test member (see
+ * lib/dev-match.ts) and returns its link. Rewrites that member's cohort and
+ * plan: pick "No cohort, subscriber" to put it back to normal. Local only.
+ */
+export async function testCohortMatchPage(scenario: DevScenario, distance: DevDistance): Promise<TestStepResult> {
+  const testEmail = process.env.TEST_EMAIL ?? ALEX_TEST_EMAIL;
+  if (!devToolsEnabledFor(testEmail)) {
+    return { success: false, error: "Test controls are disabled in production, or for this test email." };
+  }
+  const result = await buildDevMatch(createAdminClient(), testEmail, scenario, distance);
+  if (!result.success) return result;
+  return { success: true, message: "Cohort match ready", link: result.path };
 }
 
 export async function testLockRound(): Promise<TestStepResult> {

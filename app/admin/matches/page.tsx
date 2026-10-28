@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { getRoundData, type RoundData, testSimulateOptins, testRunMatcher, testCommitMatches, testSimulateMatchEmails, testLockRound, testResetRound, testSendEmail, type TestEmailKind } from "./actions";
+import { getRoundData, type RoundData, testSimulateOptins, testRunMatcher, testCommitMatches, testSimulateMatchEmails, testLockRound, testResetRound, testSendEmail, testCohortMatchPage, type TestEmailKind } from "./actions";
+import { DEV_DISTANCES, DEV_SCENARIOS, type DevDistance, type DevScenario } from "@/lib/dev-tools";
 import RoundView from "./RoundView";
 import AdminNav from "../AdminNav";
 
@@ -40,6 +41,7 @@ export default function AdminMatchesPage() {
         )}
 
         <TestControls />
+        <CohortMatchPageControls />
         <EmailTestControls />
       </div>
     </main>
@@ -122,6 +124,79 @@ function TestControls() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cohort match page — builds a test match for the test member in any member
+// type (cohort / comped / subscriber) and distance. Same generator as the
+// panel on the match page itself.
+// ---------------------------------------------------------------------------
+
+function CohortMatchPageControls() {
+  const [scenario, setScenario] = useState<DevScenario>("cohort_comped");
+  const [distance, setDistance] = useState<DevDistance>("local");
+  const [result, setResult] = useState<{ ok: boolean; text: string; link?: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function generate() {
+    startTransition(async () => {
+      const r = await testCohortMatchPage(scenario, distance);
+      setResult(
+        r.success
+          ? { ok: true, text: `✓ ${r.message}`, link: r.link }
+          : { ok: false, text: `✗ ${r.error}` },
+      );
+    });
+  }
+
+  return (
+    <div className="border border-dashed border-gray-300 rounded-2xl px-5 py-4 space-y-3">
+      <p className="text-sm font-medium text-gray-500">Cohort match page</p>
+      <p className="text-xs text-muted">
+        Rebuilds a test match for your test member. Changes its cohort and plan; &ldquo;No cohort, subscriber&rdquo; resets it. Local only.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={scenario}
+          onChange={(e) => setScenario(e.target.value as DevScenario)}
+          className="text-xs border border-border rounded-lg px-2 py-1.5 text-dark bg-white"
+        >
+          {Object.entries(DEV_SCENARIOS).map(([key, { label }]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
+        <select
+          value={distance}
+          onChange={(e) => setDistance(e.target.value as DevDistance)}
+          className="text-xs border border-border rounded-lg px-2 py-1.5 text-dark bg-white"
+        >
+          {Object.entries(DEV_DISTANCES).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
+        <button
+          onClick={generate}
+          disabled={isPending}
+          className="text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-50"
+        >
+          {isPending ? "Generating…" : "Generate"}
+        </button>
+        {result && (
+          <span className={`text-xs font-mono ${result.ok ? "text-green-600" : "text-red-600"}`}>
+            {result.text.slice(0, 100)}
+            {result.link && (
+              <>
+                {" "}
+                <a href={result.link} target="_blank" rel="noopener noreferrer" className="font-sans font-semibold text-coral hover:underline">
+                  Open match page →
+                </a>
+              </>
+            )}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -23,6 +23,7 @@ import { getCohortNames } from "@/lib/cohort";
 import { getCohortConfig } from "@/lib/cohort-config";
 import { hasPerksAccess } from "@/lib/billing-mode";
 import { getMeetupMode, type MeetupMode } from "@/lib/meetup-mode";
+import { devToolsEnabledFor } from "@/lib/dev-tools";
 
 export type MatchMemberView = {
   first_name: string;
@@ -81,6 +82,8 @@ export type MatchPageResult =
       meetupMode: MeetupMode;
       /** False when the viewer's plan has no Post Perks (cohort pages only). */
       showPerks: boolean;
+      /** Show the dev-only test match generator (never in production; see lib/dev-tools.ts). */
+      devTools: boolean;
     };
 
 export async function getMatchPageData(
@@ -249,5 +252,6 @@ export async function getMatchPageData(
     cohortPage,
     meetupMode,
     showPerks: !sharedCohort || hasPerksAccess(viewer.billing_mode),
+    devTools: devToolsEnabledFor(viewerEmail),
   };
 }
