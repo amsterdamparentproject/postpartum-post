@@ -684,6 +684,10 @@ export type PerkReviewStatus = "pending" | "coming_soon" | "published" | "reject
 
 export type ReviewPerk = SavedPerkFields & {
   status: PerkReviewStatus;
+  /** Admin-only: pins the perk to the top of /perks (lib/perk-ranking.ts). Never exposed in the partner portal. */
+  featured: boolean;
+  /** Admin-only short link name (/perks?perk=<slug>, /my-perks?perk=<slug>); null when unset. */
+  slug: string | null;
   created_at: string;
   partner_id: string;
   partner_name: string;
@@ -705,7 +709,7 @@ export async function listPerksForReview(): Promise<ReviewPerk[]> {
   const { data: perks, error } = await supabase
     .from("perks_partners")
     .select(
-      "id, status, created_at, is_online, title, description, redemption_type, redemption_code, url, expires_at, exclusive, frequency, estimated_savings, partner_id, partner_name, partner_url, partner_image_url",
+      "id, status, created_at, is_online, title, description, redemption_type, redemption_code, url, expires_at, exclusive, frequency, estimated_savings, featured, slug, partner_id, partner_name, partner_url, partner_image_url",
     )
     .order("created_at", { ascending: false });
   if (error) {
@@ -795,6 +799,10 @@ async function notifyPerkLive(supabase: ReturnType<typeof createAdminClient>, pe
 export type UpdatePerkInput = PerkInput & {
   perkId: string;
   status: PerkReviewStatus;
+  /** Admin-only; omit to leave it unchanged. */
+  featured?: boolean;
+  /** Admin-only; omit to leave unchanged, "" clears it. */
+  slug?: string;
 };
 
 /**
@@ -808,11 +816,24 @@ export type UpdatePerkInput = PerkInput & {
  * editable here — reassigning a perk to a different partner isn't a real
  * edit case, it's closer to delete-and-recreate (addPerkForPartner below).
  */
+const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/** undefined = leave alone; null = clear; string = set. Matches the perks.slug check constraint (migration 034). */
+function parseSlug(raw: string | undefined): { ok: true; slug: string | null | undefined } | { ok: false; error: string } {
+  if (raw === undefined) return { ok: true, slug: undefined };
+  const slug = raw.trim().toLowerCase();
+  if (!slug) return { ok: true, slug: null };
+  if (!SLUG_RE.test(slug)) return { ok: false, error: "Slug can only use lowercase letters, numbers and hyphens" };
+  return { ok: true, slug };
+}
+
 export async function updatePerkAdmin(
   input: UpdatePerkInput,
 ): Promise<{ success: boolean; error?: string }> {
   const normalized = normalizePerkInput(input);
   if (!normalized.ok) return { success: false, error: normalized.error };
+  const slug = parseSlug(input.slug);
+  if (!slug.ok) return { success: false, error: slug.error };
 
   const supabase = createAdminClient();
 
@@ -828,12 +849,12 @@ export async function updatePerkAdmin(
 
   const { error } = await supabase
     .from("perks")
-    .update({ ...normalized.row, status: input.status })
+    .update({ ...normalized.row, status: input.status, ...(input.featured !== undefined && { featured: input.featured }), ...(slug.slug !== undefined && { slug: slug.slug }) })
     .eq("id", input.perkId);
 
   if (error) {
     console.error("[updatePerkAdmin] update error:", error.message);
-    return { success: false, error: "Couldn't save — try again" };
+    return { success: false, error: error.code === "23505" ? "That slug is already used by another perk" : "Couldn't save — try again" };
   }
 
   const linked = await savePerkLocations(supabase, input.perkId, location.locationIds);
@@ -855,6 +876,10 @@ export async function updatePerkAdmin(
 export type AdminPerkInput = PerkInput & {
   partner_id: string;
   status: PerkReviewStatus;
+  /** Admin-only; omit to leave it unchanged. */
+  featured?: boolean;
+  /** Admin-only; omit to leave unchanged, "" clears it. */
+  slug?: string;
 };
 
 /**
@@ -874,6 +899,8 @@ export async function addPerkForPartner(
 
   const normalized = normalizePerkInput(input);
   if (!normalized.ok) return { success: false, error: normalized.error };
+  const slug = parseSlug(input.slug);
+  if (!slug.ok) return { success: false, error: slug.error };
 
   const supabase = createAdminClient();
 
@@ -894,12 +921,14 @@ export async function addPerkForPartner(
       partner_id: input.partner_id,
       source: "manual" as const,
       status: input.status,
+      featured: input.featured ?? false,
+      slug: slug.slug ?? null,
     })
     .select("id")
     .single();
   if (error || !perk) {
     console.error("[addPerkForPartner] insert error:", error?.message);
-    return { success: false, error: "Couldn't save — try again" };
+    return { success: false, error: error?.code === "23505" ? "That slug is already used by another perk" : "Couldn't save — try again" };
   }
 
   const linked = await savePerkLocations(supabase, perk.id as string, location.locationIds);

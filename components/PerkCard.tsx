@@ -53,6 +53,7 @@ export default function PerkCard({
   href,
   actionLabel,
   umamiEvent,
+  hideDescription = false,
 }: {
   perk: PerkCardPerk;
   partner: PerkCardPartner;
@@ -66,6 +67,8 @@ export default function PerkCard({
    *  uses of this card. Left unset for the partner portal/admin uses so their
    *  edit clicks aren't tracked as member perk engagement. */
   umamiEvent?: string;
+  /** Leaves the description off (the public /perks page lists perks without it). */
+  hideDescription?: boolean;
 }) {
   const expiry = formatExpiry(perk.expires_at);
   const body = (
@@ -101,7 +104,9 @@ export default function PerkCard({
         <h3 className="text-lg leading-snug text-dark line-clamp-2" style={{ fontFamily: "var(--font-serif)" }}>
           {perk.title}
         </h3>
-        <p className="text-sm text-dark/80 leading-relaxed line-clamp-3">{perk.description}</p>
+        {!hideDescription && (
+          <p className="text-sm text-dark/80 leading-relaxed line-clamp-3">{perk.description}</p>
+        )}
 
         <div className="mt-auto pt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
           {perk.exclusive && (

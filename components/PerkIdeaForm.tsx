@@ -7,6 +7,7 @@ import { LocationStamp } from "@/components/StampIcons";
 import Link from "next/link";
 import JoinLink from "@/components/JoinLink";
 import { useTurnstile } from "@/components/TurnstileWidget";
+import { ENABLE_GIVEAWAY } from "@/lib/flags";
 
 /** Fire a custom Umami event (no-op if the script isn't loaded, e.g. no website ID or an ad blocker). */
 function track(event: string, data?: Record<string, string | number | boolean>) {
@@ -91,7 +92,7 @@ export default function PerkIdeaForm() {
     startTransition(async () => {
       const result = await submitPerkIdea({
         url,
-        wantsGiveaway,
+        wantsGiveaway: ENABLE_GIVEAWAY && wantsGiveaway,
         notifyWhenLive,
         email: notifyWhenLive ? email : undefined,
         turnstileToken: turnstile.token,
@@ -125,7 +126,7 @@ export default function PerkIdeaForm() {
         <p className="text-dark mt-4">
           Thanks for submitting your favorite place! We&apos;re on it 🫡
         </p>
-        {wantsGiveaway && !giveawayError && (
+        {ENABLE_GIVEAWAY && wantsGiveaway && !giveawayError && (
           <p className="text-sm text-muted mt-2">
             We&apos;ll announce giveaway winners on Friday, October 23, and
             we&apos;ll let you know if you&apos;ve won over email. Subscribe to our{" "}
@@ -194,6 +195,7 @@ export default function PerkIdeaForm() {
           className={inputClass}
         />
 
+        {ENABLE_GIVEAWAY && (
         <div className="bg-coral/5 border border-coral/20 rounded-xl p-4 space-y-2">
           <p className="text-medium font-bold text-coral leading-relaxed">
             🎁 Enter the giveaway
@@ -226,6 +228,7 @@ export default function PerkIdeaForm() {
             </Link>
           </p>
         </div>
+        )}
 
         <div>
           <label htmlFor="perk-idea-email" className="block mb-1">

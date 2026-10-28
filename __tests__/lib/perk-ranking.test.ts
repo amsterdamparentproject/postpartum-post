@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { comparePerks, countEventsByPerk, type RankablePerk } from "@/lib/perk-ranking";
+import { compareNewest, comparePerks, countEventsByPerk, type RankablePerk } from "@/lib/perk-ranking";
 
 function perk(name: string, overrides: Partial<RankablePerk> = {}): RankablePerk & { name: string } {
   return {
@@ -16,6 +16,20 @@ function perk(name: string, overrides: Partial<RankablePerk> = {}): RankablePerk
 }
 
 const order = (perks: ReturnType<typeof perk>[]) => [...perks].sort(comparePerks).map((p) => p.name);
+
+describe("compareNewest", () => {
+  it("puts featured first, then live perks, then newest to oldest, ignoring popularity", () => {
+    const byNewest = (perks: ReturnType<typeof perk>[]) => [...perks].sort(compareNewest).map((p) => p.name);
+    expect(
+      byNewest([
+        perk("old-featured", { featured: true, created_at: "2026-08-01T00:00:00Z" }),
+        perk("new", { created_at: "2026-10-20T00:00:00Z", redeemed_count: 5 }),
+        perk("soon", { status: "coming_soon", created_at: "2026-10-27T00:00:00Z" }),
+        perk("mid", { created_at: "2026-09-15T00:00:00Z" }),
+      ]),
+    ).toEqual(["old-featured", "new", "mid", "soon"]);
+  });
+});
 
 describe("comparePerks", () => {
   it("ranks featured, live, redeemed, monthly, exclusive, viewed, newest", () => {

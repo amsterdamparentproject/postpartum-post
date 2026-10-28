@@ -11,6 +11,7 @@ import { commitPartnerImage, createPartnerImageUploadFor, type ImageUploadTicket
 import { normalizePerkInput, type PerkInput, type SavedPerkFields } from "@/lib/perk-input";
 import { resolvePerkLocations, savePerkLocations } from "@/lib/perk-save";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { ENABLE_GIVEAWAY } from "@/lib/flags";
 
 export type PartnerLocation = {
   id: string;
@@ -361,7 +362,7 @@ export async function submitPerkIdea(
     return { success: false, error: "Add a link first" };
   }
 
-  const wantsGiveaway = input.wantsGiveaway === true;
+  const wantsGiveaway = ENABLE_GIVEAWAY && input.wantsGiveaway === true;
   const name = input.name?.trim() || null;
   const email = input.email?.trim().toLowerCase() || "";
   const notifyWhenLive = input.notifyWhenLive === true;
