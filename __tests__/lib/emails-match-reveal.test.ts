@@ -19,7 +19,7 @@ vi.mock("@/lib/resend", () => ({
   getResend: () => ({ emails: { send: mockSend } }),
 }));
 
-import { sendMatchRevealEmail } from "@/lib/emails/match-reveal";
+import { sendMatchRevealEmail, type CohortRevealOptions } from "@/lib/emails/match-reveal";
 
 async function sendWithNotice(billingNotice: BillingNotice): Promise<string> {
   await sendMatchRevealEmail(
@@ -120,5 +120,71 @@ describe("match-reveal email — billing notice (Track C4)", () => {
     const html = mockSend.mock.calls[0][0].html as string;
     expect(html).not.toContain("Renews");
     expect(html).not.toContain("Manage your membership");
+  });
+});
+
+describe("match-reveal email — cohort version", () => {
+  beforeEach(() => {
+    mockSend.mockClear();
+  });
+
+  async function send(cohort: CohortRevealOptions | null): Promise<string> {
+    await sendMatchRevealEmail(
+      "recipient@example.test",
+      "Robin",
+      "Sam",
+      "Sample",
+      "sam@example.test",
+      "coffee",
+      "https://postpartumpost.com/matches/m1",
+      false,
+      true,
+      { kind: "none" },
+      cohort,
+    );
+    return mockSend.mock.calls[0][0].html as string;
+  }
+
+  const cohort: CohortRevealOptions = {
+    name: "Dutch Speaking Academy",
+    headerHtml: '<tr><td><img src="https://example.test/cohort-banner.png" alt="Cohort banner"></td></tr>',
+    headerPreload: '<link rel="preload" as="image" href="https://example.test/cohort-banner.png">',
+    emailSubject: "Let's plan our meetup! (Dutch Speaking Academy × Postpartum Post)",
+  };
+
+  it("names the cohort and drops the Amsterdam, local-activities and topic wording", async () => {
+    const html = await send(cohort);
+    expect(html).toContain("another parent from Dutch Speaking Academy");
+    // (The footer's nonprofit blurb legitimately mentions Amsterdam, so check the intro sentence.)
+    expect(html).not.toContain("another parent in Amsterdam");
+    expect(html).not.toContain("local activities");
+    expect(html).not.toContain("Enjoy your coffee");
+  });
+
+  it("uses the cohort banner, preloads it, and uses the cohort subject on the email button", async () => {
+    const html = await send(cohort);
+    expect(html).toContain("cohort-banner.png");
+    expect(html).toContain('rel="preload" as="image" href="https://example.test/cohort-banner.png"');
+    expect(html).toContain(encodeURIComponent(cohort.emailSubject as string));
+    expect(html).not.toContain(encodeURIComponent("Let's meet for a coffee! (Postpartum Post)"));
+  });
+
+  it("falls back to the standard header and generic subject when the cohort has none", async () => {
+    const html = await send({ name: "AIC" });
+    expect(html).toContain("another parent from AIC");
+    expect(html).not.toContain("cohort-banner.png");
+    expect(html).toContain(encodeURIComponent("Let's meet for a coffee! (Postpartum Post)"));
+  });
+
+  it("escapes the cohort name", async () => {
+    const html = await send({ name: "A & <b>B</b>" });
+    expect(html).toContain("A &amp; &lt;b&gt;B&lt;/b&gt;");
+  });
+
+  it("leaves the regular email as it was", async () => {
+    const html = await send(null);
+    expect(html).toContain("another parent in Amsterdam");
+    expect(html).toContain("local activities");
+    expect(html).toContain("Enjoy your coffee!");
   });
 });

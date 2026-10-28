@@ -30,6 +30,8 @@ import { currentMonth, monthToDate } from "@/lib/tokens";
 import { generateMatchToken } from "@/lib/match-token";
 import { isMember1Initiator } from "@/lib/match-initiator";
 import { sendMatchRevealEmail } from "@/lib/emails";
+import { getCohortNames } from "@/lib/cohort";
+import { cohortRevealFor } from "@/lib/cohort-reveal";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 import { fetchBillingNoticeContext, resolveBillingNotice } from "@/lib/billing-notice";
 
@@ -96,8 +98,8 @@ export async function POST(req: NextRequest) {
       id,
       member_id_1,
       member_id_2,
-      member1:member_id_1 ( id, first_name, last_name, email, matches_remaining ),
-      member2:member_id_2 ( id, first_name, last_name, email, matches_remaining )
+      member1:member_id_1 ( id, first_name, last_name, email, matches_remaining, cohort ),
+      member2:member_id_2 ( id, first_name, last_name, email, matches_remaining, cohort )
     `)
     .eq("matched_on", monthDate);
 
@@ -147,6 +149,7 @@ export async function POST(req: NextRequest) {
     // Track C4: post-decrement counter (commit-matches already ran for this
     // round) — the raw input deriveBillingNotice needs, not a display string.
     matches_remaining: number;
+    cohort: string | null;
   };
 
   const matchCountById = new Map<string, number>();
@@ -156,6 +159,10 @@ export async function POST(req: NextRequest) {
     if (id1) matchCountById.set(id1, (matchCountById.get(id1) ?? 0) + 1);
     if (id2) matchCountById.set(id2, (matchCountById.get(id2) ?? 0) + 1);
   }
+
+  // Display names for cohort pairs (an empty map on failure: the email then
+  // says "your partner program" rather than falling back to the Amsterdam copy).
+  const cohortNames = await getCohortNames(supabase);
 
   // -------------------------------------------------------------------------
   // Send emails
@@ -171,6 +178,10 @@ export async function POST(req: NextRequest) {
       errors.push(`Match ${match.id}: missing member data`);
       continue;
     }
+
+    // A cohort pair (both joined through the same cohort) gets the generic
+    // cohort email: banner, cohort name, no "in Amsterdam" or local activities.
+    const cohort = cohortRevealFor(m1.cohort, m2.cohort, cohortNames);
 
     const token = generateMatchToken(match.id);
     const matchPageUrl = `${SITE_URL}/matches/${match.id}?token=${token}`;
@@ -226,6 +237,7 @@ export async function POST(req: NextRequest) {
           isM1Double,
           m1IsInitiator,
           m1Notice,
+          cohort,
         );
         sentCount++;
       }
@@ -242,6 +254,7 @@ export async function POST(req: NextRequest) {
           isM2Double,
           !m1IsInitiator,
           m2Notice,
+          cohort,
         );
         sentCount++;
       }

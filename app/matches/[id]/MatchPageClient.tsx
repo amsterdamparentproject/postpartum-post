@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { createBrowserClient } from "@/lib/supabase";
 import { getMatchPageData, type MatchPageResult } from "@/app/actions/match-page";
 import PageLayout from "@/components/PageLayout";
@@ -22,6 +23,7 @@ import MagicLinkRequest from "@/components/MagicLinkRequest";
 import ActivitiesSection from "@/app/matches/[id]/ActivitiesSection";
 import { PerkList, type MatchPerk } from "@/app/matches/[id]/PerkList";
 import MatchCards from "@/app/matches/[id]/MatchCards";
+import CohortMeetupSection from "@/app/matches/[id]/CohortMeetupSection";
 import { nearestKm } from "@/lib/geo-distance";
 import { PERK_SORTS, type SortOrder } from "@/app/matches/[id]/activities-utils";
 import type { PublicPerk } from "@/lib/public-perks";
@@ -194,9 +196,12 @@ function MatchPageReady({
   monthlyWhimsy?: React.ReactNode;
   perks: PublicPerk[];
 }) {
-  const { m1, m2, monthLabel, matchedOn, viewerIsM1, viewerIsInitiator, topic, hasActivities, recommendedPlaces, recommendedActivities, allActivities, center, memberCoords, playgrounds } = data;
+  const { m1, m2, monthLabel, matchedOn, viewerIsM1, viewerIsInitiator, topic, hasActivities, recommendedPlaces, recommendedActivities, allActivities, center, memberCoords, playgrounds, cohortPage, meetupMode, showPerks } = data;
 
   const them = viewerIsM1 ? m2 : m1;
+  // Cohort pairs who aren't meeting in person get a video / decide-together
+  // section in place of the places, map and perks. Regular matches never do.
+  const remoteMode = cohortPage && meetupMode !== "local" ? meetupMode : null;
 
   // Perks with their distance from the pair's halfway point attached --
   // the nearest of the perk's own locations (it can have several since
@@ -204,7 +209,7 @@ function MatchPageReady({
   // location get Infinity, sorting last under "Nearest".
   const nearbyPerks: MatchPerk[] = useMemo(
     () =>
-      perks.map((p) => ({
+      (showPerks ? perks : []).map((p) => ({
         ...p,
         distanceKm: center
           ? nearestKm(
@@ -213,7 +218,7 @@ function MatchPageReady({
             )
           : Infinity,
       })),
-    [perks, center],
+    [perks, showPerks, center],
   );
 
   // Sort for the "no activities" perks-only section below — mirrors
@@ -225,7 +230,7 @@ function MatchPageReady({
     return [...nearbyPerks].sort((a, b) => a.distanceKm - b.distanceKm);
   }, [nearbyPerks, noActivitiesPerkSort]);
 
-  const mailtoSubject = encodeURIComponent(`Let's meet for a ${topic || "hang"}! (Postpartum Post)`);
+  const mailtoSubject = encodeURIComponent(cohortPage?.emailSubject ?? `Let's meet for a ${topic || "hang"}! (Postpartum Post)`);
   const mailtoBody = encodeURIComponent(`Hi ${them.first_name},`);
   const mailtoHref = `mailto:${them.email}?subject=${mailtoSubject}&body=${mailtoBody}`;
   const reportHref = `/report?match_id=${matchId}`;
@@ -244,7 +249,18 @@ function MatchPageReady({
 
           {/* Header */}
           <div className="text-center space-y-2">
-            <EnvelopeLogo width={48} height={36} className="hidden sm:block mx-auto mb-4" />
+            {cohortPage?.banner ? (
+              <Image
+                src={cohortPage.banner.src}
+                alt={cohortPage.banner.alt}
+                width={cohortPage.banner.width}
+                height={cohortPage.banner.height}
+                priority
+                className="mx-auto mb-4 h-auto w-full max-w-md rounded-2xl"
+              />
+            ) : (
+              <EnvelopeLogo width={48} height={36} className="hidden sm:block mx-auto mb-4" />
+            )}
             <h1
               className="text-4xl sm:text-5xl font-semibold text-dark"
               style={{ fontFamily: "var(--font-serif)" }}
@@ -260,8 +276,23 @@ function MatchPageReady({
 
           <div className="space-y-2">
             <p className="text-center text-muted leading-relaxed max-w-xl mx-auto">
-              Welcome to your {monthLabel}&nbsp;match page! You&apos;ll find contact details, your availability calendar, and activities that have been selected based on your specific profiles — shared just between the two of you.
+              {remoteMode ? (
+                <>Welcome to your {monthLabel}&nbsp;match page! You&apos;ll find contact details and your shared availability calendar — shared just between the two of you.</>
+              ) : (
+                <>Welcome to your {monthLabel}&nbsp;match page! You&apos;ll find contact details, your availability calendar, and activities that have been selected based on your specific profiles — shared just between the two of you.</>
+              )}
             </p>
+            {cohortPage?.intro && (
+              <p className="text-center text-muted leading-relaxed max-w-xl mx-auto">
+                {cohortPage.name && cohortPage.intro.includes(cohortPage.name)
+                  ? cohortPage.intro.split(cohortPage.name).flatMap((part, i) =>
+                      i === 0
+                        ? [part]
+                        : [<span key={i} className="font-semibold text-coral">{cohortPage.name}</span>, part],
+                    )
+                  : cohortPage.intro}
+              </p>
+            )}
           </div>
           </div>
 
@@ -296,8 +327,19 @@ function MatchPageReady({
           </div>
           </div>
 
+          {remoteMode && (
+            <CohortMeetupSection
+              mode={remoteMode}
+              members={[
+                { name: m1.first_name, days: m1.availability?.days ?? [] },
+                { name: m2.first_name, days: m2.availability?.days ?? [] },
+              ]}
+              matchedOn={matchedOn}
+            />
+          )}
+
           {/* Without activities, perks still show on their own. */}
-          {!hasActivities && nearbyPerks.length > 0 && (
+          {!remoteMode && !hasActivities && nearbyPerks.length > 0 && (
             <section className="space-y-6">
               <h2 className="text-2xl sm:text-3xl text-dark" style={{ fontFamily: "var(--font-serif)" }}>
                 Where to meet up
@@ -325,7 +367,7 @@ function MatchPageReady({
               <PerkList perks={sortedNearbyPerks} />
             </section>
           )}
-          {hasActivities && (
+          {!remoteMode && hasActivities && (
             <ActivitiesSection
               recommendedPlaces={recommendedPlaces}
               recommendedActivities={recommendedActivities}
@@ -342,7 +384,8 @@ function MatchPageReady({
             />
           )}
 
-          {monthlyWhimsy}
+          {/* Cohort pages skip the monthly art feature. */}
+          {!cohortPage && monthlyWhimsy}
 
           {/* About matching */}
           <div className="pt-4 pb-2" id="about-matching">

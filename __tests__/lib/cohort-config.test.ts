@@ -20,4 +20,22 @@ describe("cohort config", () => {
       expect(Boolean(config.headerHtml), slug).toBe(Boolean(config.headerPreload));
     }
   });
+
+  it("has a match page for dsa: the cohort banner, an intro, Dutch starters and a subject per mode", () => {
+    const page = getCohortConfig("dsa").matchPage;
+    expect(page?.banner?.src).toBe("/email-images/welcome-dsa.png");
+    expect(page?.banner?.alt).toBeTruthy();
+    expect(page?.intro).toBeTruthy();
+    expect(page?.starters?.length).toBeGreaterThan(0);
+    for (const s of page?.starters ?? []) {
+      expect(s.text).toBeTruthy();
+      expect(s.translation).toBeTruthy();
+    }
+    const subjects = (["local", "online", "unknown"] as const).map((mode) =>
+      page?.emailSubject?.({ topic: "coffee", mode }),
+    );
+    expect(new Set(subjects).size).toBe(3);
+    expect(subjects[0]).toContain("coffee");
+    expect(subjects.every((s) => s?.includes("Dutch Speaking Academy"))).toBe(true);
+  });
 });

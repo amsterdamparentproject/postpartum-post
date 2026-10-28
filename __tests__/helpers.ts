@@ -38,6 +38,9 @@ export interface TestMember {
   matches_remaining: number;
   // Cohort signups (migration 033). Optional so existing seeds are unchanged.
   cohort?: string | null;
+  // Home location, normally geocoded from the zipcode. Optional so existing seeds are unchanged.
+  lat?: number | null;
+  lng?: number | null;
   billing_mode?: "comped_no_perks" | "comped_with_perks" | "subscription" | "invoiced";
 }
 
