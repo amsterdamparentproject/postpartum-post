@@ -1,4 +1,4 @@
-import { FROM, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
+import { FROM, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix, escapeHtml } from "./base";
 import type { BillingNotice } from "@/lib/billing-notice";
 
 /**
@@ -70,6 +70,24 @@ function billingNoticeRow(notice: BillingNotice): string {
                                     </td></tr>`;
 }
 
+/**
+ * Set when both members of the pair share a cohort (from lib/cohort-config.ts,
+ * passed in so this file doesn't depend on it). The cohort version is generic
+ * on purpose: it names the cohort and points to the match page, and says
+ * nothing about where the pair lives or whether they'll meet in person, since
+ * cohort pairs can live anywhere and the match page works that out.
+ */
+export type CohortRevealOptions = {
+  /** Display name, e.g. "Dutch Speaking Academy". */
+  name: string;
+  /** Replaces the standard header (the cohort banner). */
+  headerHtml?: string | null;
+  /** Goes in the email's <head> so the banner loads early. */
+  headerPreload?: string | null;
+  /** Subject of the "Email {name} now" button; the generic one when unset. */
+  emailSubject?: string | null;
+};
+
 function matchRevealHtml(
   recipientFirstName: string,
   matchFirstName: string,
@@ -80,22 +98,29 @@ function matchRevealHtml(
   isDoubleMatch: boolean,
   isRecipientInitiator: boolean,
   billingNotice: BillingNotice,
+  cohort: CohortRevealOptions | null,
 ): string {
-  const mailtoSubject = encodeURIComponent(`Let's meet for a ${topic || "hang"}! (Postpartum Post)`);
+  const mailtoSubject = encodeURIComponent(
+    cohort?.emailSubject ?? `Let's meet for a ${topic || "hang"}! (Postpartum Post)`,
+  );
   const mailtoBody = encodeURIComponent(`Hi ${matchFirstName},`);
 
   const initiatorLine = isRecipientInitiator
     ? `Get started: To skip all that first-contact awkwardness, <b>we select 1 person from the match to initiate the conversation — and it's you!</b> You can reply directly to this email, or use the button below. Reach out to ${matchFirstName} in the next day or so; they'll be waiting ☺️`
     : `<b>Get started:</b> We've nudged ${matchFirstName} to start the conversation this month. Keep an eye on your inbox over the next day or two — or say hi now if you're eager to get started ☺️ You can reply directly to this email, or use the button below.`;
 
+  const intro = cohort
+    ? `Hurrah, your Post has arrived! 🎉📬 Your match for this month is <span style="font-weight:700">${matchFirstName} ${matchLastName}</span>, another parent from ${escapeHtml(cohort.name)} who is excited to connect. Head to your match page to find a time and plan your meetup.`
+    : `Hurrah, your Post has arrived! 🎉📬 Your match for this month is <span style="font-weight:700">${matchFirstName} ${matchLastName}</span>, another parent in Amsterdam who is excited to connect. Check out your match page for some local activities and resources to inspire your meetup. Enjoy your ${topic || "hang"}! `;
+
   const content =
-    emailHeader() +
+    (cohort?.headerHtml ?? emailHeader()) +
     bodySection(`
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
                                       Hi ${recipientFirstName},
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Hurrah, your Post has arrived! 🎉📬 Your match for this month is <span style="font-weight:700">${matchFirstName} ${matchLastName}</span>, another parent in Amsterdam who is excited to connect. Check out your match page for some local activities and resources to inspire your meetup. Enjoy your ${topic || "hang"}! 
+                                      ${intro}
                                     </td></tr>`, true) +
     ctaButton("See your match page", matchPageUrl) +
     bodySection(`
@@ -112,7 +137,7 @@ function matchRevealHtml(
                                     </td></tr>` : ""}
                                     ${billingNoticeRow(billingNotice)}`);
 
-  return baseEmail(content, "", { afterNonprofitBox: counterNoticeFooterHtml(billingNotice) });
+  return baseEmail(content, cohort?.headerPreload ?? "", { afterNonprofitBox: counterNoticeFooterHtml(billingNotice) });
 }
 
 export async function sendMatchRevealEmail(
@@ -130,6 +155,8 @@ export async function sendMatchRevealEmail(
   // Defaults to "none" so every other caller/test not yet passing this
   // stays exactly as it behaved before C4.
   billingNotice: BillingNotice = { kind: "none" },
+  // Appended last for the same reason; null keeps the regular email.
+  cohort: CohortRevealOptions | null = null,
 ): Promise<void> {
   const resend = getResend();
   const { error } = await resend.emails.send({
@@ -149,6 +176,7 @@ export async function sendMatchRevealEmail(
       isDoubleMatch,
       isRecipientInitiator,
       billingNotice,
+      cohort,
     ),
   });
   if (error) {

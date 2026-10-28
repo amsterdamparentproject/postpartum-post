@@ -6,6 +6,18 @@ import { currentMonth, monthToDate } from "@/lib/tokens";
 import { scorePair, maxAchievableScore, qualityTier, getLastMatchedMap, type MatchCandidate } from "@/lib/matcher";
 import { ALEX_TEST_EMAIL, ensureAlexPastMatches } from "@/lib/test-fixtures/alex-past-matches";
 import { generateMatchToken } from "@/lib/match-token";
+import { devToolsEnabledFor, type DevDistance, type DevScenario } from "@/lib/dev-tools";
+import { buildDevMatch } from "@/lib/dev-match";
+import { getCohortNames } from "@/lib/cohort";
+import { cohortRevealFor } from "@/lib/cohort-reveal";
+import { getCohortConfig } from "@/lib/cohort-config";
+import {
+  sendOptinEmail,
+  sendMatchRevealEmail,
+  sendCohortWelcomeEmail,
+  sendCohortExistingMemberEmail,
+  sendCohortContinueEmail,
+} from "@/lib/emails";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 import {
   sendWelcomeEmail,
@@ -920,6 +932,114 @@ export async function testSimulateMatchEmails(): Promise<TestStepResult> {
     message: `${testMember.first_name} & ${other?.first_name ?? "their match"} — no emails sent`,
     link: `/matches/${match.id}?token=${generateMatchToken(match.id as string)}`,
   };
+}
+
+/**
+ * Rebuilds the cohort match page test match for the test member (see
+ * lib/dev-match.ts) and returns its link. Rewrites that member's cohort and
+ * plan: pick "No cohort, subscriber" to put it back to normal. Local only.
+ */
+export async function testCohortMatchPage(scenario: DevScenario, distance: DevDistance): Promise<TestStepResult> {
+  const testEmail = process.env.TEST_EMAIL ?? ALEX_TEST_EMAIL;
+  if (!devToolsEnabledFor(testEmail)) {
+    return { success: false, error: "Test controls are disabled in production, or for this test email." };
+  }
+  const result = await buildDevMatch(createAdminClient(), testEmail, scenario, distance);
+  if (!result.success) return result;
+  return { success: true, message: "Cohort match ready", link: result.path };
+}
+
+export type CohortEmailKind = "welcome" | "existing-member" | "optin" | "match-reveal" | "continue";
+
+/** The cohort whose emails the previews show. DSA is the only cohort with its own config today. */
+const PREVIEW_COHORT = "dsa";
+
+/**
+ * Sends one cohort email to the test member only, with sample data and the real
+ * cohort wiring (name from the cohorts table, banner and copy from
+ * lib/cohort-config.ts), so each can be checked without a cohort signup, a
+ * committed round or a Stripe offer. Links are plain (not signed), so don't
+ * click through. Safe anywhere: sample content, one fixed recipient.
+ */
+export async function testCohortEmail(kind: CohortEmailKind): Promise<TestStepResult> {
+  const testEmail = process.env.TEST_EMAIL ?? ALEX_TEST_EMAIL;
+  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
+  const names = await getCohortNames(createAdminClient());
+  const cohortName = names.get(PREVIEW_COHORT) ?? "Dutch Speaking Academy";
+  const config = getCohortConfig(PREVIEW_COHORT);
+
+  try {
+    switch (kind) {
+      case "welcome":
+        await sendCohortWelcomeEmail(testEmail, "Alex", `${base}/profile`, cohortName, {
+          headerHtml: config.headerHtml ?? null,
+          headerPreload: config.headerPreload ?? null,
+          matchLine: config.welcomeMatchLine ?? null,
+          continueLine: config.welcomeContinueLine ?? null,
+          giftLine: config.welcomeGiftLine ?? null,
+        });
+        break;
+      case "existing-member":
+        await sendCohortExistingMemberEmail(testEmail, `${base}/billing`, cohortName);
+        break;
+      case "optin":
+        // The comped (free match, no Perks) variant: the common cohort case.
+        await sendOptinEmail(
+          testEmail,
+          "Alex",
+          `${base}/matches`,
+          `${base}/matches`,
+          `${base}/matches`,
+          `${base}/matches`,
+          false,
+          {
+            perksEnabled: false,
+            cohortName,
+            cohortHeaderHtml: config.headerHtml ?? null,
+            cohortHeaderPreload: config.headerPreload ?? null,
+            cohortNote: config.optinNote ?? null,
+            cohortFreeMatch: true,
+          },
+        );
+        break;
+      case "match-reveal":
+        await sendMatchRevealEmail(
+          testEmail,
+          "Alex",
+          "Sanne",
+          "van der Berg",
+          "sanne@example.com",
+          null,
+          `${base}/matches`,
+          false,
+          true,
+          { kind: "none" },
+          cohortRevealFor(PREVIEW_COHORT, PREVIEW_COHORT, names),
+        );
+        break;
+      case "continue":
+        await sendCohortContinueEmail(
+          testEmail,
+          "Alex",
+          cohortName,
+          `${base}/billing`,
+          `${base}/billing`,
+          {
+            discountText: "€4 off",
+            durationNote: "The discount applies to your first payment only; after that, the regular price applies.",
+            plans: [
+              { plan: "standard_monthly", label: "1 round", regularCents: 1200, offerCents: 800 },
+              { plan: "commitment_3mo", label: "3 rounds", regularCents: 2400, offerCents: 2000 },
+            ],
+          },
+          null,
+        );
+        break;
+    }
+  } catch (err) {
+    return { success: false, error: `Send failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  return { success: true, message: `Sent the ${kind} email to ${testEmail}` };
 }
 
 export async function testLockRound(): Promise<TestStepResult> {

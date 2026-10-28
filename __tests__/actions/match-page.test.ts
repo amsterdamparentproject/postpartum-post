@@ -242,4 +242,92 @@ describe("getMatchPageData", () => {
     // rematchRequested: true.
     expect(result).toEqual({ authorized: true, rematchRequested: true });
   });
+
+  describe("cohort match page", () => {
+    // Needs a `dsa` row in postpartumpost.cohorts (members.cohort is a foreign key).
+    const AMSTERDAM = { lat: 52.3676, lng: 4.9041 };
+    const AMSTELVEEN = { lat: 52.308, lng: 4.8722 }; // ~7 km from Amsterdam
+    const ROTTERDAM = { lat: 51.9244, lng: 4.4777 }; // ~57 km from Amsterdam
+
+    async function ready(a: Awaited<ReturnType<typeof seedMember>>, b: Awaited<ReturnType<typeof seedMember>>) {
+      memberIds.push(a.id, b.id);
+      const matchId = await seedMatch(a.id, b.id);
+      matchIds.push(matchId);
+      const result = await getMatchPageData(matchId, generateMatchToken(matchId), tokenA);
+      if (!result.authorized || result.rematchRequested) throw new Error("expected a ready result");
+      return result;
+    }
+
+    it("leaves a regular pair alone: no cohort page, perks on", async () => {
+      const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA, ...AMSTERDAM });
+      const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB, ...ROTTERDAM });
+      const result = await ready(a, b);
+      expect(result.cohortPage).toBeNull();
+      expect(result.showPerks).toBe(true);
+      // Far apart, but regular matches keep the map and places.
+      expect(result.center).not.toBeNull();
+      expect(result.memberCoords).toHaveLength(2);
+    });
+
+    it("does not treat two different cohorts, or one cohort and one regular member, as a cohort pair", async () => {
+      const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA, cohort: "dsa", billing_mode: "comped_no_perks", ...AMSTERDAM });
+      const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB, ...AMSTELVEEN });
+      const result = await ready(a, b);
+      expect(result.cohortPage).toBeNull();
+    });
+
+    it("gives a nearby DSA pair the cohort banner and the local (in-person) page", async () => {
+      const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA, cohort: "dsa", billing_mode: "comped_no_perks", ...AMSTERDAM });
+      const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB, cohort: "dsa", billing_mode: "comped_no_perks", ...AMSTELVEEN });
+      const result = await ready(a, b);
+      expect(result.meetupMode).toBe("local");
+      expect(result.cohortPage?.slug).toBe("dsa");
+      expect(result.cohortPage?.banner?.src).toBe("/email-images/welcome-dsa.png");
+      expect(result.cohortPage?.emailSubject).toContain("Dutch Speaking Academy");
+      expect(result.center).not.toBeNull();
+    });
+
+    it("sends a far-apart DSA pair to video: no center, no member coordinates, no places", async () => {
+      const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA, cohort: "dsa", billing_mode: "comped_no_perks", ...AMSTERDAM });
+      const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB, cohort: "dsa", billing_mode: "comped_no_perks", ...ROTTERDAM });
+      const result = await ready(a, b);
+      expect(result.meetupMode).toBe("online");
+      expect(result.cohortPage?.starters.length).toBeGreaterThan(0);
+      expect(result.cohortPage?.emailSubject).toContain("video call");
+      expect(result.center).toBeNull();
+      expect(result.memberCoords).toEqual([]);
+      expect(result.hasActivities).toBe(false);
+    });
+
+    it("says unknown (decide together) when a member has no location", async () => {
+      const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA, cohort: "dsa", billing_mode: "comped_no_perks", ...AMSTERDAM });
+      const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB, cohort: "dsa", billing_mode: "comped_no_perks", lat: null, lng: null });
+      const result = await ready(a, b);
+      expect(result.meetupMode).toBe("unknown");
+      expect(result.center).toBeNull();
+    });
+
+    it("hides perks from a comped_no_perks viewer but not from a paying cohort member", async () => {
+      const comped = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA, cohort: "dsa", billing_mode: "comped_no_perks", ...AMSTERDAM });
+      const paying = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB, cohort: "dsa", billing_mode: "subscription", ...AMSTELVEEN });
+      memberIds.push(comped.id, paying.id);
+      const matchId = await seedMatch(comped.id, paying.id);
+      matchIds.push(matchId);
+      const token = generateMatchToken(matchId);
+
+      const asComped = await getMatchPageData(matchId, token, tokenA);
+      const asPaying = await getMatchPageData(matchId, token, tokenB);
+      if (!asComped.authorized || asComped.rematchRequested) throw new Error("expected a ready result");
+      if (!asPaying.authorized || asPaying.rematchRequested) throw new Error("expected a ready result");
+      expect(asComped.showPerks).toBe(false);
+      expect(asPaying.showPerks).toBe(true);
+    });
+
+    it("never sends the pair's distance", async () => {
+      const a = await seedMember({ first_name: "Alice", last_name: "Gate", email: emailA, cohort: "dsa", billing_mode: "comped_no_perks", ...AMSTERDAM });
+      const b = await seedMember({ first_name: "Bob", last_name: "Gate", email: emailB, cohort: "dsa", billing_mode: "comped_no_perks", ...ROTTERDAM });
+      const result = await ready(a, b);
+      expect(JSON.stringify(result)).not.toMatch(/distance/i);
+    });
+  });
 });

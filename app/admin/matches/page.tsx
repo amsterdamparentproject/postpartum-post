@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { getRoundData, type RoundData, testSimulateOptins, testRunMatcher, testCommitMatches, testSimulateMatchEmails, testLockRound, testResetRound, testSendEmail, type TestEmailKind } from "./actions";
+import { getRoundData, type RoundData, testSimulateOptins, testRunMatcher, testCommitMatches, testSimulateMatchEmails, testLockRound, testResetRound, testSendEmail, testCohortMatchPage, testCohortEmail, type CohortEmailKind, type TestEmailKind } from "./actions";
+import { DEV_DISTANCES, DEV_SCENARIOS, type DevDistance, type DevScenario } from "@/lib/dev-tools";
 import RoundView from "./RoundView";
 import AdminNav from "../AdminNav";
 
@@ -40,6 +41,8 @@ export default function AdminMatchesPage() {
         )}
 
         <TestControls />
+        <CohortMatchPageControls />
+        <CohortEmailControls />
         <EmailTestControls />
       </div>
     </main>
@@ -122,6 +125,141 @@ function TestControls() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cohort match page — builds a test match for the test member in any member
+// type (cohort / comped / subscriber) and distance. Same generator as the
+// panel on the match page itself.
+// ---------------------------------------------------------------------------
+
+function CohortMatchPageControls() {
+  const [scenario, setScenario] = useState<DevScenario>("cohort_comped");
+  const [distance, setDistance] = useState<DevDistance>("local");
+  const [result, setResult] = useState<{ ok: boolean; text: string; link?: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function generate() {
+    startTransition(async () => {
+      const r = await testCohortMatchPage(scenario, distance);
+      setResult(
+        r.success
+          ? { ok: true, text: `✓ ${r.message}`, link: r.link }
+          : { ok: false, text: `✗ ${r.error}` },
+      );
+    });
+  }
+
+  return (
+    <div className="border border-dashed border-gray-300 rounded-2xl px-5 py-4 space-y-3">
+      <p className="text-sm font-medium text-gray-500">Cohort match page</p>
+      <p className="text-xs text-muted">
+        Rebuilds a test match for your test member. Changes its cohort and plan; &ldquo;No cohort, subscriber&rdquo; resets it. Local only.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={scenario}
+          onChange={(e) => setScenario(e.target.value as DevScenario)}
+          className="text-xs border border-border rounded-lg px-2 py-1.5 text-dark bg-white"
+        >
+          {Object.entries(DEV_SCENARIOS).map(([key, { label }]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
+        <select
+          value={distance}
+          onChange={(e) => setDistance(e.target.value as DevDistance)}
+          className="text-xs border border-border rounded-lg px-2 py-1.5 text-dark bg-white"
+        >
+          {Object.entries(DEV_DISTANCES).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
+        <button
+          onClick={generate}
+          disabled={isPending}
+          className="text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-50"
+        >
+          {isPending ? "Generating…" : "Generate"}
+        </button>
+        {result && (
+          <span className={`text-xs font-mono ${result.ok ? "text-green-600" : "text-red-600"}`}>
+            {result.text.slice(0, 100)}
+            {result.link && (
+              <>
+                {" "}
+                <a href={result.link} target="_blank" rel="noopener noreferrer" className="font-sans font-semibold text-coral hover:underline">
+                  Open match page →
+                </a>
+              </>
+            )}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cohort emails — every cohort email, sent to the test member with sample data
+// and the real cohort wiring. No committed round or Stripe offer needed.
+// ---------------------------------------------------------------------------
+
+const COHORT_EMAILS: { kind: CohortEmailKind; label: string; note: string }[] = [
+  { kind: "welcome", label: "Welcome", note: "New cohort signup (free match, nothing renews)" },
+  { kind: "existing-member", label: "Existing member", note: "Paying member who redeemed the cohort code" },
+  { kind: "optin", label: "Opt-in", note: "Monthly invitation, comped variant" },
+  { kind: "match-reveal", label: "Match reveal", note: "Generic cohort version: banner, cohort name, no “in Amsterdam”" },
+  { kind: "continue", label: "Continue offer", note: "After the free match: €4 off, 1 or 3 rounds (sample prices)" },
+];
+
+function CohortEmailControls() {
+  const [results, setResults] = useState<Record<string, string>>({});
+  const [isPending, startTransition] = useTransition();
+
+  function send(kinds: CohortEmailKind[]) {
+    startTransition(async () => {
+      for (const kind of kinds) {
+        const r = await testCohortEmail(kind);
+        setResults((prev) => ({ ...prev, [kind]: r.success ? "✓ Sent" : `✗ ${r.error}` }));
+      }
+    });
+  }
+
+  return (
+    <div className="border border-dashed border-gray-300 rounded-2xl px-5 py-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium text-gray-500">Cohort emails (Dutch Speaking Academy)</p>
+        <button
+          onClick={() => send(COHORT_EMAILS.map((e) => e.kind))}
+          disabled={isPending}
+          className="text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-50"
+        >
+          {isPending ? "Sending…" : "Send all"}
+        </button>
+      </div>
+      <p className="text-xs text-muted">
+        Sends only to the test member, with sample data. Links are plain, so don&apos;t click through.
+      </p>
+      {COHORT_EMAILS.map(({ kind, label, note }) => (
+        <div key={kind} className="flex items-center gap-3">
+          <button
+            onClick={() => send([kind])}
+            disabled={isPending}
+            className="shrink-0 w-36 text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-50"
+          >
+            {label}
+          </button>
+          <span className="text-xs text-muted">{note}</span>
+          {results[kind] && (
+            <span className={`text-xs font-mono ml-auto ${results[kind].startsWith("✓") ? "text-green-600" : "text-red-600"}`}>
+              {results[kind].slice(0, 80)}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
