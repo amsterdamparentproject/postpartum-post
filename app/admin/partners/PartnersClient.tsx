@@ -1072,6 +1072,8 @@ function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
   const [locations, setLocations] = useState<PartnerLocationOption[]>([]);
   const [value, setValue] = useState<PerkInput>(emptyPerkInput());
   const [status, setStatus] = useState<PerkReviewStatus>("published");
+  const [featured, setFeatured] = useState(false);
+  const [slug, setSlug] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -1106,7 +1108,7 @@ function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
       return;
     }
     startTransition(async () => {
-      const result = await addPerkForPartner({ ...value, partner_id: partnerId, status });
+      const result = await addPerkForPartner({ ...value, partner_id: partnerId, status, featured, slug });
       if (!result.success) {
         setError(result.error ?? "Couldn't save — try again");
         return;
@@ -1163,6 +1165,7 @@ function AdminPerkForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
       />
 
       <PerkStatusSelect status={status} onChange={setStatus} />
+      <AdminPerkExtras featured={featured} onFeatured={setFeatured} slug={slug} onSlug={setSlug} />
 
       {error && <p className="text-xs text-coral">{error}</p>}
 
@@ -1201,6 +1204,49 @@ function PerkStatusSelect({
   );
 }
 
+/** Admin-only perk settings (featured, slug). Deliberately not part of PerkFields, which partners also see. */
+function AdminPerkExtras({
+  featured,
+  onFeatured,
+  slug,
+  onSlug,
+}: {
+  featured: boolean;
+  onFeatured: (v: boolean) => void;
+  slug: string;
+  onSlug: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <label className="flex items-start gap-2 text-sm text-dark cursor-pointer">
+        <input
+          type="checkbox"
+          checked={featured}
+          onChange={(e) => onFeatured(e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-border text-coral focus:ring-coral/40"
+        />
+        <span>
+          Featured
+          <span className="block text-xs text-muted">Pins this perk to the top of /perks.</span>
+        </span>
+      </label>
+      <div>
+        <label className={labelClass}>Slug (optional)</label>
+        <input
+          type="text"
+          value={slug}
+          onChange={(e) => onSlug(e.target.value)}
+          placeholder="e.g. dsa"
+          className={inputClass}
+        />
+        <p className="text-xs text-muted mt-1">
+          Short link name: /perks?perk=your-slug. Lowercase letters, numbers and hyphens; must be unique.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Full-content edit for a perk from the admin queue, via updatePerkAdmin.
  * Same PerkFields as AdminPerkForm minus the partner picker: partner_id
@@ -1222,6 +1268,8 @@ function EditPerkForm({
     return { ...initial, url: initial.url || perk.partner_url || "" };
   });
   const [status, setStatus] = useState<PerkReviewStatus>(perk.status);
+  const [featured, setFeatured] = useState(perk.featured);
+  const [slug, setSlug] = useState(perk.slug ?? "");
   const [imageUrl, setImageUrl] = useState<string | null>(perk.partner_image_url);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -1235,7 +1283,7 @@ function EditPerkForm({
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await updatePerkAdmin({ ...value, perkId: perk.id, status });
+      const result = await updatePerkAdmin({ ...value, perkId: perk.id, status, featured, slug });
       if (!result.success) {
         setError(result.error ?? "Couldn't save — try again");
         return;
@@ -1266,6 +1314,7 @@ function EditPerkForm({
       />
 
       <PerkStatusSelect status={status} onChange={setStatus} />
+      <AdminPerkExtras featured={featured} onFeatured={setFeatured} slug={slug} onSlug={setSlug} />
 
       {error && <p className="text-xs text-coral">{error}</p>}
 
@@ -1302,6 +1351,11 @@ function PerkCard({ perk, onChanged }: { perk: ReviewPerk; onChanged: () => void
         <div>
           <div className="flex items-center gap-2">
             <p className="font-medium text-dark">{perk.title}</p>
+            {perk.featured && (
+              <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-coral/15 text-coral">
+                Featured
+              </span>
+            )}
             {perk.exclusive && (
               <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-purple-light/30 text-dark">
                 Exclusive

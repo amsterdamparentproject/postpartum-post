@@ -36,18 +36,41 @@ function redeemHref(perk: PublicPerk): string | null {
   return perk.status === "published" ? `/my-perks?perk=${encodeURIComponent(perk.slug ?? perk.id)}` : null;
 }
 
+/**
+ * Perks per page in grid mode (/perks): three full rows on large screens
+ * (3 columns, Tailwind lg = 1024px), three rows of two on medium screens, and
+ * the same 6 in the phone list. Server render and first paint use the small
+ * size; the effect below switches once the viewport is known.
+ */
+const PAGE_SIZE_LARGE = 9;
+const PAGE_SIZE_SMALL = 6;
+
 export default function PublicPerksCarousel({
   perks,
   showAllToggle = true,
   linkToRedeem = false,
+  grid = false,
 }: {
   perks: PublicPerk[];
   /** The "Show all N perks" list toggle; the homepage turns it off (the carousel is enough there). */
   showAllToggle?: boolean;
   /** Link live perks to /my-perks?perk=… (redeem if a member, sign in / join if not). Off where cards should stay display-only. */
   linkToRedeem?: boolean;
+  /** Show every perk at once instead of the carousel: a card grid (same columns as /my-perks) from sm up, the condensed list on phones. No toggle. */
+  grid?: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
+  // Index of the first perk on screen, not a page number, so the position
+  // survives the page size changing when the window is resized.
+  const [firstIndex, setFirstIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_SMALL);
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const update = () => setPageSize(query.matches ? PAGE_SIZE_LARGE : PAGE_SIZE_SMALL);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   // Deep link: /perks?perk=<slug or id> opens the carousel on that perk's page
   // and rings its card. Read after mount (not on the server) so /perks stays a
@@ -59,6 +82,7 @@ export default function PublicPerksCarousel({
       const wanted = new URLSearchParams(window.location.search).get("perk");
       const match = wanted ? perks.find((p) => p.slug === wanted || p.id === wanted) : undefined;
       setLinkedId(match?.id ?? null);
+      if (match) setFirstIndex(perks.indexOf(match));
     };
     readLink();
   }, [perks]);
@@ -75,6 +99,7 @@ export default function PublicPerksCarousel({
           perk={perk}
           partner={perk.partner}
           locationLabel={perk.location_label}
+          hideDescription={grid}
           href={href ?? undefined}
           actionLabel={href ? "Redeem now" : undefined}
           umamiEvent={href ? "Perks: Open card from /perks" : undefined}
@@ -90,55 +115,103 @@ export default function PublicPerksCarousel({
     );
   };
 
+  const pageCount = Math.max(1, Math.ceil(perks.length / pageSize));
+  const page = Math.min(Math.floor(firstIndex / pageSize), pageCount - 1);
+  const visiblePerks = grid ? perks.slice(page * pageSize, (page + 1) * pageSize) : perks;
+
+  const listView = (
+    <div className="space-y-3 px-1 pt-1 pb-2 text-left">
+      {visiblePerks.map((perk) => {
+        const meta = [perk.partner.business_name, perk.location_label].filter(Boolean).join(" · ");
+        const href = linkToRedeem ? redeemHref(perk) : null;
+        const showBadges = perk.status === "coming_soon" || perk.exclusive || perk.frequency === "once";
+        return (
+          <ListRow
+            key={perk.id}
+            kind="perk"
+            title={perk.title}
+            imageUrl={perk.partner.image_url}
+            meta={meta || null}
+            description={grid ? null : perk.description}
+            highlight={perk.id === linkedId}
+            topBadge={
+              showBadges && (
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                  {perk.status === "coming_soon" && (
+                    <span className="px-2 py-0.5 rounded-full border text-[11px] font-bold bg-white text-dark border-border">
+                      Coming soon
+                    </span>
+                  )}
+                  {perk.exclusive && (
+                    <span
+                      className="inline-flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full text-[11px] font-bold text-white"
+                      style={{ backgroundColor: "#8A9E3A" }}
+                    >
+                      <Sparkle className="w-3.5 h-3.5" />
+                      Exclusive
+                    </span>
+                  )}
+                  {perk.frequency === "once" && (
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold text-white bg-dark">
+                      Intro offer
+                    </span>
+                  )}
+                </span>
+              )
+            }
+            action={
+              href ? { label: "Redeem now", href, umamiEvent: "Perks: Open list row from /perks" } : null
+            }
+            mapsUrl={grid ? null : mapsUrl(perk.locations)}
+          />
+        );
+      })}
+    </div>
+  );
+
+  if (grid) {
+    // Phones get the condensed list (same rows as "Show all"); sm and up get the card grid (same columns as /my-perks).
+    return (
+      <>
+        <div className="sm:hidden">{listView}</div>
+        <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4 text-left">
+          {visiblePerks.map((perk) => (
+            <div key={perk.id} className="flex">
+              {renderCard(perk)}
+            </div>
+          ))}
+        </div>
+        {pageCount > 1 && (
+          <nav aria-label="Perks pages" className="flex items-center justify-center gap-4 mt-6">
+            <button
+              type="button"
+              onClick={() => setFirstIndex((page - 1) * pageSize)}
+              disabled={page === 0}
+              className="px-4 py-2 text-sm font-semibold rounded-lg border border-coral text-coral hover:bg-coral/5 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← Previous
+            </button>
+            <span className="text-sm text-muted">
+              Page {page + 1} of {pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => setFirstIndex((page + 1) * pageSize)}
+              disabled={page === pageCount - 1}
+              className="px-4 py-2 text-sm font-semibold rounded-lg border border-coral text-coral hover:bg-coral/5 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next →
+            </button>
+          </nav>
+        )}
+      </>
+    );
+  }
+
   return (
     <div>
       {showAll ? (
-        <div className="space-y-3 px-1 pt-1 pb-2 text-left">
-          {perks.map((perk) => {
-            const meta = [perk.partner.business_name, perk.location_label].filter(Boolean).join(" · ");
-            const href = linkToRedeem ? redeemHref(perk) : null;
-            const showBadges = perk.status === "coming_soon" || perk.exclusive || perk.frequency === "once";
-            return (
-              <ListRow
-                key={perk.id}
-                kind="perk"
-                title={perk.title}
-                imageUrl={perk.partner.image_url}
-                meta={meta || null}
-                description={perk.description}
-                topBadge={
-                  showBadges && (
-                    <span className="inline-flex flex-wrap items-center gap-1.5">
-                      {perk.status === "coming_soon" && (
-                        <span className="px-2 py-0.5 rounded-full border text-[11px] font-bold bg-white text-dark border-border">
-                          Coming soon
-                        </span>
-                      )}
-                      {perk.exclusive && (
-                        <span
-                          className="inline-flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full text-[11px] font-bold text-white"
-                          style={{ backgroundColor: "#8A9E3A" }}
-                        >
-                          <Sparkle className="w-3.5 h-3.5" />
-                          Exclusive
-                        </span>
-                      )}
-                      {perk.frequency === "once" && (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold text-white bg-dark">
-                          Intro offer
-                        </span>
-                      )}
-                    </span>
-                  )
-                }
-                action={
-                  href ? { label: "Redeem now", href, umamiEvent: "Perks: Open list row from /perks" } : null
-                }
-                mapsUrl={mapsUrl(perk.locations)}
-              />
-            );
-          })}
-        </div>
+        listView
       ) : (
         <Carousel
           items={perks}

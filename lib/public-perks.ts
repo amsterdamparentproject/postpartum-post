@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase";
 import type { PerkCardPartner, PerkCardPerk } from "@/components/PerkCard";
 import { perkLocationLabel, type PerkLocationLite } from "@/lib/perk-display";
-import { comparePerks, countEventsByPerk, POPULARITY_WINDOW_DAYS } from "@/lib/perk-ranking";
+import { compareNewest, comparePerks, countEventsByPerk, POPULARITY_WINDOW_DAYS } from "@/lib/perk-ranking";
 import { summarizeLivePerks, type PerkSummary } from "@/lib/perk-summary";
 
 /** One of a perk's locations, as shown/plotted for members -- never the partner's internal label or street address. */
@@ -58,7 +58,10 @@ export async function getLivePerksSummary(): Promise<PerkSummary | null> {
   }
 }
 
-export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean } = {}): Promise<PublicPerk[]> {
+export async function listPublicPerks({
+  liveOnly = false,
+  order = "popular",
+}: { liveOnly?: boolean; order?: "popular" | "newest" } = {}): Promise<PublicPerk[]> {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Amsterdam" }); // YYYY-MM-DD
   const supabase = createAdminClient();
   const { data, error } = await supabase
@@ -97,7 +100,7 @@ export async function listPublicPerks({ liveOnly = false }: { liveOnly?: boolean
       created_at: p.created_at as string,
       ...(counts.get(p.id as string) ?? { redeemed_count: 0, viewed_count: 0 }),
     }))
-    .sort(comparePerks);
+    .sort(order === "newest" ? compareNewest : comparePerks);
 
   return ranked.map((p) => {
     // jsonb from the view (db/migrations/031_perk_multi_location.sql) -- already

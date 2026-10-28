@@ -10,6 +10,7 @@ import { summarizeLivePerks } from "@/lib/perk-summary";
 import WordMark from "@/components/WordMark";
 import Sparkle from "@/components/Sparkle";
 import JoinLink from "@/components/JoinLink";
+import { ENABLE_GIVEAWAY } from "@/lib/flags";
 
 const title = "Post Perks";
 const description =
@@ -71,17 +72,18 @@ export const revalidate = 300;
  * same brand rather than two different ad-hoc treatments of "Post Perks."
  */
 export default async function PerksPage() {
-  const perks = await listPublicPerks();
+  const perks = await listPublicPerks({ order: "newest" });
   const { count: liveCount, totalSavings } = summarizeLivePerks(perks);
 
   return (
     <PageLayout>
       <main className="flex-1 flex flex-col items-center justify-center gap-10 px-6 py-8 text-center">
         {perks.length > 0 ? (
-          <section className="w-full max-w-sm md:max-w-2xl mx-auto">
+          <section className="w-full max-w-5xl mx-auto">
+            <div className="max-w-sm md:max-w-2xl mx-auto">
             <AnimatedSparkleDivider />
             <h1 className="text-4xl text-dark mb-3" style={{ fontFamily: "var(--font-serif)" }}>
-              Our first <PostPerksWordMark size="text-4xl" /> are here
+              <PostPerksWordMark size="text-4xl" /> are here
             </h1>
             <p className="text-muted text-center mt-2 mb-6">
               {liveCount > 0 && totalSavings > 0 ? (
@@ -90,10 +92,23 @@ export default async function PerksPage() {
                 </>
               ) : (
                 <>Launching October 2026, exclusively for <WordMark size="text-base" /> members.</>
-              )}{" "}
-              If you are new here, don’t miss the giveaway below 🎁
+              )}
+              {ENABLE_GIVEAWAY && <> If you are new here, don’t miss the giveaway below 🎁</>}
             </p>
-            <PublicPerksCarousel perks={perks} linkToRedeem />
+            </div>
+            {liveCount > 0 && totalSavings > 0 && (
+              <JoinLink
+                umamiEvent="Perks: Join (button)"
+                className="perk-shine group relative overflow-hidden flex items-center justify-center gap-2 w-full max-w-md mx-auto mb-8 py-3.5 px-6 rounded-full text-lg font-bold text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 hover:brightness-110 transition"
+                style={{ backgroundColor: "#8A9E3A" }}
+              >
+                <Sparkle className="w-6 h-6 group-hover-wiggle" />
+                Unlock €{totalSavings} worth of perks
+                <span aria-hidden="true">→</span>
+              </JoinLink>
+            )}
+
+            <PublicPerksCarousel perks={perks} linkToRedeem grid />
           </section>
         ) : (
           // No perks yet: keep the "coming soon" hero so the page isn't just a form.
@@ -109,18 +124,6 @@ export default async function PerksPage() {
               We&apos;ll be launching <span className="text-coral font-bold">discounts, freebies, and more</span> at your favorite family-friendly local spots in Fall 2026.
             </p>
           </div>
-        )}
-
-        {liveCount > 0 && totalSavings > 0 && (
-          <JoinLink
-            umamiEvent="Perks: Join (button)"
-            className="perk-shine group relative overflow-hidden flex items-center justify-center gap-2 w-full max-w-md py-3.5 px-6 rounded-full text-lg font-bold text-white shadow-md hover:shadow-lg hover:-translate-y-0.5 hover:brightness-110 transition"
-            style={{ backgroundColor: "#8A9E3A" }}
-          >
-            <Sparkle className="w-6 h-6 group-hover-wiggle" />
-            Unlock €{totalSavings} worth of perks
-            <span aria-hidden="true">→</span>
-          </JoinLink>
         )}
 
         <PerkIdeaForm />

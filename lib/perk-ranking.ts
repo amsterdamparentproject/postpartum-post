@@ -30,6 +30,18 @@ export function comparePerks(a: RankablePerk, b: RankablePerk): number {
   );
 }
 
+/**
+ * Newest first, for /perks: featured perks on top, then live before
+ * coming soon, then most recently added first. Ignores popularity on purpose.
+ */
+export function compareNewest(a: RankablePerk, b: RankablePerk): number {
+  return (
+    Number(b.featured) - Number(a.featured) ||
+    Number(b.status === "published") - Number(a.status === "published") ||
+    b.created_at.localeCompare(a.created_at)
+  );
+}
+
 /** Popularity window: counts only look back this far, so old hits don't stay on top forever. */
 export const POPULARITY_WINDOW_DAYS = 30;
 
