@@ -23,6 +23,22 @@ type MemberRow = {
   status: string;
 };
 
+/**
+ * Resend's SDK returns plain error objects ({ name, message, statusCode }),
+ * not Error instances, so String(e) yields "[object Object]". Pull out the
+ * useful fields so failures are diagnosable from the API response.
+ */
+function describeSendError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object") {
+    const { name, message, statusCode } = e as { name?: string; message?: string; statusCode?: number };
+    const parts = [name, statusCode != null ? `(${statusCode})` : undefined, message].filter(Boolean);
+    if (parts.length) return parts.join(" ");
+    try { return JSON.stringify(e); } catch { /* fall through */ }
+  }
+  return String(e);
+}
+
 export type MeetupReminderMatchResult =
   | { matchId: string; status: "sent"; recipients: string[] }
   | { matchId: string; status: "skipped"; reason: string }
@@ -125,7 +141,7 @@ export async function runMeetupReminder(testEmail?: string, monthOverride?: stri
         result.details.push({
           matchId: match.id,
           status: "failed",
-          reason: `${recipient.email}: ${e instanceof Error ? e.message : String(e)}`,
+          reason: `${recipient.email}: ${describeSendError(e)}`,
         });
       }
     }
