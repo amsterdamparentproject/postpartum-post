@@ -133,6 +133,7 @@ export default function PublicPerksCarousel({
             imageUrl={perk.partner.image_url}
             meta={meta || null}
             description={grid ? null : perk.description}
+            highlight={perk.id === linkedId}
             topBadge={
               showBadges && (
                 <span className="inline-flex flex-wrap items-center gap-1.5">

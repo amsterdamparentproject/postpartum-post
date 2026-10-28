@@ -1,9 +1,9 @@
 /**
  * Perk deep links and the Dutch Speaking Academy perk CTA — E2E
  *
- * 1. /perks?perk=<slug or id> opens the public carousel on that perk's page and
- *    rings its card. Checked on a phone-width screen (one card per page) for
- *    several perks, so at least one is off the first page whatever the ranking.
+ * 1. /perks?perk=<slug or id> opens the public perk grid/list on that perk's
+ *    page and rings its row. Checked on a phone-width screen (the condensed
+ *    list, not cards) for several perks.
  * 2. The DSA splash page shows a Post Perks card for the live "Dutch Speaking
  *    Academy" perk, linking to /my-perks?perk=<slug>.
  * 3. Signed out, that link shows the sign-in form and the membership signup form.
@@ -41,16 +41,20 @@ test("/perks?perk= opens the carousel on the linked perk and rings its card", as
   );
 
   try {
-    await page.setViewportSize({ width: 390, height: 844 }); // one card per page
+    await page.setViewportSize({ width: 390, height: 844 }); // phones get the condensed list, not cards
     for (const perk of perks) {
       // By slug...
       await page.goto(`/perks?perk=${perk.slug}`);
-      const ringed = page.locator('div[style*="box-shadow"]').filter({ hasText: perk.title });
-      await expect(ringed).toBeInViewport();
+      // toBeVisible, not toBeInViewport: the row can land anywhere on its
+      // page (6 rows on phones), below the header without scrolling.
+      const ringed = page.locator('div[style*="box-shadow"]:visible').filter({ hasText: perk.title });
+      await expect(ringed).toBeVisible();
     }
     // ...and by id, so older links keep working.
     await page.goto(`/perks?perk=${perks[3].id}`);
-    await expect(page.locator('div[style*="box-shadow"]').filter({ hasText: perks[3].title })).toBeInViewport();
+    await expect(
+      page.locator('div[style*="box-shadow"]:visible').filter({ hasText: perks[3].title }),
+    ).toBeVisible();
   } finally {
     await cleanupPartner(partner.id);
   }
@@ -98,10 +102,10 @@ test("/perks carousel cards link to /my-perks?perk=<slug>", async ({ page }) => 
   await seedPerk(partner.id, { title, redemptionType: "code", code: `E2E${run}`, slug, featured: true });
 
   try {
-    await page.setViewportSize({ width: 390, height: 844 }); // one card per page
-    await page.goto(`/perks?perk=${slug}`); // opens the carousel on this perk
-    const card = page.getByRole("link", { name: new RegExp(title) });
-    await expect(card).toHaveAttribute("href", `/my-perks?perk=${slug}`);
+    await page.setViewportSize({ width: 390, height: 844 }); // phones get the condensed list, not cards
+    await page.goto(`/perks?perk=${slug}`); // opens the list on this perk's page
+    const card = page.locator(`a[href="/my-perks?perk=${slug}"]:visible`);
+    await expect(card).toBeVisible();
 
     // Signed out: sign-in plus the join pitch, with the perk kept in the URL.
     await card.click();
