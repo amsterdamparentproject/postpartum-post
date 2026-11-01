@@ -8,7 +8,7 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 30000
+          "timeout": 120000
         }
       },
       "id": "b4e3f037-f13d-42c7-bc5b-ae6cacea6e1e",
@@ -162,7 +162,7 @@
         "specifyBody": "json",
         "jsonBody": "{\"testMode\": true}",
         "options": {
-          "timeout": 30000
+          "timeout": 120000
         }
       },
       "id": "09c35606-b00b-4ce3-9e35-61c60d2a3cfe",

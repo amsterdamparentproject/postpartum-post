@@ -8,6 +8,16 @@
  *
  * Response:
  *   { sent: number, failed: number, errors: Array<{ email: string, error: string }> }
+ *
+ * Optional JSON body:
+ *   { testMode?: boolean }       send only to TEST_EMAIL
+ *   { dryRun?: boolean }         resolve recipients and return them as
+ *                                `wouldSend` without sending anything
+ *   { onlyEmails?: string[] }    send only to these addresses (case-insensitive),
+ *                                still subject to the normal eligibility rules.
+ *                                Used to re-send to members a cut-off run missed.
+ *                                The response adds `notFound`: requested addresses
+ *                                that were not eligible recipients.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -22,6 +32,16 @@ import { getCohortConfig } from "@/lib/cohort-config";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
+
+// Netlify/Next honor this where supported; n8n's own HTTP timeout must also
+// exceed the run (see n8n/postpartum-post-matching.json).
+export const maxDuration = 60;
+
+// Emails sent in parallel. Sending one at a time (each preceded by a Stripe
+// lookup) took ~0.8s/member, so the full batch outran n8n's 30s timeout on
+// 2026-11-01 and cut off after 27 of 46 members. Kept small to stay well
+// under Resend's per-second rate limit.
+const SEND_CONCURRENCY = 3;
 
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
@@ -42,9 +62,18 @@ export async function POST(req: NextRequest) {
   // Parse body
   // -------------------------------------------------------------------------
   let testMode = false;
+  let onlyEmails: string[] | null = null;
+  let dryRun = false;
   try {
     const body = await req.json();
     testMode = body?.testMode === true;
+    dryRun = body?.dryRun === true;
+    if (Array.isArray(body?.onlyEmails)) {
+      onlyEmails = body.onlyEmails
+        .filter((e: unknown): e is string => typeof e === "string")
+        .map((e: string) => e.trim().toLowerCase())
+        .filter(Boolean);
+    }
   } catch {
     // Empty body is fine
   }
@@ -91,10 +120,28 @@ export async function POST(req: NextRequest) {
   const invitable = members.filter(
     (m) => !(isComped(m.billing_mode) && (m.matches_remaining ?? 0) <= 0)
   );
-  const targets = testMode ? invitable.filter(m => m.email === TEST_EMAIL) : invitable;
+  const targets = onlyEmails
+    ? invitable.filter((m) => onlyEmails.includes(m.email.toLowerCase()))
+    : testMode
+      ? invitable.filter((m) => m.email === TEST_EMAIL)
+      : invitable;
+  const notFound = onlyEmails
+    ? onlyEmails.filter((e) => !targets.some((m) => m.email.toLowerCase() === e))
+    : [];
+
+  if (dryRun) {
+    return NextResponse.json({
+      dryRun: true,
+      count: targets.length,
+      wouldSend: targets.map((m) => m.email),
+      notFound,
+      testMode,
+    });
+  }
+
   const cohortNames = await getCohortNames(supabase);
 
-  for (const member of targets) {
+  const sendOne = async (member: (typeof targets)[number]) => {
     // Cohort-branded when this round's match is inside the cohort: the
     // member's own pool choice (lib/cohort.ts's resolveCohortOnly rule), so a
     // cohort member who picked "Anyone" gets the regular email.
@@ -153,7 +200,17 @@ export async function POST(req: NextRequest) {
       });
       console.error(`[send-optin-email] Failed to send to member ${member.id}:`, err);
     }
+  };
+
+  for (let i = 0; i < targets.length; i += SEND_CONCURRENCY) {
+    await Promise.all(targets.slice(i, i + SEND_CONCURRENCY).map(sendOne));
   }
 
-  return NextResponse.json({ sent, failed, errors, testMode });
+  return NextResponse.json({
+    sent,
+    failed,
+    errors,
+    testMode,
+    ...(onlyEmails ? { notFound } : {}),
+  });
 }
