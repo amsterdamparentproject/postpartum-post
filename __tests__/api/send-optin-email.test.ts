@@ -27,10 +27,10 @@ vi.mock("@/lib/stripe", () => ({
   getStripe: () => ({ subscriptions: { retrieve: vi.fn() } }),
 }));
 
-function makeRequest() {
+function makeRequest(body: Record<string, unknown> = {}) {
   return new NextRequest("http://localhost/api/send-optin-email", {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(body),
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${process.env.MATCHER_API_SECRET}`,
@@ -77,5 +77,33 @@ describe("POST /api/send-optin-email recipients", () => {
     const m = await seed({ status: "active", matches_remaining: 3 });
     await POST(makeRequest());
     expect(recipients()).toContain(m.email);
+  });
+});
+
+describe("POST /api/send-optin-email onlyEmails", () => {
+  it("sends only to the listed addresses (case-insensitive)", async () => {
+    const a = await seed({ status: "active", matches_remaining: 2 });
+    const b = await seed({ status: "active", matches_remaining: 2 });
+    const res = await POST(makeRequest({ onlyEmails: [a.email.toUpperCase()] }));
+    expect(recipients()).toEqual([a.email]);
+    expect(recipients()).not.toContain(b.email);
+    expect((await res.json()).notFound).toEqual([]);
+  });
+
+  it("reports addresses that are not eligible recipients and does not send to them", async () => {
+    const m = await seed({ status: "canceling", matches_remaining: 0 });
+    const res = await POST(makeRequest({ onlyEmails: [m.email, "nobody@example.com"] }));
+    expect(mockSend).not.toHaveBeenCalled();
+    expect((await res.json()).notFound).toEqual([m.email.toLowerCase(), "nobody@example.com"]);
+  });
+
+  it("dryRun returns the recipients without sending", async () => {
+    const m = await seed({ status: "active", matches_remaining: 2 });
+    const res = await POST(makeRequest({ onlyEmails: [m.email], dryRun: true }));
+    const json = await res.json();
+    expect(mockSend).not.toHaveBeenCalled();
+    expect(json.dryRun).toBe(true);
+    expect(json.wouldSend).toEqual([m.email]);
+    expect(json.count).toBe(1);
   });
 });
