@@ -34,9 +34,20 @@ import { getCohortNames } from "@/lib/cohort";
 import { cohortRevealFor } from "@/lib/cohort-reveal";
 import { generateMagicLinkWithRetry } from "@/lib/supabase/generate-magic-link";
 import { fetchBillingNoticeContext, resolveBillingNotice } from "@/lib/billing-notice";
+import { forEachWithConcurrency } from "@/lib/concurrency";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
+
+// Netlify/Next honor this where supported; n8n's HTTP timeout must also exceed
+// the run (see n8n/postpartum-post-matching.json).
+export const maxDuration = 60;
+
+// Matches processed in parallel. Serially, each match costs magic-link +
+// Stripe lookups plus two sends, which creeps toward n8n's timeout as the
+// round grows (and a cut-off run is only partly sent, with no sent-tracking
+// to make a re-run safe). Kept small to stay under Resend's rate limit.
+const MATCH_CONCURRENCY = 3;
 
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
@@ -170,13 +181,13 @@ export async function POST(req: NextRequest) {
   let sentCount = 0;
   const errors: string[] = [];
 
-  for (const match of matches) {
+  const sendMatch = async (match: (typeof matches)[number]) => {
     const m1 = (Array.isArray(match.member1) ? match.member1[0] : match.member1) as MemberRow | null;
     const m2 = (Array.isArray(match.member2) ? match.member2[0] : match.member2) as MemberRow | null;
 
     if (!m1 || !m2) {
       errors.push(`Match ${match.id}: missing member data`);
-      continue;
+      return;
     }
 
     // A cohort pair (both joined through the same cohort) gets the generic
@@ -261,7 +272,9 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       errors.push(`Match ${match.id}: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }
+  };
+
+  await forEachWithConcurrency(matches, MATCH_CONCURRENCY, sendMatch);
 
   if (errors.length > 0) {
     console.error("[send-match-emails] Some emails failed:", errors);

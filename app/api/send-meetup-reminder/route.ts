@@ -28,6 +28,10 @@ import { runMeetupReminder } from "@/lib/meetup-reminder";
 
 const TEST_EMAIL = process.env.TEST_EMAIL ?? "amsterdamparentproject@gmail.com";
 
+// Netlify/Next honor this where supported; n8n's HTTP timeout must also exceed
+// the run (see n8n/postpartum-post-matching.json).
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   // -------------------------------------------------------------------------
   // Auth
