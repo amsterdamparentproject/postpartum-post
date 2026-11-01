@@ -92,7 +92,7 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 60000
+          "timeout": 120000
         }
       },
       "id": "b6d7a522-6c9a-4030-8f8b-2931f1aa9b2b",
@@ -234,7 +234,7 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 30000
+          "timeout": 120000
         }
       },
       "id": "2c544b63-c8c8-4a1b-8d4c-93a398de3aff",

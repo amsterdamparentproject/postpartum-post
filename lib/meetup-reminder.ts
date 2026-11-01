@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { sendMeetupReminderEmail } from "@/lib/emails";
 import { meetupStatusUrl } from "@/lib/meetup-token";
+import { forEachWithConcurrency } from "@/lib/concurrency";
 
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://postpartumpost.com";
 
@@ -68,6 +69,11 @@ export type MeetupReminderResult = {
  *   and /api/run-matcher, so integration tests can seed matches against a
  *   safe sentinel month instead of racing whatever "today" happens to be.
  */
+// Matches processed in parallel (each sends two emails in sequence). Serial
+// sending outran n8n's 30s timeout as the round grew. Kept small for Resend's
+// rate limit.
+const MATCH_CONCURRENCY = 3;
+
 export async function runMeetupReminder(testEmail?: string, monthOverride?: string): Promise<MeetupReminderResult> {
   const supabase = createAdminClient();
   const month = monthOverride ?? currentMonth();
@@ -97,14 +103,14 @@ export async function runMeetupReminder(testEmail?: string, monthOverride?: stri
     details: [],
   };
 
-  for (const match of matches ?? []) {
+  const processMatch = async (match: NonNullable<typeof matches>[number]) => {
     const m1 = (Array.isArray(match.member1) ? match.member1[0] : match.member1) as MemberRow | null;
     const m2 = (Array.isArray(match.member2) ? match.member2[0] : match.member2) as MemberRow | null;
 
     if (!m1 || !m2) {
       result.failed++;
       result.details.push({ matchId: match.id, status: "failed", reason: "missing member data" });
-      continue;
+      return;
     }
 
     if (!ELIGIBLE_STATUSES.includes(m1.status) || !ELIGIBLE_STATUSES.includes(m2.status)) {
@@ -114,7 +120,7 @@ export async function runMeetupReminder(testEmail?: string, monthOverride?: stri
         status: "skipped",
         reason: `${m1.first_name} status=${m1.status}, ${m2.first_name} status=${m2.status}`,
       });
-      continue;
+      return;
     }
 
     const recipients: [MemberRow, MemberRow][] = [
@@ -149,7 +155,9 @@ export async function runMeetupReminder(testEmail?: string, monthOverride?: stri
     if (sentTo.length && !matchFailed) {
       result.details.push({ matchId: match.id, status: "sent", recipients: sentTo });
     }
-  }
+  };
+
+  await forEachWithConcurrency(matches ?? [], MATCH_CONCURRENCY, processMatch);
 
   return result;
 }
