@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteDraftPair, createDraftPair, computeCandidateScores, type RoundData, type DraftMember, type DraftPair, type CandidateScore, type RecentMatchInfo } from "./actions";
+import { deleteDraftPair, createDraftPair, addMemberToRound, addMeToRound, computeCandidateScores, type RoundData, type DraftMember, type DraftPair, type CandidateScore, type RecentMatchInfo } from "./actions";
 import { ENABLE_TIME_OF_DAY } from "@/lib/flags";
 
 // ---------------------------------------------------------------------------
@@ -629,6 +629,93 @@ function NeedsMatchCard({
 // Checkmark toggle icon
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Add member to the pool (manual opt-in)
+// ---------------------------------------------------------------------------
+
+function AddMemberBox({
+  round,
+  onUpdate,
+}: {
+  round: RoundData;
+  onUpdate: (round: RoundData) => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [memberId, setMemberId] = useState("");
+  const [topic, setTopic] = useState<"coffee" | "playdate">("coffee");
+  const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
+
+  function submit(addMe = false) {
+    setMessage(null);
+    startTransition(async () => {
+      const result = addMe
+        ? await addMeToRound(round.id, topic, round.month)
+        : await addMemberToRound(round.id, memberId, topic, round.month);
+      if (!result.success) {
+        setMessage({ kind: "error", text: result.error });
+        return;
+      }
+      onUpdate(result.round);
+      setMemberId("");
+      setMessage({
+        kind: "ok",
+        text: result.warning
+          ? `Added to the pool. Note: ${result.warning}`
+          : "Added to the pool. They appear below as needing a match.",
+      });
+    });
+  }
+
+  return (
+    <div className="bg-white/80 backdrop-blur rounded-2xl border border-border shadow-sm p-5 space-y-3">
+      <div>
+        <p className="font-semibold text-dark text-sm">Add member to this round</p>
+        <p className="text-muted text-xs">
+          Opts the member into the pool as if they had answered the opt-in email. Then use “Assign match” to pair them.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={memberId}
+          onChange={(e) => setMemberId(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && memberId.trim() && !isPending) submit();
+          }}
+          placeholder="Full member ID (UUID)"
+          spellCheck={false}
+          className="flex-1 min-w-[16rem] text-xs border border-border rounded-lg px-3 py-1.5 text-dark bg-white font-mono"
+        />
+        <select
+          value={topic}
+          onChange={(e) => setTopic(e.target.value as "coffee" | "playdate")}
+          className="text-xs border border-border rounded-lg px-2 py-1.5 text-dark bg-white"
+        >
+          <option value="coffee">Coffee</option>
+          <option value="playdate">Playdate</option>
+        </select>
+        <button
+          onClick={() => submit()}
+          disabled={isPending || !memberId.trim()}
+          className="text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-50"
+        >
+          {isPending ? "Adding…" : "Add to pool"}
+        </button>
+        <button
+          onClick={() => submit(true)}
+          disabled={isPending}
+          title="Adds your own member (TEST_EMAIL) using the topic selected here"
+          className="text-xs px-3 py-1.5 border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-50"
+        >
+          Add me to match pool
+        </button>
+      </div>
+      {message && (
+        <p className={`text-xs ${message.kind === "error" ? "text-coral" : "text-green-700"}`}>{message.text}</p>
+      )}
+    </div>
+  );
+}
+
 function CheckCircleIcon({ solid = false }: { solid?: boolean }) {
   if (solid) {
     return (
@@ -857,6 +944,8 @@ export default function RoundView({ initialRound }: { initialRound: RoundData })
   return (
     <div className="space-y-6">
       <RoundSummary round={round} />
+
+      {round.status === "draft" && <AddMemberBox round={round} onUpdate={setRound} />}
 
       {round.unmatched.length > 0 && (
         <div className="bg-red-50 border border-red-300 rounded-2xl p-5 space-y-2">

@@ -8,7 +8,7 @@ import { ALEX_TEST_EMAIL, ensureAlexPastMatches } from "@/lib/test-fixtures/alex
 import { generateMatchToken } from "@/lib/match-token";
 import { devToolsEnabledFor, type DevDistance, type DevScenario } from "@/lib/dev-tools";
 import { buildDevMatch } from "@/lib/dev-match";
-import { getCohortNames } from "@/lib/cohort";
+import { getCohortNames, resolveCohortOnly } from "@/lib/cohort";
 import { cohortRevealFor } from "@/lib/cohort-reveal";
 import { getCohortConfig } from "@/lib/cohort-config";
 import {
@@ -495,6 +495,151 @@ export async function createDraftPair(
   const updated = await getRoundData(month);
   if (!updated) return { success: false, error: "Failed to reload round data." };
   return { success: true, round: updated };
+}
+
+// ---------------------------------------------------------------------------
+// addMemberToRound — put a member into this round's pool by hand
+// ---------------------------------------------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Admin equivalent of a member opting in (see optInFromMatches and
+ * /api/optin): writes the same monthly_participation row, so the member
+ * shows up under "could not be matched" and can be paired with the usual
+ * "Assign match" flow. It does not create a pair itself.
+ *
+ * - Works on a draft round only. Once a round is committed the matcher and
+ *   commit have already read monthly_participation, so a new row would be
+ *   silently ignored; use `yarn add-match` to backfill a pair instead.
+ * - Skips the opt-in deadline on purpose (that is the point of the tool).
+ * - Never overwrites an existing answer: already in the pool, or chose
+ *   perks-only, comes back as an error.
+ * - A skip row for the month is cleared, same as a member changing their
+ *   mind from skip to coffee/playdate.
+ * - cohort_only comes from the member's own setting (resolveCohortOnly), so
+ *   a "DSA only" member added here is still restricted to their cohort.
+ * - matches_remaining is not checked (admin override), but a warning is
+ *   returned when it is 0 because commit will have nothing to debit.
+ */
+export async function addMemberToRound(
+  roundId: string,
+  memberId: string,
+  topicName: "coffee" | "playdate",
+  month?: string
+): Promise<
+  { success: true; round: RoundData; warning?: string } | { success: false; error: string }
+> {
+  const id = memberId.trim();
+  if (!UUID_RE.test(id)) {
+    return { success: false, error: "That doesn't look like a full member ID (UUID)." };
+  }
+  if (topicName !== "coffee" && topicName !== "playdate") {
+    return { success: false, error: "Topic must be coffee or playdate." };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: round } = await supabase
+    .from("match_rounds")
+    .select("status, month")
+    .eq("id", roundId)
+    .single();
+
+  if (!round) return { success: false, error: "Round not found." };
+  if (round.status !== "draft") {
+    return {
+      success: false,
+      error: "This round is already committed or locked. Use `yarn add-match` to backfill a pair.",
+    };
+  }
+  const monthDate = round.month as string;
+
+  const { data: member } = await supabase
+    .from("members")
+    .select("id, first_name, status, matches_remaining")
+    .eq("id", id)
+    .maybeSingle();
+  if (!member) return { success: false, error: "No member with that ID." };
+
+  const [{ data: existingParticipation }, { data: existingPerks }, { data: topic }] = await Promise.all([
+    supabase.from("monthly_participation").select("id").eq("member_id", id).eq("month", monthDate).maybeSingle(),
+    supabase.from("monthly_perks").select("id").eq("member_id", id).eq("month", monthDate).maybeSingle(),
+    supabase.from("topics").select("id").eq("name", topicName).maybeSingle(),
+  ]);
+
+  if (existingParticipation) {
+    return { success: false, error: `${member.first_name} is already in this round's pool.` };
+  }
+  if (existingPerks) {
+    return {
+      success: false,
+      error: `${member.first_name} chose perks-only this month. Remove that row first if they should be matched instead.`,
+    };
+  }
+  if (!topic) return { success: false, error: "Topic lookup failed." };
+
+  let cohortOnly: boolean;
+  try {
+    cohortOnly = await resolveCohortOnly(supabase, id);
+  } catch (e) {
+    console.error("[addMemberToRound] cohort lookup failed:", e);
+    return { success: false, error: "Cohort lookup failed." };
+  }
+
+  // Clear a stale skip so the member isn't counted as both skipped and opted in.
+  await supabase.from("monthly_skips").delete().eq("member_id", id).eq("month", monthDate);
+
+  const { error: insertError } = await supabase
+    .from("monthly_participation")
+    .insert({ member_id: id, month: monthDate, topic_id: topic.id, cohort_only: cohortOnly });
+  if (insertError) {
+    if (insertError.code === "23505") {
+      return { success: false, error: `${member.first_name} is already in this round's pool.` };
+    }
+    console.error("[addMemberToRound] insert failed:", insertError);
+    return { success: false, error: "Could not add the member." };
+  }
+
+  await supabase.from("members").update({ consecutive_skips: 0 }).eq("id", id);
+
+  const updated = await getRoundData(month);
+  if (!updated) return { success: false, error: "Added, but failed to reload round data." };
+
+  const warnings: string[] = [];
+  if ((member.matches_remaining ?? 0) <= 0) {
+    warnings.push("has no matches remaining, so commit will have nothing to debit");
+  }
+  if (member.status !== "active" && member.status !== "canceling") {
+    warnings.push(`has status "${member.status}"`);
+  }
+  return {
+    success: true,
+    round: updated,
+    ...(warnings.length ? { warning: `${member.first_name} ${warnings.join("; ")}.` } : {}),
+  };
+}
+
+/**
+ * Shortcut for "add me": adds the admin's own member (TEST_EMAIL, default
+ * Alex's account, same convention as the test controls below) to the pool.
+ */
+export async function addMeToRound(
+  roundId: string,
+  topicName: "coffee" | "playdate",
+  month?: string
+): Promise<
+  { success: true; round: RoundData; warning?: string } | { success: false; error: string }
+> {
+  const supabase = createAdminClient();
+  const myEmail = process.env.TEST_EMAIL ?? ALEX_TEST_EMAIL;
+  const { data: me } = await supabase
+    .from("members")
+    .select("id")
+    .ilike("email", myEmail)
+    .maybeSingle();
+  if (!me) return { success: false, error: `No member found for ${myEmail}.` };
+  return addMemberToRound(roundId, me.id, topicName, month);
 }
 
 // ---------------------------------------------------------------------------
