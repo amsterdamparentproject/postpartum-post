@@ -10,11 +10,15 @@
  *   2. Distance     — Haversine from pair midpoint (all three tables have lat/lng)
  *   3. Age          — deferred until min_age_months / max_age_months columns exist
  *
- * postpartum_post filter: only rows with postpartum_post = true are shown.
+ * Source: events and locations come from Desk's signed feed
+ * (lib/desk-feed.ts), which owns eligibility (refined, tagged for Post, live)
+ * and expands recurring / multi-date events into one row per occurrence.
+ * Playgrounds are still read from the activities schema directly.
  */
 
 import { createActivitiesClient } from "@/lib/supabase";
 import { haversineKm } from "@/lib/geo-distance";
+import { getDeskFeed, type DeskEvent } from "@/lib/desk-feed";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,6 +50,8 @@ export interface Activity {
   tagline?: string | null;
   newsletter_description?: string | null;
   repeat_rrule?: string | null;
+  /** Every date (YYYY-MM-DD) the event happens in the match month, from Desk. */
+  occurrence_dates?: string[];
   /** Computed */
   score: number;
   isRecommended: boolean;
@@ -295,43 +301,6 @@ function scoreActivity(
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
-type RawEvent = {
-  id: string;
-  title: string;
-  description: string;
-  url: string | null;
-  organization: string | null;
-  location: string | null;
-  neighborhood: string | null;
-  area: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  categories: string[] | null;
-  age_categories: string[] | null;
-  start_date: string;
-  end_date: string | null;
-  start_time: string | null;
-  end_time: string | null;
-  day_of_week: string | null;
-  repeat_next_date: string | null;
-  tagline: string | null;
-  newsletter_description: string | null;
-  repeat_rrule: string | null;
-};
-
-type RawLocation = {
-  id: string;
-  name: string;
-  description: string | null;
-  url: string | null;
-  address: string | null;
-  neighborhood: string | null;
-  area: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  age_categories: string[] | null;
-};
-
 type RawPlayground = {
   id: string;
   name: string | null;
@@ -369,70 +338,41 @@ export async function fetchMatchActivities(
       .toISOString()
       .slice(0, 10);
 
-    const [eventsRes, locationsRes, playgroundsRes] = await Promise.all([
-      client
-        .from("events")
-        .select(
-          "id, title, description, url, organization, location, neighborhood, area, latitude, longitude, categories, age_categories, start_date, end_date, start_time, end_time, day_of_week, repeat_next_date, repeat_rrule, tagline, newsletter_description",
-        )
-        .eq("postpartum_post", true)
-        .neq("status", "new")
-        .neq("status", "archived")
-        // Include events where:
-        //   1. start_date falls within the match month
-        //   2. repeat_next_date falls within the match month
-        //   3. the match month overlaps the event's start_date–end_date range
-        //   4. recurring event whose repeat_next_date is in the future — walk-back
-        //      in JS will confirm whether an occurrence lands in this month
-        .or(
-          `and(start_date.gte.${monthStart},start_date.lt.${monthEnd}),` +
-          `and(repeat_next_date.gte.${monthStart},repeat_next_date.lt.${monthEnd}),` +
-          `and(start_date.lt.${monthEnd},end_date.gte.${monthStart}),` +
-          `repeat_next_date.gt.${monthEnd}`,
-        ),
+    // Month window as inclusive dates: Desk expands recurring and multi-date
+    // events into one row per occurrence and decides what is eligible.
+    const lastDay = new Date(new Date(monthEnd + "T00:00:00Z").getTime() - 86_400_000)
+      .toISOString()
+      .slice(0, 10);
 
-      client
-        .from("locations")
-        .select("id, name, description, url, address, neighborhood, area, latitude, longitude, age_categories")
-        .eq("postpartum_post", true),
-
+    const [feed, playgroundsRes] = await Promise.all([
+      getDeskFeed(monthStart, lastDay),
       client
         .from("playgrounds")
         .select("id, name, latitude, longitude, playground_type"),
     ]);
 
-    if (eventsRes.error) console.error("[activities] events query failed:", eventsRes.error.message);
-    if (locationsRes.error) console.error("[activities] locations query failed:", locationsRes.error.message);
+    if (!feed) console.error("[activities] Desk feed unavailable and no cached copy");
     if (playgroundsRes.error) console.error("[activities] playgrounds query failed:", playgroundsRes.error.message);
 
-    const today = new Date().toISOString().slice(0, 10);
-    const rawEvents = ((eventsRes.data ?? []) as RawEvent[]).filter((e) => {
-      // Drop events entirely in the past
-      const notPast =
-        (e.end_date != null && e.end_date >= today) ||
-        (e.repeat_next_date != null && e.repeat_next_date >= today) ||
-        e.start_date >= today;
-      if (!notPast) return false;
+    const m1Free = new Set(profile.member1Days.map((d) => d.toLowerCase()));
+    const m2Free = new Set(profile.member2Days.map((d) => d.toLowerCase()));
+    // Empty days = availability not set = free every day.
+    const bothFree = (e: DeskEvent) =>
+      (m1Free.size === 0 || m1Free.has(e.weekday.toLowerCase())) &&
+      (m2Free.size === 0 || m2Free.has(e.weekday.toLowerCase()));
 
-      // The effective display date must fall within the match month.
-      // For range events (condition 3), use start_date as the anchor instead.
-      const displayDate = e.repeat_next_date ?? e.start_date;
-      const inMonth = displayDate >= monthStart && displayDate < monthEnd;
-      const startInMonth = e.start_date >= monthStart && e.start_date < monthEnd;
-
-      // For recurring events fetched via condition 4 (future repeat_next_date),
-      // confirm a walk-back occurrence lands in this month.
-      const hasOccurrenceInMonth =
-        e.repeat_next_date != null &&
-        e.repeat_next_date > monthEnd &&
-        rruleOccurrenceInMonth(e.repeat_next_date, e.repeat_rrule, monthStart, monthEnd, e.day_of_week) !== null;
-
-      return inMonth || startInMonth || hasOccurrenceInMonth;
+    // One card per event: shown on the first date both members are free (or
+    // its first date), with every date kept for the calendar.
+    const byId = new Map<string, DeskEvent[]>();
+    for (const e of feed?.events ?? []) byId.set(e.id, [...(byId.get(e.id) ?? []), e]);
+    const rawEvents = [...byId.values()].map((occs) => {
+      const shown = occs.find(bothFree) ?? occs[0];
+      return { shown, dates: occs.map((o) => o.date) };
     });
-    const rawLocations = (locationsRes.data ?? []) as RawLocation[];
+    const rawLocations = feed?.locations ?? [];
 
     const candidates: Omit<Activity, "score" | "isRecommended">[] = [
-      ...rawEvents.map((e) => ({
+      ...rawEvents.map(({ shown: e, dates }) => ({
         id: e.id,
         kind: "event" as ActivityKind,
         title: e.title,
@@ -446,20 +386,16 @@ export async function fetchMatchActivities(
         lng: e.longitude,
         categories: e.categories ?? [],
         age_categories: e.age_categories ?? [],
-        start_date: e.start_date,
-        end_date: e.end_date,
+        start_date: e.date,
+        end_date: null,
         start_time: e.start_time,
         end_time: e.end_time,
-        day_of_week: e.day_of_week,
-        // For recurring events with a future repeat_next_date, substitute the
-        // in-month occurrence so scoring and display use the correct date.
-        repeat_next_date:
-          e.repeat_next_date != null && e.repeat_next_date > monthEnd
-            ? (rruleOccurrenceInMonth(e.repeat_next_date, e.repeat_rrule, monthStart, monthEnd, e.day_of_week) ?? e.repeat_next_date)
-            : e.repeat_next_date,
+        day_of_week: e.weekday,
+        repeat_next_date: e.recurring ? e.date : null,
         tagline: e.tagline,
         newsletter_description: e.newsletter_description,
         repeat_rrule: e.repeat_rrule,
+        occurrence_dates: dates,
       })),
       ...rawLocations.map((l) => ({
         id: l.id,

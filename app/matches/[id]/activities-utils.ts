@@ -167,6 +167,11 @@ export function calendarDates(
 ): string[] {
   if (a.kind !== "event") return [];
 
+  // Desk already expanded every occurrence (recurring and multi-date events).
+  if (a.occurrence_dates?.length) {
+    return a.occurrence_dates.filter((d) => d >= monthStart && d < monthEnd);
+  }
+
   const repeatDate = a.repeat_next_date?.slice(0, 10) ?? null;
   const startDate = a.start_date?.slice(0, 10) ?? null;
   const endDate = a.end_date?.slice(0, 10) ?? null;
