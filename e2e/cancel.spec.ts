@@ -2,7 +2,7 @@
  * Cancel subscription flow — E2E
  *
  * 1. Authenticated subscriber visits /billing
- * 2. Clicks "Cancel subscription"
+ * 2. Clicks "Cancel membership"
  * 3. Confirms the cancellation
  * 4. App calls Stripe + updates the DB
  * 5. Lands on /unsubscribe/confirmed
@@ -35,11 +35,11 @@ test("cancel subscription: billing page → confirm cancel → profile → subsc
     // Subscription details should be visible
     await expect(page.getByText(/3.month commitment|founding member/i)).toBeVisible({ timeout: 10_000 });
 
-    // ── Step 3: Click "Cancel subscription" ───────────────────────────────
-    await page.getByRole("button", { name: /cancel subscription/i }).click();
+    // ── Step 3: Click "Cancel membership" ───────────────────────────────
+    await page.getByRole("button", { name: /cancel membership/i }).click();
 
-    // Inline confirmation appears
-    await expect(page.getByText(/cancel your subscription\? you.ll keep any matches you have left/i)).toBeVisible();
+    // Confirmation dialog appears
+    await expect(page.getByRole("dialog", { name: /cancel your membership\?/i })).toBeVisible();
 
     // ── Step 4: Confirm the cancellation ──────────────────────────────────
     await page.getByRole("button", { name: "Yes, cancel" }).click();
@@ -57,7 +57,7 @@ test("cancel subscription: billing page → confirm cancel → profile → subsc
     // Stripe-driven "Cancels on" date.
     await expect(page.getByText(/^canceled/i)).toBeVisible({ timeout: 10_000 });
     // Cancel button should no longer be shown
-    await expect(page.getByRole("button", { name: /cancel subscription/i })).not.toBeVisible();
+    await expect(page.getByRole("button", { name: /cancel membership/i })).not.toBeVisible();
 
     // ── Step 7: Member status in DB should be 'canceling', not 'inactive' ────
     const status = await getMemberStatusByEmail(member.email);

@@ -15,6 +15,7 @@ import { FYP_LOOKUP_KEYS } from "@/lib/match-ledger";
 import { isComped, hasPerksAccess } from "@/lib/billing-mode";
 import PartnerCodeCard from "@/components/PartnerCodeCard";
 import ContinueOffer from "@/components/ContinueOffer";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 // Accepts either a Stripe unix timestamp (a real instant — formatted in the
 // viewer's local zone, as this always has) or a Date (deriveMemberStatusMessage's
@@ -78,6 +79,8 @@ function BillingContent() {
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const subscriptionLoading = !subscriptionLoaded;
   const [confirmCancel, setConfirmCancel] = useState(false);
+  // In the cancel dialog: cancel and also end the membership right away.
+  const [endNowOnCancel, setEndNowOnCancel] = useState(false);
   const [isPortalPending, startPortalTransition] = useTransition();
   const [isCancelPending, startCancelTransition] = useTransition();
 
@@ -114,15 +117,19 @@ function BillingContent() {
   // cancel_at_period_end: Stripe only collects money (billing plan), and a
   // member who cancels is left paused in Stripe until their matches run out.
   const isCanceling = member?.status === "canceling";
+  const roundsLeft = member?.matches_remaining ?? 0;
   const canceledStatusMessage: MemberStatusMessage | null =
     isCanceling && member
       ? {
           label:
-            member.matches_remaining > 0
-              ? `Canceled — ${member.matches_remaining} ${member.matches_remaining === 1 ? "match" : "matches"} left`
+            roundsLeft > 0
+              ? `Canceled — ${roundsLeft} ${roundsLeft === 1 ? "round" : "rounds"} left`
               : "Canceled",
           tone: "muted",
-          tooltip: "You won't be charged again. You keep your remaining matches until they're used.",
+          tooltip:
+            roundsLeft > 0
+              ? "You won't be charged again. You keep your remaining rounds until they're used."
+              : undefined,
         }
       : null;
 
@@ -231,45 +238,37 @@ function BillingContent() {
                 {!hasPerksAccess(member.billing_mode) && " Post Perks unlock when you continue."}
               </p>
               <div className="text-center">
-                {!confirmCancel ? (
-                  <button
-                    onClick={() => setConfirmCancel(true)}
-                    className="text-xs text-muted hover:text-dark transition"
-                  >
-                    Leave Postpartum Post
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted">
-                      Leave Postpartum Post?{" "}
-                      {member.matches_remaining > 0 && "Your unused free match will be forfeited. "}
-                      Nothing is being charged either way.
-                    </p>
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => {
-                          if (!member || !accessToken) return;
-                          startCancelTransition(() => unsubscribe(accessToken));
-                        }}
-                        disabled={isCancelPending}
-                        className="text-xs px-3 py-1.5 bg-dark text-white rounded-lg hover:bg-dark/80 transition disabled:opacity-60"
-                      >
-                        {isCancelPending ? "Leaving…" : "Yes, leave"}
-                      </button>
-                      <button
-                        onClick={() => setConfirmCancel(false)}
-                        className="text-xs px-3 py-1.5 border border-border rounded-lg text-muted hover:text-dark transition"
-                      >
-                        Never mind
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <button
+                  onClick={() => setConfirmCancel(true)}
+                  className="text-xs text-muted hover:text-dark transition"
+                >
+                  Leave Postpartum Post
+                </button>
               </div>
+              <ConfirmDialog
+                open={confirmCancel}
+                title="Leave Postpartum Post?"
+                cancelLabel="Stay"
+                confirmLabel="Yes, leave"
+                pendingLabel="Leaving…"
+                pending={isCancelPending}
+                onConfirm={() => {
+                  if (!member || !accessToken) return;
+                  startCancelTransition(() => unsubscribe(accessToken));
+                }}
+                onClose={() => setConfirmCancel(false)}
+              >
+                <p>
+                  {member.matches_remaining > 0 && "Your unused free match will be forfeited. "}
+                  Nothing is being charged either way.
+                </p>
+              </ConfirmDialog>
             </>
           ) : member?.status === "canceling" ? (
             <p className="text-sm text-muted">
-              Your membership is active — you&apos;ll keep receiving matches and won&apos;t be charged again.
+              {roundsLeft > 0
+                ? "You've canceled and won't be charged again. You keep your remaining rounds until they're used."
+                : "You've canceled and won't be charged again."}
             </p>
           ) : (
             <p className="text-sm text-muted">Membership ended.</p>
@@ -319,9 +318,11 @@ function BillingContent() {
 
             <hr className="border-border" />
 
-            <p className="text-xs text-muted leading-relaxed">
-              Skip any month from your monthly email — no penalty, no questions asked. Your match is saved for next time.
-            </p>
+            {!isCanceling && (
+              <p className="text-xs text-muted leading-relaxed">
+                Skip any month from your monthly email — no penalty, no questions asked. Your match is saved for next time.
+              </p>
+            )}
 
             <button
               onClick={handleManageBilling}
@@ -332,38 +333,87 @@ function BillingContent() {
             </button>
 
             {!subscription.cancel_at_period_end && !isCanceling && (
+              <>
               <div className="text-center">
-                {!confirmCancel ? (
-                  <button
-                    onClick={() => setConfirmCancel(true)}
-                    className="text-xs text-muted hover:text-dark transition"
-                  >
-                    Cancel subscription
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted">Cancel your subscription? You&apos;ll keep any matches you have left.</p>
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={() => {
-                          if (!member || !accessToken) return;
-                          startCancelTransition(() => unsubscribe(accessToken));
-                        }}
-                        disabled={isCancelPending}
-                        className="text-xs px-3 py-1.5 bg-dark text-white rounded-lg hover:bg-dark/80 transition disabled:opacity-60"
-                      >
-                        {isCancelPending ? "Cancelling…" : "Yes, cancel"}
-                      </button>
-                      <button
-                        onClick={() => setConfirmCancel(false)}
-                        className="text-xs px-3 py-1.5 border border-border rounded-lg text-muted hover:text-dark transition"
-                      >
-                        Never mind
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <button
+                  onClick={() => setConfirmCancel(true)}
+                  className="text-xs text-muted hover:text-dark transition"
+                >
+                  Cancel membership
+                </button>
               </div>
+              <ConfirmDialog
+                open={confirmCancel}
+                title="Cancel your membership?"
+                cancelLabel="Don't cancel"
+                confirmLabel={endNowOnCancel && roundsLeft > 0 ? "Cancel and end everything" : "Yes, cancel"}
+                pendingLabel="Canceling…"
+                pending={isCancelPending}
+                onConfirm={() => {
+                  if (!member || !accessToken) return;
+                  const endNow = endNowOnCancel && roundsLeft > 0;
+                  startCancelTransition(() => unsubscribe(accessToken, endNow ? { endNow: true } : undefined));
+                }}
+                onClose={() => {
+                  setConfirmCancel(false);
+                  setEndNowOnCancel(false);
+                }}
+              >
+                <p>End your membership anytime in your billing cycle, and you won&apos;t be charged again.</p>
+                {roundsLeft > 0 && (
+                  <>
+                    <p>
+                      <strong className="text-dark">
+                        You have {roundsLeft} {roundsLeft === 1 ? "round" : "rounds"} left.
+                      </strong>{" "}
+                      What would you like to do with {roundsLeft === 1 ? "it" : "them"}?
+                    </p>
+                    <fieldset className="space-y-2 pt-1" disabled={isCancelPending}>
+                      <legend className="sr-only">What happens to your remaining rounds</legend>
+                      <label
+                        className={`flex gap-3 items-start rounded-xl border p-3 cursor-pointer transition ${
+                          !endNowOnCancel ? "border-coral bg-coral/5" : "border-border"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="cancel-choice"
+                          className="mt-1"
+                          checked={!endNowOnCancel}
+                          onChange={() => setEndNowOnCancel(false)}
+                        />
+                        <span>
+                          <span className="block font-medium text-dark">Use my remaining rounds</span>
+                          <span className="block text-muted">
+                            We&apos;ll keep sending the monthly opt-in email until they&apos;re used.
+                          </span>
+                        </span>
+                      </label>
+                      <label
+                        className={`flex gap-3 items-start rounded-xl border p-3 cursor-pointer transition ${
+                          endNowOnCancel ? "border-coral bg-coral/5" : "border-border"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="cancel-choice"
+                          className="mt-1"
+                          checked={endNowOnCancel}
+                          onChange={() => setEndNowOnCancel(true)}
+                        />
+                        <span>
+                          <span className="block font-medium text-dark">End everything now</span>
+                          <span className="block text-muted">
+                            You&apos;ll get no more monthly opt-in emails, and your {roundsLeft}{" "}
+                            {roundsLeft === 1 ? "round" : "rounds"} will be forfeited. This can&apos;t be undone.
+                          </span>
+                        </span>
+                      </label>
+                    </fieldset>
+                  </>
+                )}
+              </ConfirmDialog>
+              </>
             )}
           </>
         )}
