@@ -59,7 +59,7 @@ export async function unsubscribe(accessToken: string, options?: { endNow?: bool
 
   await supabase
     .from("members")
-    .update({ status: "canceling" })
+    .update({ status: "canceling", canceled_at: new Date().toISOString() })
     .eq("id", memberId);
 
   if (options?.endNow) {

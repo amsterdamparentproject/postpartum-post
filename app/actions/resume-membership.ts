@@ -57,7 +57,7 @@ export async function resumeMembership(accessToken: string): Promise<ResumeMembe
     // finalizing them, the deletion webhook) isn't overwritten.
     const { error: updateError } = await supabase
       .from("members")
-      .update({ status: "active" })
+      .update({ status: "active", canceled_at: null })
       .eq("id", memberId)
       .eq("status", "canceling");
     if (updateError) throw new Error(`setting active failed: ${updateError.message}`);

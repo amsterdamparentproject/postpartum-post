@@ -34,6 +34,17 @@ describe("resumeMembership", () => {
     expect(await memberRow(memberId)).toEqual({ status: "active", matches_remaining: 2 });
   });
 
+  it("clears the cancel date", async () => {
+    const member = await seedMember({ status: "canceling", matches_remaining: 2 });
+    memberId = member.id;
+    await seedSubscription(memberId, { status: "active" });
+    await createTestSupabase().from("members").update({ canceled_at: new Date().toISOString() }).eq("id", memberId);
+
+    await resumeMembership(memberId);
+    const { data } = await createTestSupabase().from("members").select("canceled_at").eq("id", memberId).single();
+    expect(data?.canceled_at).toBeNull();
+  });
+
   it("works for a canceling member who has used up their rounds but is still waiting on renew-check", async () => {
     const member = await seedMember({ status: "canceling", matches_remaining: 0 });
     memberId = member.id;

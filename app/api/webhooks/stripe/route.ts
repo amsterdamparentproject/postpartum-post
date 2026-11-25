@@ -95,7 +95,8 @@ export async function POST(req: NextRequest) {
       .select("billing_mode")
       .eq("id", memberId)
       .maybeSingle();
-    const memberUpdate: { status: string; billing_mode?: string } = { status: "active" };
+    // canceled_at is cleared: a member who checks out again (rejoin) is no longer canceled.
+    const memberUpdate: { status: string; billing_mode?: string; canceled_at: null } = { status: "active", canceled_at: null };
     if (isComped(beforeCheckout?.billing_mode)) memberUpdate.billing_mode = "subscription";
 
     const { error: memberError } = await supabase

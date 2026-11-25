@@ -76,10 +76,12 @@ describe("unsubscribe — integration", () => {
     // Member transitions to 'canceling', not 'inactive' — they still have access.
     const { data: updatedMember } = await supabase
       .from("members")
-      .select("status")
+      .select("status, canceled_at")
       .eq("id", memberId)
       .single();
     expect(updatedMember?.status).toBe("canceling");
+    // The cancel date is recorded.
+    expect(updatedMember?.canceled_at).not.toBeNull();
   });
 
   it("throws and makes no DB writes if no active subscription exists", async () => {
