@@ -22,6 +22,7 @@ import { sendWelcomeEmail } from "../lib/emails/welcome.ts";
 import { sendUnsubscribedEmail } from "../lib/emails/unsubscribed.ts";
 import { createAdminClient } from "../lib/supabase.ts";
 import { sendOptinEmail } from "../lib/emails/optin.ts";
+import { sendCancelingExplainerEmail } from "../lib/emails/canceling-explainer.ts";
 import { sendCancellationConfirmedEmail } from "../lib/emails/cancellation-confirmed.ts";
 import { sendMatchRevealEmail } from "../lib/emails/match-reveal.ts";
 import type { BillingNotice } from "../lib/billing-notice.ts";
@@ -104,6 +105,9 @@ await send("optin-canceled", () =>
 // Sent right after cancel: with rounds kept, and with none left.
 await send("cancellation-confirmed", () => sendCancellationConfirmedEmail(TO, "Alex", 6));
 await send("cancellation-confirmed-no-rounds", () => sendCancellationConfirmedEmail(TO, "Alex", 0));
+
+// One-off to canceled members with rounds left.
+await send("canceling-explainer", () => sendCancelingExplainerEmail(TO, "Alex", 3, "2026-11-12T10:00:00Z"));
 
 // Track C4 — base args shared by every match-reveal variant below; only
 // the trailing BillingNotice differs. isRecipientInitiator pinned to
@@ -189,7 +193,7 @@ await send("partner-welcome", () =>
 );
 
 if (results.length === 0 && filter) {
-  console.error(`Unknown email name: "${filter}". Valid names: welcome, welcome-late, unsubscribed, optin, optin-canceled, cancellation-confirmed, cancellation-confirmed-no-rounds, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, rematch-confirmation-credited, member-update, meetup-reminder, pending-followup, partner-welcome`);
+  console.error(`Unknown email name: "${filter}". Valid names: welcome, welcome-late, unsubscribed, optin, optin-canceled, canceling-explainer, cancellation-confirmed, cancellation-confirmed-no-rounds, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, rematch-confirmation-credited, member-update, meetup-reminder, pending-followup, partner-welcome`);
   process.exit(1);
 }
 

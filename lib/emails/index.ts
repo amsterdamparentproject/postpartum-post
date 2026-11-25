@@ -9,3 +9,4 @@ export { sendCohortWelcomeEmail, sendCohortExistingMemberEmail } from "./welcome
 export { sendCohortContinueEmail } from "./continue-cohort";
 export { sendGiftedWelcomeEmail } from "./welcome-gifted";
 export { sendGiftedRoundsEmail } from "./gifted-rounds";
+export { sendCancelingExplainerEmail } from "./canceling-explainer";
