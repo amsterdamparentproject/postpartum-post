@@ -395,6 +395,54 @@ describe("POST /api/renew-check", () => {
     }
   });
 
+  it("sets a canceling member at zero inactive when no live subscription is left — nothing to cancel in Stripe", async () => {
+    // The subscription was deleted while they still had rounds, so the webhook
+    // left them "canceling"; nothing else would ever finalize them.
+    const member = await seedMember({ status: "canceling", matches_remaining: 0 });
+    memberId = member.id;
+    const sub = await seedSubscription(memberId, { status: "canceled" });
+
+    const res = await POST(makeRequest());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.inactivated).toBeGreaterThanOrEqual(1);
+    expect(body.errors.find((e: { memberId: string }) => e.memberId === member.id)).toBeUndefined();
+
+    const { data } = await createTestSupabase()
+      .from("members")
+      .select("status")
+      .eq("id", memberId)
+      .single();
+    expect(data?.status).toBe("inactive");
+    expect(mockCancel).not.toHaveBeenCalledWith(sub.stripe_subscription_id, expect.anything());
+  });
+
+  it("leaves a canceling member at zero with no live subscription alone while they have a match this month", async () => {
+    const member = await seedMember({ status: "canceling", matches_remaining: 0 });
+    memberId = member.id;
+    const partner = await seedMember({ status: "active", matches_remaining: 2 });
+    await seedSubscription(memberId, { status: "canceled" });
+    const monthDate = `${new Date().toISOString().slice(0, 7)}-01`;
+    try {
+      const { error } = await createTestSupabase()
+        .from("matches")
+        .insert({ member_id_1: member.id, member_id_2: partner.id, matched_on: monthDate });
+      expect(error).toBeNull();
+
+      const res = await POST(makeRequest());
+      expect(res.status).toBe(200);
+
+      const { data } = await createTestSupabase()
+        .from("members")
+        .select("status")
+        .eq("id", memberId)
+        .single();
+      expect(data?.status).toBe("canceling");
+    } finally {
+      await cleanupMember(partner.id);
+    }
+  });
+
   it("defers finalizing a canceling member at zero who has a perks-only month this month", async () => {
     // A perks-only month is an active month: no matches row, just a
     // 'perks_only' entitlement. The 10th must not cancel them mid-month.
