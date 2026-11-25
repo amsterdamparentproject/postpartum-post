@@ -1,11 +1,11 @@
 import { FROM, SITE_URL, getResend, bodySection, ctaButton, baseEmail, emailHeader, subjectPrefix } from "./base";
 
-function accessLine(matchesRemaining: number): string {
-  if (matchesRemaining > 0) {
-    const noun = matchesRemaining === 1 ? "match" : "matches";
-    return `You will not be charged again, and you still have <strong>${matchesRemaining} ${noun}</strong> left, which you're welcome to keep opting in to until they're used.`;
+function accessLine(roundsLeft: number): string {
+  if (roundsLeft > 0) {
+    const noun = roundsLeft === 1 ? "round" : "rounds";
+    return `You will not be charged again. You opted to keep using your remaining <strong>${roundsLeft} ${noun}</strong>, so you'll keep getting the monthly opt-in email until they're used. If you'd rather stop now, head to Billing and choose &ldquo;End everything now&rdquo;.`;
   }
-  return "You will not be charged again, and your access will end shortly.";
+  return "You will not be charged again, and you won't get any more opt-in emails from us.";
 }
 
 function cancellationConfirmedHtml(firstName: string, matchesRemaining: number): string {
@@ -16,12 +16,12 @@ function cancellationConfirmedHtml(firstName: string, matchesRemaining: number):
                                       Hi ${firstName},
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0 0 16px;line-height:1.4;mso-line-height-alt:22.4px">
-                                      This confirms your Postpartum Post subscription has been canceled. ${accessLine(matchesRemaining)}
+                                      This confirms your Postpartum Post membership has been canceled. ${accessLine(matchesRemaining)}
                                     </td></tr>
                                     <tr><td dir="ltr" style="font-size:16px;text-align:left;line-height:1.4;mso-line-height-alt:22.4px">
-                                      Changed your mind? You can resubscribe any time.
+                                      Changed your mind? You can resume or rejoin from your billing page any time.
                                     </td></tr>`) +
-    ctaButton("Manage subscription", `${SITE_URL}/billing`);
+    ctaButton("Go to Billing", `${SITE_URL}/billing`);
   return baseEmail(content);
 }
 
@@ -45,7 +45,7 @@ export async function sendCancellationConfirmedEmail(
   const { error } = await resend.emails.send({
     from: FROM,
     to: email,
-    subject: `${subjectPrefix()}Your subscription has been canceled`,
+    subject: `${subjectPrefix()}Your membership has been canceled`,
     html: cancellationConfirmedHtml(firstName, matchesRemaining),
   });
   if (error) {
