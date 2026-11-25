@@ -473,6 +473,36 @@ export async function getMemberStatusByEmail(email: string): Promise<string | nu
   return data?.status ?? null;
 }
 
+/**
+ * Insert a member who canceled but still has rounds left and no live
+ * subscription (the state "End everything now" has to finalize itself, since
+ * no Stripe deletion event is coming). Database only, no Stripe customer.
+ */
+export async function seedCancelingMember(
+  overrides: { firstName?: string; matchesRemaining?: number } = {}
+): Promise<SeededMember> {
+  const member = await seedMember({
+    firstName: overrides.firstName,
+    matchesRemaining: overrides.matchesRemaining ?? 2,
+  });
+  const { error } = await supabase()
+    .from("members")
+    .update({ status: "canceling", canceled_at: new Date().toISOString() })
+    .eq("id", member.id);
+  if (error) throw new Error(`seedCancelingMember failed: ${error.message}`);
+  return member;
+}
+
+/** Returns members.canceled_at (ISO string) or null if unset or no member has this email. */
+export async function getMemberCanceledAtByEmail(email: string): Promise<string | null> {
+  const { data } = await supabase()
+    .from("members")
+    .select("canceled_at")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  return data?.canceled_at ?? null;
+}
+
 /** Returns the member's cohort fields, or null if no member exists for this email. */
 export async function getMemberCohortByEmail(email: string): Promise<{
   cohort: string | null;
