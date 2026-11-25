@@ -7,6 +7,7 @@ import { geocodeZipcode } from "@/lib/matcher";
 import { requireMember } from "@/lib/require-member";
 import { currentMonth, monthToDate } from "@/lib/tokens";
 import { isComped, type BillingMode } from "@/lib/billing-mode";
+import { isRejoinEligible } from "@/lib/continue-offer";
 
 export type Availability = {
   days: string[];
@@ -43,6 +44,8 @@ export type MemberProfile = {
   cohort_only: boolean;
   /** True when the member can continue: their cohort has a continue offer (a promotion code is set), or they are an active comped member (regular price). */
   continue_offer: boolean;
+  /** True when the membership has ended and they can start a new one at regular prices (see isRejoinEligible). */
+  rejoin_offer: boolean;
   billing_mode: BillingMode;
 };
 
@@ -123,11 +126,13 @@ export async function getMemberProfile(accessToken: string): Promise<MemberProfi
   // Any other active comped member (no cohort, or a cohort with no code) can
   // continue at the regular price.
   if (!continueOffer) continueOffer = isComped(data.billing_mode) && data.status === "active";
+  const rejoinOffer = await isRejoinEligible(supabase, data);
   return {
     ...data,
     cohort_name: cohortName,
     cohort_only: data.cohort_only !== false,
     continue_offer: continueOffer,
+    rejoin_offer: rejoinOffer,
   } as MemberProfile;
 }
 

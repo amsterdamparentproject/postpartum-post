@@ -12,6 +12,32 @@ export { isContinuePlan, type ContinuePlan } from "@/lib/continue-offer-pricing"
 export type ContinueCheckoutResult = { url: string } | { error: string };
 
 /**
+ * Can this member start a fresh membership ("rejoin") at regular prices?
+ *
+ * True for a member whose membership has ended (inactive), or who canceled and
+ * has no rounds left. In both cases there must be no live (non-canceled)
+ * subscription row: a member with a live paused subscription uses Resume
+ * instead, and a second checkout would leave them with two subscriptions.
+ * The founding price and cohort discounts don't carry over. Only the regular
+ * plans are offered.
+ */
+export async function isRejoinEligible(
+  supabase: AdminClient,
+  member: { id: string; status: string; matches_remaining: number | null }
+): Promise<boolean> {
+  const ended =
+    member.status === "inactive" || (member.status === "canceling" && (member.matches_remaining ?? 0) <= 0);
+  if (!ended) return false;
+  const { data: live } = await supabase
+    .from("subscriptions")
+    .select("stripe_subscription_id")
+    .eq("member_id", member.id)
+    .neq("status", "canceled")
+    .limit(1);
+  return !live || live.length === 0;
+}
+
+/**
  * Starts a Stripe Checkout for a comped member who wants to keep going.
  *
  * Any active comped member can use it:
@@ -32,20 +58,23 @@ export async function createContinueCheckoutUrl(
 ): Promise<ContinueCheckoutResult> {
   const { data: member } = await supabase
     .from("members")
-    .select("id, email, first_name, last_name, status, billing_mode, cohort, stripe_customer_id")
+    .select("id, email, first_name, last_name, status, billing_mode, cohort, stripe_customer_id, matches_remaining")
     .eq("id", memberId)
     .maybeSingle();
 
-  if (!member || member.status !== "active" || !isComped(member.billing_mode)) {
-    return { error: "not_eligible" };
-  }
+  if (!member) return { error: "not_eligible" };
+  const comped = member.status === "active" && isComped(member.billing_mode);
+  // A returning member (see isRejoinEligible) pays the regular price: no cohort
+  // discount, whatever cohort they used to belong to.
+  const rejoin = !comped && (await isRejoinEligible(supabase, member));
+  if (!comped && !rejoin) return { error: "not_eligible" };
 
   const stripe = getStripe();
 
   // A cohort with a continue code gets its discount; no cohort, or a cohort with
   // no code, pays the regular price.
   let promotionCodeId: string | null = null;
-  if (member.cohort) {
+  if (comped && member.cohort) {
     const { data: cohort } = await supabase
       .from("cohorts")
       .select("continue_promo_code_id")
@@ -86,10 +115,10 @@ export async function createContinueCheckoutUrl(
     line_items: [{ price: price.id, quantity: 1 }],
     ...(promotionCodeId ? { discounts: [{ promotion_code: promotionCodeId }] } : {}),
     automatic_tax: { enabled: false },
-    metadata: { member_id: member.id, continue_offer: "1" },
+    metadata: { member_id: member.id, continue_offer: "1", ...(rejoin ? { rejoin: "1" } : {}) },
     success_url: `${SITE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
     // Not /canceled: that route marks the member "abandoned", which is only
-    // right for a signup that never finished. This member is already active.
+    // right for a signup that never finished. This member is already a member.
     cancel_url: `${SITE_URL}/billing`,
   });
 
@@ -98,7 +127,8 @@ export async function createContinueCheckoutUrl(
 }
 
 /**
- * The offer as the billing page shows it: a comped cohort member's discounted
+ * The offer as the billing page shows it. A returning member (see
+ * isRejoinEligible) gets the regular prices. Otherwise: a comped cohort member's discounted
  * prices (when the cohort has a continue promotion code), or the regular prices
  * for any other comped member (no cohort, or a cohort with no code). Null when
  * there's nothing to show.
@@ -109,10 +139,21 @@ export async function getContinueOfferForMember(
 ): Promise<import("@/lib/continue-offer-pricing").ContinueOfferDetails | null> {
   const { data: member } = await supabase
     .from("members")
-    .select("status, billing_mode, cohort")
+    .select("id, status, billing_mode, cohort, matches_remaining")
     .eq("id", memberId)
     .maybeSingle();
-  if (!member || member.status !== "active" || !isComped(member.billing_mode)) return null;
+  if (!member) return null;
+  const comped = member.status === "active" && isComped(member.billing_mode);
+  if (!comped) {
+    // A returning member sees the regular prices, never a cohort discount.
+    if (!(await isRejoinEligible(supabase, member))) return null;
+    try {
+      return await loadRegularContinuePlans(getStripe());
+    } catch (e) {
+      console.error("[continue-offer] loading the rejoin offer failed:", e);
+      return null;
+    }
+  }
 
   let promotionCodeId: string | null = null;
   if (member.cohort) {

@@ -264,14 +264,17 @@ function BillingContent() {
                 </p>
               </ConfirmDialog>
             </>
-          ) : member?.status === "canceling" ? (
-            <p className="text-sm text-muted">
-              {roundsLeft > 0
-                ? "You've canceled and won't be charged again. You keep your remaining rounds until they're used."
-                : "You've canceled and won't be charged again."}
-            </p>
           ) : (
-            <p className="text-sm text-muted">Membership ended.</p>
+            <>
+              <p className="text-sm text-muted">
+                {member?.status === "canceling" && roundsLeft > 0
+                  ? "You've canceled and won't be charged again. You keep your remaining rounds until they're used."
+                  : member?.status === "canceling"
+                  ? "You've canceled and won't be charged again."
+                  : "Your membership has ended."}
+              </p>
+              {member.rejoin_offer && accessToken && <ContinueOffer accessToken={accessToken} rejoin />}
+            </>
           )
         ) : (
           <>
@@ -324,13 +327,18 @@ function BillingContent() {
               </p>
             )}
 
-            <button
-              onClick={handleManageBilling}
-              disabled={isPortalPending}
-              className="w-full py-2 px-4 text-sm border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isPortalPending ? "Redirecting…" : "Manage billing →"}
-            </button>
+            {/* Nothing to manage once canceled (they're never charged again),
+                and the Stripe portal could change the plan outside our
+                canceling state. Resume brings it back. */}
+            {!isCanceling && (
+              <button
+                onClick={handleManageBilling}
+                disabled={isPortalPending}
+                className="w-full py-2 px-4 text-sm border border-border rounded-lg text-dark hover:border-coral hover:text-coral transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isPortalPending ? "Redirecting…" : "Manage billing →"}
+              </button>
+            )}
 
             {!subscription.cancel_at_period_end && !isCanceling && (
               <>

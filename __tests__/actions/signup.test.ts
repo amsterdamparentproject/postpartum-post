@@ -195,6 +195,17 @@ describe("signup action", () => {
     expect(mockCustomerCreate).not.toHaveBeenCalled();
   });
 
+  it.each(["inactive", "canceling"])("points a %s member to their account to resume or rejoin", async (status) => {
+    const supabase = createTestSupabase();
+    await supabase
+      .from("members")
+      .insert({ first_name: "Jane", last_name: "Doe", email: testEmail, status });
+
+    const result = await signup({ firstName: "Jane", lastName: "Doe", email: testEmail, plan: "commitment_3mo", eligibilityConfirmed: true, guidelinesAccepted: true });
+    expect(result).toEqual({ error: expect.stringContaining("Welcome back!") });
+    expect(mockCustomerCreate).not.toHaveBeenCalled();
+  });
+
   it("throws 'Price not found' if Stripe returns no matching price", async () => {
     mockPricesList.mockResolvedValue({ data: [] });
 
