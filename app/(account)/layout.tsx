@@ -2,6 +2,7 @@
 
 import PageLayout from "@/components/PageLayout";
 import AccountTabNav from "@/components/AccountTabNav";
+import CanceledMemberBanner from "@/components/CanceledMemberBanner";
 import { AccountProvider, useAccount } from "@/app/(account)/AccountContext";
 
 function AccountShell({ children }: { children: React.ReactNode }) {
@@ -10,6 +11,7 @@ function AccountShell({ children }: { children: React.ReactNode }) {
   return (
     <PageLayout>
       <main className="flex-1 px-6 pt-8 pb-28 md:pb-16 max-w-5xl mx-auto w-full">
+        {member && <CanceledMemberBanner />}
         {member && <AccountTabNav />}
         {children}
       </main>

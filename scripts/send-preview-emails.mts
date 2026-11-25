@@ -5,6 +5,9 @@
  * Pass an email name to send just that one (e.g. yarn emails:preview welcome)
  * Pass an email address first if you also want to filter (e.g. yarn emails:preview you@example.com welcome)
  *
+ * optin-canceled shows the canceled-member header and footer link;
+ * cancellation-confirmed(-no-rounds) are the emails sent right after cancel.
+ *
  * match-reveal has 6 variants covering Track C4's billing-notice states
  * (billing plan §3.3):
  *   match-reveal             — no notice (comped/FYP member, or the pre-C4 default)
@@ -19,6 +22,8 @@ import { sendWelcomeEmail } from "../lib/emails/welcome.ts";
 import { sendUnsubscribedEmail } from "../lib/emails/unsubscribed.ts";
 import { createAdminClient } from "../lib/supabase.ts";
 import { sendOptinEmail } from "../lib/emails/optin.ts";
+import { sendCancelingExplainerEmail } from "../lib/emails/canceling-explainer.ts";
+import { sendCancellationConfirmedEmail } from "../lib/emails/cancellation-confirmed.ts";
 import { sendMatchRevealEmail } from "../lib/emails/match-reveal.ts";
 import type { BillingNotice } from "../lib/billing-notice.ts";
 import { sendRematchConfirmationEmail } from "../lib/emails/rematch-confirmation.ts";
@@ -82,6 +87,27 @@ await send("optin-last-match", () =>
     true
   )
 );
+
+// A canceled member who still has rounds: header line + "End everything now" footer link.
+await send("optin-canceled", () =>
+  sendOptinEmail(
+    TO,
+    "Alex",
+    "https://postpartumpost.com/optin?action=coffee",
+    "https://postpartumpost.com/optin?action=playdate",
+    "https://postpartumpost.com/optin?action=perks",
+    "https://postpartumpost.com/optin?action=skip",
+    false,
+    { canceledRoundsLeft: 3 }
+  )
+);
+
+// Sent right after cancel: with rounds kept, and with none left.
+await send("cancellation-confirmed", () => sendCancellationConfirmedEmail(TO, "Alex", 6));
+await send("cancellation-confirmed-no-rounds", () => sendCancellationConfirmedEmail(TO, "Alex", 0));
+
+// One-off to canceled members with rounds left.
+await send("canceling-explainer", () => sendCancelingExplainerEmail(TO, "Alex", 3, "2026-11-12T10:00:00Z"));
 
 // Track C4 — base args shared by every match-reveal variant below; only
 // the trailing BillingNotice differs. isRecipientInitiator pinned to
@@ -167,7 +193,7 @@ await send("partner-welcome", () =>
 );
 
 if (results.length === 0 && filter) {
-  console.error(`Unknown email name: "${filter}". Valid names: welcome, welcome-late, unsubscribed, optin, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, rematch-confirmation-credited, member-update, meetup-reminder, pending-followup, partner-welcome`);
+  console.error(`Unknown email name: "${filter}". Valid names: welcome, welcome-late, unsubscribed, optin, optin-canceled, canceling-explainer, cancellation-confirmed, cancellation-confirmed-no-rounds, match-reveal, match-reveal-counter, match-reveal-last-match, match-reveal-quiet, match-reveal-loud, match-reveal-loud-gift, rematch-confirmation, rematch-confirmation-credited, member-update, meetup-reminder, pending-followup, partner-welcome`);
   process.exit(1);
 }
 

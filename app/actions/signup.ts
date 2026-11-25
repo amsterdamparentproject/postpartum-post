@@ -108,6 +108,16 @@ export async function signup(data: SignupFormData): Promise<SignupError | void> 
         return restartCheckout(existing.id, existing.stripe_customer_id, data, promotionCodeId);
       }
 
+      // A member who canceled or ended: the signup form can't start a second
+      // membership (it would collide with their existing row), but their
+      // account page can: Resume if a subscription is left, Rejoin if not.
+      if (existing?.status === "inactive" || existing?.status === "canceling") {
+        return {
+          error:
+            "Welcome back! You already have an account. Sign in to your account (we'll email you a link) to resume or rejoin your membership.",
+        };
+      }
+
       return { error: "You're already signed up! Check your email for your sign-in link, or contact us if you need help." };
     }
     await logError("signup.member_insert.failed", new Error(`members insert failed: ${error?.code ?? "no row returned"}`));

@@ -161,3 +161,52 @@ describe("opt-in email — comped cohort members (no Perks)", () => {
     expect(html).not.toContain("Live outside Amsterdam?");
   });
 });
+
+describe("opt-in email — canceled members", () => {
+  beforeEach(() => {
+    mockSend.mockClear();
+  });
+
+  async function sendCanceled(canceledRoundsLeft?: number | null): Promise<string> {
+    await sendOptinEmail(
+      "recipient@example.test",
+      "Robin",
+      "https://postpartumpost.com/api/optin?action=coffee",
+      "https://postpartumpost.com/api/optin?action=playdate",
+      "https://postpartumpost.com/api/optin?action=perks",
+      "https://postpartumpost.com/api/optin?action=skip",
+      false,
+      { canceledRoundsLeft }
+    );
+    return mockSend.mock.calls[0][0].html as string;
+  }
+
+  it("explains the cancellation and rounds left in a Heads up note under the skip line", async () => {
+    const html = await sendCanceled(3);
+    expect(html).toContain("Heads up:");
+    expect(html).toContain("your membership is canceled — meaning no further charge — but as you have 3 rounds left");
+    expect(html.indexOf("Heads up:")).toBeGreaterThan(html.indexOf("Skip this month"));
+    // No separate canceled paragraph at the top.
+    expect(html).not.toContain("Your membership is canceled</strong>");
+  });
+
+  it("uses the singular for one round", async () => {
+    const html = await sendCanceled(1);
+    expect(html).toContain("as you have 1 round left");
+  });
+
+  it("links to ending everything, with its own utm_content", async () => {
+    const html = await sendCanceled(2);
+    expect(html).toContain("End everything now");
+    expect(html).toContain("/billing?utm_source=email&utm_campaign=transactional&utm_content=end-everything");
+  });
+
+  it("adds nothing for members who haven't canceled", async () => {
+    for (const value of [undefined, null, 0]) {
+      mockSend.mockClear();
+      const html = await sendCanceled(value);
+      expect(html).not.toContain("Heads up:");
+      expect(html).not.toContain("End everything now");
+    }
+  });
+});

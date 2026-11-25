@@ -12,6 +12,8 @@ type AccountContextValue = {
    *  verify identity server-side rather than trusting a client-supplied id. */
   accessToken: string | null;
   member: MemberProfile | null;
+  /** Re-fetch the member row (e.g. after an action changed status or rounds). */
+  refreshMember: () => Promise<void>;
 };
 
 const AccountContext = createContext<AccountContextValue>({
@@ -19,6 +21,7 @@ const AccountContext = createContext<AccountContextValue>({
   email: null,
   accessToken: null,
   member: null,
+  refreshMember: async () => {},
 });
 
 export function useAccount() {
@@ -139,8 +142,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     };
   }, [accessToken]);
 
+  async function refreshMember() {
+    if (!accessToken) return;
+    const fresh = await getMemberProfile(accessToken);
+    if (fresh) setMember(fresh);
+  }
+
   return (
-    <AccountContext.Provider value={{ loading, email, accessToken, member }}>
+    <AccountContext.Provider value={{ loading, email, accessToken, member, refreshMember }}>
       {children}
     </AccountContext.Provider>
   );

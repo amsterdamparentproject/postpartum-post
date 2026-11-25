@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient();
   const { data: members, error } = await supabase
     .from("members")
-    .select("id, first_name, email, matches_remaining, cohort, cohort_only, billing_mode")
+    .select("id, first_name, email, status, matches_remaining, cohort, cohort_only, billing_mode")
     .or("status.eq.active,and(status.eq.canceling,matches_remaining.gt.0)");
 
   if (error) {
@@ -189,6 +189,9 @@ export async function POST(req: NextRequest) {
           cohortHeaderPreload: cohortConfig.headerPreload ?? null,
           cohortNote: cohortConfig.optinNote ?? null,
           cohortFreeMatch: isComped(member.billing_mode),
+          // A canceled member is only here because they still have rounds:
+          // say so, and offer to stop now.
+          canceledRoundsLeft: member.status === "canceling" ? member.matches_remaining : null,
         }
       );
       sent++;

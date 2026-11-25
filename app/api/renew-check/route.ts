@@ -93,6 +93,7 @@
  *     checked: number,
  *     billed: number,
  *     canceled: number,
+ *     inactivated: number,   // canceling at zero with no live subscription left
  *     skippedNoPaymentMethod: number,
  *     skippedOpenInvoice: number,
  *     errors: Array<{ memberId: string, error: string }>
@@ -147,6 +148,7 @@ const BATCH_CONCURRENCY = 20;
 type RenewOutcome =
   | { kind: "billed"; amount?: number; currency?: string }
   | { kind: "canceled" }
+  | { kind: "inactivated" }
   | { kind: "skipped_comped" }
   | { kind: "skipped_no_payment_method" }
   | { kind: "skipped_open_invoice"; invoiceId: string }
@@ -323,6 +325,11 @@ async function renewMember(
  * live match to meet — or, for perks-only, while this is still an active
  * month for them. So we wait: the next 10th, with neither that month,
  * finalizes them.
+ *
+ * A canceling member at zero with NO live subscription (it was deleted while
+ * they still had rounds, and the deletion webhook left them "canceling") has
+ * nothing to cancel and no event coming, so they are set "inactive" directly
+ * instead — after the same deferral above, so a live match still waits.
  */
 async function finalizeCancellation(
   member: { id: string },
@@ -372,8 +379,22 @@ async function finalizeCancellation(
       .maybeSingle();
 
     if (!sub?.stripe_subscription_id) {
-      // No live subscription to cancel — nothing to do.
-      return { kind: "no_op" };
+      // No live subscription to cancel, so no customer.subscription.deleted
+      // event is coming to set them "inactive" either: it already fired while
+      // they still had rounds, and the webhook deliberately left them
+      // "canceling" then. They have now used those rounds up, and nothing else
+      // would ever finalize them, so do it here. The status guard keeps a
+      // concurrent change (webhook, admin, endMembershipNow) from being
+      // overwritten. No farewell email: the webhook's one never fired, and
+      // they already got the cancellation confirmation.
+      if (dryRun) return { kind: "inactivated" };
+      const { error: inactivateError } = await supabase
+        .from("members")
+        .update({ status: "inactive" })
+        .eq("id", member.id)
+        .eq("status", "canceling");
+      if (inactivateError) throw new Error(`setting inactive failed: ${inactivateError.message}`);
+      return { kind: "inactivated" };
     }
 
     if (dryRun) return { kind: "canceled" };
@@ -472,6 +493,7 @@ export async function POST(req: NextRequest) {
 
   let billed = 0;
   let canceled = 0;
+  let inactivated = 0;
   let deferredActiveMatch = 0;
   let skippedComped = 0;
   let skippedNoPaymentMethod = 0;
@@ -511,12 +533,13 @@ export async function POST(req: NextRequest) {
       }
       if (outcome.kind === "billed") billed++;
       else if (outcome.kind === "canceled") canceled++;
+      else if (outcome.kind === "inactivated") inactivated++;
       else if (outcome.kind === "deferred_active_match") deferredActiveMatch++;
       else if (outcome.kind === "skipped_comped") skippedComped++;
       else if (outcome.kind === "skipped_no_payment_method") skippedNoPaymentMethod++;
       else if (outcome.kind === "skipped_open_invoice") skippedOpenInvoice++;
       else if (outcome.kind === "error") errors.push({ memberId: outcome.memberId, error: outcome.error });
-      // "no_op" — no live subscription, nothing to count.
+      // "no_op" — an active member with no live subscription, nothing to count.
     }
   }
 
@@ -525,6 +548,7 @@ export async function POST(req: NextRequest) {
     checked: candidates?.length ?? 0,
     billed,
     canceled,
+    inactivated,
     deferredActiveMatch,
     skippedComped,
     skippedNoPaymentMethod,

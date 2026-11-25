@@ -23,6 +23,8 @@
     "emails:preview": "tsx --env-file=.env.local scripts/send-preview-emails.mts",
     "cohort-continue:test": "tsx scripts/send-cohort-continue.mts test",
     "cohort-continue:prod": "NODE_ENV=production tsx scripts/send-cohort-continue.mts prod",
+    "canceling-explainer:test": "tsx scripts/send-canceling-explainer.mts test",
+    "canceling-explainer:prod": "NODE_ENV=production tsx scripts/send-canceling-explainer.mts prod",
     "meetup-reminder:test": "tsx scripts/send-meetup-reminder.mts test",
     "meetup-reminder:prod": "NODE_ENV=production tsx scripts/send-meetup-reminder.mts prod",
     "consent-link": "tsx scripts/gen-consent-link.mts",

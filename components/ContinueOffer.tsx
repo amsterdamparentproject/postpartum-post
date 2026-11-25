@@ -6,11 +6,12 @@ import { formatCents, type ContinueOfferDetails, type ContinuePlan } from "@/lib
 
 /**
  * "Keep going" buttons on the billing page of a comped member whose free
- * round is used. Prices come from Stripe. A cohort member sees their cohort's
+ * round is used, or (rejoin) of a member whose membership has ended, who pays
+ * the regular prices. Prices come from Stripe. A cohort member sees their cohort's
  * discount, already applied at Checkout; a member with no cohort (a gifted
  * membership) sees the regular prices (see lib/continue-offer.ts).
  */
-export default function ContinueOffer({ accessToken }: { accessToken: string }) {
+export default function ContinueOffer({ accessToken, rejoin = false }: { accessToken: string; rejoin?: boolean }) {
   const [offer, setOffer] = useState<ContinueOfferDetails | null>(null);
   const [isPending, startTransition] = useTransition();
   const [pendingPlan, setPendingPlan] = useState<ContinuePlan | null>(null);
@@ -48,7 +49,11 @@ export default function ContinueOffer({ accessToken }: { accessToken: string }) 
   return (
     <div className="space-y-3">
       <p className="text-sm text-dark font-medium">
-        {offer.discountText ? <>Keep going? Here&apos;s {offer.discountText} as a thank-you.</> : "Want to keep going? Pick how many rounds."}
+        {rejoin
+          ? "Welcome back! Pick how many rounds."
+          : offer.discountText
+          ? <>Keep going? Here&apos;s {offer.discountText} as a thank-you.</>
+          : "Want to keep going? Pick how many rounds."}
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         {offer.plans.map(({ plan, label, regularCents, offerCents }) => (

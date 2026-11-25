@@ -7,7 +7,7 @@ export default async function UnsubscribeConfirmed({
   searchParams: Promise<{ matches?: string }>;
 }) {
   const { matches } = await searchParams;
-  const matchesLeft = Math.max(parseInt(matches ?? "0", 10) || 0, 0);
+  const roundsLeft = Math.max(parseInt(matches ?? "0", 10) || 0, 0);
 
   return (
     <PageLayout>
@@ -18,29 +18,32 @@ export default async function UnsubscribeConfirmed({
             className="text-3xl text-dark mb-4"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            You&apos;ve been unsubscribed
+            You&apos;ve canceled your membership
           </h1>
           <p className="text-muted leading-relaxed mb-8">
-            Your subscription has been canceled. You won&apos;t be charged again
-            {matchesLeft > 0 ? (
+            You&apos;ve canceled your membership to Postpartum Post — you won&apos;t be charged again.{" "}
+            {roundsLeft > 0 ? (
               <>
-                , and you still have <strong>{matchesLeft} {matchesLeft === 1 ? "match" : "matches"}</strong> left
-                to use
+                You opted to keep using your remaining{" "}
+                <strong>
+                  {roundsLeft} {roundsLeft === 1 ? "round" : "rounds"}
+                </strong>
+                , so you&apos;ll hear from us next month to join the round. If you wish to end everything, you can
+                head back to Billing to change your preference at any time.
               </>
             ) : (
-              ", and you won't receive any more matches"
+              "You won't get any more opt-in emails from us."
             )}
-            . We&apos;ve also sent you a confirmation email.
-          </p>
-          <p className="text-muted text-sm leading-relaxed mb-10">
-            We hope you found value in Postpartum Post! If you ever want to come back — whether your little one is 3 months or 3 years old — the door is always open.
           </p>
           <Link
-            href="/"
+            href="/billing"
             className="py-3 px-6 bg-coral hover:bg-coral-dark text-white font-semibold rounded-lg transition"
           >
-            Back to home
+            Back to Billing
           </Link>
+          <p className="text-muted leading-relaxed mt-10">
+            We hope you found value in Postpartum Post! If you ever want to come back — whether your little one is 3 months or 3 years old — the door is always open.
+          </p>
         </div>
       </main>
     </PageLayout>
