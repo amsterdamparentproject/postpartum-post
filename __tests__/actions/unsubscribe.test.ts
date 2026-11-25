@@ -183,6 +183,82 @@ describe("unsubscribe — E2E", () => {
   });
 });
 
+describe("unsubscribe — endNow option", () => {
+  let memberId: string;
+
+  beforeEach(() => {
+    mockUpdate.mockReset();
+    mockUpdate.mockResolvedValue(stripeCancelResponse());
+    mockSendCancellationConfirmedEmail.mockReset();
+  });
+
+  afterEach(async () => {
+    if (memberId) {
+      await createTestSupabase().from("match_entitlements").delete().eq("member_id", memberId);
+      await cleanupMember(memberId);
+    }
+  });
+
+  async function ledger(id: string) {
+    const { data } = await createTestSupabase()
+      .from("match_entitlements")
+      .select("event, delta")
+      .eq("member_id", id);
+    return data ?? [];
+  }
+
+  it("keeps the remaining rounds when endNow isn't passed", async () => {
+    const member = await seedMember({ status: "active", matches_remaining: 3 });
+    memberId = member.id;
+    await seedSubscription(memberId, { status: "active" });
+
+    await unsubscribe(memberId);
+
+    const { data } = await createTestSupabase()
+      .from("members")
+      .select("status, matches_remaining")
+      .eq("id", memberId)
+      .single();
+    expect(data).toEqual({ status: "canceling", matches_remaining: 3 });
+    expect(await ledger(memberId)).toEqual([]);
+  });
+
+  it("cancels and forfeits the remaining rounds in one step with endNow", async () => {
+    const member = await seedMember({
+      status: "active",
+      email: "end-now-test@example.com",
+      first_name: "Robin",
+      matches_remaining: 3,
+    });
+    memberId = member.id;
+    await seedSubscription(memberId, { status: "active" });
+
+    await unsubscribe(memberId, { endNow: true });
+
+    // Collection is still only paused; renew-check finalizes the Stripe side at 0.
+    expect(mockUpdate).toHaveBeenCalledOnce();
+    const { data } = await createTestSupabase()
+      .from("members")
+      .select("status, matches_remaining")
+      .eq("id", memberId)
+      .single();
+    expect(data).toEqual({ status: "canceling", matches_remaining: 0 });
+    expect(await ledger(memberId)).toEqual([{ event: "canceled", delta: -3 }]);
+    // The confirmation reports the balance after forfeiting, not before.
+    expect(mockSendCancellationConfirmedEmail).toHaveBeenCalledWith("end-now-test@example.com", "Robin", 0);
+  });
+
+  it("writes no ledger entry with endNow when there is nothing to forfeit", async () => {
+    const member = await seedMember({ status: "active", matches_remaining: 0 });
+    memberId = member.id;
+    await seedSubscription(memberId, { status: "active" });
+
+    await unsubscribe(memberId, { endNow: true });
+
+    expect(await ledger(memberId)).toEqual([]);
+  });
+});
+
 describe("auth", () => {
   it("rejects calls without a valid session", async () => {
     await expect(unsubscribe("")).rejects.toThrow("Not authenticated");

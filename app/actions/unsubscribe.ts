@@ -7,9 +7,17 @@ import { requireMember } from "@/lib/require-member";
 import { sendCancellationConfirmedEmail } from "@/lib/emails";
 import { isComped } from "@/lib/billing-mode";
 import { recordEntitlement } from "@/lib/match-ledger";
+import { endMembership } from "@/lib/end-membership";
 import { monthToDate, currentMonth } from "@/lib/tokens";
 
-export async function unsubscribe(accessToken: string) {
+/**
+ * Cancels the member's subscription: stops billing and keeps their remaining
+ * rounds. With `endNow` they are also ended on the spot (remaining rounds
+ * forfeited, monthly opt-in emails stop). That is only ever an explicit choice
+ * made in the cancel dialog, never a side effect of canceling. If ending them
+ * fails, the cancellation itself still stands and they keep their rounds.
+ */
+export async function unsubscribe(accessToken: string, options?: { endNow?: boolean }) {
   // Identity comes from the verified session, never a client-supplied id
   // (security audit Finding 1; this action was missed in the original sweep).
   const authed = await requireMember(accessToken);
@@ -53,6 +61,14 @@ export async function unsubscribe(accessToken: string) {
     .from("members")
     .update({ status: "canceling" })
     .eq("id", memberId);
+
+  if (options?.endNow) {
+    try {
+      await endMembership(supabase, memberId);
+    } catch (e) {
+      console.error("[unsubscribe] ending membership after cancel failed (non-fatal, they keep their rounds):", e);
+    }
+  }
 
   // Immediate confirmation — compliance requirement from the Track E cutover review:
   // members previously heard nothing until the subscription actually deleted weeks
