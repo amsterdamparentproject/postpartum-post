@@ -38,6 +38,9 @@ export default function CanceledMemberBanner() {
         accessToken={accessToken}
         roundsLeft={roundsLeft}
         hasLiveSubscription={hasLiveSubscription}
+        // The card only mounts after the member has loaded (client-side), so
+        // reading the URL here can't mismatch the server render.
+        openEndDialog={new URLSearchParams(window.location.search).get("end") === "1"}
         onEnded={() => {
           refreshMember();
         }}

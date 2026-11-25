@@ -67,6 +67,15 @@ describe("POST /api/send-optin-email recipients", () => {
     expect(recipients()).toContain(m.email);
   });
 
+  it("tells the template a canceling member's rounds left, and nothing for an active member", async () => {
+    const canceling = await seed({ status: "canceling", matches_remaining: 2 });
+    const active = await seed({ status: "active", matches_remaining: 2 });
+    await POST(makeRequest());
+    const optionsFor = (email: string) => mockSend.mock.calls.find((c) => c[0] === email)?.[7];
+    expect(optionsFor(canceling.email)).toMatchObject({ canceledRoundsLeft: 2 });
+    expect(optionsFor(active.email)).toMatchObject({ canceledRoundsLeft: null });
+  });
+
   it("still sends to an active member at zero matches", async () => {
     const m = await seed({ status: "active", matches_remaining: 0 });
     await POST(makeRequest());

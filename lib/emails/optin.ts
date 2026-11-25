@@ -8,7 +8,21 @@ function lastMatchNoticeBillingUrl(): string {
   return `${SITE_URL}/billing?utm_source=email&utm_campaign=transactional&utm_content=last-match-notice`;
 }
 
+// Same per-link-purpose tracking convention as above: the "End everything now"
+// link for canceled members gets its own utm_content. `end=1` makes /billing
+// open the "End everything now" confirm dialog straight away.
+function endEverythingUrl(): string {
+  return `${SITE_URL}/billing?utm_source=email&utm_campaign=transactional&utm_content=end-everything&end=1`;
+}
+
 export type OptinEmailOptions = {
+  /**
+   * Set (to their remaining rounds) for a canceled member who is still using
+   * up rounds. Adds a "Heads up" note under the skip line explaining why they
+   * still get this email, with a link to end everything now. Left unset for
+   * everyone else.
+   */
+  canceledRoundsLeft?: number | null;
   /** False for comped_no_perks members: no Perks buttons or mentions. */
   perksEnabled?: boolean;
   /**
@@ -42,7 +56,20 @@ function optinHtml(
     cohortHeaderPreload = null,
     cohortNote = null,
     cohortFreeMatch = false,
+    canceledRoundsLeft = null,
   } = options;
+  const canceled = canceledRoundsLeft !== null && canceledRoundsLeft > 0;
+  const roundWord = canceledRoundsLeft === 1 ? "round" : "rounds";
+  // Under the "skip" line, in regular body text (not the soft footer style), so a
+  // member who canceled understands why they're still getting this email and
+  // can stop it.
+  const canceledNotice = canceled
+    ? bodySection(`
+                                    <tr><td dir="ltr" style="font-size:16px;text-align:left;padding:0;line-height:1.4;mso-line-height-alt:22.4px">
+                                      <strong>Heads up:</strong> We have it recorded that your membership is canceled — meaning no further charge — but as you have ${canceledRoundsLeft} ${roundWord} left, we're sending you an invitation to join this round. Done with Postpartum Post? <a href="${endEverythingUrl()}" style="color:#666666;text-decoration:underline">End everything now</a> to stop these emails.
+                                    </td></tr>`)
+    : "";
+
   // Billing plan §"Renewal timing" (Track E, 2026-08-26): the soft half of
   // the two-tier renewal notice. Fires a cycle earlier than the loud
   // match-reveal notice (lib/billing-notice.ts, Track C4) — while this
@@ -88,6 +115,7 @@ function optinHtml(
         ? `This is your free match from ${cohortName}. Need a break? You can <a href="${skipUrl}" style="color:#666666;text-decoration:underline">skip this month</a> and use your free match next month — we just can't guarantee that you'll be matched with another ${cohortName} member. If we don't hear from you by the 5th, your free match is used up.`
         : `Need a break? <a href="${skipUrl}" style="color:#666666;text-decoration:underline">Skip this month</a> for free. If we don't hear from you, we'll assume you don't want to be matched${perksEnabled ? " or access perks" : ""} this month.`}
                                     </td></tr>`) +
+    canceledNotice +
     lastMatchSection;
 
   return baseEmail(content, cohortHeaderPreload ?? undefined);

@@ -21,14 +21,17 @@ export default function CanceledMemberCard({
   accessToken,
   roundsLeft,
   hasLiveSubscription,
+  openEndDialog = false,
   onEnded,
 }: {
   accessToken: string;
   roundsLeft: number;
   hasLiveSubscription: boolean;
+  /** Open the "End everything now" dialog on mount (the link in the opt-in email). Ignored with no rounds left. */
+  openEndDialog?: boolean;
   onEnded: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(openEndDialog && roundsLeft > 0);
   const [done, setDone] = useState(false);
   const [endFailed, setEndFailed] = useState(false);
   const [resumeFailed, setResumeFailed] = useState(false);
@@ -152,7 +155,15 @@ export default function CanceledMemberCard({
           ) : undefined
         }
         onConfirm={confirmEnd}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false);
+          // Drop ?end=1 so a refresh doesn't reopen the dialog.
+          const url = new URL(window.location.href);
+          if (url.searchParams.has("end")) {
+            url.searchParams.delete("end");
+            window.history.replaceState(null, "", url);
+          }
+        }}
       >
         <p>
           You&apos;ll get no more monthly opt-in emails, and your remaining {roundsLeft} {roundWord} will be
